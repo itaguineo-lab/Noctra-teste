@@ -1,171 +1,151 @@
 const { getPlayer } = require('../core/player/playerService');
 const { inventoryCategoryMenu } = require('../menus/inventoryMenu');
-
-function getRarityEmoji(rarity) {
-    const map = {
-        Comum: '⚪',
-        Incomum: '🟢',
-        Raro: '🔵',
-        Épico: '🟣',
-        Lendário: '🟡',
-        Mítico: '🔴'
-    };
-
-    return map[rarity] || '⚪';
-}
+const { getRarityEmoji } = require('../core/player/souls');
 
 async function safeEdit(ctx, text, options = {}) {
-    try {
-        await ctx.editMessageText(text, options);
-    } catch (error) {
-        await ctx.reply(text, options);
-    }
+  try {
+    await ctx.editMessageText(text, options);
+  } catch {
+    await ctx.reply(text, options);
+  }
 }
 
 async function handleInventory(ctx) {
-    await safeEdit(
-        ctx,
-        '🎒 *Seu Inventário*\n\nEscolha uma categoria:',
-        {
-            parse_mode: 'Markdown',
-            ...inventoryCategoryMenu()
-        }
-    );
+  await safeEdit(ctx, '🎒 *Seu Inventário*
+
+Escolha uma categoria:', {
+    parse_mode: 'Markdown',
+    ...inventoryCategoryMenu()
+  });
+}
+
+function buildInventoryList(items, emptyText = 'Vazio...') {
+  if (!items.length) return emptyText;
+
+  return items.map(item => {
+    const rarity = getRarityEmoji(item.rarity || 'Comum');
+    const stats = [];
+
+    if (item.atk) stats.push(`⚔️ +${item.atk}`);
+    if (item.def) stats.push(`🛡️ +${item.def}`);
+    if (item.hp) stats.push(`❤️ +${item.hp}`);
+    if (item.crit) stats.push(`✨ +${item.crit}`);
+
+    return `${rarity} *${item.name}*
+${stats.length ? stats.join(' | ') : 'Sem atributos'}`;
+  }).join('
+
+');
 }
 
 async function handleInvWeapons(ctx) {
-    await renderCategory(ctx, 'weapon', '⚔️ ARMAS');
+  try {
+    const player = getPlayer(ctx.from.id);
+    const items = (player.inventory || []).filter(item => item?.slot === 'weapon');
+    const text = `⚔️ *ARMAS* (${items.length})
+
+${buildInventoryList(items, 'Nenhuma arma.')}`;
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
+  } catch (error) {
+    console.error('Erro ao carregar armas:', error);
+    await ctx.answerCbQuery('Erro ao carregar armas.');
+  }
 }
 
 async function handleInvArmors(ctx) {
-    await renderCategory(ctx, 'armor', '🛡️ ARMADURAS');
+  try {
+    const player = getPlayer(ctx.from.id);
+    const items = (player.inventory || []).filter(item => item?.slot === 'armor');
+    const text = `🛡️ *ARMADURAS* (${items.length})
+
+${buildInventoryList(items, 'Nenhuma armadura.')}`;
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
+  } catch (error) {
+    console.error('Erro ao carregar armaduras:', error);
+    await ctx.answerCbQuery('Erro ao carregar armaduras.');
+  }
 }
 
 async function handleInvJewelry(ctx) {
-    await renderCategory(ctx, 'accessory', '📿 ACESSÓRIOS');
+  try {
+    const player = getPlayer(ctx.from.id);
+    const items = (player.inventory || []).filter(item => item?.slot === 'accessory');
+    const text = `📿 *ACESSÓRIOS* (${items.length})
+
+${buildInventoryList(items, 'Nenhum acessório.')}`;
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
+  } catch (error) {
+    console.error('Erro ao carregar acessórios:', error);
+    await ctx.answerCbQuery('Erro ao carregar acessórios.');
+  }
 }
 
 async function handleInvConsumables(ctx) {
-    try {
-        const player = getPlayer(ctx.from.id);
+  try {
+    const player = getPlayer(ctx.from.id);
+    const consumables = player.consumables || {};
 
-        const inventory = player.inventory || [];
+    const text = `🧪 *CONSUMÍVEIS*
 
-        const hpPotions = inventory.filter(
-            item => item?.id === 'potion_hp'
-        ).length;
+` +
+      `❤️ Poções HP: ${consumables.potionHp || 0}
+` +
+      `⚡ Poções Energia: ${consumables.potionEnergy || 0}
+` +
+      `💪 Tônicos Força: ${consumables.tonicStrength || 0}
+` +
+      `🛡️ Tônicos Defesa: ${consumables.tonicDefense || 0}`;
 
-        const energyPotions = inventory.filter(
-            item => item?.id === 'potion_energy'
-        ).length;
-
-        const tonics = inventory.filter(
-            item => item?.id === 'tonic_strength'
-        ).length;
-
-        const text =
-            `🧪 *CONSUMÍVEIS*\n\n` +
-            `❤️ Poções HP: ${hpPotions}\n` +
-            `⚡ Poções Energia: ${energyPotions}\n` +
-            `💪 Tônicos Atk: ${tonics}`;
-
-        await safeEdit(ctx, text, {
-            parse_mode: 'Markdown',
-            ...inventoryCategoryMenu()
-        });
-    } catch (error) {
-        console.error('Erro ao carregar consumíveis:', error);
-        await ctx.answerCbQuery(
-            'Erro ao carregar consumíveis.'
-        );
-    }
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
+  } catch (error) {
+    console.error('Erro ao carregar consumíveis:', error);
+    await ctx.answerCbQuery('Erro ao carregar consumíveis.');
+  }
 }
 
 async function handleInvSouls(ctx) {
-    try {
-        const player = getPlayer(ctx.from.id);
+  try {
+    const player = getPlayer(ctx.from.id);
+    const soulsInventory = player.soulsInventory || [];
+    const equipped = player.soulsEquipped || [null, null];
 
-        const souls = player.souls || [];
+    let text = `💀 *ALMAS*
 
-        let text = `💀 *ALMAS* (${souls.length})\n\n`;
+`;
+    text += `📦 Inventário de almas (${soulsInventory.length})
+`;
 
-        if (!souls.length) {
-            text += 'Nenhuma alma obtida.';
-        } else {
-            souls.forEach((soul, index) => {
-                if (!soul) return;
-
-                text +=
-                    `${getRarityEmoji(soul.rarity)} ` +
-                    `${soul.emoji || '💀'} ` +
-                    `*${soul.name}*\n`;
-
-                text +=
-                    `Slot ${index + 1}\n\n`;
-            });
-        }
-
-        await safeEdit(ctx, text, {
-            parse_mode: 'Markdown',
-            ...inventoryCategoryMenu()
-        });
-    } catch (error) {
-        console.error('Erro ao carregar almas:', error);
-        await ctx.answerCbQuery(
-            'Erro ao carregar almas.'
-        );
+    if (!soulsInventory.length) {
+      text += `_Nenhuma alma obtida._
+`;
+    } else {
+      soulsInventory.forEach((soul, index) => {
+        text += `${index + 1}. ${soul.emoji || '💀'} *${soul.name}* — ${soul.rarity} \`\`${soul.instanceId || soul.id}\`\`
+`;
+      });
     }
-}
 
-async function renderCategory(ctx, slot, title) {
-    try {
-        const player = getPlayer(ctx.from.id);
+    text += `
+🧷 Equipadas (${equipped.filter(Boolean).length}/2)
+`;
+    equipped.forEach((soul, index) => {
+      text += soul ? `${index + 1}. ${soul.emoji || '💀'} *${soul.name}*
+` : `${index + 1}. ⬜ Slot vazio
+`;
+    });
 
-        const items = (player.inventory || []).filter(
-            item => item && item.slot === slot
-        );
-
-        let text = `*${title}* (${items.length})\n\n`;
-
-        if (!items.length) {
-            text += 'Nenhum item nesta categoria.';
-        } else {
-            items.forEach(item => {
-                text +=
-                    `${getRarityEmoji(item.rarity)} ` +
-                    `*${item.name}*\n`;
-
-                text +=
-                    `⚔️ +${item.atk || 0} | ` +
-                    `🛡️ +${item.def || 0} | ` +
-                    `✨ +${item.crit || 0}%\n`;
-
-                text +=
-                    `🆔 ${item.id}\n\n`;
-            });
-        }
-
-        await safeEdit(ctx, text, {
-            parse_mode: 'Markdown',
-            ...inventoryCategoryMenu()
-        });
-    } catch (error) {
-        console.error(
-            `Erro ao listar ${title}:`,
-            error
-        );
-
-        await ctx.answerCbQuery(
-            'Erro ao carregar itens.'
-        );
-    }
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
+  } catch (error) {
+    console.error('Erro ao carregar almas:', error);
+    await ctx.answerCbQuery('Erro ao carregar almas.');
+  }
 }
 
 module.exports = {
-    handleInventory,
-    handleInvWeapons,
-    handleInvArmors,
-    handleInvJewelry,
-    handleInvConsumables,
-    handleInvSouls
+  handleInventory,
+  handleInvWeapons,
+  handleInvArmors,
+  handleInvJewelry,
+  handleInvConsumables,
+  handleInvSouls
 };
