@@ -28,7 +28,8 @@ function renderFightText(fight) {
     return text;
 }
 
-async function safeEdit(ctx, text, options = {}) {
+// Função para editar a mensagem atual (a que chamou o callback)
+async function editMessage(ctx, text, options = {}) {
     try {
         await ctx.editMessageText(text, options);
     } catch (err) {
@@ -49,7 +50,7 @@ async function finishFight(ctx, fight) {
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
         
-        await safeEdit(ctx,
+        await editMessage(ctx,
             `🏆 *VITÓRIA!*\n\n📜 ${fight.logs.slice(-3).join('\n')}\n\n✨ +${rewards.xp} XP\n💰 +${rewards.gold} Ouro`,
             { parse_mode: 'Markdown', ...postCombatMenu() }
         );
@@ -60,7 +61,7 @@ async function finishFight(ctx, fight) {
         player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
-        await safeEdit(ctx,
+        await editMessage(ctx,
             `💀 *DERROTA...*\n\n${fight.logs.slice(-3).join('\n')}\n\nVocê reviveu com 25% de HP.`,
             { parse_mode: 'Markdown', ...postCombatMenu() }
         );
@@ -71,7 +72,7 @@ async function finishFight(ctx, fight) {
         player.hp = fight.player.hp;
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
-        await safeEdit(ctx,
+        await editMessage(ctx,
             `🏃 *FUGA*\n\n${fight.logs.slice(-3).join('\n')}`,
             { parse_mode: 'Markdown', ...postCombatMenu() }
         );
@@ -86,9 +87,10 @@ async function handleHunt(ctx) {
             return ctx.reply('❌ Perfil não encontrado.');
         }
         
+        // Se já existe combate ativo, apenas mostra novamente (edita a mensagem atual)
         if (activeFights.has(ctx.from.id)) {
             const fight = activeFights.get(ctx.from.id);
-            await safeEdit(ctx, renderFightText(fight), {
+            await editMessage(ctx, renderFightText(fight), {
                 parse_mode: 'Markdown',
                 ...combatMenu(fight)
             });
@@ -104,7 +106,8 @@ async function handleHunt(ctx) {
         const fight = createFight(player, enemy);
         activeFights.set(ctx.from.id, fight);
         
-        await ctx.reply(renderFightText(fight), {
+        // EDITAR a mensagem atual (a do menu) em vez de enviar nova
+        await editMessage(ctx, renderFightText(fight), {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
@@ -116,10 +119,10 @@ async function handleHunt(ctx) {
 
 async function handleAttack(ctx) {
     try {
-        await ctx.answerCbQuery(); // feedback imediato
+        await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
         if (!fight) {
-            return;
+            return ctx.answerCbQuery('Nenhum combate ativo.', true);
         }
         
         processPlayerTurn(fight, false);
@@ -131,7 +134,7 @@ async function handleAttack(ctx) {
             return;
         }
         
-        await safeEdit(ctx, renderFightText(fight), {
+        await editMessage(ctx, renderFightText(fight), {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
@@ -156,7 +159,7 @@ async function handleSkill(ctx) {
             return;
         }
         
-        await safeEdit(ctx, renderFightText(fight), {
+        await editMessage(ctx, renderFightText(fight), {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
@@ -181,7 +184,7 @@ async function handleSoul(ctx) {
             return;
         }
         
-        await safeEdit(ctx, renderFightText(fight), {
+        await editMessage(ctx, renderFightText(fight), {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
@@ -203,7 +206,7 @@ async function handleFlee(ctx) {
             return;
         }
         
-        await safeEdit(ctx, renderFightText(fight), {
+        await editMessage(ctx, renderFightText(fight), {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
