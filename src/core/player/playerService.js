@@ -3,28 +3,45 @@ const path = require('path');
 
 const playersFilePath = path.join(__dirname, '../../data/players.json');
 
+// Cache em memória: { playerId: playerObject }
+let playersCache = null;
+let saveTimeout = null;
+
 const BASE_STATS = {
     guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 },
     mago: { atk: 18, def: 4, hp: 80, crit: 8 },
     arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
 };
 
-function loadPlayers() {
+function loadPlayersToCache() {
     try {
-        if (!fs.existsSync(playersFilePath)) return {};
-        return JSON.parse(fs.readFileSync(playersFilePath, 'utf8'));
+        if (!fs.existsSync(playersFilePath)) {
+            playersCache = {};
+            return;
+        }
+        const data = fs.readFileSync(playersFilePath, 'utf8');
+        playersCache = JSON.parse(data);
     } catch (error) {
         console.error('Erro ao carregar jogadores:', error);
-        return {};
+        playersCache = {};
     }
 }
 
-function savePlayers(players) {
+function flushCacheToDisk() {
+    if (!playersCache) return;
     try {
-        fs.writeFileSync(playersFilePath, JSON.stringify(players, null, 2));
+        fs.writeFileSync(playersFilePath, JSON.stringify(playersCache, null, 2));
     } catch (error) {
         console.error('Erro ao salvar jogadores:', error);
     }
+}
+
+function scheduleSave() {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+        flushCacheToDisk();
+        saveTimeout = null;
+    }, 2000); // salva no disco a cada 2 segundos sem atividade
 }
 
 function createDefaultPlayer(id, name = 'Viajante') {
@@ -54,19 +71,22 @@ function createDefaultPlayer(id, name = 'Viajante') {
 }
 
 function getPlayer(id, name) {
-    const players = loadPlayers();
-    if (!players[id]) {
-        players[id] = createDefaultPlayer(id, name);
-        savePlayers(players);
+    if (playersCache === null) {
+        loadPlayersToCache();
     }
-    return players[id];
+    if (!playersCache[id]) {
+        playersCache[id] = createDefaultPlayer(id, name);
+        scheduleSave();
+    }
+    return playersCache[id];
 }
 
 function savePlayer(id, player) {
-    const players = loadPlayers();
-    player.updatedAt = Date.now();
-    players[id] = player;
-    savePlayers(players);
+    if (playersCache === null) {
+        loadPlayersToCache();
+    }
+    playersCache[id] = player;
+    scheduleSave();
 }
 
 function recalculateStats(player) {
@@ -76,7 +96,6 @@ function recalculateStats(player) {
     let maxHp = base.hp + (player.level - 1) * 20;
     let crit = base.crit;
 
-    // Equipamentos
     if (player.equipment) {
         Object.values(player.equipment).forEach(item => {
             if (!item) return;
@@ -87,7 +106,6 @@ function recalculateStats(player) {
         });
     }
 
-    // Almas equipadas
     if (player.souls && Array.isArray(player.souls)) {
         player.souls.forEach(soul => {
             if (!soul) return;
@@ -103,9 +121,14 @@ function recalculateStats(player) {
     player.atk = Math.max(1, atk);
     player.def = Math.max(0, def);
     player.maxHp = Math.max(10, maxHp);
-    player.crit = Math.min(50, crit); // cap de 50% crit
+    player.crit = Math.min(50, crit);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
     return player;
 }
 
-module.exports = { loadPlayers, savePlayer, getPlayer, recalculateStats, createDefaultPlayer };
+// Salva tudo ao encerrar o processo
+process.once('beforeExit', () => flushCacheToDisk());
+process.once('SIGINT', () => flushCacheToDisk());
+process.once('SIGTERM', () => flushCacheToDisk());
+
+module.exports = { getPlayer, savePlayer, recalculateStats, createDefaultPlayer };
