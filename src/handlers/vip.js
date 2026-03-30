@@ -1,54 +1,55 @@
-const { getPlayerSafe } = require('../utils/helpers');
+const { getPlayer } = require('../core/player/playerService');
 const { mainMenu } = require('../menus/mainMenu');
 
 async function safeEdit(ctx, text, options = {}) {
-    try {
-        await ctx.editMessageText(text, options);
-    } catch {
-        await ctx.reply(text, options);
-    }
+  try {
+    await ctx.editMessageText(text, options);
+  } catch {
+    await ctx.reply(text, options);
+  }
 }
 
 async function handleVip(ctx) {
-    try {
-        const player = getPlayerSafe(ctx.from.id);
+  try {
+    const player = getPlayer(ctx.from.id);
+    const vipActive = player.vip && player.vipExpires && new Date() < new Date(player.vipExpires);
 
-        let msg = `💎 *VIP*\n\n`;
+    let msg = `💎 *VIP*
 
-        const vipActive =
-            player.vip &&
-            player.vipExpires &&
-            new Date() < new Date(player.vipExpires);
+`;
 
-        if (vipActive) {
-            const expiry = new Date(
-                player.vipExpires
-            ).toLocaleDateString('pt-BR');
+    if (vipActive) {
+      const expiry = new Date(player.vipExpires).toLocaleDateString('pt-BR');
+      msg += `✨ VIP ativo até ${expiry}
 
-            msg += `✨ VIP ativo até ${expiry}\n\n`;
-        } else {
-            msg += `❌ Você não é VIP.\n\n`;
-        }
+`;
+    } else {
+      msg += `❌ Você não é VIP.
 
-        msg += `*Benefícios:*\n`;
-        msg += `⚡ Energia máxima: 40\n`;
-        msg += `⏱️ Regen: 1 a cada 3 min\n`;
-        msg += `💰 +50% recompensas\n`;
-        msg += `🎒 +10 slots\n`;
-        msg += `🎁 Baú extra diário\n\n`;
-
-        if (!vipActive) {
-            msg += `🛒 Adquira na loja do Castelo.`;
-        }
-
-        await safeEdit(ctx, msg, {
-            parse_mode: 'Markdown',
-            ...mainMenu()
-        });
-    } catch (error) {
-        console.error('Erro VIP:', error);
-        await ctx.answerCbQuery('Erro ao mostrar VIP.');
+`;
     }
+
+    msg += `*Benefícios:*
+`;
+    msg += `⚡ Energia máxima: 40
+`;
+    msg += `⏱️ Regen: 1 a cada 3 min
+`;
+    msg += `💰 +50% recompensas
+`;
+    msg += `🎒 +10 slots
+`;
+    msg += `🎁 Baú extra diário
+
+`;
+
+    if (!vipActive) msg += `🛒 Adquira na loja do Castelo.`;
+
+    await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
+  } catch (error) {
+    console.error('Erro VIP:', error);
+    await ctx.answerCbQuery('Erro ao mostrar VIP.');
+  }
 }
 
 module.exports = { handleVip };
