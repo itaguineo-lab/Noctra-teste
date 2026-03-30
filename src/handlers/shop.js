@@ -1,79 +1,66 @@
-const villageItems = [
-    {
-        id: 'hp_potion',
-        name: 'Poção de Vida',
-        type: 'consumable',
-        effect: 'hp',
-        quantity: 1,
-        currency: 'gold',
-        price: 50
-    },
-    {
-        id: 'energy_potion',
-        name: 'Poção de Energia',
-        type: 'consumable',
-        effect: 'energy',
-        quantity: 1,
-        currency: 'gold',
-        price: 60
-    },
-    {
-        id: 'strength_tonic',
-        name: 'Tônico de Força',
-        type: 'consumable',
-        effect: 'buff_atk',
-        quantity: 1,
-        currency: 'gold',
-        price: 120
-    }
-];
+const { getPlayerSafe } = require('../utils/helpers');
+const { savePlayer } = require('../core/player/playerService');
+const { processPurchase } = require('../core/economy/shopLogic');
+const { villageItems, castleItems, arenaItems } = require('../data/shop');
+const { shopTabsMenu, renderShop } = require('../menus/shopMenu');
+const { mainMenu } = require('../menus/mainMenu');
 
-const castleItems = [
-    {
-        id: 'vip_7d',
-        name: 'VIP 7 Dias',
-        type: 'vip',
-        days: 7,
-        currency: 'nox',
-        price: 18
-    },
-    {
-        id: 'castle_key',
-        name: 'Chave Sombria',
-        type: 'key',
-        value: 1,
-        currency: 'nox',
-        price: 5
+async function safeEdit(ctx, text, options = {}) {
+    try {
+        await ctx.editMessageText(text, options);
+    } catch {
+        await ctx.reply(text, options);
     }
-];
+}
 
-const arenaItems = [
-    {
-        id: 'arena_blade',
-        name: 'Lâmina da Arena',
-        type: 'equipment',
-        slot: 'weapon',
-        atk: 25,
-        def: 5,
-        crit: 5,
-        currency: 'glory',
-        price: 100
-    },
-    {
-        id: 'arena_armor',
-        name: 'Armadura do Campeão',
-        type: 'equipment',
-        slot: 'armor',
-        atk: 0,
-        def: 20,
-        hp: 50,
-        currency: 'glory',
-        price: 120
+async function handleShop(ctx) {
+    const player = getPlayerSafe(ctx.from.id);
+    const msg = `🛒 *Lojas de Noctra*\n💰 Ouro: ${player.gold} | 💎 Nox: ${player.nox} | 🏅 Glórias: ${player.glorias || 0}\n\nEscolha uma loja:`;
+    await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopTabsMenu() });
+}
+
+async function handleShopVillage(ctx) {
+    const player = getPlayerSafe(ctx.from.id);
+    const { text, keyboard } = renderShop('Vila (Ouro)', villageItems, player);
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
+}
+
+async function handleShopCastle(ctx) {
+    const player = getPlayerSafe(ctx.from.id);
+    const { text, keyboard } = renderShop('Castelo (Nox)', castleItems, player);
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
+}
+
+async function handleShopArena(ctx) {
+    const player = getPlayerSafe(ctx.from.id);
+    const { text, keyboard } = renderShop('Matadores (Glórias)', arenaItems, player);
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
+}
+
+async function handleBuy(ctx, itemId) {
+    const player = getPlayerSafe(ctx.from.id);
+    
+    // Buscar item nas três listas
+    let item = [...villageItems, ...castleItems, ...arenaItems].find(i => i.id === itemId);
+    if (!item) {
+        return ctx.answerCbQuery('Item inválido.', true);
     }
-];
+    
+    const result = processPurchase(player, item);
+    if (result.success) {
+        savePlayer(ctx.from.id, player);
+        await ctx.answerCbQuery(result.message, true);
+        // Recarrega a loja atual (precisa saber qual aba)
+        await handleShopVillage(ctx); // ou passar contexto da aba atual
+    } else {
+        await ctx.answerCbQuery(result.message, true);
+    }
+}
 
 module.exports = {
-    villageItems,
-    castleItems,
-    arenaItems
+    handleShop,
+    handleShopVillage,
+    handleShopCastle,
+    handleShopArena,
+    handleBuy
 };
