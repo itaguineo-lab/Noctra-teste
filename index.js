@@ -38,8 +38,19 @@ const { handleEquip, handleEquipSoul } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+// ===================== MIDDLEWARE DE LOG =====================
+bot.use((ctx, next) => {
+    if (ctx.callbackQuery) {
+        console.log(`📞 Callback recebido: ${ctx.callbackQuery.data} de ${ctx.from.id}`);
+    } else if (ctx.message && ctx.message.text) {
+        console.log(`💬 Mensagem: ${ctx.message.text} de ${ctx.from.id}`);
+    }
+    return next();
+});
+
 // ===================== COMANDOS /text =====================
 bot.start(async (ctx) => {
+    console.log(`🚀 Start command from ${ctx.from.id}`);
     await ctx.reply(
         `🌑 *Bem-vindo ao Noctra RPG*\n\nEscolha sua ação:`,
         { parse_mode: 'Markdown', ...mainMenu() }
@@ -55,8 +66,6 @@ bot.command('energy', handleEnergy);
 bot.command('vip', handleVip);
 bot.command('daily', handleDaily);
 bot.command('online', handleOnline);
-
-// Comandos especiais
 bot.command('rename', handleRename);
 bot.command('class', handleClass);
 bot.command('equip', handleEquip);
@@ -100,14 +109,15 @@ bot.action(/buy_(.+)/, (ctx) => handleBuy(ctx, ctx.match[1]));
 bot.action(/travel_to_(.+)/, handleTravelTo);
 bot.action('travel_locked', handleTravelLocked);
 
-// Categorias do inventário (definidas em inventory.js)
-bot.action('inv_weapons', require('./src/handlers/inventory').handleInvWeapons);
-bot.action('inv_armors', require('./src/handlers/inventory').handleInvArmors);
-bot.action('inv_jewelry', require('./src/handlers/inventory').handleInvJewelry);
-bot.action('inv_consumables', require('./src/handlers/inventory').handleInvConsumables);
-bot.action('inv_souls', require('./src/handlers/inventory').handleInvSouls);
+// Categorias do inventário
+const inventoryHandlers = require('./src/handlers/inventory');
+bot.action('inv_weapons', inventoryHandlers.handleInvWeapons);
+bot.action('inv_armors', inventoryHandlers.handleInvArmors);
+bot.action('inv_jewelry', inventoryHandlers.handleInvJewelry);
+bot.action('inv_consumables', inventoryHandlers.handleInvConsumables);
+bot.action('inv_souls', inventoryHandlers.handleInvSouls);
 
-// Ações de perfil (renomear/mudar classe via callback)
+// Ações de perfil
 bot.action('rename_help', async (ctx) => {
     await ctx.answerCbQuery('Use /rename <novo_nome>', true);
 });
@@ -117,29 +127,51 @@ bot.action('class_help', async (ctx) => {
 
 // ===================== TRATAMENTO DE ERROS =====================
 bot.catch((err, ctx) => {
-    console.error(`Erro para ${ctx.updateType}:`, err);
+    console.error(`❌ Erro para ${ctx.updateType}:`, err);
     ctx.reply('❌ Ocorreu um erro. Tente novamente.').catch(console.error);
 });
 
-// ===================== INICIALIZAÇÃO =====================
+// ===================== INICIALIZAÇÃO (POLLING FORÇADO) =====================
+const PORT = process.env.PORT || 3000;
+
+// Servidor HTTP apenas para manter o Render/Heroku ativo (não interfere no polling)
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Noctra RPG online (polling mode)');
+}).listen(PORT, () => {
+    console.log(`🌐 Servidor HTTP de keep-alive rodando na porta ${PORT}`);
+});
+
 (async () => {
     try {
+        // 🔥 CRÍTICO: Remove qualquer webhook existente para usar polling
+        const webhookInfo = await bot.telegram.getWebhookInfo();
+        if (webhookInfo.url) {
+            console.log(`⚠️ Webhook detectado: ${webhookInfo.url}. Removendo...`);
+            await bot.telegram.deleteWebhook();
+            console.log('✅ Webhook removido com sucesso.');
+        } else {
+            console.log('✅ Nenhum webhook ativo. Usando polling.');
+        }
+        
+        // Inicia o bot em modo polling
         await bot.launch();
-        console.log('✅ Noctra RPG está online!');
+        console.log('✅ Noctra RPG está online (polling mode)!');
+        console.log('🎮 Bot pronto para receber comandos e callbacks.');
     } catch (err) {
         console.error('❌ Falha ao iniciar o bot:', err);
+        process.exit(1);
     }
 })();
 
-// ===================== KEEP-ALIVE PARA RENDER =====================
-const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Noctra RPG online');
-}).listen(PORT, () => {
-    console.log(`🌐 Servidor HTTP ativo na porta ${PORT}`);
-});
-
 // Encerramento gracioso
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => {
+    console.log('🛑 Encerrando por SIGINT...');
+    bot.stop('SIGINT');
+    process.exit(0);
+});
+process.once('SIGTERM', () => {
+    console.log('🛑 Encerrando por SIGTERM...');
+    bot.stop('SIGTERM');
+    process.exit(0);
+});
