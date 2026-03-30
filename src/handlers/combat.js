@@ -28,17 +28,19 @@ function renderFightText(fight) {
     return text;
 }
 
-// Função para editar a mensagem atual (a que chamou o callback)
 async function editMessage(ctx, text, options = {}) {
     try {
         await ctx.editMessageText(text, options);
+        console.log('✅ Mensagem editada com sucesso');
     } catch (err) {
-        console.log('editMessageText falhou, usando reply:', err.message);
+        console.error('❌ Falha ao editar mensagem:', err.message);
+        // Fallback: envia uma nova mensagem
         await ctx.reply(text, options);
     }
 }
 
 async function finishFight(ctx, fight) {
+    console.log(`🏁 Finalizando combate para ${ctx.from.id}, status: ${fight.status}`);
     const player = getPlayer(ctx.from.id);
     
     if (fight.status === 'win') {
@@ -81,15 +83,16 @@ async function finishFight(ctx, fight) {
 }
 
 async function handleHunt(ctx) {
+    console.log(`🔍 handleHunt chamado por ${ctx.from.id}`);
     try {
         const player = getPlayer(ctx.from.id);
         if (!player) {
             return ctx.reply('❌ Perfil não encontrado.');
         }
         
-        // Se já existe combate ativo, apenas mostra novamente (edita a mensagem atual)
         if (activeFights.has(ctx.from.id)) {
             const fight = activeFights.get(ctx.from.id);
+            console.log(`⚔️ Combate já ativo para ${ctx.from.id}, reexibindo`);
             await editMessage(ctx, renderFightText(fight), {
                 parse_mode: 'Markdown',
                 ...combatMenu(fight)
@@ -105,8 +108,8 @@ async function handleHunt(ctx) {
         
         const fight = createFight(player, enemy);
         activeFights.set(ctx.from.id, fight);
+        console.log(`🎮 Novo combate criado para ${ctx.from.id} contra ${enemy.name}`);
         
-        // EDITAR a mensagem atual (a do menu) em vez de enviar nova
         await editMessage(ctx, renderFightText(fight), {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
@@ -118,17 +121,25 @@ async function handleHunt(ctx) {
 }
 
 async function handleAttack(ctx) {
+    console.log(`⚔️ handleAttack chamado por ${ctx.from.id}`);
     try {
         await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
         if (!fight) {
-            return ctx.answerCbQuery('Nenhum combate ativo.', true);
+            console.log(`❌ Nenhum combate ativo para ${ctx.from.id}`);
+            await ctx.answerCbQuery('Nenhum combate ativo.', true);
+            return;
         }
         
+        console.log(`🔨 Processando ataque para ${ctx.from.id}, status atual: ${fight.status}`);
         processPlayerTurn(fight, false);
+        console.log(`📊 Após ataque, status: ${fight.status}, HP inimigo: ${fight.enemy.hp}`);
+        
         if (fight.status === 'ongoing') {
             processEnemyTurn(fight);
+            console.log(`📊 Após turno inimigo, HP jogador: ${fight.player.hp}`);
         }
+        
         if (fight.status !== 'ongoing') {
             await finishFight(ctx, fight);
             return;
@@ -139,16 +150,20 @@ async function handleAttack(ctx) {
             ...combatMenu(fight)
         });
     } catch (err) {
-        console.error('Erro em handleAttack:', err);
+        console.error('❌ Erro em handleAttack:', err);
         await ctx.answerCbQuery('Erro no ataque. Tente novamente.');
     }
 }
 
 async function handleSkill(ctx) {
+    console.log(`✨ handleSkill chamado por ${ctx.from.id}`);
     try {
         await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
-        if (!fight) return;
+        if (!fight) {
+            console.log(`❌ Nenhum combate ativo para ${ctx.from.id}`);
+            return;
+        }
         
         processPlayerTurn(fight, true);
         if (fight.status === 'ongoing') {
@@ -164,12 +179,13 @@ async function handleSkill(ctx) {
             ...combatMenu(fight)
         });
     } catch (err) {
-        console.error('Erro em handleSkill:', err);
+        console.error('❌ Erro em handleSkill:', err);
         await ctx.answerCbQuery('Erro ao usar habilidade.');
     }
 }
 
 async function handleSoul(ctx) {
+    console.log(`💀 handleSoul chamado por ${ctx.from.id}`);
     try {
         await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
@@ -189,12 +205,13 @@ async function handleSoul(ctx) {
             ...combatMenu(fight)
         });
     } catch (err) {
-        console.error('Erro em handleSoul:', err);
+        console.error('❌ Erro em handleSoul:', err);
         await ctx.answerCbQuery('Erro ao usar alma.');
     }
 }
 
 async function handleFlee(ctx) {
+    console.log(`🏃 handleFlee chamado por ${ctx.from.id}`);
     try {
         await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
@@ -211,7 +228,7 @@ async function handleFlee(ctx) {
             ...combatMenu(fight)
         });
     } catch (err) {
-        console.error('Erro em handleFlee:', err);
+        console.error('❌ Erro em handleFlee:', err);
         await ctx.answerCbQuery('Erro ao fugir.');
     }
 }
