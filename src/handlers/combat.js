@@ -86,7 +86,6 @@ async function handleHunt(ctx) {
             return ctx.reply('❌ Perfil não encontrado.');
         }
         
-        // Verifica se já está em combate
         if (activeFights.has(ctx.from.id)) {
             const fight = activeFights.get(ctx.from.id);
             await safeEdit(ctx, renderFightText(fight), {
@@ -96,7 +95,6 @@ async function handleHunt(ctx) {
             return;
         }
         
-        // Gera inimigo baseado no mapa atual
         const mapId = player.currentMap || 'clareira_sombria';
         const enemy = getRandomEnemy(mapId, player.level);
         if (!enemy) {
@@ -106,7 +104,6 @@ async function handleHunt(ctx) {
         const fight = createFight(player, enemy);
         activeFights.set(ctx.from.id, fight);
         
-        // Envia nova mensagem de combate
         await ctx.reply(renderFightText(fight), {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
@@ -119,9 +116,9 @@ async function handleHunt(ctx) {
 
 async function handleAttack(ctx) {
     try {
+        await ctx.answerCbQuery(); // feedback imediato
         const fight = activeFights.get(ctx.from.id);
         if (!fight) {
-            await ctx.answerCbQuery('Nenhum combate ativo. Inicie uma caçada primeiro.');
             return;
         }
         
@@ -138,7 +135,6 @@ async function handleAttack(ctx) {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
-        await ctx.answerCbQuery(); // confirma o clique
     } catch (err) {
         console.error('Erro em handleAttack:', err);
         await ctx.answerCbQuery('Erro no ataque. Tente novamente.');
@@ -147,11 +143,9 @@ async function handleAttack(ctx) {
 
 async function handleSkill(ctx) {
     try {
+        await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
-        if (!fight) {
-            await ctx.answerCbQuery('Nenhum combate ativo.');
-            return;
-        }
+        if (!fight) return;
         
         processPlayerTurn(fight, true);
         if (fight.status === 'ongoing') {
@@ -166,7 +160,6 @@ async function handleSkill(ctx) {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
-        await ctx.answerCbQuery();
     } catch (err) {
         console.error('Erro em handleSkill:', err);
         await ctx.answerCbQuery('Erro ao usar habilidade.');
@@ -175,14 +168,11 @@ async function handleSkill(ctx) {
 
 async function handleSoul(ctx) {
     try {
+        await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
-        if (!fight) {
-            await ctx.answerCbQuery('Nenhum combate ativo.');
-            return;
-        }
+        if (!fight) return;
         
-        // Usa a primeira alma equipada (slot 0)
-        const result = useSoul(fight, 0);
+        useSoul(fight, 0);
         if (fight.status === 'ongoing') {
             processEnemyTurn(fight);
         }
@@ -195,7 +185,6 @@ async function handleSoul(ctx) {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
-        await ctx.answerCbQuery();
     } catch (err) {
         console.error('Erro em handleSoul:', err);
         await ctx.answerCbQuery('Erro ao usar alma.');
@@ -204,11 +193,9 @@ async function handleSoul(ctx) {
 
 async function handleFlee(ctx) {
     try {
+        await ctx.answerCbQuery();
         const fight = activeFights.get(ctx.from.id);
-        if (!fight) {
-            await ctx.answerCbQuery('Nenhum combate ativo.');
-            return;
-        }
+        if (!fight) return;
         
         attemptFlee(fight);
         if (fight.status !== 'ongoing') {
@@ -220,7 +207,6 @@ async function handleFlee(ctx) {
             parse_mode: 'Markdown',
             ...combatMenu(fight)
         });
-        await ctx.answerCbQuery();
     } catch (err) {
         console.error('Erro em handleFlee:', err);
         await ctx.answerCbQuery('Erro ao fugir.');
