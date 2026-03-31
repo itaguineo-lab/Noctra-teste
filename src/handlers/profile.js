@@ -1,9 +1,27 @@
-const { getPlayer } = require('../core/player/playerService');
-const { getXpToNextLevel } = require('../core/player/progression');
-const { getMapById, maps } = require('../core/world/maps');
+const {
+  getPlayer,
+  savePlayer
+} = require('../core/player/playerService');
+
+const {
+  getXpToNextLevel
+} = require('../core/player/progression');
+
+const {
+  getMapById,
+  maps
+} = require('../core/world/maps');
+
 const { Markup } = require('telegraf');
-const { progressBar, formatNumber } = require('../utils/formatters');
-const { getRarityEmoji } = require('../core/player/souls');
+
+const {
+  progressBar,
+  formatNumber
+} = require('../utils/formatters');
+
+const {
+  getRarityEmoji
+} = require('../core/player/souls');
 
 function getPlayerMap(player) {
   return getMapById(player.currentMap) || maps[0];
@@ -84,35 +102,34 @@ async function safeEdit(ctx, text, options = {}) {
   }
 }
 
-async function handleProfile(ctx) {
-  try {
-    const player = getPlayer(ctx.from.id);
+async function renderProfile(ctx) {
+  const player = getPlayer(ctx.from.id);
 
-    if (!player) {
-      return ctx.reply('❌ Perfil não encontrado.');
-    }
+  if (!player) {
+    return ctx.reply('❌ Perfil não encontrado.');
+  }
 
-    const xpNeeded = getXpToNextLevel(player.level);
-    const xpBar = progressBar(player.xp || 0, xpNeeded || 1, 8);
-    const hpBar = progressBar(player.hp || 0, player.maxHp || 1, 8);
-    const map = getPlayerMap(player);
+  const xpNeeded = getXpToNextLevel(player.level);
+  const xpBar = progressBar(player.xp || 0, xpNeeded || 1, 8);
+  const hpBar = progressBar(player.hp || 0, player.maxHp || 1, 8);
+  const map = getPlayerMap(player);
 
-    const equipmentText = buildEquipmentText(player);
-    const soulsText = buildSoulsText(player);
+  const equipmentText = buildEquipmentText(player);
+  const soulsText = buildSoulsText(player);
 
-    const skinText = player.skin
-      ? `🎨 Skin: ${player.skin.emoji || ''} ${player.skin.name || 'Sem nome'}`
-      : '🎨 Skin: Nenhuma';
+  const skinText = player.skin
+    ? `🎨 Skin: ${player.skin.emoji || ''} ${player.skin.name || 'Sem nome'}`
+    : '🎨 Skin: Nenhuma';
 
-    const xpPercent = Math.floor(
-      ((player.xp || 0) / (xpNeeded || 1)) * 100
-    );
+  const xpPercent = Math.floor(
+    ((player.xp || 0) / (xpNeeded || 1)) * 100
+  );
 
-    const hpPercent = Math.floor(
-      ((player.hp || 0) / (player.maxHp || 1)) * 100
-    );
+  const hpPercent = Math.floor(
+    ((player.hp || 0) / (player.maxHp || 1)) * 100
+  );
 
-    const profileMsg = `👤 *${player.name || ctx.from.first_name}* (${formatClassName(player.class)})
+  const profileMsg = `👤 *${player.name || ctx.from.first_name}* (${formatClassName(player.class)})
 
 ⭐ Nível ${player.level || 1}
 ✨ XP: ${formatNumber(player.xp || 0)} / ${formatNumber(xpNeeded || 1)}
@@ -142,29 +159,66 @@ ${equipmentText}
 💀 *Almas Equipadas (${(player.soulsEquipped || []).filter(Boolean).length}/2):*
 ${soulsText}`;
 
-    const keyboard = [
-      [
-        Markup.button.callback('📝 Renomear', 'rename_help'),
-        Markup.button.callback('🔄 Classe', 'class_help')
-      ],
-      [
-        Markup.button.callback('◀️ Voltar', 'menu')
-      ]
-    ];
+  const keyboard = [
+    [
+      Markup.button.callback('🛌 Descansar', 'rest_player')
+    ],
+    [
+      Markup.button.callback('📝 Renomear', 'rename_help'),
+      Markup.button.callback('🔄 Classe', 'class_help')
+    ],
+    [
+      Markup.button.callback('◀️ Voltar', 'menu')
+    ]
+  ];
 
-    await safeEdit(
-      ctx,
-      profileMsg,
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(keyboard)
-      }
-    );
+  await safeEdit(
+    ctx,
+    profileMsg,
+    {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard(keyboard)
+    }
+  );
+}
+
+async function handleProfile(ctx) {
+  return renderProfile(ctx);
+}
+
+async function handleRest(ctx) {
+  try {
+    const player = getPlayer(ctx.from.id);
+
+    if (!player) {
+      return ctx.answerCbQuery('Perfil não encontrado.', {
+        show_alert: true
+      });
+    }
+
+    if (player.hp >= player.maxHp) {
+      return ctx.answerCbQuery('❤️ HP já está cheio.', {
+        show_alert: true
+      });
+    }
+
+    if (player.energy < 1) {
+      return ctx.answerCbQuery('⚡ Energia insuficiente.', {
+        show_alert: true
+      });
+    }
+
+    player.energy -= 1;
+    player.hp = player.maxHp;
+
+    savePlayer(ctx.from.id, player);
+
+    return renderProfile(ctx);
   } catch (error) {
-    console.error('Erro no perfil:', error);
+    console.error('Erro ao descansar:', error);
 
     try {
-      await ctx.answerCbQuery('Erro ao carregar perfil.', {
+      await ctx.answerCbQuery('Erro ao descansar.', {
         show_alert: true
       });
     } catch {}
@@ -191,6 +245,7 @@ async function handleChangeClassAction(ctx) {
 
 module.exports = {
   handleProfile,
+  handleRest,
   handleRenameAction,
   handleChangeClassAction
 };
