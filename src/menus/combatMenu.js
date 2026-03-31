@@ -5,23 +5,23 @@ function combatMenu() {
     [
       Markup.button.callback(
         '🗡️ Atacar',
-        'attack'
+        'combat_attack'
       )
     ],
     [
       Markup.button.callback(
         '💀 Almas',
-        'soul'
+        'combat_soul'
       ),
       Markup.button.callback(
-        '🧪 Consumíveis',
-        'consumables'
+        '🧪 Poções',
+        'combat_consumables'
       )
     ],
     [
       Markup.button.callback(
         '🏃 Fugir',
-        'flee'
+        'combat_flee'
       )
     ]
   ]);
