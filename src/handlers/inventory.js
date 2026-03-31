@@ -1,6 +1,14 @@
-const { getPlayer } = require('../core/player/playerService');
-const { inventoryCategoryMenu } = require('../menus/inventoryMenu');
-const { getRarityEmoji } = require('../core/player/souls');
+const {
+  getPlayer
+} = require('../core/player/playerService');
+
+const {
+  inventoryCategoryMenu
+} = require('../menus/inventoryMenu');
+
+const {
+  getRarityEmoji
+} = require('../core/player/souls');
 
 async function safeEdit(ctx, text, options = {}) {
   try {
@@ -10,67 +18,61 @@ async function safeEdit(ctx, text, options = {}) {
     } else {
       await ctx.reply(text, options);
     }
-  } catch (err) {
-    console.error('Erro inventory:', err);
-
-    try {
-      await ctx.reply(text, options);
-    } catch {}
+  } catch {
+    await ctx.reply(text, options);
   }
 }
 
-function getInventoryArray(player) {
-  return Array.isArray(player.inventory) ? player.inventory : [];
+function getInventory(player) {
+  return Array.isArray(player.inventory)
+    ? player.inventory
+    : [];
 }
 
-function buildInventoryList(items, emptyText = 'Vazio...') {
+function renderList(items, emptyText) {
   if (!items.length) return emptyText;
 
   return items
-    .map((item) => {
-      const rarity = item.emoji || getRarityEmoji(item.rarity || 'Comum');
-      const stats = [];
+    .map(item => {
+      const emoji =
+        item.emoji ||
+        getRarityEmoji(
+          item.rarity || 'Comum'
+        );
 
-      if (item.atk) stats.push(`⚔️ +${item.atk}`);
-      if (item.def) stats.push(`🛡️ +${item.def}`);
-      if (item.hp) stats.push(`❤️ +${item.hp}`);
-      if (item.crit) stats.push(`💥 +${item.crit}%`);
-
-      return `${rarity} *${item.name}*\n${stats.length ? stats.join(' | ') : 'Sem atributos'}`;
+      return `${emoji} *${item.name}*`;
     })
-    .join('\n\n');
+    .join('\n');
 }
 
 async function handleInventory(ctx) {
   const player = getPlayer(ctx.from.id);
-  const inventory = getInventoryArray(player);
+  const inventory = getInventory(player);
 
-  const weaponCount = inventory.filter((item) => item?.slot === 'weapon').length;
-  const armorCount = inventory.filter((item) => item?.slot === 'armor').length;
-  const jewelryCount = inventory.filter(
-    (item) =>
-      item?.slot === 'accessory' ||
-      item?.slot === 'ring' ||
-      item?.slot === 'necklace'
-  ).length;
+  const weapons = inventory.filter(
+    i => i.slot === 'weapon'
+  );
 
-  const soulsCount = player.soulsInventory?.length || 0;
-  const skinsCount = player.skins?.length || 0;
-  const consumablesCount = Object.values(player.consumables || {}).reduce(
-    (sum, value) => sum + (Number(value) || 0),
-    0
+  const armors = inventory.filter(
+    i => i.slot === 'armor'
+  );
+
+  const jewelry = inventory.filter(
+    i =>
+      i.slot === 'accessory' ||
+      i.slot === 'ring'
   );
 
   await safeEdit(
     ctx,
     `🎒 *INVENTÁRIO*
 
-⚔️ Armas: ${weaponCount}
-🛡️ Armaduras: ${armorCount}
-💎 Jóias: ${jewelryCount}
-🧪 Consumíveis: ${consumablesCount}
-🎨 Skins: ${skinsCount}
-💀 Almas: ${soulsCount}
+⚔️ Armas: ${weapons.length}
+🛡️ Armaduras: ${armors.length}
+💎 Jóias: ${jewelry.length}
+💀 Almas: ${
+      player.soulsInventory?.length || 0
+    }
 
 Escolha uma categoria:`,
     {
@@ -81,16 +83,18 @@ Escolha uma categoria:`,
 }
 
 async function handleInvWeapons(ctx) {
-  const player = getPlayer(ctx.from.id);
-  const inventory = getInventoryArray(player);
-
-  const items = inventory.filter((item) => item?.slot === 'weapon');
+  const items = getInventory(
+    getPlayer(ctx.from.id)
+  ).filter(i => i.slot === 'weapon');
 
   await safeEdit(
     ctx,
-    `⚔️ *ARMAS* (${items.length})
+    `⚔️ *ARMAS*
 
-${buildInventoryList(items, 'Nenhuma arma encontrada.')}`,
+${renderList(
+      items,
+      'Nenhuma arma.'
+    )}`,
     {
       parse_mode: 'Markdown',
       ...inventoryCategoryMenu()
@@ -99,18 +103,18 @@ ${buildInventoryList(items, 'Nenhuma arma encontrada.')}`,
 }
 
 async function handleInvArmors(ctx) {
-  const player = getPlayer(ctx.from.id);
-  const inventory = getInventoryArray(player);
-
-  const items = inventory.filter(
-    (item) => item?.slot === 'armor' || item?.slot === 'boots'
-  );
+  const items = getInventory(
+    getPlayer(ctx.from.id)
+  ).filter(i => i.slot === 'armor');
 
   await safeEdit(
     ctx,
-    `🛡️ *ARMADURAS* (${items.length})
+    `🛡️ *ARMADURAS*
 
-${buildInventoryList(items, 'Nenhuma armadura encontrada.')}`,
+${renderList(
+      items,
+      'Nenhuma armadura.'
+    )}`,
     {
       parse_mode: 'Markdown',
       ...inventoryCategoryMenu()
@@ -119,21 +123,22 @@ ${buildInventoryList(items, 'Nenhuma armadura encontrada.')}`,
 }
 
 async function handleInvJewelry(ctx) {
-  const player = getPlayer(ctx.from.id);
-  const inventory = getInventoryArray(player);
-
-  const items = inventory.filter(
-    (item) =>
-      item?.slot === 'accessory' ||
-      item?.slot === 'ring' ||
-      item?.slot === 'necklace'
+  const items = getInventory(
+    getPlayer(ctx.from.id)
+  ).filter(
+    i =>
+      i.slot === 'accessory' ||
+      i.slot === 'ring'
   );
 
   await safeEdit(
     ctx,
-    `💎 *JÓIAS* (${items.length})
+    `💎 *JÓIAS*
 
-${buildInventoryList(items, 'Nenhuma jóia encontrada.')}`,
+${renderList(
+      items,
+      'Nenhuma jóia.'
+    )}`,
     {
       parse_mode: 'Markdown',
       ...inventoryCategoryMenu()
@@ -142,37 +147,18 @@ ${buildInventoryList(items, 'Nenhuma jóia encontrada.')}`,
 }
 
 async function handleInvConsumables(ctx) {
-  const player = getPlayer(ctx.from.id);
-  const consumables = player.consumables || {};
+  const c =
+    getPlayer(ctx.from.id)
+      .consumables || {};
 
   await safeEdit(
     ctx,
     `🧪 *CONSUMÍVEIS*
 
-❤️ Poções HP: ${consumables.potionHp || 0}
-⚡ Poções Energia: ${consumables.potionEnergy || 0}
-💪 Tônicos Força: ${consumables.tonicStrength || 0}
-🛡️ Tônicos Defesa: ${consumables.tonicDefense || 0}`,
-    {
-      parse_mode: 'Markdown',
-      ...inventoryCategoryMenu()
-    }
-  );
-}
-
-async function handleInvSkins(ctx) {
-  const player = getPlayer(ctx.from.id);
-  const skins = Array.isArray(player.skins) ? player.skins : [];
-
-  const text = skins.length
-    ? skins.map((skin) => `🎨 *${skin.name}*`).join('\n')
-    : 'Nenhuma skin desbloqueada.';
-
-  await safeEdit(
-    ctx,
-    `🎨 *SKINS* (${skins.length})
-
-${text}`,
+❤️ HP: ${c.potionHp || 0}
+⚡ Energia: ${
+      c.potionEnergy || 0
+    }`,
     {
       parse_mode: 'Markdown',
       ...inventoryCategoryMenu()
@@ -181,20 +167,18 @@ ${text}`,
 }
 
 async function handleInvSouls(ctx) {
-  const player = getPlayer(ctx.from.id);
-  const souls = Array.isArray(player.soulsInventory) ? player.soulsInventory : [];
-
-  const text = souls.length
-    ? souls
-        .map((soul) => `${soul.emoji || '💀'} *${soul.name}*`)
-        .join('\n')
-    : 'Nenhuma alma obtida.';
+  const souls =
+    getPlayer(ctx.from.id)
+      .soulsInventory || [];
 
   await safeEdit(
     ctx,
-    `💀 *ALMAS* (${souls.length})
+    `💀 *ALMAS*
 
-${text}`,
+${renderList(
+      souls,
+      'Nenhuma alma.'
+    )}`,
     {
       parse_mode: 'Markdown',
       ...inventoryCategoryMenu()
@@ -208,6 +192,5 @@ module.exports = {
   handleInvArmors,
   handleInvJewelry,
   handleInvConsumables,
-  handleInvSkins,
   handleInvSouls
 };
