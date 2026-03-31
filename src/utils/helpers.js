@@ -1,8 +1,8 @@
 const { getPlayer, recalculateStats } = require('../core/player/playerService');
-const { updateEnergy } = require('../services/energyService');
+const { updateEnergy, getTimeToNextEnergy } = require('../services/energyService');
 const { getXpToNextLevel } = require('../core/player/progression');
 const { getMapById, maps } = require('../core/world/maps');
-const { progressBar, formatNumber } = require('./formatters');
+const { progressBar, formatNumber, formatTime } = require('./formatters');
 
 function getPlayerSafe(id) {
   const player = getPlayer(id);
@@ -30,34 +30,25 @@ function getMainMenuText(player, username) {
   const xpNeeded = getXpToNextLevel(player.level);
   const vipStatus = player.vip ? '✨ *VIP*' : '👤 Comum';
   const location = getPlayerLocation(player);
+  const nextEnergyTime = getTimeToNextEnergy(player);
+  const energyTimeStr = nextEnergyTime > 0 ? ` (próx. em ${formatTime(nextEnergyTime)})` : ' (cheia)';
 
-  let text = `🌙 *NOCTRA RPG*
-`;
-  text += `━━━━━━━━━━━━━━
-`;
-  text += `🤴 *${player.name || username}* | ${vipStatus}
-`;
-  text += `🏹 Classe: ${player.class.charAt(0).toUpperCase() + player.class.slice(1)}
-`;
-  text += `🆙 Nível: ${player.level}
+  let text = `🌙 *NOCTRA RPG*\n`;
+  text += `━━━━━━━━━━━━━━\n`;
+  text += `🤴 *${player.name || username}* | ${vipStatus}\n`;
+  text += `🏹 Classe: ${player.class.charAt(0).toUpperCase() + player.class.slice(1)}\n`;
+  text += `🆙 Nível: ${player.level}\n`;
+  text += `⚔️ ATK ${player.atk}  🛡️ DEF ${player.def}  💥 CRIT ${player.crit}%\n\n`;
 
-`;
-  text += `❤️ HP: ${player.hp}/${player.maxHp}
-`;
-  text += `[${progressBar(player.hp, player.maxHp, 8)}]
+  text += `❤️ HP: ${player.hp}/${player.maxHp}\n`;
+  text += `[${progressBar(player.hp, player.maxHp, 8, '🔴', '⬜')}]\n\n`;
 
-`;
-  text += `✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}
-`;
-  text += `[${progressBar(player.xp, xpNeeded, 8)}]
+  text += `✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}\n`;
+  text += `[${progressBar(player.xp, xpNeeded, 8, '🟡', '⬜')}]\n\n`;
 
-`;
-  text += `⚡ Energia: ${player.energy}/${player.maxEnergy}
-`;
-  text += `💰 Ouro: ${formatNumber(player.gold || 0)} | 💎 Nox: ${formatNumber(player.nox || 0)}
-`;
-  text += `━━━━━━━━━━━━━━
-`;
+  text += `⚡ Energia: ${player.energy}/${player.maxEnergy}${energyTimeStr}\n`;
+  text += `💰 Ouro: ${formatNumber(player.gold || 0)} | 💎 Nox: ${formatNumber(player.nox || 0)}\n`;
+  text += `━━━━━━━━━━━━━━\n`;
   text += `🌍 Local: *${location.emoji} ${location.name}*`;
   return text;
 }
