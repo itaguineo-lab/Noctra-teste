@@ -1,77 +1,20 @@
-const { getPlayer, savePlayer, recalculateStats } = require('../core/player/playerService');
-const { consumeEnergy } = require('../services/energyService');
-const { processVictory } = require('../services/rewardService');
+const {
+  getPlayer,
+  savePlayer,
+  recalculateStats
+} = require('../core/player/playerService');
+
+const {
+  consumeEnergy
+} = require('../services/energyService');
+
+const {
+  processVictory
+} = require('../services/rewardService');
 
 const {
   createFight,
-  processPlayerTurn,async function handleConsumables(ctx) {
-  try {
-    await ctx.answerCbQuery();
-
-    const fight = activeFights.get(ctx.from.id);
-
-    if (!fight) {
-      return;
-    }
-
-    const player = getPlayer(ctx.from.id);
-
-    if (!player.consumables) {
-      player.consumables = {};
-    }
-
-    if ((player.consumables.potionHp || 0) <= 0) {
-      return ctx.answerCbQuery(
-        '❌ Você não possui poções.',
-        { show_alert: true }
-      );
-    }
-
-    if (fight.player.hp >= fight.player.maxHp) {
-      return ctx.answerCbQuery(
-        '❤️ HP já está cheio.',
-        { show_alert: true }
-      );
-    }
-
-    player.consumables.potionHp -= 1;
-
-    const heal = Math.floor(
-      fight.player.maxHp * 0.4
-    );
-
-    fight.player.hp = Math.min(
-      fight.player.maxHp,
-      fight.player.hp + heal
-    );
-
-    fight.logs.push(
-      `🧪 ${fight.player.name} usou uma poção e recuperou ${heal} HP.`
-    );
-
-    savePlayer(ctx.from.id, player);
-
-    processEnemyTurn(fight);
-
-    if (fight.status !== 'ongoing') {
-      return finishFight(ctx, fight);
-    }
-
-    await editMessage(
-      ctx,
-      renderFightText(fight),
-      {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-      }
-    );
-  } catch (err) {
-    console.error(
-      'Erro consumíveis:',
-      err
-    );
-  }
-}
+  processPlayerTurn,
   processEnemyTurn,
   attemptFlee,
   useSoul
@@ -126,12 +69,8 @@ async function editMessage(ctx, text, options = {}) {
     } else {
       await ctx.reply(text, options);
     }
-  } catch (err) {
-    console.error('Erro ao editar mensagem:', err);
-
-    try {
-      await ctx.reply(text, options);
-    } catch {}
+  } catch {
+    await ctx.reply(text, options);
   }
 }
 
@@ -139,7 +78,10 @@ async function finishFight(ctx, fight) {
   const player = getPlayer(ctx.from.id);
 
   if (fight.status === 'win') {
-    const rewards = processVictory(player, fight.enemy);
+    const rewards = processVictory(
+      player,
+      fight.enemy
+    );
 
     player.hp = fight.player.hp;
 
@@ -148,25 +90,19 @@ async function finishFight(ctx, fight) {
 
     activeFights.delete(ctx.from.id);
 
-    await editMessage(
+    return editMessage(
       ctx,
       `🏆 *VITÓRIA!*
 
 📜 ${fight.logs.slice(-4).join('\n')}
 
 ✨ +${rewards.xp} XP
-💰 +${rewards.gold} Ouro${
-        rewards.droppedSoul
-          ? `\n💀 Nova alma: ${rewards.droppedSoul.name}`
-          : ''
-      }`,
+💰 +${rewards.gold} Ouro`,
       {
         parse_mode: 'Markdown',
         ...postCombatMenu()
       }
     );
-
-    return;
   }
 
   if (fight.status === 'loss') {
@@ -178,20 +114,16 @@ async function finishFight(ctx, fight) {
     savePlayer(ctx.from.id, player);
     activeFights.delete(ctx.from.id);
 
-    await editMessage(
+    return editMessage(
       ctx,
-      `💀 *DERROTA...*
+      `💀 *DERROTA*
 
-${fight.logs.slice(-4).join('\n')}
-
-Você reviveu com 25% de HP.`,
+${fight.logs.slice(-4).join('\n')}`,
       {
         parse_mode: 'Markdown',
         ...postCombatMenu()
       }
     );
-
-    return;
   }
 
   if (fight.status === 'fled') {
@@ -200,7 +132,7 @@ Você reviveu com 25% de HP.`,
     savePlayer(ctx.from.id, player);
     activeFights.delete(ctx.from.id);
 
-    await editMessage(
+    return editMessage(
       ctx,
       `🏃 *FUGA*
 
@@ -214,208 +146,157 @@ ${fight.logs.slice(-4).join('\n')}`,
 }
 
 async function handleHunt(ctx) {
-  try {
-    const player = getPlayer(ctx.from.id);
+  const player = getPlayer(ctx.from.id);
 
-    if (!player) {
-      return ctx.reply('❌ Perfil não encontrado.');
-    }
-
-    if (player.energy < 1) {
-      return ctx.answerCbQuery('⚡ Energia insuficiente.', {
-        show_alert: true
-      });
-    }
-
-    if (!consumeEnergy(player, 1)) {
-      return ctx.answerCbQuery('⚡ Energia insuficiente.', {
-        show_alert: true
-      });
-    }
-
-    savePlayer(ctx.from.id, player);
-
-    if (activeFights.has(ctx.from.id)) {
-      const fight = activeFights.get(ctx.from.id);
-
-      return editMessage(
-        ctx,
-        renderFightText(fight),
-        {
-          parse_mode: 'Markdown',
-          ...combatMenu(fight)
-        }
-      );
-    }
-
-    const mapId =
-      player.currentMap || 'clareira_sombria';
-
-    const enemy = getRandomEnemy(
-      mapId,
-      player.level
-    );
-
-    if (!enemy) {
-      return ctx.reply(
-        '❌ Nenhum inimigo encontrado neste local.'
-      );
-    }
-
-    const fight = createFight(player, enemy);
-
-    activeFights.set(ctx.from.id, fight);
-
-    await editMessage(
-      ctx,
-      renderFightText(fight),
-      {
-        parse_mode: 'Markdown',
-        ...combatMenu(fight)
-      }
-    );
-  } catch (err) {
-    console.error('Erro em handleHunt:', err);
-
-    await ctx.reply(
-      '❌ Erro ao iniciar combate.'
-    );
+  if (!player) {
+    return ctx.reply('❌ Perfil não encontrado.');
   }
+
+  if (player.energy < 1) {
+    return ctx.reply('⚡ Energia insuficiente.');
+  }
+
+  consumeEnergy(player, 1);
+  savePlayer(ctx.from.id, player);
+
+  const enemy = getRandomEnemy(
+    player.currentMap || 'clareira_sombria',
+    player.level
+  );
+
+  const fight = createFight(player, enemy);
+
+  activeFights.set(ctx.from.id, fight);
+
+  await editMessage(
+    ctx,
+    renderFightText(fight),
+    {
+      parse_mode: 'Markdown',
+      ...combatMenu()
+    }
+  );
 }
 
 async function handleAttack(ctx) {
-  try {
-    await ctx.answerCbQuery();
+  await ctx.answerCbQuery();
 
-    const fight = activeFights.get(ctx.from.id);
+  const fight = activeFights.get(ctx.from.id);
+  if (!fight) return;
 
-    if (!fight) {
-      return;
-    }
+  processPlayerTurn(fight, false);
 
-    processPlayerTurn(fight, false);
-
-    if (fight.status === 'ongoing') {
-      processEnemyTurn(fight);
-    }
-
-    if (fight.status !== 'ongoing') {
-      return finishFight(ctx, fight);
-    }
-
-    await editMessage(
-      ctx,
-      renderFightText(fight),
-      {
-        parse_mode: 'Markdown',
-        ...combatMenu(fight)
-      }
-    );
-  } catch (err) {
-    console.error('Erro em handleAttack:', err);
+  if (fight.status === 'ongoing') {
+    processEnemyTurn(fight);
   }
-}
 
-async function handleSkill(ctx) {
-  try {
-    await ctx.answerCbQuery();
-
-    const fight = activeFights.get(ctx.from.id);
-
-    if (!fight) {
-      return;
-    }
-
-    processPlayerTurn(fight, true);
-
-    if (fight.status === 'ongoing') {
-      processEnemyTurn(fight);
-    }
-
-    if (fight.status !== 'ongoing') {
-      return finishFight(ctx, fight);
-    }
-
-    await editMessage(
-      ctx,
-      renderFightText(fight),
-      {
-        parse_mode: 'Markdown',
-        ...combatMenu(fight)
-      }
-    );
-  } catch (err) {
-    console.error('Erro em handleSkill:', err);
+  if (fight.status !== 'ongoing') {
+    return finishFight(ctx, fight);
   }
+
+  await editMessage(
+    ctx,
+    renderFightText(fight),
+    {
+      parse_mode: 'Markdown',
+      ...combatMenu()
+    }
+  );
 }
 
 async function handleSoul(ctx) {
-  try {
-    await ctx.answerCbQuery();
+  await ctx.answerCbQuery();
 
-    const fight = activeFights.get(ctx.from.id);
+  const fight = activeFights.get(ctx.from.id);
+  if (!fight) return;
 
-    if (!fight) {
-      return;
-    }
+  useSoul(fight, 0);
 
-    useSoul(fight, 0);
-
-    if (fight.status === 'ongoing') {
-      processEnemyTurn(fight);
-    }
-
-    if (fight.status !== 'ongoing') {
-      return finishFight(ctx, fight);
-    }
-
-    await editMessage(
-      ctx,
-      renderFightText(fight),
-      {
-        parse_mode: 'Markdown',
-        ...combatMenu(fight)
-      }
-    );
-  } catch (err) {
-    console.error('Erro em handleSoul:', err);
+  if (fight.status === 'ongoing') {
+    processEnemyTurn(fight);
   }
+
+  if (fight.status !== 'ongoing') {
+    return finishFight(ctx, fight);
+  }
+
+  await editMessage(
+    ctx,
+    renderFightText(fight),
+    {
+      parse_mode: 'Markdown',
+      ...combatMenu()
+    }
+  );
+}
+
+async function handleConsumables(ctx) {
+  await ctx.answerCbQuery();
+
+  const fight = activeFights.get(ctx.from.id);
+  if (!fight) return;
+
+  const player = getPlayer(ctx.from.id);
+
+  if (
+    !player.consumables ||
+    (player.consumables.potionHp || 0) <= 0
+  ) {
+    return ctx.answerCbQuery(
+      '❌ Você não possui poções.',
+      { show_alert: true }
+    );
+  }
+
+  player.consumables.potionHp -= 1;
+
+  const heal = Math.floor(
+    fight.player.maxHp * 0.4
+  );
+
+  fight.player.hp = Math.min(
+    fight.player.maxHp,
+    fight.player.hp + heal
+  );
+
+  fight.logs.push(
+    `🧪 ${fight.player.name} usou uma poção (+${heal} HP)`
+  );
+
+  savePlayer(ctx.from.id, player);
+
+  processEnemyTurn(fight);
+
+  if (fight.status !== 'ongoing') {
+    return finishFight(ctx, fight);
+  }
+
+  await editMessage(
+    ctx,
+    renderFightText(fight),
+    {
+      parse_mode: 'Markdown',
+      ...combatMenu()
+    }
+  );
 }
 
 async function handleFlee(ctx) {
-  try {
-    await ctx.answerCbQuery();
+  await ctx.answerCbQuery();
 
-    const fight = activeFights.get(ctx.from.id);
+  const fight = activeFights.get(ctx.from.id);
+  if (!fight) return;
 
-    if (!fight) {
-      return;
-    }
+  attemptFlee(fight);
 
-    attemptFlee(fight);
-
-    if (fight.status !== 'ongoing') {
-      return finishFight(ctx, fight);
-    }
-
-    await editMessage(
-      ctx,
-      renderFightText(fight),
-      {
-        parse_mode: 'Markdown',
-        ...combatMenu(fight)
-      }
-    );
-  } catch (err) {
-    console.error('Erro em handleFlee:', err);
-  }
+  return finishFight(ctx, fight);
 }
 
 module.exports = {
   handleHunt,
   handleAttack,
-  handleSkill,
   handleSoul,
+  handleConsumables,
   handleFlee,
   activeFights
 };
