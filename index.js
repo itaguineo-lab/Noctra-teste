@@ -7,8 +7,8 @@ const http = require('http');
 const {
   handleHunt,
   handleAttack,
-  handleSkill,
   handleSoul,
+  handleConsumables,
   handleFlee
 } = require('./src/handlers/combat');
 
@@ -127,8 +127,8 @@ bot.command('equipsoul', handleEquipSoul);
 // ===== COMBAT =====
 bot.action('hunt', handleHunt);
 bot.action('combat_attack', handleAttack);
-bot.action('combat_skill', handleSkill);
 bot.action('combat_soul', handleSoul);
+bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 
 // ===== MAIN MENU =====
@@ -224,17 +224,17 @@ bot.catch((err, ctx) => {
 // ===== KEEP ALIVE =====
 const PORT = process.env.PORT || 3000;
 
-http.createServer((req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/plain'
-  });
+http
+  .createServer((req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/plain'
+    });
 
-  res.end('Noctra RPG online');
-}).listen(PORT, () => {
-  console.log(
-    `🌐 KEEP ALIVE PORT ${PORT}`
-  );
-});
+    res.end('Noctra RPG online');
+  })
+  .listen(PORT, () => {
+    console.log(`🌐 KEEP ALIVE PORT ${PORT}`);
+  });
 
 // ===== START BOT =====
 (async () => {
@@ -244,22 +244,14 @@ http.createServer((req, res) => {
 
     if (webhookInfo.url) {
       await bot.telegram.deleteWebhook();
-      console.log(
-        '✅ Webhook removido'
-      );
+      console.log('✅ Webhook removido');
     }
 
     await bot.launch();
 
-    console.log(
-      '✅ NOCTRA ONLINE'
-    );
+    console.log('✅ NOCTRA ONLINE');
   } catch (err) {
-    console.error(
-      '❌ FALHA START:',
-      err
-    );
-
+    console.error('❌ FALHA START:', err);
     process.exit(1);
   }
 })();
