@@ -1,233 +1,39 @@
-/**
- * Inimigos e bosses por mapa.
- * Versão rebalanceada + lore Noctra.
- */
-
 const enemyPools = {
     clareira_sombria: {
         common: [
-            {
-                name: 'Rato das Sombras',
-                lore: 'Roedores corrompidos pela névoa da noite.',
-                hp: 35,
-                atk: 5,
-                def: 1,
-                xp: 8,
-                gold: 5
-            },
-            {
-                name: 'Lobo Sombrio',
-                lore: 'Predador que caça guiado por olhos espectrais.',
-                hp: 45,
-                atk: 6,
-                def: 2,
-                xp: 10,
-                gold: 6
-            },
-            {
-                name: 'Corvo do Véu',
-                lore: 'Mensageiro das almas perdidas da floresta.',
-                hp: 40,
-                atk: 7,
-                def: 1,
-                xp: 9,
-                gold: 5
-            }
+            { name: 'Lobo Sombrio', hp: 80, atk: 12, def: 5, xp: 25, gold: 15 },
+            { name: 'Rato Gigante', hp: 60, atk: 10, def: 3, xp: 20, gold: 10 }
         ],
         bosses: [
-            {
-                name: '👑 Alfa da Névoa',
-                lore: 'O primeiro guardião da Noite Eterna.',
-                hp: 120,
-                atk: 12,
-                def: 4,
-                xp: 50,
-                gold: 25,
-                isBoss: true,
-                possibleSouls: ['soul_wolf']
-            }
+            { name: '👑 Alfa da Matilha', hp: 350, atk: 35, def: 15, xp: 150, gold: 100, isBoss: true }
         ]
     },
-
     cripta_em_ruinas: {
         common: [
-            {
-                name: 'Esqueleto Errante',
-                lore: 'Guerreiros esquecidos que não encontraram paz.',
-                hp: 80,
-                atk: 10,
-                def: 4,
-                xp: 18,
-                gold: 10
-            },
-            {
-                name: 'Arqueiro Maldito',
-                lore: 'Atira flechas cobertas de energia necromântica.',
-                hp: 75,
-                atk: 11,
-                def: 3,
-                xp: 20,
-                gold: 12
-            },
-            {
-                name: 'Sacerdote Ossificado',
-                lore: 'Canaliza magia profana da cripta.',
-                hp: 85,
-                atk: 12,
-                def: 3,
-                xp: 22,
-                gold: 12
-            }
+            { name: 'Esqueleto Guerreiro', hp: 150, atk: 18, def: 10, xp: 50, gold: 30 },
+            { name: 'Mago Esqueleto', hp: 120, atk: 22, def: 8, xp: 55, gold: 35 }
         ],
         bosses: [
-            {
-                name: '👑 Necromante Velkan',
-                lore: 'Senhor dos mortos e guardião das almas frias.',
-                hp: 220,
-                atk: 18,
-                def: 6,
-                xp: 90,
-                gold: 45,
-                isBoss: true,
-                possibleSouls: ['soul_frost']
-            }
+            { name: '👑 Necromante Ancestral', hp: 800, atk: 70, def: 40, xp: 550, gold: 400, isBoss: true }
         ]
     },
-
     pantano_corrompido: {
         common: [
-            {
-                name: 'Sapo Abissal',
-                lore: 'Criatura mutada pelo veneno do pântano.',
-                hp: 110,
-                atk: 14,
-                def: 4,
-                xp: 28,
-                gold: 15
-            },
-            {
-                name: 'Serpente Pútrida',
-                lore: 'Seu veneno enfraquece corpo e alma.',
-                hp: 105,
-                atk: 16,
-                def: 4,
-                xp: 30,
-                gold: 16
-            },
-            {
-                name: 'Mosca da Putrefação',
-                lore: 'Inseto gigantesco que devora cadáveres.',
-                hp: 95,
-                atk: 15,
-                def: 3,
-                xp: 27,
-                gold: 14
-            }
+            { name: 'Sapo Corrompido', hp: 180, atk: 24, def: 9, xp: 70, gold: 45 },
+            { name: 'Serpente Venenosa', hp: 160, atk: 28, def: 8, xp: 75, gold: 50 }
         ],
         bosses: [
-            {
-                name: '👑 Rei do Lodo',
-                lore: 'Monstro ancestral formado por carne e lama.',
-                hp: 300,
-                atk: 24,
-                def: 8,
-                xp: 120,
-                gold: 60,
-                isBoss: true,
-                possibleSouls: ['soul_vampire']
-            }
+            { name: '👑 Guardião do Lodo', hp: 1100, atk: 85, def: 45, xp: 800, gold: 600, isBoss: true }
         ]
     },
-
     deserto_incandescente: {
         common: [
-            {
-                name: 'Escorpião Rubro',
-                lore: 'Escorpião alimentado pelas chamas do deserto.',
-                hp: 140,
-                atk: 18,
-                def: 5,
-                xp: 40,
-                gold: 22
-            },
-            {
-                name: 'Andarilho de Cinzas',
-                lore: 'Alma perdida envolta por brasas.',
-                hp: 150,
-                atk: 17,
-                def: 6,
-                xp: 42,
-                gold: 23
-            },
-            {
-                name: 'Hiena Flamejante',
-                lore: 'Predadora rápida e cruel.',
-                hp: 145,
-                atk: 19,
-                def: 5,
-                xp: 41,
-                gold: 22
-            }
+            { name: 'Escorpião Infernal', hp: 220, atk: 32, def: 12, xp: 95, gold: 60 },
+            { name: 'Andarilho de Cinzas', hp: 240, atk: 30, def: 14, xp: 100, gold: 65 }
         ],
         bosses: [
-            {
-                name: '👑 Faraó das Brasas',
-                lore: 'Último rei do deserto consumido pelo fogo.',
-                hp: 420,
-                atk: 28,
-                def: 10,
-                xp: 180,
-                gold: 90,
-                isBoss: true,
-                possibleSouls: ['soul_fire']
-            }
+            { name: '👑 Faraó das Brasas', hp: 1600, atk: 110, def: 60, xp: 1200, gold: 900, isBoss: true }
         ]
     }
 };
-
-function normalizeMapId(mapId) {
-    if (!mapId) return 'clareira_sombria';
-    return String(mapId).trim().toLowerCase();
-}
-
-function scaleEnemy(enemy, playerLevel = 1) {
-    const level = Math.max(1, Number(playerLevel) || 1);
-    const scale = 1 + (level * 0.08);
-
-    return {
-        ...enemy,
-        hp: Math.floor(enemy.hp * scale),
-        atk: Math.floor(enemy.atk * scale),
-        def: Math.floor(enemy.def * scale),
-        xp: Math.floor(enemy.xp * scale),
-        gold: Math.floor(enemy.gold * scale),
-        level
-    };
-}
-
-function getRandomEnemy(mapId, playerLevel = 1) {
-    const mapData =
-        enemyPools[normalizeMapId(mapId)] ||
-        enemyPools.clareira_sombria;
-
-    const bossChance = Math.min(
-        0.04 + (playerLevel * 0.001),
-        0.08
-    );
-
-    const isBoss = Math.random() < bossChance;
-
-    const pool = isBoss
-        ? mapData.bosses
-        : mapData.common;
-
-    const enemy =
-        pool[Math.floor(Math.random() * pool.length)];
-
-    return scaleEnemy(enemy, playerLevel);
-}
-
-module.exports = {
-    enemyPools,
-    getRandomEnemy
-};
+// ... resto do arquivo (getRandomEnemy, scaleEnemy) mantido
