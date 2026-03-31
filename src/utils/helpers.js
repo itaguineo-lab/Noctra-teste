@@ -33,23 +33,30 @@ function getMainMenuText(player, username) {
   const nextEnergyTime = getTimeToNextEnergy(player);
   const energyTimeStr = nextEnergyTime > 0 ? ` (próx. em ${formatTime(nextEnergyTime)})` : ' (cheia)';
 
-  let text = `🌙 *NOCTRA RPG*\n`;
-  text += `━━━━━━━━━━━━━━\n`;
-  text += `🤴 *${player.name || username}* | ${vipStatus}\n`;
-  text += `🏹 Classe: ${player.class.charAt(0).toUpperCase() + player.class.slice(1)}\n`;
-  text += `🆙 Nível: ${player.level}\n`;
-  text += `⚔️ ATK ${player.atk}  🛡️ DEF ${player.def}  💥 CRIT ${player.crit}%\n\n`;
+  // Barras usando quadrados: 🟥 para HP, 🟨 para XP
+  const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
+  const xpBar = progressBar(player.xp, xpNeeded, 8, '🟨', '⬜');
 
-  text += `❤️ HP: ${player.hp}/${player.maxHp}\n`;
-  text += `[${progressBar(player.hp, player.maxHp, 8, '🔴', '⬜')}]\n\n`;
+  let text = `╔════════════════════════╗\n`;
+  text += `║      🌙 *NOCTRA RPG*      ║\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ 🤴 ${player.name || username} | ${vipStatus}\n`;
+  text += `║ 🏹 Classe: ${player.class.charAt(0).toUpperCase() + player.class.slice(1)}\n`;
+  text += `║ 🆙 Nível: ${player.level}\n`;
+  text += `║ ⚔️ ATK ${player.atk}  🛡️ DEF ${player.def}  💥 CRIT ${player.crit}%\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ ❤️ HP: ${player.hp}/${player.maxHp}\n`;
+  text += `║ [${hpBar}]\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ ✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}\n`;
+  text += `║ [${xpBar}]\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ ⚡ Energia: ${player.energy}/${player.maxEnergy}${energyTimeStr}\n`;
+  text += `║ 💰 Ouro: ${formatNumber(player.gold || 0)} | 💎 Nox: ${formatNumber(player.nox || 0)}\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ 🌍 Local: *${location.emoji} ${location.name}*\n`;
+  text += `╚════════════════════════╝`;
 
-  text += `✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}\n`;
-  text += `[${progressBar(player.xp, xpNeeded, 8, '🟡', '⬜')}]\n\n`;
-
-  text += `⚡ Energia: ${player.energy}/${player.maxEnergy}${energyTimeStr}\n`;
-  text += `💰 Ouro: ${formatNumber(player.gold || 0)} | 💎 Nox: ${formatNumber(player.nox || 0)}\n`;
-  text += `━━━━━━━━━━━━━━\n`;
-  text += `🌍 Local: *${location.emoji} ${location.name}*`;
   return text;
 }
 
