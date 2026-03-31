@@ -13,7 +13,8 @@ const {
 } = require('./src/handlers/combat');
 
 const {
-  handleProfile
+  handleProfile,
+  handleRest
 } = require('./src/handlers/profile');
 
 const {
@@ -77,25 +78,6 @@ const {
 // ===== BOT =====
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// ===== LOGGER =====
-bot.use(async (ctx, next) => {
-  try {
-    if (ctx.callbackQuery) {
-      console.log(
-        `📞 CALLBACK | ${ctx.callbackQuery.data} | USER ${ctx.from.id}`
-      );
-    } else if (ctx.message?.text) {
-      console.log(
-        `💬 MSG | ${ctx.message.text} | USER ${ctx.from.id}`
-      );
-    }
-
-    return next();
-  } catch (err) {
-    console.error('Middleware error:', err);
-  }
-});
-
 // ===== START =====
 bot.start(async (ctx) => {
   await ctx.reply(
@@ -131,37 +113,26 @@ bot.action('combat_soul', handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 
-// ===== MAIN MENU =====
+// ===== PROFILE =====
+bot.action('profile', handleProfile);
+bot.action('rest_player', handleRest);
+
+// ===== MAIN =====
 bot.action('menu', async (ctx) => {
-  try {
-    await ctx.answerCbQuery();
+  await ctx.answerCbQuery();
 
-    await ctx.editMessageText(
-      `🌙 *Noctra RPG*
-
-Escolha sua ação:`,
-      {
-        parse_mode: 'Markdown',
-        ...mainMenu()
-      }
-    );
-  } catch (err) {
-    console.error('Erro menu:', err);
-
-    await ctx.reply(
-      `🌙 *Noctra RPG*
+  await ctx.editMessageText(
+    `🌙 *Noctra RPG*
 
 Escolha sua ação:`,
-      {
-        parse_mode: 'Markdown',
-        ...mainMenu()
-      }
-    );
-  }
+    {
+      parse_mode: 'Markdown',
+      ...mainMenu()
+    }
+  );
 });
 
 // ===== SCREENS =====
-bot.action('profile', handleProfile);
 bot.action('inventory', handleInventory);
 bot.action('shop', handleShop);
 bot.action('travel', handleTravel);
@@ -194,75 +165,28 @@ bot.action('inv_souls', handleInvSouls);
 bot.action('rename_help', async (ctx) => {
   await ctx.answerCbQuery(
     'Use /rename <novo_nome>',
-    {
-      show_alert: true
-    }
+    { show_alert: true }
   );
 });
 
 bot.action('class_help', async (ctx) => {
   await ctx.answerCbQuery(
     'Use /class guerreiro | arqueiro | mago',
-    {
-      show_alert: true
-    }
+    { show_alert: true }
   );
-});
-
-// ===== GLOBAL ERROR =====
-bot.catch((err, ctx) => {
-  console.error(
-    `❌ ERRO | ${ctx.updateType}`,
-    err
-  );
-
-  ctx.reply(
-    '❌ Ocorreu um erro. Tente novamente.'
-  ).catch(console.error);
 });
 
 // ===== KEEP ALIVE =====
 const PORT = process.env.PORT || 3000;
 
-http
-  .createServer((req, res) => {
-    res.writeHead(200, {
-      'Content-Type': 'text/plain'
-    });
-
-    res.end('Noctra RPG online');
-  })
-  .listen(PORT, () => {
-    console.log(`🌐 KEEP ALIVE PORT ${PORT}`);
+http.createServer((req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/plain'
   });
 
-// ===== START BOT =====
-(async () => {
-  try {
-    const webhookInfo =
-      await bot.telegram.getWebhookInfo();
+  res.end('Noctra RPG online');
+}).listen(PORT);
 
-    if (webhookInfo.url) {
-      await bot.telegram.deleteWebhook();
-      console.log('✅ Webhook removido');
-    }
-
-    await bot.launch();
-
-    console.log('✅ NOCTRA ONLINE');
-  } catch (err) {
-    console.error('❌ FALHA START:', err);
-    process.exit(1);
-  }
-})();
-
-// ===== SHUTDOWN =====
-process.once('SIGINT', () => {
-  bot.stop('SIGINT');
-  process.exit(0);
-});
-
-process.once('SIGTERM', () => {
-  bot.stop('SIGTERM');
-  process.exit(0);
-});
+// ===== START =====
+bot.launch();
+console.log('✅ NOCTRA ONLINE');
