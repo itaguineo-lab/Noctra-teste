@@ -1,6 +1,5 @@
 const {
-  getPlayer,
-  savePlayer
+  getPlayer
 } = require('../core/player/playerService');
 
 const {
@@ -93,21 +92,13 @@ async function safeEdit(ctx, text, options = {}) {
     } else {
       await ctx.reply(text, options);
     }
-  } catch (err) {
-    console.error('Erro ao editar perfil:', err);
-
-    try {
-      await ctx.reply(text, options);
-    } catch {}
+  } catch {
+    await ctx.reply(text, options);
   }
 }
 
-async function renderProfile(ctx) {
+async function handleProfile(ctx) {
   const player = getPlayer(ctx.from.id);
-
-  if (!player) {
-    return ctx.reply('❌ Perfil não encontrado.');
-  }
 
   const xpNeeded = getXpToNextLevel(player.level);
   const xpBar = progressBar(player.xp || 0, xpNeeded || 1, 8);
@@ -117,52 +108,26 @@ async function renderProfile(ctx) {
   const equipmentText = buildEquipmentText(player);
   const soulsText = buildSoulsText(player);
 
-  const skinText = player.skin
-    ? `🎨 Skin: ${player.skin.emoji || ''} ${player.skin.name || 'Sem nome'}`
-    : '🎨 Skin: Nenhuma';
+  const profileMsg = `👤 *${player.name}* (${formatClassName(player.class)})
 
-  const xpPercent = Math.floor(
-    ((player.xp || 0) / (xpNeeded || 1)) * 100
-  );
+⭐ Nível ${player.level}
+✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}
+[${xpBar}]
 
-  const hpPercent = Math.floor(
-    ((player.hp || 0) / (player.maxHp || 1)) * 100
-  );
+❤️ HP: ${player.hp}/${player.maxHp}
+[${hpBar}]
 
-  const profileMsg = `👤 *${player.name || ctx.from.first_name}* (${formatClassName(player.class)})
+⚡ Energia: ${player.energy}/${player.maxEnergy}
 
-⭐ Nível ${player.level || 1}
-✨ XP: ${formatNumber(player.xp || 0)} / ${formatNumber(xpNeeded || 1)}
-[${xpBar}] ${xpPercent}%
-
-❤️ HP: ${player.hp || 0}/${player.maxHp || 0}
-[${hpBar}] ${hpPercent}%
-
-⚔️ ATK: ${player.atk || 0}
-🛡️ DEF: ${player.def || 0}
-✨ CRIT: ${player.crit || 0}%
-
-💰 Gold: ${formatNumber(player.gold || 0)}
-💎 Nox: ${formatNumber(player.nox || 0)}
-🏅 Glórias: ${formatNumber(player.glorias || 0)}
-
-⚡ Energia: ${player.energy || 0}/${player.maxEnergy || 0}
-🗝️ Chaves: ${player.keys || 0}
-
-🗺️ Mapa: ${map.emoji} ${map.name} (Lv ${map.levelReq || map.level || 1})
-
-${skinText}
+🗺️ ${map.emoji} ${map.name}
 
 *Equipamentos:*
 ${equipmentText}
 
-💀 *Almas Equipadas (${(player.soulsEquipped || []).filter(Boolean).length}/2):*
+💀 *Almas:*
 ${soulsText}`;
 
   const keyboard = [
-    [
-      Markup.button.callback('🛌 Descansar', 'rest_player')
-    ],
     [
       Markup.button.callback('📝 Renomear', 'rename_help'),
       Markup.button.callback('🔄 Classe', 'class_help')
@@ -182,70 +147,6 @@ ${soulsText}`;
   );
 }
 
-async function handleProfile(ctx) {
-  return renderProfile(ctx);
-}
-
-async function handleRest(ctx) {
-  try {
-    const player = getPlayer(ctx.from.id);
-
-    if (!player) {
-      return ctx.answerCbQuery('Perfil não encontrado.', {
-        show_alert: true
-      });
-    }
-
-    if (player.hp >= player.maxHp) {
-      return ctx.answerCbQuery('❤️ HP já está cheio.', {
-        show_alert: true
-      });
-    }
-
-    if (player.energy < 1) {
-      return ctx.answerCbQuery('⚡ Energia insuficiente.', {
-        show_alert: true
-      });
-    }
-
-    player.energy -= 1;
-    player.hp = player.maxHp;
-
-    savePlayer(ctx.from.id, player);
-
-    return renderProfile(ctx);
-  } catch (error) {
-    console.error('Erro ao descansar:', error);
-
-    try {
-      await ctx.answerCbQuery('Erro ao descansar.', {
-        show_alert: true
-      });
-    } catch {}
-  }
-}
-
-async function handleRenameAction(ctx) {
-  await ctx.answerCbQuery(
-    'Use /rename <novo_nome>',
-    {
-      show_alert: true
-    }
-  );
-}
-
-async function handleChangeClassAction(ctx) {
-  await ctx.answerCbQuery(
-    'Use /class guerreiro | arqueiro | mago',
-    {
-      show_alert: true
-    }
-  );
-}
-
 module.exports = {
-  handleProfile,
-  handleRest,
-  handleRenameAction,
-  handleChangeClassAction
+  handleProfile
 };
