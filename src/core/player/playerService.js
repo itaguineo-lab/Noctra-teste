@@ -17,7 +17,6 @@ function loadPlayersToCache() {
       playersCache = {};
       return;
     }
-
     const data = fs.readFileSync(playersFilePath, 'utf8');
     playersCache = JSON.parse(data || '{}');
   } catch (error) {
@@ -28,7 +27,6 @@ function loadPlayersToCache() {
 
 function flushCacheToDisk() {
   if (!playersCache) return;
-
   try {
     fs.writeFileSync(playersFilePath, JSON.stringify(playersCache, null, 2));
   } catch (error) {
@@ -48,19 +46,15 @@ function normalizeSouls(player) {
   if (!Array.isArray(player.soulsInventory)) {
     player.soulsInventory = Array.isArray(player.souls) && player.souls.length && player.souls[0]?.id ? [...player.souls] : [];
   }
-
   if (!Array.isArray(player.soulsEquipped)) {
     player.soulsEquipped = [null, null];
   }
-
   if (!Array.isArray(player.souls)) {
     player.souls = player.soulsEquipped;
   }
-
   if (player.souls.length !== 2) {
     player.souls = [player.souls[0] || null, player.souls[1] || null];
   }
-
   return player;
 }
 
@@ -101,7 +95,10 @@ function createDefaultPlayer(id, name = 'Viajante') {
     renamed: false,
     classChanged: false,
     createdAt: Date.now(),
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
+    lastActive: Date.now(),
+    totalKills: 0,
+    achievements: {}
   };
 
   recalculateStats(player);
@@ -110,23 +107,13 @@ function createDefaultPlayer(id, name = 'Viajante') {
 }
 
 function ensurePlayerState(player) {
-  if (!player || typeof player !== 'object') {
-    throw new Error('Player inválido.');
-  }
+  if (!player || typeof player !== 'object') throw new Error('Player inválido.');
 
   if (!Array.isArray(player.inventory)) player.inventory = [];
   if (!player.consumables || typeof player.consumables !== 'object') player.consumables = {};
   if (!player.equipment || typeof player.equipment !== 'object') {
-    player.equipment = {
-      weapon: null,
-      armor: null,
-      accessory: null,
-      boots: null,
-      necklace: null,
-      ring: null
-    };
+    player.equipment = { weapon: null, armor: null, accessory: null, boots: null, necklace: null, ring: null };
   }
-
   if (typeof player.keys !== 'number' || Number.isNaN(player.keys)) player.keys = 0;
   if (typeof player.nox !== 'number' || Number.isNaN(player.nox)) player.nox = 0;
   if (typeof player.gold !== 'number' || Number.isNaN(player.gold)) player.gold = 0;
@@ -139,31 +126,33 @@ function ensurePlayerState(player) {
   if (typeof player.xp !== 'number' || Number.isNaN(player.xp) || player.xp < 0) player.xp = 0;
   if (typeof player.hp !== 'number' || Number.isNaN(player.hp) || player.hp < 0) player.hp = 0;
   if (!player.currentMap) player.currentMap = 'clareira_sombria';
+  if (typeof player.lastActive !== 'number') player.lastActive = Date.now();
+  if (typeof player.totalKills !== 'number') player.totalKills = 0;
+  if (!player.achievements || typeof player.achievements !== 'object') player.achievements = {};
 
   normalizeSouls(player);
   return player;
 }
 
 function getPlayer(id, name) {
-  if (playersCache === null) {
-    loadPlayersToCache();
-  }
+  if (playersCache === null) loadPlayersToCache();
 
   if (!playersCache[id]) {
     playersCache[id] = createDefaultPlayer(id, name);
     scheduleSave();
   }
 
-  return ensurePlayerState(playersCache[id]);
+  const player = ensurePlayerState(playersCache[id]);
+  player.lastActive = Date.now();
+  return player;
 }
 
 function savePlayer(id, player) {
-  if (playersCache === null) {
-    loadPlayersToCache();
-  }
+  if (playersCache === null) loadPlayersToCache();
 
   playersCache[id] = ensurePlayerState(player);
   playersCache[id].updatedAt = Date.now();
+  playersCache[id].lastActive = Date.now();
   scheduleSave();
 }
 
@@ -216,5 +205,6 @@ module.exports = {
   recalculateStats,
   createDefaultPlayer,
   ensurePlayerState,
-  flushCacheToDisk
+  flushCacheToDisk,
+  playersCache   // Exportar para uso em online.js
 };
