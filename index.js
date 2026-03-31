@@ -64,13 +64,18 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 // COMANDOS DE TEXTO
 // ======================
 bot.start(async (ctx) => {
-  await ctx.reply(
-    `🌑 *Bem-vindo ao Noctra RPG*\n\nEscolha sua ação:`,
-    {
-      parse_mode: 'Markdown',
-      ...mainMenu()
-    }
-  );
+  const welcomeMsg = 
+`╔════════════════════════╗
+║      🌙 *NOCTRA RPG*      ║
+║    Bem-vindo, aventureiro    ║
+╠════════════════════════╣
+║   Escolha sua ação:    ║
+╚════════════════════════╝`;
+
+  await ctx.reply(welcomeMsg, {
+    parse_mode: 'Markdown',
+    ...mainMenu()
+  });
 });
 
 bot.command('energy', handleEnergy);
@@ -139,13 +144,16 @@ bot.action('travel_locked', handleTravelLocked);
 // ======================
 bot.action('menu', async (ctx) => {
   await ctx.answerCbQuery();
-  await ctx.editMessageText(
-    `🌙 *Noctra RPG*\n\nEscolha sua ação:`,
-    {
-      parse_mode: 'Markdown',
-      ...mainMenu()
-    }
-  );
+  const menuMsg = 
+`╔════════════════════════╗
+║      🌙 *NOCTRA RPG*      ║
+╠════════════════════════╣
+║   Escolha sua ação:    ║
+╚════════════════════════╝`;
+  await ctx.editMessageText(menuMsg, {
+    parse_mode: 'Markdown',
+    ...mainMenu()
+  });
 });
 
 // ======================
