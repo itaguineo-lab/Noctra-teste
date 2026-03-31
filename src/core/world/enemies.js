@@ -173,7 +173,9 @@ function getRandomEnemy(mapId, playerLevel = 1) {
     const normalizedMapId = normalizeMapId(mapId);
     const mapData = enemyPools[normalizedMapId] || enemyPools.clareira_sombria;
 
-    const bossChance = Math.min(0.10 + ((playerLevel - 1) * 0.002), 0.20);
+    const bossChance = Math.min(
+  0.05 + ((playerLevel - 1) * 0.001),
+  0.10);
     const isBossRoll = Math.random() < bossChance;
 
     if (isBossRoll && mapData.bosses && mapData.bosses.length > 0) {
