@@ -1,40 +1,145 @@
-const { getPlayer } = require('../core/player/playerService');
-const { updateEnergy } = require('../services/energyService');
-const { getMainMenuText } = require('../utils/helpers');
-const { progressBar } = require('../utils/formatters');
-const { mainMenu } = require('../menus/mainMenu');
+const {
+  getPlayer,
+  savePlayer
+} = require('../core/player/playerService');
+
+const {
+  updateEnergy
+} = require('../services/energyService');
+
+const {
+  progressBar
+} = require('../utils/formatters');
+
+const { Markup } = require('telegraf');
 
 async function safeEdit(ctx, text, options = {}) {
   try {
-    await ctx.editMessageText(text, options);
+    if (ctx.callbackQuery) {
+      await ctx.answerCbQuery();
+      await ctx.editMessageText(text, options);
+    } else {
+      await ctx.reply(text, options);
+    }
   } catch {
     await ctx.reply(text, options);
   }
 }
 
+async function renderEnergy(ctx) {
+  const player = getPlayer(ctx.from.id);
+
+  if (!player) {
+    return ctx.reply('❌ Perfil não encontrado.');
+  }
+
+  updateEnergy(player);
+
+  const energyBar = progressBar(
+    player.energy,
+    player.maxEnergy,
+    8
+  );
+
+  const hpBar = progressBar(
+    player.hp,
+    player.maxHp,
+    8
+  );
+
+  const energyPercent = Math.floor(
+    (player.energy / player.maxEnergy) * 100
+  );
+
+  const text = `⚡ *Energia*
+
+⚡ ${player.energy}/${player.maxEnergy}
+[${energyBar}] ${energyPercent}%
+
+❤️ HP: ${player.hp}/${player.maxHp}
+[${hpBar}]
+
+⏱️ Regeneração: ${
+    player.vip
+      ? '1 a cada 3 min'
+      : '1 a cada 6 min'
+  }
+
+🛌 Descansar recupera *todo HP*
+⚡ Custo: *1 energia*`;
+
+  const keyboard = Markup.inlineKeyboard([
+    [
+      Markup.button.callback(
+        '🛌 Descansar (-1⚡)',
+        'rest_energy'
+      )
+    ],
+    [
+      Markup.button.callback(
+        '🏠 Menu',
+        'menu'
+      )
+    ]
+  ]);
+
+  await safeEdit(ctx, text, {
+    parse_mode: 'Markdown',
+    ...keyboard
+  });
+}
+
 async function handleEnergy(ctx) {
+  return renderEnergy(ctx);
+}
+
+async function handleRestEnergy(ctx) {
   try {
     const player = getPlayer(ctx.from.id);
-    updateEnergy(player);
 
-    const bar = progressBar(player.energy, player.maxEnergy, 8);
-    let msg = `⚡ *Energia*: ${player.energy}/${player.maxEnergy}
-`;
-    msg += `[${bar}] ${Math.floor((player.energy / player.maxEnergy) * 100)}%
+    if (!player) {
+      return ctx.answerCbQuery(
+        'Perfil não encontrado.',
+        { show_alert: true }
+      );
+    }
 
-`;
-    msg += `⏱️ Regeneração: ${player.vip ? '1 a cada 3 min' : '1 a cada 6 min'}
-`;
-    msg += `🧪 Compre poções na loja.
+    if (player.hp >= player.maxHp) {
+      return ctx.answerCbQuery(
+        '❤️ HP já está cheio.',
+        { show_alert: true }
+      );
+    }
 
-`;
-    msg += getMainMenuText(player, ctx.from.first_name);
+    if (player.energy < 1) {
+      return ctx.answerCbQuery(
+        '⚡ Energia insuficiente.',
+        { show_alert: true }
+      );
+    }
 
-    await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
+    player.energy -= 1;
+    player.hp = player.maxHp;
+
+    savePlayer(ctx.from.id, player);
+
+    return renderEnergy(ctx);
   } catch (error) {
-    console.error('Erro energia:', error);
-    await ctx.answerCbQuery('Erro ao mostrar energia.');
+    console.error(
+      'Erro ao descansar:',
+      error
+    );
+
+    try {
+      await ctx.answerCbQuery(
+        'Erro ao descansar.',
+        { show_alert: true }
+      );
+    } catch {}
   }
 }
 
-module.exports = { handleEnergy };
+module.exports = {
+  handleEnergy,
+  handleRestEnergy
+};
