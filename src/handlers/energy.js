@@ -4,11 +4,13 @@ const {
 } = require('../core/player/playerService');
 
 const {
-  updateEnergy
+  updateEnergy,
+  getTimeToNextEnergy
 } = require('../services/energyService');
 
 const {
-  progressBar
+  progressBar,
+  formatTime
 } = require('../utils/formatters');
 
 const { Markup } = require('telegraf');
@@ -34,53 +36,28 @@ async function renderEnergy(ctx) {
   }
 
   updateEnergy(player);
+  const nextIn = getTimeToNextEnergy(player);
 
-  const energyBar = progressBar(
-    player.energy,
-    player.maxEnergy,
-    8
-  );
+  const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟡', '⬜');
+  const hpBar = progressBar(player.hp, player.maxHp, 8, '🔴', '⬜');
+  const energyPercent = Math.floor((player.energy / player.maxEnergy) * 100);
 
-  const hpBar = progressBar(
-    player.hp,
-    player.maxHp,
-    8
-  );
-
-  const energyPercent = Math.floor(
-    (player.energy / player.maxEnergy) * 100
-  );
-
-  const text = `⚡ *Energia*
-
-⚡ ${player.energy}/${player.maxEnergy}
-[${energyBar}] ${energyPercent}%
-
-❤️ HP: ${player.hp}/${player.maxHp}
-[${hpBar}]
-
-⏱️ Regeneração: ${
-    player.vip
-      ? '1 a cada 3 min'
-      : '1 a cada 6 min'
+  let text = `⚡ *Energia*\n\n`;
+  text += `⚡ ${player.energy}/${player.maxEnergy}\n`;
+  text += `[${energyBar}] ${energyPercent}%\n\n`;
+  text += `❤️ HP: ${player.hp}/${player.maxHp}\n`;
+  text += `[${hpBar}]\n\n`;
+  text += `⏱️ Regeneração: ${player.vip ? '1 a cada 3 min' : '1 a cada 6 min'}\n`;
+  if (nextIn > 0) {
+    text += `⏳ Próxima energia em: ${formatTime(nextIn)}\n`;
+  } else {
+    text += `✅ Energia cheia!\n`;
   }
-
-🛌 Descansar recupera *todo HP*
-⚡ Custo: *1 energia*`;
+  text += `\n🛌 Descansar recupera *todo HP*\n⚡ Custo: *1 energia*`;
 
   const keyboard = Markup.inlineKeyboard([
-    [
-      Markup.button.callback(
-        '🛌 Descansar (-1⚡)',
-        'rest_energy'
-      )
-    ],
-    [
-      Markup.button.callback(
-        '🏠 Menu',
-        'menu'
-      )
-    ]
+    [Markup.button.callback('🛌 Descansar (-1⚡)', 'rest_energy')],
+    [Markup.button.callback('🏠 Menu', 'menu')]
   ]);
 
   await safeEdit(ctx, text, {
@@ -98,24 +75,15 @@ async function handleRestEnergy(ctx) {
     const player = getPlayer(ctx.from.id);
 
     if (!player) {
-      return ctx.answerCbQuery(
-        'Perfil não encontrado.',
-        { show_alert: true }
-      );
+      return ctx.answerCbQuery('Perfil não encontrado.', { show_alert: true });
     }
 
     if (player.hp >= player.maxHp) {
-      return ctx.answerCbQuery(
-        '❤️ HP já está cheio.',
-        { show_alert: true }
-      );
+      return ctx.answerCbQuery('❤️ HP já está cheio.', { show_alert: true });
     }
 
     if (player.energy < 1) {
-      return ctx.answerCbQuery(
-        '⚡ Energia insuficiente.',
-        { show_alert: true }
-      );
+      return ctx.answerCbQuery('⚡ Energia insuficiente.', { show_alert: true });
     }
 
     player.energy -= 1;
@@ -125,16 +93,9 @@ async function handleRestEnergy(ctx) {
 
     return renderEnergy(ctx);
   } catch (error) {
-    console.error(
-      'Erro ao descansar:',
-      error
-    );
-
+    console.error('Erro ao descansar:', error);
     try {
-      await ctx.answerCbQuery(
-        'Erro ao descansar.',
-        { show_alert: true }
-      );
+      await ctx.answerCbQuery('Erro ao descansar.', { show_alert: true });
     } catch {}
   }
 }
