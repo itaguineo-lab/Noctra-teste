@@ -1,39 +1,38 @@
 const { getRarityColor } = require('../data/constants');
 
 /**
- * Cria uma barra de progresso visual
+ * Cria uma barra de progresso visual com cores personalizáveis
  * @param {number} current Valor atual
  * @param {number} max Valor máximo
  * @param {number} size Tamanho da barra (caracteres)
+ * @param {string} fullChar Caractere para parte preenchida
+ * @param {string} emptyChar Caractere para parte vazia
  */
-function progressBar(current, max, size = 10) {
-    const safeMax =
-        max > 0 ? max : 1;
-
-    const percentage = Math.min(
-        Math.max(current / safeMax, 0),
-        1
-    );
-
-    const filledSize = Math.round(
-        size * percentage
-    );
-
-    const emptySize =
-        size - filledSize;
-
-    return (
-        '🟩'.repeat(filledSize) +
-        '⬜'.repeat(emptySize)
-    );
+function progressBar(current, max, size = 10, fullChar = '🟩', emptyChar = '⬜') {
+    const safeMax = max > 0 ? max : 1;
+    const percentage = Math.min(Math.max(current / safeMax, 0), 1);
+    const filledSize = Math.round(size * percentage);
+    const emptySize = size - filledSize;
+    return fullChar.repeat(filledSize) + emptyChar.repeat(emptySize);
 }
 
 /**
- * Formata números com separador de milhar (Ex: 1,500)
+ * Formata números com separador de milhar (Ex: 1.500)
  */
 function formatNumber(n) {
-    if (!n) return '0';
+    if (!n && n !== 0) return '0';
     return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Formata milissegundos em "Xm Ys" ou apenas segundos
+ */
+function formatTime(ms) {
+    if (ms <= 0) return '0s';
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
 }
 
 /**
@@ -54,9 +53,24 @@ function formatSoulName(soul) {
     return `${color} *${soul.name}*`;
 }
 
+/**
+ * Gera string com os stats do item
+ */
+function formatItemStats(item) {
+    if (!item) return '';
+    const stats = [];
+    if (item.atk) stats.push(`⚔️+${item.atk}`);
+    if (item.def) stats.push(`🛡️+${item.def}`);
+    if (item.hp) stats.push(`❤️+${item.hp}`);
+    if (item.crit) stats.push(`💥+${item.crit}%`);
+    return stats.length ? ` (${stats.join(', ')})` : '';
+}
+
 module.exports = { 
     progressBar, 
     formatNumber, 
     formatItemName, 
-    formatSoulName 
+    formatSoulName,
+    formatTime,
+    formatItemStats
 };
