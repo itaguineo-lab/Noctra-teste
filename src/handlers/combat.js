@@ -58,8 +58,8 @@ function getRandomMessage(type) {
 }
 
 function renderFightText(fight) {
-  const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🔴', '⬜');
-  const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🔴', '⬜');
+  const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟥', '⬜');
+  const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬜');
 
   return `⚔️ *COMBATE* | Turno ${fight.turn}
 
@@ -175,16 +175,13 @@ async function handleAttack(ctx) {
   const fight = activeFights.get(ctx.from.id);
   if (!fight) return;
 
-  // Substituir a mensagem de ataque padrão por uma variada
   const originalLog = fight.logs.length;
   processPlayerTurn(fight);
 
   if (fight.logs.length > originalLog) {
     const lastMsg = fight.logs[fight.logs.length - 1];
     if (lastMsg.includes('causou') && !lastMsg.includes('CRÍTICO')) {
-      // Substitui mensagem padrão por uma variada
-      const baseMsg = getRandomMessage('player');
-      fight.logs[fight.logs.length - 1] = `${baseMsg} e causou *${fight.lastDamageDealt}* dano!`;
+      fight.logs[fight.logs.length - 1] = `${getRandomMessage('player')} e causou *${fight.lastDamageDealt}* dano!`;
     } else if (lastMsg.includes('CRÍTICO')) {
       fight.logs[fight.logs.length - 1] = `💥 CRÍTICO! ${getRandomMessage('player')} e causou *${fight.lastDamageDealt}* dano!`;
     }
@@ -192,7 +189,6 @@ async function handleAttack(ctx) {
 
   if (fight.status === 'ongoing') {
     processEnemyTurn(fight);
-    // Também variar mensagem do inimigo
     if (fight.logs.length > originalLog + 1) {
       const enemyMsg = fight.logs[fight.logs.length - 1];
       if (enemyMsg.includes('causou') && !enemyMsg.includes('CRÍTICO')) {
