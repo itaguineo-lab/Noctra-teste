@@ -4,13 +4,11 @@ const { generateItem } = require('../data/items');
 
 function processVictory(player, enemy) {
   if (!player.inventory) player.inventory = [];
-  if (!Array.isArray(player.soulsInventory)) {
-    player.soulsInventory = [];
-  }
+  if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
+  if (!Array.isArray(player.keysInventory)) player.keysInventory = [];
 
-  if (!Array.isArray(player.keysInventory)) {
-    player.keysInventory = [];
-  }
+  // Atualiza kills
+  player.totalKills = (player.totalKills || 0) + 1;
 
   const baseXp = enemy.xp || enemy.exp || 0;
   const baseGold = enemy.gold || 0;
@@ -31,52 +29,35 @@ function processVictory(player, enemy) {
 
   const loot = [];
 
-  /*
-    DROP DE EQUIPAMENTO
-    mob comum = 20%
-    boss = 100%
-  */
+  // DROP DE EQUIPAMENTO
   const equipmentChance = enemy.isBoss ? 1 : 0.20;
-
   if (Math.random() < equipmentChance) {
-    droppedItem = generateItem(
-      player.level,
-      null
-    );
+    droppedItem = generateItem(player.level, null);
 
-    player.inventory.push(droppedItem);
-
-    loot.push(
-      `${droppedItem.emoji} ${droppedItem.name}`
-    );
-  }
-
-  /*
-    ALMAS
-    SOMENTE BOSSES
-    chance extremamente rara
-  */
-  const soulChance = enemy.isBoss ? 0.01 : 0;
-
-  if (Math.random() < soulChance) {
-    droppedSoul = dropSoul(player.level);
-
-    if (droppedSoul) {
-      player.soulsInventory.push(droppedSoul);
-
-      loot.push(
-        `💀 Alma: ${droppedSoul.name}`
-      );
+    const inventoryCount = player.inventory.length;
+    const maxInventory = player.maxInventory || (player.vip ? 30 : 20);
+    if (inventoryCount >= maxInventory) {
+      loot.push(`❌ Inventário cheio! ${droppedItem.name} foi perdido.`);
+      droppedItem = null;
+    } else {
+      player.inventory.push(droppedItem);
+      loot.push(`${droppedItem.emoji} ${droppedItem.name}`);
     }
   }
 
-  /*
-    CHAVE DE MASMORRA
-    SOMENTE BOSS DE CAMPO
-    muito rara
-  */
-  const keyChance = enemy.isBoss ? 0.02 : 0;
+  // ALMAS (somente bosses)
+  const soulChance = enemy.isBoss ? 0.01 : 0;
+  if (Math.random() < soulChance) {
+    droppedSoul = dropSoul(player.level);
+    if (droppedSoul) {
+      // Almas têm inventário próprio (soulsInventory) – sem limite por enquanto
+      player.soulsInventory.push(droppedSoul);
+      loot.push(`💀 Alma: ${droppedSoul.name}`);
+    }
+  }
 
+  // CHAVE DE MASMORRA (boss de campo)
+  const keyChance = enemy.isBoss ? 0.02 : 0;
   if (Math.random() < keyChance) {
     droppedKey = {
       id: `key_${Date.now()}`,
@@ -84,10 +65,20 @@ function processVictory(player, enemy) {
       type: 'dungeon_key',
       rarity: 'Épico'
     };
-
     player.keysInventory.push(droppedKey);
-
     loot.push('🗝️ Chave da Masmorra');
+  }
+
+  // Checar conquista de kills (simples)
+  if (player.totalKills === 10 && !player.achievements?.kill10) {
+    if (!player.achievements) player.achievements = {};
+    player.achievements.kill10 = true;
+    player.nox = (player.nox || 0) + 5;
+    loot.push('🏆 Conquista: 10 mortes! +5 Nox');
+  } else if (player.totalKills === 100 && !player.achievements?.kill100) {
+    player.achievements.kill100 = true;
+    player.nox = (player.nox || 0) + 20;
+    loot.push('🏆 Conquista: 100 mortes! +20 Nox');
   }
 
   return {
