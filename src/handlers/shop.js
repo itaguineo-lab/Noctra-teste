@@ -1,169 +1,58 @@
-const {
-  getPlayer,
-  savePlayer
-} = require('../core/player/playerService');
-
-const {
-  processPurchase
-} = require('../core/economy/shopLogic');
-
-const {
-  villageItems,
-  castleItems,
-  arenaItems
-} = require('../data/shop');
-
-const {
-  shopTabsMenu,
-  renderShop
-} = require('../menus/shopMenu');
+const { getPlayer, savePlayer } = require('../core/player/playerService');
+const { processPurchase } = require('../core/economy/shopLogic');
+const { shopItems } = require('../data/shop');
+const { shopTabsMenu, renderShop } = require('../menus/shopMenu');
 
 async function safeEdit(ctx, text, options = {}) {
-  try {
-    if (ctx.callbackQuery) {
-      await ctx.answerCbQuery();
-      await ctx.editMessageText(text, options);
-    } else {
-      await ctx.reply(text, options);
-    }
-  } catch (err) {
-    console.error('Erro shop:', err);
-
     try {
-      await ctx.reply(text, options);
-    } catch {}
-  }
-}
-
-function getPlayerMoney(player) {
-  return `💰 Ouro: ${player.gold || 0}
-💎 Nox: ${player.nox || 0}
-🏅 Glórias: ${player.glorias || 0}`;
+        await ctx.editMessageText(text, options);
+    } catch {
+        await ctx.reply(text, options);
+    }
 }
 
 async function handleShop(ctx) {
-  const player = getPlayer(ctx.from.id);
-
-  await safeEdit(
-    ctx,
-    `🛒 *LOJAS DE NOCTRA*
-
-${getPlayerMoney(player)}
-
-Escolha uma loja:`,
-    {
-      parse_mode: 'Markdown',
-      ...shopTabsMenu()
-    }
-  );
+    const player = getPlayer(ctx.from.id);
+    const msg = `🛒 *Lojas de Noctra*\n💰 Ouro: ${player.gold} | 💎 Nox: ${player.nox} | 🏅 Glórias: ${player.glorias || 0}\n\nEscolha uma loja:`;
+    await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopTabsMenu() });
 }
 
 async function handleShopVillage(ctx) {
-  const player = getPlayer(ctx.from.id);
-
-  const { text, keyboard } = renderShop(
-    '🏘️ Vila (Ouro)',
-    villageItems,
-    player
-  );
-
-  await safeEdit(ctx, text, {
-    parse_mode: 'Markdown',
-    ...keyboard
-  });
+    const player = getPlayer(ctx.from.id);
+    const items = shopItems.filter(i => i.shop === 'village');
+    const { text, keyboard } = renderShop('Vila (Ouro)', items, player);
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
 }
 
 async function handleShopCastle(ctx) {
-  const player = getPlayer(ctx.from.id);
-
-  const { text, keyboard } = renderShop(
-    '🏰 Castelo (Nox)',
-    castleItems,
-    player
-  );
-
-  await safeEdit(ctx, text, {
-    parse_mode: 'Markdown',
-    ...keyboard
-  });
+    const player = getPlayer(ctx.from.id);
+    const items = shopItems.filter(i => i.shop === 'castle');
+    const { text, keyboard } = renderShop('Castelo (Nox)', items, player);
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
 }
 
 async function handleShopArena(ctx) {
-  const player = getPlayer(ctx.from.id);
-
-  const { text, keyboard } = renderShop(
-    '⚔️ Arena (Glórias)',
-    arenaItems,
-    player
-  );
-
-  await safeEdit(ctx, text, {
-    parse_mode: 'Markdown',
-    ...keyboard
-  });
+    const player = getPlayer(ctx.from.id);
+    const items = shopItems.filter(i => i.shop === 'arena');
+    const { text, keyboard } = renderShop('Matadores (Glórias)', items, player);
+    await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
 }
 
 async function handleBuy(ctx, itemId) {
-  try {
     const player = getPlayer(ctx.from.id);
-
-    const allItems = [
-      ...villageItems,
-      ...castleItems,
-      ...arenaItems
-    ];
-
-    const item = allItems.find(
-      i => i.id === itemId
-    );
-
+    const item = shopItems.find(i => i.id === itemId);
     if (!item) {
-      return ctx.answerCbQuery(
-        'Item inválido.',
-        { show_alert: true }
-      );
+        return ctx.answerCbQuery('Item inválido.', true);
     }
-
-    const result = processPurchase(
-      player,
-      item
-    );
-
-    await ctx.answerCbQuery(
-      result.message,
-      { show_alert: true }
-    );
-
-    if (!result.success) {
-      return;
+    const result = processPurchase(player, item);
+    if (result.success) {
+        savePlayer(ctx.from.id, player);
+        await ctx.answerCbQuery(result.message, true);
+        // Recarrega a loja atual (precisa saber qual aba)
+        await handleShopVillage(ctx); // ou manter a aba atual
+    } else {
+        await ctx.answerCbQuery(result.message, true);
     }
-
-    savePlayer(ctx.from.id, player);
-
-    switch (item.currency) {
-      case 'nox':
-        return handleShopCastle(ctx);
-
-      case 'glory':
-        return handleShopArena(ctx);
-
-      default:
-        return handleShopVillage(ctx);
-    }
-  } catch (err) {
-    console.error('Erro compra:', err);
-
-    await ctx.answerCbQuery(
-      'Erro na compra.',
-      { show_alert: true }
-    );
-  }
 }
 
-module.exports = {
-  handleShop,
-  handleShopVillage,
-  handleShopCastle,
-  handleShopArena,
-  handleBuy
-};
+module.exports = { handleShop, handleShopVillage, handleShopCastle, handleShopArena, handleBuy };
