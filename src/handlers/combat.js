@@ -4,7 +4,74 @@ const { processVictory } = require('../services/rewardService');
 
 const {
   createFight,
-  processPlayerTurn,
+  processPlayerTurn,async function handleConsumables(ctx) {
+  try {
+    await ctx.answerCbQuery();
+
+    const fight = activeFights.get(ctx.from.id);
+
+    if (!fight) {
+      return;
+    }
+
+    const player = getPlayer(ctx.from.id);
+
+    if (!player.consumables) {
+      player.consumables = {};
+    }
+
+    if ((player.consumables.potionHp || 0) <= 0) {
+      return ctx.answerCbQuery(
+        '❌ Você não possui poções.',
+        { show_alert: true }
+      );
+    }
+
+    if (fight.player.hp >= fight.player.maxHp) {
+      return ctx.answerCbQuery(
+        '❤️ HP já está cheio.',
+        { show_alert: true }
+      );
+    }
+
+    player.consumables.potionHp -= 1;
+
+    const heal = Math.floor(
+      fight.player.maxHp * 0.4
+    );
+
+    fight.player.hp = Math.min(
+      fight.player.maxHp,
+      fight.player.hp + heal
+    );
+
+    fight.logs.push(
+      `🧪 ${fight.player.name} usou uma poção e recuperou ${heal} HP.`
+    );
+
+    savePlayer(ctx.from.id, player);
+
+    processEnemyTurn(fight);
+
+    if (fight.status !== 'ongoing') {
+      return finishFight(ctx, fight);
+    }
+
+    await editMessage(
+      ctx,
+      renderFightText(fight),
+      {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+      }
+    );
+  } catch (err) {
+    console.error(
+      'Erro consumíveis:',
+      err
+    );
+  }
+}
   processEnemyTurn,
   attemptFlee,
   useSoul
