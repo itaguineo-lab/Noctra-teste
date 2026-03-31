@@ -1,12 +1,12 @@
 const { getRarityColor } = require('../data/constants');
 
 /**
- * Cria uma barra de progresso visual com cores personalizáveis
+ * Cria uma barra de progresso visual com quadrados
  * @param {number} current Valor atual
  * @param {number} max Valor máximo
  * @param {number} size Tamanho da barra (caracteres)
- * @param {string} fullChar Caractere para parte preenchida
- * @param {string} emptyChar Caractere para parte vazia
+ * @param {string} fullChar Caractere para parte preenchida (padrão 🟩)
+ * @param {string} emptyChar Caractere para parte vazia (padrão ⬜)
  */
 function progressBar(current, max, size = 10, fullChar = '🟩', emptyChar = '⬜') {
     const safeMax = max > 0 ? max : 1;
