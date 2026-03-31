@@ -38,22 +38,29 @@ async function renderEnergy(ctx) {
   updateEnergy(player);
   const nextIn = getTimeToNextEnergy(player);
 
-  const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟡', '⬜');
-  const hpBar = progressBar(player.hp, player.maxHp, 8, '🔴', '⬜');
+  const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟨', '⬜');
+  const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
   const energyPercent = Math.floor((player.energy / player.maxEnergy) * 100);
 
-  let text = `⚡ *Energia*\n\n`;
-  text += `⚡ ${player.energy}/${player.maxEnergy}\n`;
-  text += `[${energyBar}] ${energyPercent}%\n\n`;
-  text += `❤️ HP: ${player.hp}/${player.maxHp}\n`;
-  text += `[${hpBar}]\n\n`;
-  text += `⏱️ Regeneração: ${player.vip ? '1 a cada 3 min' : '1 a cada 6 min'}\n`;
+  let text = `╔════════════════════════╗\n`;
+  text += `║       ⚡ *ENERGIA*       ║\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ ⚡ ${player.energy}/${player.maxEnergy}\n`;
+  text += `║ [${energyBar}] ${energyPercent}%\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ ❤️ HP: ${player.hp}/${player.maxHp}\n`;
+  text += `║ [${hpBar}]\n`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ ⏱️ Regeneração: ${player.vip ? '1 a cada 3 min' : '1 a cada 6 min'}\n`;
   if (nextIn > 0) {
-    text += `⏳ Próxima energia em: ${formatTime(nextIn)}\n`;
+    text += `║ ⏳ Próxima energia em: ${formatTime(nextIn)}\n`;
   } else {
-    text += `✅ Energia cheia!\n`;
+    text += `║ ✅ Energia cheia!\n`;
   }
-  text += `\n🛌 Descansar recupera *todo HP*\n⚡ Custo: *1 energia*`;
+  text += `╠════════════════════════╣\n`;
+  text += `║ 🛌 Descansar recupera *todo HP*\n`;
+  text += `║ ⚡ Custo: *1 energia*\n`;
+  text += `╚════════════════════════╝`;
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('🛌 Descansar (-1⚡)', 'rest_energy')],
