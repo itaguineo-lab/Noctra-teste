@@ -7,7 +7,6 @@ const http = require('http');
 const {
   handleHunt,
   handleAttack,
-  handleSkill,
   handleSoul,
   handleFlee
 } = require('./src/handlers/combat');
@@ -22,6 +21,7 @@ const {
   handleInvArmors,
   handleInvJewelry,
   handleInvConsumables,
+  handleInvSkins,
   handleInvSouls
 } = require('./src/handlers/inventory');
 
@@ -66,7 +66,10 @@ const {
 
 const {
   handleEquip,
-  handleEquipSoul
+  handleEquipSoul,
+  handleEquipItemCallback,
+  handleEquipSoulCallback,
+  handleUnequipCallback
 } = require('./src/commands/equip');
 
 // ===== MENUS =====
@@ -80,9 +83,13 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 // ===== LOGGER =====
 bot.use((ctx, next) => {
   if (ctx.callbackQuery) {
-    console.log(`📞 Callback: ${ctx.callbackQuery.data} | user: ${ctx.from.id}`);
+    console.log(
+      `📞 Callback: ${ctx.callbackQuery.data} | user: ${ctx.from.id}`
+    );
   } else if (ctx.message?.text) {
-    console.log(`💬 Msg: ${ctx.message.text} | user: ${ctx.from.id}`);
+    console.log(
+      `💬 Msg: ${ctx.message.text} | user: ${ctx.from.id}`
+    );
   }
 
   return next();
@@ -123,9 +130,13 @@ bot.command('equipsoul', handleEquipSoul);
 // ===== COMBAT =====
 bot.action('hunt', handleHunt);
 bot.action('combat_attack', handleAttack);
-bot.action('combat_skill', handleSkill);
 bot.action('combat_soul', handleSoul);
 bot.action('combat_flee', handleFlee);
+
+// ===== EQUIP CALLBACKS =====
+bot.action(/^equip_item:(.+)$/, handleEquipItemCallback);
+bot.action(/^equip_soul:(.+)$/, handleEquipSoulCallback);
+bot.action(/^unequip:(.+)$/, handleUnequipCallback);
 
 // ===== MAIN MENU =====
 bot.action('menu', async (ctx) => {
@@ -170,7 +181,9 @@ bot.action('online', handleOnline);
 bot.action('shop_village', handleShopVillage);
 bot.action('shop_castle', handleShopCastle);
 bot.action('shop_arena', handleShopArena);
-bot.action(/buy_(.+)/, (ctx) => handleBuy(ctx, ctx.match[1]));
+bot.action(/buy_(.+)/, (ctx) =>
+  handleBuy(ctx, ctx.match[1])
+);
 
 // ===== TRAVEL =====
 bot.action(/travel_to_(.+)/, handleTravelTo);
@@ -180,47 +193,68 @@ bot.action('travel_locked', handleTravelLocked);
 bot.action('inv_weapons', handleInvWeapons);
 bot.action('inv_armors', handleInvArmors);
 bot.action('inv_jewelry', handleInvJewelry);
-bot.action('inv_consumables', handleInvConsumables);
+bot.action(
+  'inv_consumables',
+  handleInvConsumables
+);
+bot.action('inv_skins', handleInvSkins);
 bot.action('inv_souls', handleInvSouls);
 
 // ===== HELP =====
 bot.action('rename_help', async (ctx) => {
-  await ctx.answerCbQuery('Use /rename <novo_nome>', {
-    show_alert: true
-  });
+  await ctx.answerCbQuery(
+    'Use /rename <novo_nome>',
+    {
+      show_alert: true
+    }
+  );
 });
 
 bot.action('class_help', async (ctx) => {
-  await ctx.answerCbQuery('Use /class guerreiro | arqueiro | mago', {
-    show_alert: true
-  });
+  await ctx.answerCbQuery(
+    'Use /class guerreiro | arqueiro | mago',
+    {
+      show_alert: true
+    }
+  );
 });
 
 // ===== GLOBAL ERROR =====
 bot.catch((err, ctx) => {
-  console.error(`❌ Erro em ${ctx.updateType}:`, err);
+  console.error(
+    `❌ Erro em ${ctx.updateType}:`,
+    err
+  );
 
-  ctx.reply('❌ Ocorreu um erro. Tente novamente.')
-    .catch(console.error);
+  ctx.reply(
+    '❌ Ocorreu um erro. Tente novamente.'
+  ).catch(console.error);
 });
 
 // ===== KEEP RENDER ALIVE =====
 const PORT = process.env.PORT || 3000;
 
-http.createServer((req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/plain'
-  });
+http
+  .createServer((req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/plain'
+    });
 
-  res.end('Noctra RPG online (polling mode)');
-}).listen(PORT, () => {
-  console.log(`🌐 HTTP keep-alive na porta ${PORT}`);
-});
+    res.end(
+      'Noctra RPG online (polling mode)'
+    );
+  })
+  .listen(PORT, () => {
+    console.log(
+      `🌐 HTTP keep-alive na porta ${PORT}`
+    );
+  });
 
 // ===== START BOT =====
 (async () => {
   try {
-    const webhookInfo = await bot.telegram.getWebhookInfo();
+    const webhookInfo =
+      await bot.telegram.getWebhookInfo();
 
     if (webhookInfo.url) {
       await bot.telegram.deleteWebhook();
@@ -230,7 +264,10 @@ http.createServer((req, res) => {
     await bot.launch();
     console.log('✅ Noctra RPG online');
   } catch (err) {
-    console.error('❌ Falha ao iniciar:', err);
+    console.error(
+      '❌ Falha ao iniciar:',
+      err
+    );
     process.exit(1);
   }
 })();
