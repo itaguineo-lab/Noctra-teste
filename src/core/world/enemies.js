@@ -1,39 +1,105 @@
 const enemyPools = {
     clareira_sombria: {
         common: [
-            { name: 'Lobo Sombrio', hp: 80, atk: 12, def: 5, xp: 25, gold: 15 },
-            { name: 'Rato Gigante', hp: 60, atk: 10, def: 3, xp: 20, gold: 10 }
+            { name: 'Lobo Sombrio', hp: 50, atk: 9, def: 4, xp: 30, gold: 18 },
+            { name: 'Rato Gigante', hp: 40, atk: 7, def: 2, xp: 25, gold: 12 }
         ],
         bosses: [
-            { name: '👑 Alfa da Matilha', hp: 350, atk: 35, def: 15, xp: 150, gold: 100, isBoss: true }
+            { 
+                name: '👑 Alfa da Matilha', 
+                hp: 200, atk: 22, def: 10, 
+                xp: 120, gold: 80, 
+                isBoss: true,
+                minLevel: 5   // só aparece a partir do nível 5
+            }
         ]
     },
     cripta_em_ruinas: {
         common: [
-            { name: 'Esqueleto Guerreiro', hp: 150, atk: 18, def: 10, xp: 50, gold: 30 },
-            { name: 'Mago Esqueleto', hp: 120, atk: 22, def: 8, xp: 55, gold: 35 }
+            { name: 'Esqueleto Guerreiro', hp: 100, atk: 14, def: 8, xp: 45, gold: 28 },
+            { name: 'Mago Esqueleto', hp: 90, atk: 18, def: 6, xp: 50, gold: 32 }
         ],
         bosses: [
-            { name: '👑 Necromante Ancestral', hp: 800, atk: 70, def: 40, xp: 550, gold: 400, isBoss: true }
+            { name: '👑 Necromante Ancestral', hp: 500, atk: 50, def: 30, xp: 500, gold: 350, isBoss: true, minLevel: 8 }
         ]
     },
     pantano_corrompido: {
         common: [
-            { name: 'Sapo Corrompido', hp: 180, atk: 24, def: 9, xp: 70, gold: 45 },
-            { name: 'Serpente Venenosa', hp: 160, atk: 28, def: 8, xp: 75, gold: 50 }
+            { name: 'Sapo Corrompido', hp: 130, atk: 20, def: 8, xp: 70, gold: 45 },
+            { name: 'Serpente Venenosa', hp: 120, atk: 24, def: 7, xp: 75, gold: 50 }
         ],
         bosses: [
-            { name: '👑 Guardião do Lodo', hp: 1100, atk: 85, def: 45, xp: 800, gold: 600, isBoss: true }
+            { name: '👑 Guardião do Lodo', hp: 800, atk: 70, def: 40, xp: 750, gold: 550, isBoss: true, minLevel: 15 }
         ]
     },
     deserto_incandescente: {
         common: [
-            { name: 'Escorpião Infernal', hp: 220, atk: 32, def: 12, xp: 95, gold: 60 },
-            { name: 'Andarilho de Cinzas', hp: 240, atk: 30, def: 14, xp: 100, gold: 65 }
+            { name: 'Escorpião Infernal', hp: 170, atk: 28, def: 11, xp: 95, gold: 60 },
+            { name: 'Andarilho de Cinzas', hp: 180, atk: 26, def: 12, xp: 100, gold: 65 }
         ],
         bosses: [
-            { name: '👑 Faraó das Brasas', hp: 1600, atk: 110, def: 60, xp: 1200, gold: 900, isBoss: true }
+            { name: '👑 Faraó das Brasas', hp: 1200, atk: 90, def: 55, xp: 1100, gold: 850, isBoss: true, minLevel: 24 }
         ]
     }
 };
-// ... resto do arquivo (getRandomEnemy, scaleEnemy) mantido
+
+function normalizeMapId(mapId) {
+    if (!mapId) return 'clareira_sombria';
+    const normalized = String(mapId).trim().toLowerCase();
+    const aliases = {
+        'clareira sombria': 'clareira_sombria',
+        'cripta em ruínas': 'cripta_em_ruinas',
+        'pântano corrompido': 'pantano_corrompido',
+        'deserto incandescente': 'deserto_incandescente'
+    };
+    return aliases[normalized] || normalized;
+}
+
+function scaleEnemy(enemy, playerLevel = 1) {
+    const level = Math.max(1, Number(playerLevel) || 1);
+    // Escala mais suave: +5 HP, +1 atk, +1 def a cada 5 níveis
+    const scaleFactor = Math.floor((level - 1) / 5);
+    return {
+        ...enemy,
+        hp: Math.floor(enemy.hp + (scaleFactor * 5)),
+        atk: Math.floor(enemy.atk + scaleFactor),
+        def: Math.floor(enemy.def + Math.floor(scaleFactor / 2)),
+        xp: Math.floor(enemy.xp + (scaleFactor * 3)),
+        gold: Math.floor(enemy.gold + (scaleFactor * 2)),
+        level
+    };
+}
+
+function getRandomEnemy(mapId, playerLevel = 1) {
+    const normalizedMapId = normalizeMapId(mapId);
+    const mapData = enemyPools[normalizedMapId] || enemyPools.clareira_sombria;
+
+    // Chance de boss começa baixa (5%) e aumenta com nível (máx 15%)
+    let bossChance = 0.05 + ((playerLevel - 1) * 0.002);
+    bossChance = Math.min(bossChance, 0.15);
+    
+    const isBossRoll = Math.random() < bossChance;
+    const availableBosses = (mapData.bosses || []).filter(b => !b.minLevel || playerLevel >= b.minLevel);
+
+    if (isBossRoll && availableBosses.length > 0) {
+        const boss = availableBosses[Math.floor(Math.random() * availableBosses.length)];
+        return scaleEnemy({ ...boss }, playerLevel);
+    }
+
+    const pool = mapData.common;
+    if (!pool.length) return null;
+    const enemy = pool[Math.floor(Math.random() * pool.length)];
+    return scaleEnemy({ ...enemy, isBoss: false }, playerLevel);
+}
+
+function getEnemyPool(mapId) {
+    const normalized = normalizeMapId(mapId);
+    return enemyPools[normalized] || enemyPools.clareira_sombria;
+}
+
+module.exports = {
+    enemyPools,
+    getRandomEnemy,
+    getEnemyPool,
+    normalizeMapId
+};
