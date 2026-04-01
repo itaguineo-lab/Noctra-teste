@@ -12,6 +12,9 @@ const BASE_STATS = {
     arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
 };
 
+// Lista completa de slots de equipamento
+const EQUIPMENT_SLOTS = ['weapon', 'armor', 'shield', 'ring', 'necklace', 'quiver', 'backpack'];
+
 function loadPlayersToCache() {
     try {
         if (!fs.existsSync(playersFilePath)) {
@@ -20,6 +23,26 @@ function loadPlayersToCache() {
         }
         const data = fs.readFileSync(playersFilePath, 'utf8');
         playersCache = JSON.parse(data);
+        // Migração: garantir que todos os players tenham a estrutura correta
+        for (const id in playersCache) {
+            const player = playersCache[id];
+            if (player) {
+                // Garantir que equipment existe e tem todos os slots
+                if (!player.equipment || typeof player.equipment !== 'object') {
+                    player.equipment = {};
+                }
+                for (const slot of EQUIPMENT_SLOTS) {
+                    if (!player.equipment.hasOwnProperty(slot)) {
+                        player.equipment[slot] = null;
+                    }
+                }
+                // Garantir outros campos necessários
+                if (!player.soulsEquipped) player.soulsEquipped = [null, null];
+                if (!player.soulsInventory) player.soulsInventory = [];
+                if (!player.consumables) player.consumables = { potionHp: 0, potionEnergy: 0, tonicStrength: 0 };
+                if (!player.maxInventory) player.maxInventory = player.vip ? 30 : 20;
+            }
+        }
     } catch (error) {
         console.error('Erro ao carregar jogadores:', error);
         playersCache = {};
