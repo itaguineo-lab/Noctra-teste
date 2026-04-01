@@ -39,17 +39,24 @@ async function handleShopArena(ctx) {
 }
 
 async function handleBuy(ctx, itemId) {
+    console.log(`🛒 Compra solicitada: ${itemId} por ${ctx.from.id}`);
     const player = getPlayer(ctx.from.id);
     const item = shopItems.find(i => i.id === itemId);
     if (!item) {
+        console.log(`❌ Item não encontrado: ${itemId}`);
         return ctx.answerCbQuery('Item inválido.', true);
     }
+    console.log(`✅ Item encontrado: ${item.name}, preço: ${item.price} ${item.currency}`);
     const result = processPurchase(player, item);
+    console.log(`Resultado da compra: ${result.success} - ${result.message}`);
     if (result.success) {
         savePlayer(ctx.from.id, player);
         await ctx.answerCbQuery(result.message, true);
-        // Recarrega a loja atual (precisa saber qual aba)
-        await handleShopVillage(ctx); // ou manter a aba atual
+        // Recarrega a loja atual (manter a mesma aba)
+        const currentShop = item.shop;
+        if (currentShop === 'village') await handleShopVillage(ctx);
+        else if (currentShop === 'castle') await handleShopCastle(ctx);
+        else if (currentShop === 'arena') await handleShopArena(ctx);
     } else {
         await ctx.answerCbQuery(result.message, true);
     }
