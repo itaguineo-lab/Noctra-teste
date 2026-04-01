@@ -120,7 +120,7 @@ async function handleInvArmors(ctx) {
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
 }
 
-// ====================== JÓIAS (Anéis + Colares) ======================
+// ====================== JÓIAS ======================
 async function handleInvJewelry(ctx) {
     const player = getPlayer(ctx.from.id);
     const items = getInventory(player).filter(i => i.slot === 'ring' || i.slot === 'necklace');
