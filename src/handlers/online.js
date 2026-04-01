@@ -1,22 +1,21 @@
-const { playersCache } = require('../core/player/playerService');
+const { getAllPlayers } = require('../core/player/playerService');
 
 async function handleOnline(ctx) {
     try {
         const now = Date.now();
         const activeThreshold = now - 20 * 60 * 1000; // últimos 20 minutos
 
+        const players = getAllPlayers();
         let onlineCount = 0;
         let playersByMap = {};
 
-        if (playersCache) {
-            Object.values(playersCache).forEach(p => {
-                if (p.lastActive && p.lastActive > activeThreshold) {
-                    onlineCount++;
-                    const map = p.currentMap || 'clareira_sombria';
-                    playersByMap[map] = (playersByMap[map] || 0) + 1;
-                }
-            });
-        }
+        Object.values(players).forEach(p => {
+            if (p.lastActive && p.lastActive > activeThreshold) {
+                onlineCount++;
+                const map = p.currentMap || 'clareira_sombria';
+                playersByMap[map] = (playersByMap[map] || 0) + 1;
+            }
+        });
 
         let msg = `👥 *Online* (últimos 20 min): ${onlineCount}\n`;
         if (Object.keys(playersByMap).length) {
