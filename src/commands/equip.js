@@ -37,6 +37,7 @@ ${formatEquipmentItem('🎒 Mochila', eq.backpack)}
     return text;
 }
 
+// Equipar: item permanece no inventário, apenas referência em equipment
 function equipItemById(player, itemId) {
     if (!Array.isArray(player.inventory)) player.inventory = [];
     if (!player.equipment) {
@@ -56,13 +57,13 @@ function equipItemById(player, itemId) {
     }
 
     const currentEquip = player.equipment[item.slot] || null;
+    // Se já estiver equipado, nada muda
     if (currentEquip && String(currentEquip.id) === String(item.id)) {
         return { ok: false, message: '⚠️ Este item já está equipado.' };
     }
 
-    if (currentEquip) player.inventory.push(currentEquip);
+    // Equipa o novo item (não remove do inventário)
     player.equipment[item.slot] = item;
-    player.inventory.splice(itemIndex, 1);
 
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
@@ -70,24 +71,16 @@ function equipItemById(player, itemId) {
     return { ok: true, item, currentEquip };
 }
 
+// Desequipar: apenas remove a referência
 function unequipSlot(player, slot) {
     const validSlots = ['weapon', 'armor', 'shield', 'ring', 'necklace', 'quiver', 'backpack'];
-    if (!validSlots.includes(slot)) {
-        console.log(`❌ Slot inválido: ${slot}`);
-        return { ok: false, message: `❌ Slot inválido: ${slot}` };
-    }
+    if (!validSlots.includes(slot)) return { ok: false, message: '❌ Slot inválido.' };
     if (!player.equipment) player.equipment = {};
 
     const item = player.equipment[slot];
-    console.log(`🔍 Desequipando slot ${slot}, item encontrado:`, item ? `${item.name} (${item.id})` : 'null');
-
-    if (!item) {
-        console.log(`❌ Nada equipado no slot ${slot}`);
-        return { ok: false, message: `❌ Nada equipado neste slot.` };
-    }
+    if (!item) return { ok: false, message: '❌ Nada equipado neste slot.' };
 
     player.equipment[slot] = null;
-    player.inventory.push(item);
 
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
@@ -109,7 +102,11 @@ function equipSoulById(player, soulId) {
 
     const soul = player.soulsInventory[soulIndex];
     player.soulsEquipped[emptySlot] = soul;
-    player.soulsInventory.splice(soulIndex, 1);
+    // Alma NÃO é removida do soulsInventory (permanece)
+    // Teletofus mantém as almas no inventário quando equipadas? Precisamos ver.
+    // Por simplicidade, vamos manter no inventário também.
+    // Mas se quiser remover, descomente a linha abaixo:
+    // player.soulsInventory.splice(soulIndex, 1);
 
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
@@ -124,8 +121,7 @@ function unequipSoul(player, slotIndex) {
     if (!soul) return { ok: false, message: '❌ Nenhuma alma equipada neste slot.' };
 
     player.soulsEquipped[slotIndex] = null;
-    player.soulsInventory.push(soul);
-
+    // Não remove do inventário (alma permanece)
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
 
@@ -178,7 +174,6 @@ async function handleUnequipItem(ctx) {
             return;
         }
 
-        console.log(`🔄 Desequipando slot: ${slot}`);
         const player = getPlayer(ctx.from.id);
         const result = unequipSlot(player, slot);
         if (!result.ok) {
@@ -187,7 +182,7 @@ async function handleUnequipItem(ctx) {
         }
 
         savePlayer(ctx.from.id, player);
-        await ctx.answerCbQuery(`✅ ${result.item.name} removido para o inventário.`, true);
+        await ctx.answerCbQuery(`✅ ${result.item.name} removido do equipamento.`, true);
 
         // Recarregar a tela de inventário principal
         await ctx.editMessageText('🎒 *INVENTÁRIO*', { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
