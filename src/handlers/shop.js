@@ -52,7 +52,6 @@ async function handleBuy(ctx, itemId) {
     if (result.success) {
         savePlayer(ctx.from.id, player);
         await ctx.answerCbQuery(result.message, true);
-        // Recarrega a loja atual (manter a mesma aba)
         const currentShop = item.shop;
         if (currentShop === 'village') await handleShopVillage(ctx);
         else if (currentShop === 'castle') await handleShopCastle(ctx);
