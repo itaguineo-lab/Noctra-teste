@@ -35,22 +35,36 @@ const {
 
 const activeFights = new Map();
 
-function renderFightText(fight) {
-    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8);
-    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8);
+function renderFightText(fight, player) {
+    const playerBar = progressBar(
+        fight.player.hp,
+        fight.player.maxHp,
+        8
+    );
 
-    return `⚔️ *COMBATE* | Turno ${fight.turn}
+    const enemyBar = progressBar(
+        fight.enemy.hp,
+        fight.enemy.maxHp,
+        8
+    );
 
-👤 *${fight.player.name}*
-❤️ HP: ${fight.player.hp}/${fight.player.maxHp}
+    return `⚔️ *BATALHA*
+
+👤 *${fight.player.name}* [Lv ${player.level}]
+❤️ ${fight.player.hp}/${fight.player.maxHp}
 [${playerBar}]
-⚡ Energia: ${fight.player.energy}/${fight.player.maxEnergy}
+⚡ ${fight.player.energy}/${fight.player.maxEnergy}
+🎯 CRIT ${fight.player.crit}%
 
-👾 *${fight.enemy.name}*
-❤️ HP: ${fight.enemy.hp}/${fight.enemy.maxHp}
+👹 *${fight.enemy.name}* [Lv ${fight.enemy.level}]
+❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}
 [${enemyBar}]
 
-📜 *Últimas ações:*
+🎁 *Recompensas*
+✨ ${fight.enemy.xp} XP
+💰 ${fight.enemy.gold} ouro
+
+📜 *Últimas ações*
 ${fight.logs.slice(-4).join('\n')}`;
 }
 
@@ -71,25 +85,39 @@ async function finishFight(ctx, fight) {
 
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
+
         player.hp = fight.player.hp;
+
         recalculateStats(player);
         savePlayer(ctx.from.id, player);
+
         activeFights.delete(ctx.from.id);
 
-        let victoryMsg = `🏆 *VITÓRIA!*\n\n✨ +${rewards.xp} XP\n💰 +${rewards.gold} Ouro\n⚡ Energia restante: ${player.energy}/${player.maxEnergy}`;
-        if (rewards.loot.length) victoryMsg += `\n🎁 ${rewards.loot.join(', ')}`;
+        let msg = `🏆 *VITÓRIA!*
 
-        return editMessage(ctx, victoryMsg, {
+✨ +${rewards.xp} XP
+💰 +${rewards.gold} Ouro`;
+
+        if (rewards.loot.length) {
+            msg += `\n\n🎁 ${rewards.loot.join('\n')}`;
+        }
+
+        return editMessage(ctx, msg, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
     }
 
     if (fight.status === 'loss') {
-        player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
+        player.hp = Math.max(
+            1,
+            Math.floor(player.maxHp * 0.25)
+        );
+
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
-        return editMessage(ctx, `💀 *DERROTA*\n\nVocê reviveu com 25% de HP.`, {
+
+        return editMessage(ctx, `💀 *DERROTA*`, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -97,9 +125,11 @@ async function finishFight(ctx, fight) {
 
     if (fight.status === 'fled') {
         player.hp = fight.player.hp;
+
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
-        return editMessage(ctx, `🏃 *FUGA*`, {
+
+        return editMessage(ctx, `🏃 *FUGIU*`, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -107,119 +137,70 @@ async function finishFight(ctx, fight) {
 }
 
 async function handleHunt(ctx) {
-    await ctx.answerCbQuery(); // resposta imediata
+    await ctx.answerCbQuery();
 
     const player = getPlayer(ctx.from.id);
-    if (!player) return ctx.reply('❌ Perfil não encontrado.');
 
     if (player.energy < 1) {
-        return ctx.reply('⚡ Energia insuficiente.');
+        return ctx.reply('⚡ Sem energia.');
     }
 
     consumeEnergy(player, 1);
     savePlayer(ctx.from.id, player);
 
-    const enemy = getRandomEnemy(player.currentMap || 'clareira_sombria', player.level);
+    const enemy = getRandomEnemy(
+        player.currentMap,
+        player.level
+    );
+
     const fight = createFight(player, enemy);
+
     activeFights.set(ctx.from.id, fight);
 
-    await editMessage(ctx, renderFightText(fight), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
+    return editMessage(
+        ctx,
+        renderFightText(fight, player),
+        {
+            parse_mode: 'Markdown',
+            ...combatMenu()
+        }
+    );
 }
 
 async function handleAttack(ctx) {
-    await ctx.answerCbQuery(); // resposta imediata
+    await ctx.answerCbQuery();
 
     const fight = activeFights.get(ctx.from.id);
+
     if (!fight) return;
 
-    if (fight.processing) return;
-    fight.processing = true;
-
     processPlayerTurn(fight);
-    if (fight.status === 'ongoing') processEnemyTurn(fight);
+
+    if (fight.status === 'ongoing') {
+        processEnemyTurn(fight);
+    }
 
     const player = getPlayer(ctx.from.id);
+
     player.hp = fight.player.hp;
     savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
-        fight.processing = false;
         return finishFight(ctx, fight);
     }
 
-    fight.processing = false;
-    await editMessage(ctx, renderFightText(fight), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
-}
-
-async function handleSoul(ctx) {
-    await ctx.answerCbQuery(); // resposta imediata
-
-    const fight = activeFights.get(ctx.from.id);
-    if (!fight) return;
-
-    useSoul(fight, 0);
-    if (fight.status === 'ongoing') processEnemyTurn(fight);
-
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
-    }
-
-    await editMessage(ctx, renderFightText(fight), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
-}
-
-async function handleConsumables(ctx) {
-    await ctx.answerCbQuery(); // resposta imediata
-
-    const fight = activeFights.get(ctx.from.id);
-    if (!fight) return;
-
-    const player = getPlayer(ctx.from.id);
-    if ((player.consumables?.potionHp || 0) <= 0) {
-        return ctx.answerCbQuery('❌ Sem poções', { show_alert: true });
-    }
-
-    player.consumables.potionHp -= 1;
-    const heal = Math.floor(fight.player.maxHp * 0.4);
-    fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
-    fight.logs.push(`🧪 ${fight.player.name} usou uma poção e recuperou *${heal}* HP!`);
-    savePlayer(ctx.from.id, player);
-
-    processEnemyTurn(fight);
-
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
-    }
-
-    await editMessage(ctx, renderFightText(fight), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
-}
-
-async function handleFlee(ctx) {
-    await ctx.answerCbQuery(); // resposta imediata
-
-    const fight = activeFights.get(ctx.from.id);
-    if (!fight) return;
-
-    attemptFlee(fight);
-    return finishFight(ctx, fight);
+    return editMessage(
+        ctx,
+        renderFightText(fight, player),
+        {
+            parse_mode: 'Markdown',
+            ...combatMenu()
+        }
+    );
 }
 
 module.exports = {
     handleHunt,
     handleAttack,
-    handleSoul,
-    handleConsumables,
-    handleFlee,
     activeFights
 };
