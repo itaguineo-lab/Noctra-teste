@@ -29,11 +29,35 @@ const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
 const { handleVip } = require('./src/handlers/vip');
 const { handleDaily } = require('./src/handlers/daily');
 const { handleOnline } = require('./src/handlers/online');
-const { handleShop, handleShopVillage, handleShopCastle, handleShopArena, handleBuy } = require('./src/handlers/shop');
+const {
+    handleShop,
+    handleShopVillage,
+    handleShopCastle,
+    handleShopArena,
+    handleBuy
+} = require('./src/handlers/shop');
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// ======================
+// REMOVER WEBHOOK (FORÇA POLLING)
+// ======================
+(async () => {
+    try {
+        const webhookInfo = await bot.telegram.getWebhookInfo();
+        if (webhookInfo.url) {
+            console.log(`⚠️ Webhook ativo: ${webhookInfo.url}. Removendo...`);
+            await bot.telegram.deleteWebhook();
+            console.log('✅ Webhook removido. Usando polling.');
+        } else {
+            console.log('✅ Nenhum webhook ativo. Usando polling.');
+        }
+    } catch (err) {
+        console.error('❌ Erro ao verificar webhook:', err.message);
+    }
+})();
 
 // ======================
 // COMANDOS DE TEXTO
@@ -91,7 +115,7 @@ bot.action('inv_consumables', handleInvConsumables);
 bot.action('inv_souls', handleInvSouls);
 
 // ======================
-// EQUIPAR / DESEQUIPAR ITENS
+// EQUIPAR / DESEQUIPAR ITENS E ALMAS
 // ======================
 bot.action(/^equip_(.+)_(.+)$/, handleEquipItem);
 bot.action(/^unequip_(.+)$/, handleUnequipItem);
@@ -141,7 +165,7 @@ bot.action('class_help', async (ctx) => {
 });
 
 // ======================
-// SERVIDOR WEB
+// SERVIDOR WEB (keep-alive)
 // ======================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
@@ -150,7 +174,7 @@ http.createServer((req, res) => {
 }).listen(PORT);
 
 // ======================
-// INICIALIZAÇÃO
+// INICIALIZAÇÃO (POLLING)
 // ======================
 bot.launch();
-console.log('✅ NOCTRA ONLINE');
+console.log('✅ NOCTRA ONLINE (polling mode)');
