@@ -199,8 +199,54 @@ async function handleAttack(ctx) {
     );
 }
 
+async function handleSoul(ctx) {
+    await ctx.answerCbQuery();
+
+    const fight = activeFights.get(ctx.from.id);
+    if (!fight) return;
+
+    useSoul(fight, 0);
+
+    if (fight.status === 'ongoing') {
+        processEnemyTurn(fight);
+    }
+
+    if (fight.status !== 'ongoing') {
+        return finishFight(ctx, fight);
+    }
+
+    const player = getPlayer(ctx.from.id);
+
+    return editMessage(
+        ctx,
+        renderFightText(fight, player),
+        {
+            parse_mode: 'Markdown',
+            ...combatMenu()
+        }
+    );
+}
+
+async function handleConsumables(ctx) {
+    await ctx.answerCbQuery('🧪 Em breve');
+}
+
+async function handleFlee(ctx) {
+    await ctx.answerCbQuery();
+
+    const fight = activeFights.get(ctx.from.id);
+    if (!fight) return;
+
+    attemptFlee(fight);
+
+    return finishFight(ctx, fight);
+}
+
 module.exports = {
     handleHunt,
     handleAttack,
+    handleSoul,
+    handleConsumables,
+    handleFlee,
     activeFights
 };
