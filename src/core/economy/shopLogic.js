@@ -5,6 +5,7 @@ function ensurePlayerEconomy(player) {
     player.nox ??= 0;
     player.glorias ??= 0;
     player.inventory ??= [];
+    player.maxInventory ??= player.vip ? 30 : 20;
     player.consumables ??= {
         potionHp: 0,
         potionEnergy: 0,
@@ -36,15 +37,9 @@ function pay(player, currency, price) {
 function processPurchase(player, item) {
     ensurePlayerEconomy(player);
 
-    if (!item) {
-        return { success: false, message: 'Item inválido.' };
-    }
-
+    if (!item) return { success: false, message: 'Item inválido.' };
     if (!canPay(player, item.currency, item.price)) {
-        return {
-            success: false,
-            message: `❌ Você não tem ${currencyLabel(item.currency)} suficiente.`
-        };
+        return { success: false, message: `❌ Você não tem ${currencyLabel(item.currency)} suficiente.` };
     }
 
     pay(player, item.currency, item.price);
@@ -52,15 +47,8 @@ function processPurchase(player, item) {
     switch (item.type) {
         case 'consumable': {
             const key = item.effect;
-            if (!key) {
-                return { success: false, message: 'Consumível inválido.' };
-            }
-
-            if (typeof player.consumables[key] !== 'number') {
-                player.consumables[key] = 0;
-            }
-
-            player.consumables[key] += item.value || 1;
+            if (!key) return { success: false, message: 'Consumível inválido.' };
+            player.consumables[key] = (player.consumables[key] || 0) + (item.value || 1);
             break;
         }
 
@@ -80,17 +68,14 @@ function processPurchase(player, item) {
 
         case 'vip': {
             const now = Date.now();
-            const currentExpire = player.vipExpires
-                ? new Date(player.vipExpires).getTime()
-                : now;
-
+            const currentExpire = player.vipExpires ? new Date(player.vipExpires).getTime() : now;
             const base = Math.max(now, currentExpire);
             const newExpire = base + (item.days * 24 * 60 * 60 * 1000);
 
             player.vip = true;
             player.vipExpires = new Date(newExpire).toISOString();
             player.maxEnergy = 40;
-            player.maxInventory = Math.max(player.maxInventory || 20, (player.maxInventory || 20) + 10);
+            player.maxInventory = (player.maxInventory || 20) + 10;
             break;
         }
 
