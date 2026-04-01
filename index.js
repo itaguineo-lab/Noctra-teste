@@ -4,58 +4,43 @@ const { Telegraf } = require('telegraf');
 const http = require('http');
 
 const {
-  handleHunt,
-  handleAttack,
-  handleSoul,
-  handleConsumables,
-  handleFlee
+    handleHunt,
+    handleAttack,
+    handleSoul,
+    handleConsumables,
+    handleFlee
 } = require('./src/handlers/combat');
 
+const { handleProfile } = require('./src/handlers/profile');
+const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
 const {
-  handleProfile
-} = require('./src/handlers/profile');
-
-const {
-  handleEnergy,
-  handleRestEnergy
-} = require('./src/handlers/energy');
-
-const {
-  handleInventory,
-  handleInvWeapons,
-  handleInvArmors,
-  handleInvJewelry,
-  handleInvConsumables,
-  handleInvSouls
+    handleInventory,
+    handleInvWeapons,
+    handleInvArmors,
+    handleInvJewelry,
+    handleInvConsumables,
+    handleInvSouls
 } = require('./src/handlers/inventory');
-
 const {
-  handleShop,
-  handleShopVillage,
-  handleShopCastle,
-  handleShopArena,
-  handleBuy
+    handleShop,
+    handleShopVillage,
+    handleShopCastle,
+    handleShopArena,
+    handleBuy
 } = require('./src/handlers/shop');
-
-const {
-  handleTravel,
-  handleTravelTo,
-  handleTravelLocked
-} = require('./src/handlers/travel');
-
+const { handleTravel, handleTravelTo, handleTravelLocked } = require('./src/handlers/travel');
 const { handleVip } = require('./src/handlers/vip');
 const { handleDaily } = require('./src/handlers/daily');
 const { handleOnline } = require('./src/handlers/online');
-
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
 const {
-  handleEquip,
-  handleEquipSoul,
-  handleEquipItemCallback,
-  handleEquipSoulCallback
+    handleEquip,
+    handleEquipSoul,
+    handleUnequipItem,
+    handleEquipItemCallback,
+    handleEquipSoulCallback
 } = require('./src/commands/equip');
-
 const { mainMenu } = require('./src/menus/mainMenu');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -64,18 +49,17 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 // COMANDOS DE TEXTO
 // ======================
 bot.start(async (ctx) => {
-  const welcomeMsg = 
-`╔════════════════════════╗
+    const welcomeMsg =
+        `╔════════════════════════╗
 ║      🌙 *NOCTRA RPG*      ║
 ║    Bem-vindo, aventureiro    ║
 ╠════════════════════════╣
 ║   Escolha sua ação:    ║
 ╚════════════════════════╝`;
-
-  await ctx.reply(welcomeMsg, {
-    parse_mode: 'Markdown',
-    ...mainMenu()
-  });
+    await ctx.reply(welcomeMsg, {
+        parse_mode: 'Markdown',
+        ...mainMenu()
+    });
 });
 
 bot.command('energy', handleEnergy);
@@ -120,10 +104,11 @@ bot.action('inv_consumables', handleInvConsumables);
 bot.action('inv_souls', handleInvSouls);
 
 // ======================
-// EQUIPAR ITENS E ALMAS (via callback)
+// EQUIPAR / DESEQUIPAR ITENS E ALMAS
 // ======================
 bot.action(/equip_item_(.+)/, handleEquipItemCallback);
 bot.action(/equip_soul_(.+)/, handleEquipSoulCallback);
+bot.action(/unequip_item_(.+)/, handleUnequipItem);
 
 // ======================
 // LOJA
@@ -143,42 +128,36 @@ bot.action('travel_locked', handleTravelLocked);
 // MENU PRINCIPAL
 // ======================
 bot.action('menu', async (ctx) => {
-  await ctx.answerCbQuery();
-  const menuMsg = 
-`╔════════════════════════╗
+    await ctx.answerCbQuery();
+    const menuMsg =
+        `╔════════════════════════╗
 ║      🌙 *NOCTRA RPG*      ║
 ╠════════════════════════╣
 ║   Escolha sua ação:    ║
 ╚════════════════════════╝`;
-  await ctx.editMessageText(menuMsg, {
-    parse_mode: 'Markdown',
-    ...mainMenu()
-  });
+    await ctx.editMessageText(menuMsg, {
+        parse_mode: 'Markdown',
+        ...mainMenu()
+    });
 });
 
 // ======================
 // AJUDA PARA RENOMEAR / TROCAR CLASSE
 // ======================
 bot.action('rename_help', async (ctx) => {
-  await ctx.answerCbQuery();
-  await ctx.reply(
-    `📝 *Renomear*\n\n` +
-    `Use o comando:\n` +
-    `/rename <novo_nome>\n\n` +
-    `*Custo:* primeira vez grátis, depois 💎 100 Nox.`,
-    { parse_mode: 'Markdown' }
-  );
+    await ctx.answerCbQuery();
+    await ctx.reply(
+        `📝 *Renomear*\n\nUse o comando:\n/rename <novo_nome>\n\n*Custo:* primeira vez grátis, depois 💎 100 Nox.`,
+        { parse_mode: 'Markdown' }
+    );
 });
 
 bot.action('class_help', async (ctx) => {
-  await ctx.answerCbQuery();
-  await ctx.reply(
-    `🔄 *Trocar Classe*\n\n` +
-    `Use o comando:\n` +
-    `/class guerreiro | arqueiro | mago\n\n` +
-    `*Custo:* primeira vez grátis, depois 💎 500 Nox.`,
-    { parse_mode: 'Markdown' }
-  );
+    await ctx.answerCbQuery();
+    await ctx.reply(
+        `🔄 *Trocar Classe*\n\nUse o comando:\n/class guerreiro | arqueiro | mago\n\n*Custo:* primeira vez grátis, depois 💎 500 Nox.`,
+        { parse_mode: 'Markdown' }
+    );
 });
 
 // ======================
@@ -186,8 +165,8 @@ bot.action('class_help', async (ctx) => {
 // ======================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Noctra online');
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Noctra online');
 }).listen(PORT);
 
 // ======================
