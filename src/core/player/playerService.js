@@ -51,7 +51,7 @@ function createDefaultPlayer(id, name = 'Viajante') {
         hp: 0, maxHp: 0, atk: 0, def: 0, crit: 5,
         energy: 20, maxEnergy: 20,
         inventory: [],
-        souls: [null, null],
+        soulsEquipped: [null, null],
         soulsInventory: [],
         consumables: { potionHp: 0, potionEnergy: 0, tonicStrength: 0 },
         equipment: {
@@ -82,7 +82,6 @@ function getPlayer(id, name = 'Viajante') {
         playersCache[id] = createDefaultPlayer(id, name);
         scheduleSave();
     } else if (name && playersCache[id].name === 'Viajante' && name !== 'Viajante') {
-        // Atualiza o nome se for a primeira troca
         playersCache[id].name = name;
         scheduleSave();
     }
@@ -117,8 +116,8 @@ function recalculateStats(player) {
         });
     }
 
-    if (player.souls && Array.isArray(player.souls)) {
-        player.souls.forEach(soul => {
+    if (player.soulsEquipped && Array.isArray(player.soulsEquipped)) {
+        player.soulsEquipped.forEach(soul => {
             if (!soul) return;
             if (soul.effect && soul.effect.type === 'passive') {
                 if (soul.effect.atkBonus) atk += soul.effect.atkBonus;
