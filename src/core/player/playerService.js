@@ -74,12 +74,16 @@ function createDefaultPlayer(id, name = 'Viajante') {
     return player;
 }
 
-function getPlayer(id, name) {
+function getPlayer(id, name = 'Viajante') {
     if (playersCache === null) {
         loadPlayersToCache();
     }
     if (!playersCache[id]) {
         playersCache[id] = createDefaultPlayer(id, name);
+        scheduleSave();
+    } else if (name && playersCache[id].name === 'Viajante' && name !== 'Viajante') {
+        // Atualiza o nome se for a primeira troca
+        playersCache[id].name = name;
         scheduleSave();
     }
     playersCache[id].lastActive = Date.now();
