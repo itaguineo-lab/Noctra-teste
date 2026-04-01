@@ -1,13 +1,39 @@
 const { Markup } = require('telegraf');
-const {
-  getPlayer,
-  recalculateStats
-} = require('../core/player/playerService');
+const { getPlayer, recalculateStats } = require('../core/player/playerService');
+
+async function safeEdit(ctx, text, options = {}) {
+  try {
+    if (ctx.callbackQuery) {
+      await ctx.answerCbQuery();
+      return await ctx.editMessageText(text, {
+        parse_mode: 'Markdown',
+        ...options
+      });
+    }
+
+    return await ctx.reply(text, {
+      parse_mode: 'Markdown',
+      ...options
+    });
+  } catch {
+    return ctx.reply(text, {
+      parse_mode: 'Markdown',
+      ...options
+    });
+  }
+}
 
 function equippedLine(label, item) {
   if (!item) return `${label}: —`;
 
-  return `${label}: ${item.name} ⭐`;
+  const stats = [];
+
+  if (item.atk) stats.push(`⚔️+${item.atk}`);
+  if (item.def) stats.push(`🛡️+${item.def}`);
+  if (item.hp) stats.push(`❤️+${item.hp}`);
+  if (item.crit) stats.push(`✨+${item.crit}%`);
+
+  return `${label}: ${item.emoji || '⚪'} ${item.name} (${stats.join(' | ')}) ⭐`;
 }
 
 function buildInventoryHeader(player) {
@@ -32,14 +58,14 @@ function buildInventoryHeader(player) {
 ${equippedLine('⚔️ Arma', weapon)}
 ${equippedLine('🛡️ Armadura', armor)}
 ${equippedLine('📿 Joia', accessory)}
-${soul ? `💀 Alma: ${soul.name}` : '💀 Alma: —'}
+${soul ? `💀 Alma: ${soul.emoji || '💀'} ${soul.name}` : '💀 Alma: —'}
 
 ━━━━━━━━━━━━
 *Escolha uma categoria:*`
   );
 }
 
-function inventoryKeyboard() {
+function inventoryCategoryMenu() {
   return Markup.inlineKeyboard([
     [
       Markup.button.callback('⚔️ Armas', 'inv_weapons'),
@@ -59,26 +85,19 @@ function inventoryKeyboard() {
   ]);
 }
 
-async function safeEdit(ctx, text, extra = {}) {
-  try {
-    if (ctx.callbackQuery) {
-      await ctx.answerCbQuery();
-      return await ctx.editMessageText(text, {
-        parse_mode: 'Markdown',
-        ...extra
-      });
-    }
+function buildInventoryList(items, emptyText = 'Nenhum item.') {
+  if (!items.length) return emptyText;
 
-    return await ctx.reply(text, {
-      parse_mode: 'Markdown',
-      ...extra
-    });
-  } catch {
-    return ctx.reply(text, {
-      parse_mode: 'Markdown',
-      ...extra
-    });
-  }
+  return items.map(item => {
+    const stats = [];
+
+    if (item.atk) stats.push(`⚔️+${item.atk}`);
+    if (item.def) stats.push(`🛡️+${item.def}`);
+    if (item.hp) stats.push(`❤️+${item.hp}`);
+    if (item.crit) stats.push(`✨+${item.crit}%`);
+
+    return `${item.emoji || '⚪'} *${item.name}*\n${stats.join(' | ')}`;
+  }).join('\n\n');
 }
 
 async function handleInventory(ctx) {
@@ -90,9 +109,87 @@ async function handleInventory(ctx) {
 
   const text = buildInventoryHeader(player);
 
-  await safeEdit(ctx, text, inventoryKeyboard());
+  await safeEdit(ctx, text, inventoryCategoryMenu());
+}
+
+async function handleInvWeapons(ctx) {
+  const player = getPlayer(ctx.from.id);
+  const items = (player.inventory || []).filter(i => i.slot === 'weapon');
+
+  const text =
+`${buildInventoryHeader(player)}
+
+⚔️ *ARMAS*
+${buildInventoryList(items, 'Nenhuma arma encontrada.')}`;
+
+  await safeEdit(ctx, text, inventoryCategoryMenu());
+}
+
+async function handleInvArmors(ctx) {
+  const player = getPlayer(ctx.from.id);
+  const items = (player.inventory || []).filter(i => i.slot === 'armor');
+
+  const text =
+`${buildInventoryHeader(player)}
+
+🛡️ *ARMADURAS*
+${buildInventoryList(items, 'Nenhuma armadura encontrada.')}`;
+
+  await safeEdit(ctx, text, inventoryCategoryMenu());
+}
+
+async function handleInvJewelry(ctx) {
+  const player = getPlayer(ctx.from.id);
+  const items = (player.inventory || []).filter(i => i.slot === 'accessory');
+
+  const text =
+`${buildInventoryHeader(player)}
+
+💎 *JOIAS*
+${buildInventoryList(items, 'Nenhuma joia encontrada.')}`;
+
+  await safeEdit(ctx, text, inventoryCategoryMenu());
+}
+
+async function handleInvConsumables(ctx) {
+  const player = getPlayer(ctx.from.id);
+  const consumables = player.consumables || {};
+
+  const text =
+`${buildInventoryHeader(player)}
+
+🧪 *CONSUMÍVEIS*
+
+❤️ Poções HP: ${consumables.potionHp || 0}
+⚡ Poções Energia: ${consumables.potionEnergy || 0}
+💥 Buff ATK: ${consumables.buffAtk || 0}
+🛡️ Buff DEF: ${consumables.buffDef || 0}`;
+
+  await safeEdit(ctx, text, inventoryCategoryMenu());
+}
+
+async function handleInvSouls(ctx) {
+  const player = getPlayer(ctx.from.id);
+  const souls = player.soulsInventory || [];
+
+  const soulText = souls.length
+    ? souls.map(s => `${s.emoji || '💀'} *${s.name}*`).join('\n')
+    : 'Nenhuma alma encontrada.';
+
+  const text =
+`${buildInventoryHeader(player)}
+
+💀 *ALMAS*
+${soulText}`;
+
+  await safeEdit(ctx, text, inventoryCategoryMenu());
 }
 
 module.exports = {
-  handleInventory
+  handleInventory,
+  handleInvWeapons,
+  handleInvArmors,
+  handleInvJewelry,
+  handleInvConsumables,
+  handleInvSouls
 };
