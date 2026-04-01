@@ -1,3 +1,5 @@
+const { recalculateStats } = require('./playerService');
+
 function getXpToNextLevel(level) {
     // Fórmula: 100 * level^1.2 (progressão suave)
     return Math.floor(100 * Math.pow(level, 1.2));
@@ -22,3 +24,5 @@ function checkLevelUp(player) {
     }
     return leveledUp;
 }
+
+module.exports = { getXpToNextLevel, addXp, checkLevelUp };
