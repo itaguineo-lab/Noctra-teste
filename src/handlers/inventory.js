@@ -1,4 +1,4 @@
-const { getPlayer, savePlayer, recalculateStats } = require('../core/player/playerService');
+const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { inventoryCategoryMenu } = require('../menus/inventoryMenu');
 const { formatItemStats } = require('../utils/formatters');
 const { Markup } = require('telegraf');
@@ -64,25 +64,23 @@ async function handleInventory(ctx) {
 async function handleInvWeapons(ctx) {
     const player = getPlayer(ctx.from.id);
     const items = getInventory(player).filter(i => i.slot === 'weapon');
-    const equipped = player.equipment?.weapon;
+    const equippedId = player.equipment?.weapon?.id;
 
     let text = `⚔️ *ARMAS*\n\n`;
     const keyboard = [];
-
-    if (equipped) {
-        text += `🔹 *Equipada:* ${equipped.emoji || '⚪'} ${equipped.name}${formatItemStats(equipped)}\n`;
-        keyboard.push([Markup.button.callback(`🔄 Desequipar ${slotLabel('weapon')}`, `unequip_item_weapon`)]);
-    } else {
-        text += `🔹 *Equipada:* —\n`;
-    }
-    text += `\n📦 *Inventário:*\n`;
 
     if (!items.length) {
         text += `_Nenhuma arma._`;
     } else {
         items.forEach(item => {
-            text += `• ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
-            keyboard.push([Markup.button.callback(`⚔️ Equipar ${item.name}`, `equip_item_${item.id}`)]);
+            const isEquipped = equippedId && String(equippedId) === String(item.id);
+            const marker = isEquipped ? '★ ' : '• ';
+            text += `${marker} ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
+            if (isEquipped) {
+                keyboard.push([Markup.button.callback(`🔄 Desequipar Arma`, `unequip_item_weapon`)]);
+            } else {
+                keyboard.push([Markup.button.callback(`⚔️ Equipar ${item.name}`, `equip_item_${item.id}`)]);
+            }
         });
     }
 
@@ -94,25 +92,23 @@ async function handleInvWeapons(ctx) {
 async function handleInvArmors(ctx) {
     const player = getPlayer(ctx.from.id);
     const items = getInventory(player).filter(i => i.slot === 'armor');
-    const equipped = player.equipment?.armor;
+    const equippedId = player.equipment?.armor?.id;
 
     let text = `🛡️ *ARMADURAS*\n\n`;
     const keyboard = [];
-
-    if (equipped) {
-        text += `🔹 *Equipada:* ${equipped.emoji || '⚪'} ${equipped.name}${formatItemStats(equipped)}\n`;
-        keyboard.push([Markup.button.callback(`🔄 Desequipar ${slotLabel('armor')}`, `unequip_item_armor`)]);
-    } else {
-        text += `🔹 *Equipada:* —\n`;
-    }
-    text += `\n📦 *Inventário:*\n`;
 
     if (!items.length) {
         text += `_Nenhuma armadura._`;
     } else {
         items.forEach(item => {
-            text += `• ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
-            keyboard.push([Markup.button.callback(`🛡️ Equipar ${item.name}`, `equip_item_${item.id}`)]);
+            const isEquipped = equippedId && String(equippedId) === String(item.id);
+            const marker = isEquipped ? '★ ' : '• ';
+            text += `${marker} ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
+            if (isEquipped) {
+                keyboard.push([Markup.button.callback(`🔄 Desequipar Armadura`, `unequip_item_armor`)]);
+            } else {
+                keyboard.push([Markup.button.callback(`🛡️ Equipar ${item.name}`, `equip_item_${item.id}`)]);
+            }
         });
     }
 
@@ -124,36 +120,29 @@ async function handleInvArmors(ctx) {
 async function handleInvJewelry(ctx) {
     const player = getPlayer(ctx.from.id);
     const items = getInventory(player).filter(i => i.slot === 'ring' || i.slot === 'necklace');
-    const ringEquipped = player.equipment?.ring;
-    const necklaceEquipped = player.equipment?.necklace;
+    const ringEquippedId = player.equipment?.ring?.id;
+    const necklaceEquippedId = player.equipment?.necklace?.id;
 
     let text = `💎 *JÓIAS*\n\n`;
     const keyboard = [];
 
-    if (ringEquipped) {
-        text += `🔹 *Anel equipado:* ${ringEquipped.emoji || '⚪'} ${ringEquipped.name}${formatItemStats(ringEquipped)}\n`;
-        keyboard.push([Markup.button.callback(`🔄 Desequipar Anel`, `unequip_item_ring`)]);
-    } else {
-        text += `🔹 *Anel:* —\n`;
-    }
-
-    if (necklaceEquipped) {
-        text += `🔹 *Colar equipado:* ${necklaceEquipped.emoji || '⚪'} ${necklaceEquipped.name}${formatItemStats(necklaceEquipped)}\n`;
-        keyboard.push([Markup.button.callback(`🔄 Desequipar Colar`, `unequip_item_necklace`)]);
-    } else {
-        text += `🔹 *Colar:* —\n`;
-    }
-
-    text += `\n📦 *Inventário:*\n`;
-
-    const jewelItems = items.filter(i => i.slot === 'ring' || i.slot === 'necklace');
-    if (!jewelItems.length) {
+    if (!items.length) {
         text += `_Nenhuma jóia._`;
     } else {
-        jewelItems.forEach(item => {
-            const type = item.slot === 'ring' ? '💍' : '📿';
-            text += `• ${type} ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
-            keyboard.push([Markup.button.callback(`💎 Equipar ${item.name}`, `equip_item_${item.id}`)]);
+        items.forEach(item => {
+            const isRing = item.slot === 'ring';
+            const isEquipped = isRing
+                ? (ringEquippedId && String(ringEquippedId) === String(item.id))
+                : (necklaceEquippedId && String(necklaceEquippedId) === String(item.id));
+            const marker = isEquipped ? '★ ' : '• ';
+            const typeIcon = item.slot === 'ring' ? '💍' : '📿';
+            text += `${marker} ${typeIcon} ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
+            if (isEquipped) {
+                const unequipSlot = item.slot === 'ring' ? 'ring' : 'necklace';
+                keyboard.push([Markup.button.callback(`🔄 Desequipar ${item.slot === 'ring' ? 'Anel' : 'Colar'}`, `unequip_item_${unequipSlot}`)]);
+            } else {
+                keyboard.push([Markup.button.callback(`💎 Equipar ${item.name}`, `equip_item_${item.id}`)]);
+            }
         });
     }
 
@@ -177,14 +166,21 @@ async function handleInvSouls(ctx) {
         return safeEdit(ctx, `💀 *ALMAS*\n\nNenhuma alma.`, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
     }
 
-    const equipButtons = souls.map(soul => [
-        Markup.button.callback(`💀 Equipar ${soul.name}`, `equip_soul_${soul.instanceId || soul.id}`)
-    ]);
+    const equipButtons = souls.map(soul => {
+        const isEquipped = (getPlayer(ctx.from.id).soulsEquipped || []).some(eq => eq && eq.id === soul.id);
+        if (isEquipped) {
+            return [Markup.button.callback(`🔄 Desequipar ${soul.name}`, `unequip_soul_${soul.instanceId || soul.id}`)];
+        } else {
+            return [Markup.button.callback(`💀 Equipar ${soul.name}`, `equip_soul_${soul.instanceId || soul.id}`)];
+        }
+    });
     const keyboard = [...equipButtons, [Markup.button.callback('◀️ Voltar', 'inventory')]];
 
     let text = `💀 *ALMAS*\n\n`;
     souls.forEach(soul => {
-        text += `• ${soul.emoji || '💀'} *${soul.name}* (${soul.rarity})\n`;
+        const isEquipped = (getPlayer(ctx.from.id).soulsEquipped || []).some(eq => eq && eq.id === soul.id);
+        const marker = isEquipped ? '★ ' : '• ';
+        text += `${marker} ${soul.emoji || '💀'} *${soul.name}* (${soul.rarity})\n`;
     });
 
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
