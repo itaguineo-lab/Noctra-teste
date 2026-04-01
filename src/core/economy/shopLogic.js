@@ -1,11 +1,25 @@
 function ensurePlayerEconomy(player) {
     if (!player) throw new Error('Player inválido.');
+
     player.gold ??= 0;
     player.nox ??= 0;
     player.glorias ??= 0;
     player.inventory ??= [];
-    player.consumables ??= { hp: 0, energy: 0, buffs: [] };
+    player.consumables ??= {
+        potionHp: 0,
+        potionEnergy: 0,
+        tonicStrength: 0,
+        tonicDefense: 0
+    };
+
     return player;
+}
+
+function currencyLabel(currency) {
+    if (currency === 'gold') return 'ouro';
+    if (currency === 'nox') return 'Nox';
+    if (currency === 'glorias') return 'glórias';
+    return currency;
 }
 
 function canPay(player, currency, price) {
@@ -21,19 +35,36 @@ function pay(player, currency, price) {
 
 function processPurchase(player, item) {
     ensurePlayerEconomy(player);
-    if (!item) return { success: false, message: 'Item inválido.' };
+
+    if (!item) {
+        return { success: false, message: 'Item inválido.' };
+    }
+
     if (!canPay(player, item.currency, item.price)) {
-        return { success: false, message: `❌ Você não tem ${item.currency === 'gold' ? 'ouro' : item.currency === 'nox' ? 'Nox' : 'glórias'} suficiente.` };
+        return {
+            success: false,
+            message: `❌ Você não tem ${currencyLabel(item.currency)} suficiente.`
+        };
     }
 
     pay(player, item.currency, item.price);
 
     switch (item.type) {
-        case 'consumable':
-            if (!player.consumables[item.effect]) player.consumables[item.effect] = 0;
-            player.consumables[item.effect] += item.value || 1;
+        case 'consumable': {
+            const key = item.effect;
+            if (!key) {
+                return { success: false, message: 'Consumível inválido.' };
+            }
+
+            if (typeof player.consumables[key] !== 'number') {
+                player.consumables[key] = 0;
+            }
+
+            player.consumables[key] += item.value || 1;
             break;
-        case 'equipment':
+        }
+
+        case 'equipment': {
             player.inventory.push({
                 id: `${item.id}_${Date.now()}`,
                 name: item.name,
@@ -45,20 +76,30 @@ function processPurchase(player, item) {
                 rarity: item.rarity || 'Comum'
             });
             break;
-        case 'vip':
+        }
+
+        case 'vip': {
             const now = Date.now();
-            const currentExpire = player.vipExpires ? new Date(player.vipExpires).getTime() : now;
+            const currentExpire = player.vipExpires
+                ? new Date(player.vipExpires).getTime()
+                : now;
+
             const base = Math.max(now, currentExpire);
             const newExpire = base + (item.days * 24 * 60 * 60 * 1000);
+
             player.vip = true;
             player.vipExpires = new Date(newExpire).toISOString();
             player.maxEnergy = 40;
-            player.maxInventory = (player.maxInventory || 20) + (item.slots || 10);
+            player.maxInventory = Math.max(player.maxInventory || 20, (player.maxInventory || 20) + 10);
             break;
-        case 'cosmetic':
+        }
+
+        case 'cosmetic': {
             player.cosmetics = player.cosmetics || [];
             player.cosmetics.push({ id: item.id, name: item.name });
             break;
+        }
+
         default:
             return { success: false, message: 'Tipo de item desconhecido.' };
     }
