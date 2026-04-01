@@ -1,74 +1,36 @@
 const { Markup } = require('telegraf');
-const {
-    getPlayer,
-    savePlayer
-} = require('../core/player/playerService');
-
-const MAPS = {
-    clareira_sombria: {
-        name: '🌑 Clareira Sombria',
-        levelRequired: 1,
-        description: 'Início da jornada, inimigos fracos e almas básicas.'
-    },
-    floresta_morta: {
-        name: '🌲 Floresta Morta',
-        levelRequired: 5,
-        description: 'Criaturas sombrias e drops raros.'
-    },
-    castelo_esquecido: {
-        name: '🏰 Castelo Esquecido',
-        levelRequired: 10,
-        description: 'Inimigos elite e chance de almas épicas.'
-    },
-    arena_das_sombras: {
-        name: '⚔️ Arena das Sombras',
-        levelRequired: 15,
-        description: 'PvE avançado e chefes.'
-    }
-};
+const { getPlayer, savePlayer } = require('../core/player/playerService');
+const { maps, getMapById, canPlayerEnter } = require('../core/world/maps');
 
 function buildTravelMenu(player) {
     const rows = [];
 
-    Object.entries(MAPS).forEach(([key, map]) => {
-        const unlocked = player.level >= map.levelRequired;
-        const isCurrent = player.currentMap === key;
+    maps.forEach(map => {
+        const unlocked = canPlayerEnter(player, map.id);
+        const isCurrent = player.currentMap === map.id;
 
-        let label = map.name;
-
-        if (isCurrent) {
-            label = `📍 ${label}`;
-        } else if (!unlocked) {
-            label = `🔒 ${label}`;
-        }
+        let label = `${map.emoji} ${map.name} (Lv ${map.levelReq})`;
+        if (isCurrent) label = `📍 ${label}`;
+        if (!unlocked) label = `🔒 ${label}`;
 
         rows.push([
             Markup.button.callback(
                 label,
-                unlocked
-                    ? `travel_to_${key}`
-                    : 'travel_locked'
+                unlocked ? `travel_to_${map.id}` : 'travel_locked'
             )
         ]);
     });
 
-    rows.push([
-        Markup.button.callback(
-            '🏠 Menu',
-            'menu'
-        )
-    ]);
+    rows.push([Markup.button.callback('🏠 Menu', 'menu')]);
 
     return Markup.inlineKeyboard(rows);
 }
 
 function renderTravelText(player) {
-    const currentMap =
-        MAPS[player.currentMap] || MAPS.clareira_sombria;
-
+    const currentMap = getMapById(player.currentMap) || maps[0];
     return `🗺️ *VIAGEM*
 
-📍 Mapa atual: *${currentMap.name}*
+📍 Mapa atual: *${currentMap.emoji} ${currentMap.name}*
 🎖️ Nível: ${player.level}
 
 ${currentMap.description}
@@ -85,7 +47,6 @@ async function safeEdit(ctx, text, keyboard) {
                 ...keyboard
             });
         }
-
         return await ctx.reply(text, {
             parse_mode: 'Markdown',
             ...keyboard
@@ -99,90 +60,58 @@ async function safeEdit(ctx, text, keyboard) {
 }
 
 async function handleTravel(ctx) {
-    const player = getPlayer(
-        ctx.from.id,
-        ctx.from.first_name
-    );
-
+    const player = getPlayer(ctx.from.id, ctx.from.first_name);
     if (!player.currentMap) {
-        player.currentMap = 'clareira_sombria';
+        player.currentMap = maps[0].id;
         savePlayer(ctx.from.id, player);
     }
-
-    return safeEdit(
-        ctx,
-        renderTravelText(player),
-        buildTravelMenu(player)
-    );
+    return safeEdit(ctx, renderTravelText(player), buildTravelMenu(player));
 }
 
 async function handleTravelTo(ctx) {
     try {
         await ctx.answerCbQuery();
 
-        const match =
-            ctx.callbackQuery.data.match(/^travel_to_(.+)$/);
-
-        if (!match) {
-            return ctx.answerCbQuery(
-                '❌ Destino inválido',
-                { show_alert: true }
-            );
+        const mapId = ctx.match?.[1];
+        if (!mapId) {
+            return ctx.answerCbQuery('❌ Destino inválido', { show_alert: true });
         }
 
-        const mapKey = match[1];
-        const destination = MAPS[mapKey];
-
-        if (!destination) {
-            return ctx.answerCbQuery(
-                '❌ Mapa não encontrado',
-                { show_alert: true }
-            );
+        const map = getMapById(mapId);
+        if (!map) {
+            return ctx.answerCbQuery('❌ Mapa não encontrado', { show_alert: true });
         }
 
-        const player = getPlayer(
-            ctx.from.id,
-            ctx.from.first_name
-        );
+        const player = getPlayer(ctx.from.id, ctx.from.first_name);
 
-        if (player.level < destination.levelRequired) {
-            return ctx.answerCbQuery(
-                `🔒 Requer nível ${destination.levelRequired}`,
-                { show_alert: true }
-            );
+        if (!canPlayerEnter(player, map.id)) {
+            return ctx.answerCbQuery(`🔒 Requer nível ${map.levelReq}`, { show_alert: true });
         }
 
-        player.currentMap = mapKey;
+        player.currentMap = map.id;
         savePlayer(ctx.from.id, player);
 
         return safeEdit(
             ctx,
             `🗺️ *VIAGEM CONCLUÍDA*
 
-Você chegou em *${destination.name}*
+Você chegou em *${map.emoji} ${map.name}*
 
-${destination.description}`,
+${map.description}`,
             buildTravelMenu(player)
         );
     } catch (error) {
         console.error('Erro ao viajar:', error);
-
-        return ctx.reply(
-            '❌ Erro ao viajar.'
-        );
+        return ctx.reply('❌ Erro ao viajar.');
     }
 }
 
 async function handleTravelLocked(ctx) {
-    return ctx.answerCbQuery(
-        '🔒 Este mapa ainda está bloqueado.',
-        { show_alert: true }
-    );
+    return ctx.answerCbQuery('🔒 Este mapa ainda está bloqueado.', { show_alert: true });
 }
 
 module.exports = {
     handleTravel,
     handleTravelTo,
-    handleTravelLocked,
-    MAPS
+    handleTravelLocked
 };
