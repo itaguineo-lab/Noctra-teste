@@ -52,12 +52,10 @@ const { handleClass } = require('./src/commands/class');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// ======================
-// REMOVER WEBHOOK (FORÇA POLLING)
-// ======================
 (async () => {
     try {
         const webhookInfo = await bot.telegram.getWebhookInfo();
+
         if (webhookInfo.url) {
             console.log(`⚠️ Webhook ativo: ${webhookInfo.url}. Removendo...`);
             await bot.telegram.deleteWebhook();
@@ -70,9 +68,6 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
     }
 })();
 
-// ======================
-// COMANDOS DE TEXTO
-// ======================
 bot.start(async (ctx) => {
     const welcomeMsg = `╔════════════════════════╗
 ║      🌙 *NOCTRA RPG*      ║
@@ -91,9 +86,7 @@ bot.command('energy', handleEnergy);
 bot.command('rename', handleRename);
 bot.command('class', handleClass);
 
-// ======================
-// AÇÕES DO MENU PRINCIPAL
-// ======================
+// MENU
 bot.action('hunt', handleHunt);
 bot.action('profile', handleProfile);
 bot.action('energy', handleEnergy);
@@ -104,56 +97,48 @@ bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
 
-// ======================
 // COMBATE
-// ======================
 bot.action('combat_attack', handleAttack);
 bot.action('combat_soul', handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 
-// ======================
 // ENERGIA
-// ======================
 bot.action('rest_energy', handleRestEnergy);
 
-// ======================
-// INVENTÁRIO – CATEGORIAS
-// ======================
+// INVENTÁRIO
 bot.action('inv_weapons', handleInvWeapons);
 bot.action('inv_armors', handleInvArmors);
 bot.action('inv_jewelry', handleInvJewelry);
 bot.action('inv_consumables', handleInvConsumables);
 bot.action('inv_souls', handleInvSouls);
 
-// ======================
-// EQUIPAR / DESEQUIPAR ITENS E ALMAS
-// ======================
-// Primeiro os casos específicos
+// ALMAS
 bot.action(/^equip_soul_(.+)$/, handleEquipSoul);
 bot.action(/^unequip_soul_(\d+)$/, handleUnequipSoul);
 
-// Depois os itens normais
-bot.action(/^equip_(weapon|armor|accessory)_(.+)$/, handleEquipItem);
-bot.action(/^unequip_(weapon|armor|accessory)$/, handleUnequipItem);
+// EQUIPAMENTOS — CORRIGIDO
+bot.action(
+    /^equip_(weapon|armor|necklace|ring|boots|quiver|backpack)_(.+)$/,
+    handleEquipItem
+);
 
-// ======================
+bot.action(
+    /^unequip_(weapon|armor|necklace|ring|boots|quiver|backpack)$/,
+    handleUnequipItem
+);
+
 // LOJA
-// ======================
 bot.action('shop_village', handleShopVillage);
 bot.action('shop_castle', handleShopCastle);
 bot.action('shop_arena', handleShopArena);
 bot.action(/buy_(.+)/, handleBuy);
 
-// ======================
-// VIAJAR
-// ======================
+// VIAGEM
 bot.action(/travel_to_(.+)/, handleTravelTo);
 bot.action('travel_locked', handleTravelLocked);
 
-// ======================
-// MENU PRINCIPAL
-// ======================
+// MENU
 bot.action('menu', async (ctx) => {
     await ctx.answerCbQuery();
 
@@ -169,28 +154,6 @@ bot.action('menu', async (ctx) => {
     });
 });
 
-// ======================
-// AJUDA
-// ======================
-bot.action('rename_help', async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.reply(
-        `📝 *Renomear*\n\nUse o comando:\n/rename <novo_nome>\n\n*Custo:* primeira vez grátis, depois 💎 100 Nox.`,
-        { parse_mode: 'Markdown' }
-    );
-});
-
-bot.action('class_help', async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.reply(
-        `🔄 *Trocar Classe*\n\nUse o comando:\n/class guerreiro | arqueiro | mago\n\n*Custo:* primeira vez grátis, depois 💎 500 Nox.`,
-        { parse_mode: 'Markdown' }
-    );
-});
-
-// ======================
-// SERVIDOR WEB (keep-alive)
-// ======================
 const PORT = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
@@ -198,8 +161,5 @@ http.createServer((req, res) => {
     res.end('Noctra online');
 }).listen(PORT);
 
-// ======================
-// INICIALIZAÇÃO (POLLING)
-// ======================
 bot.launch();
 console.log('✅ NOCTRA ONLINE (polling mode)');
