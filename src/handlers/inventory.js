@@ -5,9 +5,7 @@ const {
     recalculateStats
 } = require('../core/player/playerService');
 
-function formatItem(item) {
-    if (!item) return '—';
-
+function formatStats(item) {
     const stats = [];
 
     if (item.atk) stats.push(`ATK+${item.atk}`);
@@ -15,60 +13,43 @@ function formatItem(item) {
     if (item.hp) stats.push(`HP+${item.hp}`);
     if (item.crit) stats.push(`CRIT+${item.crit}%`);
 
-    return `${item.name} (${stats.join(', ')})`;
+    return stats.join(', ');
 }
 
-function filterItems(player, category) {
-    const all = player.inventory || [];
+function getCategoryConfig(category) {
+    const configs = {
+        weapons: {
+            slots: ['weapon'],
+            title: '⚔️ Armas'
+        },
+        armors: {
+            slots: ['armor', 'boots', 'backpack'],
+            title: '🛡️ Armaduras'
+        },
+        jewelry: {
+            slots: ['necklace', 'ring'],
+            title: '💎 Joias'
+        },
+        consumables: {
+            slots: [],
+            title: '🧪 Consumíveis'
+        }
+    };
 
-    switch (category) {
-        case 'weapons':
-            return all.filter(i => i.slot === 'weapon');
-
-        case 'armors':
-            return all.filter(i =>
-                ['armor', 'boots', 'backpack'].includes(i.slot)
-            );
-
-        case 'jewelry':
-            return all.filter(i =>
-                ['necklace', 'ring'].includes(i.slot)
-            );
-
-        case 'consumables':
-            return all.filter(i => i.type === 'consumable');
-
-        default:
-            return all;
-    }
+    return configs[category];
 }
 
 function buildText(player, category = null) {
-    const eq = player.equipment || {};
-    const items = filterItems(player, category);
-
-    let text = `🎒 *Inventário* (${items.length}/${player.maxInventory || 20})
+    let text = `🎒 *Inventário* (${player.inventory.length}/${player.maxInventory || 20})
 
 ⚔️ ATK ${player.atk}
 🛡️ DEF ${player.def}
 ❤️ HP ${player.maxHp}
-🎯 CRIT ${player.crit}%
+🎯 CRIT ${player.crit}%`;
 
-Arma: ${formatItem(eq.weapon)}
-Armadura: ${formatItem(eq.armor)}
-Bota: ${formatItem(eq.boots)}
-Mochila: ${formatItem(eq.backpack)}
-Colar: ${formatItem(eq.necklace)}
-Anel: ${formatItem(eq.ring)}
-
-`;
-
-    if (items.length > 0) {
-        text += `📦 *Itens da categoria*\n`;
-
-        items.forEach(item => {
-            text += `• ${formatItem(item)}\n`;
-        });
+    if (category) {
+        const config = getCategoryConfig(category);
+        text += `\n\n${config.title}`;
     }
 
     return text;
@@ -90,23 +71,40 @@ function buildMenu(player, category = null) {
         ]
     ];
 
-    const visibleItems = filterItems(player, category);
+    if (category) {
+        const config = getCategoryConfig(category);
 
-    visibleItems.forEach(item => {
-        const equipped =
-            player.equipment?.[item.slot]?.id === item.id;
+        config.slots.forEach(slot => {
+            const equipped = player.equipment?.[slot];
 
-        rows.push([
-            Markup.button.callback(
-                equipped
-                    ? `⭐ Desequipar ${item.name}`
-                    : `🔹 Equipar ${item.name}`,
-                equipped
-                    ? `unequip_${item.slot}`
-                    : `equip_${item.slot}_${item.id}`
-            )
-        ]);
-    });
+            if (equipped) {
+                rows.push([
+                    Markup.button.callback(
+                        `⭐ Desequipar ${equipped.name} (${formatStats(equipped)})`,
+                        `unequip_${slot}`
+                    )
+                ]);
+            }
+
+            const availableItems = player.inventory.filter(
+                item => item.slot === slot
+            );
+
+            availableItems.forEach(item => {
+                const isEquipped =
+                    equipped?.id === item.id;
+
+                if (!isEquipped) {
+                    rows.push([
+                        Markup.button.callback(
+                            `🔹 Equipar ${item.name} (${formatStats(item)})`,
+                            `equip_${slot}_${item.id}`
+                        )
+                    ]);
+                }
+            });
+        });
+    }
 
     rows.push([
         Markup.button.callback('🏠 Menu', 'menu')
@@ -188,18 +186,25 @@ async function handleEquipItem(ctx) {
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    return renderInventory(ctx);
+    let category = null;
+
+    if (slot === 'weapon') category = 'weapons';
+    else if (
+        ['armor', 'boots', 'backpack'].includes(slot)
+    ) category = 'armors';
+    else if (
+        ['necklace', 'ring'].includes(slot)
+    ) category = 'jewelry';
+
+    return renderInventory(ctx, category);
 }
 
 async function handleUnequipItem(ctx) {
     const match =
         ctx.callbackQuery.data.match(/^unequip_(.+)$/);
 
-    if (!match) {
-        return ctx.answerCbQuery('Slot inválido');
-    }
-
     const slot = match[1];
+
     const player = getPlayer(ctx.from.id);
 
     player.equipment[slot] = null;
@@ -207,7 +212,17 @@ async function handleUnequipItem(ctx) {
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    return renderInventory(ctx);
+    let category = null;
+
+    if (slot === 'weapon') category = 'weapons';
+    else if (
+        ['armor', 'boots', 'backpack'].includes(slot)
+    ) category = 'armors';
+    else if (
+        ['necklace', 'ring'].includes(slot)
+    ) category = 'jewelry';
+
+    return renderInventory(ctx, category);
 }
 
 async function handleEquipSoul(ctx) {
