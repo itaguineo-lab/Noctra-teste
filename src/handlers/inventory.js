@@ -1,6 +1,5 @@
 const { getPlayer, savePlayer, recalculateStats } = require('../core/player/playerService');
 const { inventoryCategoryMenu } = require('../menus/inventoryMenu');
-const { getRarityEmoji } = require('../core/player/souls');
 const { formatItemStats } = require('../utils/formatters');
 const { Markup } = require('telegraf');
 
@@ -21,24 +20,15 @@ function getInventory(player) {
     return Array.isArray(player.inventory) ? player.inventory : [];
 }
 
-function renderListWithEquip(items, emptyText, equipPrefix = 'equip_item') {
-    if (!items.length) return emptyText;
-    const keyboard = [];
-    items.forEach(item => {
-        const statsStr = formatItemStats(item);
-        keyboard.push([Markup.button.callback(`⚔️ Equipar ${item.name}${statsStr}`, `${equipPrefix}_${item.id}`)]);
-    });
-    return keyboard;
-}
-
-function renderUnequipButton(slot) {
-    return [Markup.button.callback(`🔄 Desequipar ${slotLabel(slot)}`, `unequip_item_${slot}`)];
-}
-
 function slotLabel(slot) {
     const map = {
-        weapon: 'Arma', armor: 'Armadura', shield: 'Escudo',
-        ring: 'Anel', necklace: 'Colar', quiver: 'Aljava', backpack: 'Mochila'
+        weapon: 'Arma',
+        armor: 'Armadura',
+        shield: 'Escudo',
+        ring: 'Anel',
+        necklace: 'Colar',
+        quiver: 'Aljava',
+        backpack: 'Mochila'
     };
     return map[slot] || slot;
 }
@@ -70,6 +60,7 @@ async function handleInventory(ctx) {
     );
 }
 
+// ====================== ARMAS ======================
 async function handleInvWeapons(ctx) {
     const player = getPlayer(ctx.from.id);
     const items = getInventory(player).filter(i => i.slot === 'weapon');
@@ -78,17 +69,18 @@ async function handleInvWeapons(ctx) {
     let text = `⚔️ *ARMAS*\n\n`;
     const keyboard = [];
 
+    // Item equipado
     if (equipped) {
-        text += `🔹 *Equipada:* ${equipped.emoji || '⚪'} ${equipped.name}${formatItemStats(equipped)}\n\n`;
-        keyboard.push(renderUnequipButton('weapon'));
+        text += `🔹 *Equipada:* ${equipped.emoji || '⚪'} ${equipped.name}${formatItemStats(equipped)}\n`;
+        keyboard.push([Markup.button.callback(`🔄 Desequipar ${slotLabel('weapon')}`, `unequip_item_weapon`)]);
     } else {
-        text += `🔹 *Equipada:* —\n\n`;
+        text += `🔹 *Equipada:* —\n`;
     }
+    text += `\n📦 *Inventário:*\n`;
 
     if (!items.length) {
-        text += `Nenhuma arma no inventário.`;
+        text += `_Nenhuma arma._`;
     } else {
-        text += `📦 *Inventário:*\n`;
         items.forEach(item => {
             text += `• ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
             keyboard.push([Markup.button.callback(`⚔️ Equipar ${item.name}`, `equip_item_${item.id}`)]);
@@ -99,6 +91,7 @@ async function handleInvWeapons(ctx) {
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
 }
 
+// ====================== ARMADURAS ======================
 async function handleInvArmors(ctx) {
     const player = getPlayer(ctx.from.id);
     const items = getInventory(player).filter(i => i.slot === 'armor');
@@ -108,16 +101,16 @@ async function handleInvArmors(ctx) {
     const keyboard = [];
 
     if (equipped) {
-        text += `🔹 *Equipada:* ${equipped.emoji || '⚪'} ${equipped.name}${formatItemStats(equipped)}\n\n`;
-        keyboard.push(renderUnequipButton('armor'));
+        text += `🔹 *Equipada:* ${equipped.emoji || '⚪'} ${equipped.name}${formatItemStats(equipped)}\n`;
+        keyboard.push([Markup.button.callback(`🔄 Desequipar ${slotLabel('armor')}`, `unequip_item_armor`)]);
     } else {
-        text += `🔹 *Equipada:* —\n\n`;
+        text += `🔹 *Equipada:* —\n`;
     }
+    text += `\n📦 *Inventário:*\n`;
 
     if (!items.length) {
-        text += `Nenhuma armadura no inventário.`;
+        text += `_Nenhuma armadura._`;
     } else {
-        text += `📦 *Inventário:*\n`;
         items.forEach(item => {
             text += `• ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
             keyboard.push([Markup.button.callback(`🛡️ Equipar ${item.name}`, `equip_item_${item.id}`)]);
@@ -128,6 +121,7 @@ async function handleInvArmors(ctx) {
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
 }
 
+// ====================== JÓIAS (Anéis + Colares) ======================
 async function handleInvJewelry(ctx) {
     const player = getPlayer(ctx.from.id);
     const items = getInventory(player).filter(i => i.slot === 'ring' || i.slot === 'necklace');
@@ -137,27 +131,31 @@ async function handleInvJewelry(ctx) {
     let text = `💎 *JÓIAS*\n\n`;
     const keyboard = [];
 
+    // Anel equipado
     if (ringEquipped) {
         text += `🔹 *Anel equipado:* ${ringEquipped.emoji || '⚪'} ${ringEquipped.name}${formatItemStats(ringEquipped)}\n`;
-        keyboard.push(renderUnequipButton('ring'));
+        keyboard.push([Markup.button.callback(`🔄 Desequipar Anel`, `unequip_item_ring`)]);
     } else {
         text += `🔹 *Anel:* —\n`;
     }
+
+    // Colar equipado
     if (necklaceEquipped) {
         text += `🔹 *Colar equipado:* ${necklaceEquipped.emoji || '⚪'} ${necklaceEquipped.name}${formatItemStats(necklaceEquipped)}\n`;
-        keyboard.push(renderUnequipButton('necklace'));
+        keyboard.push([Markup.button.callback(`🔄 Desequipar Colar`, `unequip_item_necklace`)]);
     } else {
         text += `🔹 *Colar:* —\n`;
     }
-    text += `\n`;
+
+    text += `\n📦 *Inventário:*\n`;
 
     const jewelItems = items.filter(i => i.slot === 'ring' || i.slot === 'necklace');
     if (!jewelItems.length) {
-        text += `Nenhuma jóia no inventário.`;
+        text += `_Nenhuma jóia._`;
     } else {
-        text += `📦 *Inventário:*\n`;
         jewelItems.forEach(item => {
-            text += `• ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
+            const type = item.slot === 'ring' ? '💍' : '📿';
+            text += `• ${type} ${item.emoji || '⚪'} *${item.name}*${formatItemStats(item)}\n`;
             keyboard.push([Markup.button.callback(`💎 Equipar ${item.name}`, `equip_item_${item.id}`)]);
         });
     }
@@ -166,6 +164,7 @@ async function handleInvJewelry(ctx) {
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
 }
 
+// ====================== CONSUMÍVEIS ======================
 async function handleInvConsumables(ctx) {
     const c = getPlayer(ctx.from.id).consumables || {};
     await safeEdit(ctx,
@@ -174,6 +173,7 @@ async function handleInvConsumables(ctx) {
     );
 }
 
+// ====================== ALMAS ======================
 async function handleInvSouls(ctx) {
     const souls = getPlayer(ctx.from.id).soulsInventory || [];
     if (!souls.length) {
