@@ -5,23 +5,23 @@ function combatMenu() {
     [
       Markup.button.callback(
         '🗡️ Atacar',
-        'combat_attack'
+        'attack'
       )
     ],
     [
       Markup.button.callback(
         '💀 Almas',
-        'combat_soul'
+        'soul'
       ),
       Markup.button.callback(
         '🧪 Poções',
-        'combat_consumables'
+        'consumables'
       )
     ],
     [
       Markup.button.callback(
         '🏃 Fugir',
-        'combat_flee'
+        'flee'
       )
     ]
   ]);
@@ -41,7 +41,7 @@ function postCombatMenu() {
         'inventory'
       ),
       Markup.button.callback(
-        '🗺️ Menu',
+        '🏠 Menu',
         'menu'
       )
     ]
