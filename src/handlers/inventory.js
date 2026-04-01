@@ -5,153 +5,165 @@ const {
     recalculateStats
 } = require('../core/player/playerService');
 
-const SLOT_MAP = {
-    inv_weapons: 'weapon',
-    inv_armors: 'armor',
-    inv_jewelry: 'necklace',
-    inv_consumables: 'consumable',
-    inv_souls: 'soul'
-};
+function formatItem(item) {
+    if (!item) return '—';
 
-const SLOT_LABEL = {
-    weapon: '⚔️ Armas',
-    armor: '🛡️ Armaduras',
-    necklace: '📿 Colares',
-    ring: '💍 Anéis',
-    boots: '🥾 Botas',
-    quiver: '🏹 Aljava',
-    backpack: '🎒 Mochila'
-};
+    const stats = [];
 
-function slotEmoji(slot) {
-    return {
-        weapon: '⚔️',
-        armor: '🛡️',
-        necklace: '📿',
-        ring: '💍',
-        boots: '🥾',
-        quiver: '🏹',
-        backpack: '🎒'
-    }[slot] || '🎒';
+    if (item.atk) stats.push(`ATK+${item.atk}`);
+    if (item.def) stats.push(`DEF+${item.def}`);
+    if (item.hp) stats.push(`HP+${item.hp}`);
+    if (item.crit) stats.push(`CRIT+${item.crit}%`);
+
+    return `${item.name} (${stats.join(', ')})`;
 }
 
-async function safeReply(ctx, text, keyboard) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery();
-            return await ctx.editMessageText(text, {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
+function buildInventoryText(player) {
+    const eq = player.equipment || {};
+
+    return `🎒 *Inventário* (${player.inventory.length}/${player.maxInventory || 20})
+
+⚔️ ATK ${player.atk}
+🛡️ DEF ${player.def}
+❤️ HP ${player.maxHp}
+🎯 CRIT ${player.crit}%
+
+Arma: ${formatItem(eq.weapon)}
+Armadura: ${formatItem(eq.armor)}
+Bota: ${formatItem(eq.boots)}
+Mochila: ${formatItem(eq.backpack)}
+Colar: ${formatItem(eq.necklace)}
+Anel: ${formatItem(eq.ring)}
+
+💡 Itens equipados ocupam slot.`;
+}
+
+function buildInventoryMenu(player) {
+    const rows = [
+        [
+            Markup.button.callback('⚔️ Armas', 'inv_weapons'),
+            Markup.button.callback('🛡️ Armaduras', 'inv_armors')
+        ],
+        [
+            Markup.button.callback('💎 Joias', 'inv_jewelry'),
+            Markup.button.callback('🧪 Consumíveis', 'inv_consumables')
+        ],
+        [
+            Markup.button.callback('🎨 Skins', 'inv_skins'),
+            Markup.button.callback('✨ Almas', 'inv_souls')
+        ]
+    ];
+
+    const eq = player.equipment || {};
+
+    const equippedSlots = [
+        'weapon',
+        'armor',
+        'boots',
+        'backpack',
+        'necklace',
+        'ring'
+    ];
+
+    equippedSlots.forEach(slot => {
+        const item = eq[slot];
+
+        if (item) {
+            rows.push([
+                Markup.button.callback(
+                    `⭐ Desequipar ${item.name}`,
+                    `unequip_${slot}`
+                )
+            ]);
         }
+    });
 
-        return await ctx.reply(text, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    } catch {
-        return await ctx.reply(text, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    }
-}
-
-function buildMainInventoryMenu() {
-    return Markup.inlineKeyboard([
-        [Markup.button.callback('⚔️ Armas', 'inv_weapons')],
-        [Markup.button.callback('🛡️ Armaduras', 'inv_armors')],
-        [Markup.button.callback('📿 Colares', 'inv_jewelry')],
-        [Markup.button.callback('🧪 Consumíveis', 'inv_consumables')],
-        [Markup.button.callback('💀 Almas', 'inv_souls')],
-        [Markup.button.callback('🏠 Menu', 'menu')]
-    ]);
-}
-
-function buildSlotMenu(player, slot) {
-    const items = player.inventory.filter(
-        item => item.slot === slot
-    );
-
-    const rows = items.map(item => {
+    player.inventory.forEach(item => {
         const equipped =
-            player.equipment?.[slot]?.id === item.id;
+            player.equipment[item.slot]?.id === item.id;
 
-        return [
-            Markup.button.callback(
-                `${equipped ? '⭐' : slotEmoji(slot)} ${item.name}`,
-                equipped
-                    ? `unequip_${slot}`
-                    : `equip_${slot}_${item.id}`
-            )
-        ];
+        if (!equipped) {
+            rows.push([
+                Markup.button.callback(
+                    `🔹 Equipar ${item.name}`,
+                    `equip_${item.slot}_${item.id}`
+                )
+            ]);
+        }
     });
 
     rows.push([
-        Markup.button.callback('⬅️ Voltar', 'inventory')
+        Markup.button.callback('🏠 Menu', 'menu')
     ]);
 
     return Markup.inlineKeyboard(rows);
 }
 
-async function renderSlot(ctx, slot) {
+async function renderInventory(ctx) {
     const player = getPlayer(ctx.from.id);
 
-    return safeReply(
-        ctx,
-        `${slotEmoji(slot)} *${SLOT_LABEL[slot] || slot}*`,
-        buildSlotMenu(player, slot)
-    );
+    try {
+        if (ctx.callbackQuery) {
+            await ctx.answerCbQuery();
+
+            return await ctx.editMessageText(
+                buildInventoryText(player),
+                {
+                    parse_mode: 'Markdown',
+                    ...buildInventoryMenu(player)
+                }
+            );
+        }
+
+        return await ctx.reply(
+            buildInventoryText(player),
+            {
+                parse_mode: 'Markdown',
+                ...buildInventoryMenu(player)
+            }
+        );
+    } catch {
+        return ctx.reply(
+            buildInventoryText(player),
+            {
+                parse_mode: 'Markdown',
+                ...buildInventoryMenu(player)
+            }
+        );
+    }
 }
 
 async function handleInventory(ctx) {
-    return safeReply(
-        ctx,
-        '🎒 *INVENTÁRIO*',
-        buildMainInventoryMenu()
-    );
+    return renderInventory(ctx);
 }
 
 async function handleInvWeapons(ctx) {
-    return renderSlot(ctx, 'weapon');
+    return renderInventory(ctx);
 }
 
 async function handleInvArmors(ctx) {
-    return renderSlot(ctx, 'armor');
+    return renderInventory(ctx);
 }
 
 async function handleInvJewelry(ctx) {
-    return renderSlot(ctx, 'necklace');
+    return renderInventory(ctx);
 }
 
 async function handleInvConsumables(ctx) {
-    const player = getPlayer(ctx.from.id);
-
-    const text = `🧪 *CONSUMÍVEIS*
-
-❤️ Vida: ${player.consumables?.potionHp || 0}
-⚡ Energia: ${player.consumables?.potionEnergy || 0}
-💪 Força: ${player.consumables?.tonicStrength || 0}
-🛡️ Defesa: ${player.consumables?.tonicDefense || 0}`;
-
-    return safeReply(
-        ctx,
-        text,
-        buildMainInventoryMenu()
-    );
+    return renderInventory(ctx);
 }
 
 async function handleInvSouls(ctx) {
-    return safeReply(
-        ctx,
-        '💀 *ALMAS*\n\nSistema em expansão.',
-        buildMainInventoryMenu()
-    );
+    return renderInventory(ctx);
 }
 
 async function handleEquipItem(ctx) {
     const match =
         ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
+
+    if (!match) {
+        return ctx.answerCbQuery('Item inválido');
+    }
 
     const slot = match[1];
     const itemId = match[2];
@@ -173,12 +185,16 @@ async function handleEquipItem(ctx) {
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    return renderSlot(ctx, slot);
+    return renderInventory(ctx);
 }
 
 async function handleUnequipItem(ctx) {
     const match =
         ctx.callbackQuery.data.match(/^unequip_(.+)$/);
+
+    if (!match) {
+        return ctx.answerCbQuery('Slot inválido');
+    }
 
     const slot = match[1];
 
@@ -189,15 +205,15 @@ async function handleUnequipItem(ctx) {
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    return renderSlot(ctx, slot);
+    return renderInventory(ctx);
 }
 
 async function handleEquipSoul(ctx) {
-    return ctx.answerCbQuery('💀 Em breve');
+    return ctx.answerCbQuery('✨ Em breve');
 }
 
 async function handleUnequipSoul(ctx) {
-    return ctx.answerCbQuery('💀 Em breve');
+    return ctx.answerCbQuery('✨ Em breve');
 }
 
 module.exports = {
@@ -210,6 +226,5 @@ module.exports = {
     handleEquipItem,
     handleUnequipItem,
     handleEquipSoul,
-    handleUnequipSoul,
-    renderSlot
+    handleUnequipSoul
 };
