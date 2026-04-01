@@ -4,8 +4,8 @@ const { getXpToNextLevel } = require('../core/player/progression');
 const { getMapById, maps } = require('../core/world/maps');
 const { progressBar, formatNumber, formatTime } = require('./formatters');
 
-function getPlayerSafe(id) {
-  const player = getPlayer(id);
+function getPlayerSafe(id, name = 'Viajante') {
+  const player = getPlayer(id, name);
   updateEnergy(player);
   recalculateStats(player);
   return player;
@@ -33,7 +33,6 @@ function getMainMenuText(player, username) {
   const nextEnergyTime = getTimeToNextEnergy(player);
   const energyTimeStr = nextEnergyTime > 0 ? ` (próx. em ${formatTime(nextEnergyTime)})` : ' (cheia)';
 
-  // Barras usando quadrados: 🟥 para HP, 🟨 para XP
   const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
   const xpBar = progressBar(player.xp, xpNeeded, 8, '🟨', '⬜');
 
