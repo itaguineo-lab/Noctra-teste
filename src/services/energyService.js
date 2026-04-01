@@ -19,7 +19,7 @@ function ensureEnergyFields(player) {
 }
 
 function getRegenInterval(player) {
-    // VIP 8 min, normal 10 min
+    // Normal: 10 min por ponto, VIP: 8 min
     return player.vip ? 8 * 60 * 1000 : 10 * 60 * 1000;
 }
 
