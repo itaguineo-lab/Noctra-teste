@@ -5,20 +5,11 @@ async function handleOnline(ctx) {
         const now = Date.now();
         const activeThreshold = now - 20 * 60 * 1000; // últimos 20 minutos
 
-        // Se playersCache não estiver disponível (deve ser exportado em playerService)
-        // Vamos usar um getter global – mas por enquanto, vamos acessar diretamente
-        // Para evitar modificar playerService agora, podemos criar uma função auxiliar
-        // Mas vamos simular: no playerService, exportar playersCache
-        // Para funcionar, precisamos exportar playersCache em playerService.js
-        // Vamos adaptar o playerService para exportar a cache
-
-        // Por enquanto, assumindo que playersCache está disponível globalmente
-        const players = require('../core/player/playerService').playersCache;
         let onlineCount = 0;
         let playersByMap = {};
 
-        if (players) {
-            Object.values(players).forEach(p => {
+        if (playersCache) {
+            Object.values(playersCache).forEach(p => {
                 if (p.lastActive && p.lastActive > activeThreshold) {
                     onlineCount++;
                     const map = p.currentMap || 'clareira_sombria';
