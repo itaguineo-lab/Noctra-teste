@@ -6,6 +6,8 @@ const {
 } = require('../core/player/playerService');
 
 function formatStats(item) {
+    if (!item) return '—';
+
     const stats = [];
 
     if (item.atk) stats.push(`ATK+${item.atk}`);
@@ -17,26 +19,28 @@ function formatStats(item) {
 }
 
 function getCategoryConfig(category) {
-    const configs = {
+    return {
         weapons: {
+            title: '⚔️ Armas',
             slots: ['weapon'],
-            title: '⚔️ Armas'
+            label: 'Arma'
         },
         armors: {
+            title: '🛡️ Armaduras',
             slots: ['armor', 'boots', 'backpack'],
-            title: '🛡️ Armaduras'
+            label: 'Equipamentos'
         },
         jewelry: {
+            title: '💎 Joias',
             slots: ['necklace', 'ring'],
-            title: '💎 Joias'
+            label: 'Joias'
         },
         consumables: {
+            title: '🧪 Consumíveis',
             slots: [],
-            title: '🧪 Consumíveis'
+            label: 'Itens'
         }
-    };
-
-    return configs[category];
+    }[category];
 }
 
 function buildText(player, category = null) {
@@ -47,9 +51,50 @@ function buildText(player, category = null) {
 ❤️ HP ${player.maxHp}
 🎯 CRIT ${player.crit}%`;
 
-    if (category) {
-        const config = getCategoryConfig(category);
-        text += `\n\n${config.title}`;
+    if (!category) {
+        return text;
+    }
+
+    const config = getCategoryConfig(category);
+
+    text += `\n\n${config.title}\n`;
+
+    config.slots.forEach(slot => {
+        const equipped = player.equipment?.[slot];
+
+        const slotName = {
+            weapon: 'Arma',
+            armor: 'Armadura',
+            boots: 'Bota',
+            backpack: 'Mochila',
+            necklace: 'Colar',
+            ring: 'Anel'
+        }[slot] || slot;
+
+        text += `\n${slotName}: `;
+
+        if (equipped) {
+            text += `${equipped.name} ⭐ (${formatStats(equipped)})`;
+        } else {
+            text += '—';
+        }
+    });
+
+    text += `\n\n📦 *Itens disponíveis*\n`;
+
+    const available = player.inventory.filter(item =>
+        config.slots.includes(item.slot)
+    );
+
+    if (!available.length) {
+        text += `Nenhum item disponível`;
+    } else {
+        available.forEach(item => {
+            const isEquipped =
+                player.equipment?.[item.slot]?.id === item.id;
+
+            text += `\n${isEquipped ? '⭐' : '🔹'} ${item.name} (${formatStats(item)})`;
+        });
     }
 
     return text;
@@ -80,24 +125,24 @@ function buildMenu(player, category = null) {
             if (equipped) {
                 rows.push([
                     Markup.button.callback(
-                        `⭐ Desequipar ${equipped.name} (${formatStats(equipped)})`,
+                        `⭐ Desequipar ${equipped.name}`,
                         `unequip_${slot}`
                     )
                 ]);
             }
 
-            const availableItems = player.inventory.filter(
+            const items = player.inventory.filter(
                 item => item.slot === slot
             );
 
-            availableItems.forEach(item => {
+            items.forEach(item => {
                 const isEquipped =
                     equipped?.id === item.id;
 
                 if (!isEquipped) {
                     rows.push([
                         Markup.button.callback(
-                            `🔹 Equipar ${item.name} (${formatStats(item)})`,
+                            `🔹 Equipar ${item.name}`,
                             `equip_${slot}_${item.id}`
                         )
                     ]);
@@ -119,16 +164,9 @@ async function renderInventory(ctx, category = null) {
     const text = buildText(player, category);
     const keyboard = buildMenu(player, category);
 
-    if (ctx.callbackQuery) {
-        await ctx.answerCbQuery();
+    await ctx.answerCbQuery?.();
 
-        return ctx.editMessageText(text, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    }
-
-    return ctx.reply(text, {
+    return ctx.editMessageText(text, {
         parse_mode: 'Markdown',
         ...keyboard
     });
@@ -159,15 +197,8 @@ async function handleInvSouls(ctx) {
 }
 
 async function handleEquipItem(ctx) {
-    const match =
+    const [, slot, itemId] =
         ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
-
-    if (!match) {
-        return ctx.answerCbQuery('Item inválido');
-    }
-
-    const slot = match[1];
-    const itemId = match[2];
 
     const player = getPlayer(ctx.from.id);
 
@@ -186,24 +217,21 @@ async function handleEquipItem(ctx) {
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    let category = null;
-
-    if (slot === 'weapon') category = 'weapons';
-    else if (
-        ['armor', 'boots', 'backpack'].includes(slot)
-    ) category = 'armors';
-    else if (
-        ['necklace', 'ring'].includes(slot)
-    ) category = 'jewelry';
+    const category =
+        slot === 'weapon'
+            ? 'weapons'
+            : ['armor', 'boots', 'backpack'].includes(slot)
+            ? 'armors'
+            : ['necklace', 'ring'].includes(slot)
+            ? 'jewelry'
+            : null;
 
     return renderInventory(ctx, category);
 }
 
 async function handleUnequipItem(ctx) {
-    const match =
+    const [, slot] =
         ctx.callbackQuery.data.match(/^unequip_(.+)$/);
-
-    const slot = match[1];
 
     const player = getPlayer(ctx.from.id);
 
@@ -212,15 +240,14 @@ async function handleUnequipItem(ctx) {
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    let category = null;
-
-    if (slot === 'weapon') category = 'weapons';
-    else if (
-        ['armor', 'boots', 'backpack'].includes(slot)
-    ) category = 'armors';
-    else if (
-        ['necklace', 'ring'].includes(slot)
-    ) category = 'jewelry';
+    const category =
+        slot === 'weapon'
+            ? 'weapons'
+            : ['armor', 'boots', 'backpack'].includes(slot)
+            ? 'armors'
+            : ['necklace', 'ring'].includes(slot)
+            ? 'jewelry'
+            : null;
 
     return renderInventory(ctx, category);
 }
