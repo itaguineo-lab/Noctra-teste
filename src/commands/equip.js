@@ -169,13 +169,13 @@ async function handleUnequipItem(ctx) {
         const player = getPlayer(ctx.from.id);
         const result = unequipSlot(player, slot);
         if (!result.ok) {
-            return ctx.answerCbQuery(result.message, true);
+            await ctx.answerCbQuery(result.message, true);
+            return;
         }
         savePlayer(ctx.from.id, player);
         await ctx.answerCbQuery(`✅ ${result.item.name} removido para o inventário.`, true);
-        // Recarregar a tela de inventário da categoria atual (usar o mesmo handler)
+        // Recarregar a tela de inventário da categoria atual
         // Para simplificar, redireciona para o menu de inventário principal
-        const { inventoryCategoryMenu } = require('../menus/inventoryMenu');
         await ctx.editMessageText('🎒 *INVENTÁRIO*', { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
     } catch (error) {
         console.error('Erro ao desequipar:', error);
@@ -194,12 +194,12 @@ async function handleEquipItemCallback(ctx) {
         if (!result.ok) {
             return ctx.editMessageText(`❌ ${result.message.replace(/^❌\s*/, '')}`, {
                 parse_mode: 'Markdown',
-                ...require('../menus/inventoryMenu').inventoryCategoryMenu()
+                ...inventoryCategoryMenu()
             });
         }
         savePlayer(ctx.from.id, player);
         const text = `${renderInventoryOverview(player)}\n\n✅ *${result.item.name} equipado com sucesso!*`;
-        return ctx.editMessageText(text, { parse_mode: 'Markdown', ...require('../menus/inventoryMenu').inventoryCategoryMenu() });
+        return ctx.editMessageText(text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
     } catch (error) {
         console.error('Erro callback equip item:', error);
     }
@@ -216,12 +216,12 @@ async function handleEquipSoulCallback(ctx) {
         if (!result.ok) {
             return ctx.editMessageText(`❌ ${result.message.replace(/^❌\s*/, '')}`, {
                 parse_mode: 'Markdown',
-                ...require('../menus/inventoryMenu').inventoryCategoryMenu()
+                ...inventoryCategoryMenu()
             });
         }
         savePlayer(ctx.from.id, player);
         const text = `${renderInventoryOverview(player)}\n\n✅ *${result.soul.name} equipada com sucesso!*`;
-        return ctx.editMessageText(text, { parse_mode: 'Markdown', ...require('../menus/inventoryMenu').inventoryCategoryMenu() });
+        return ctx.editMessageText(text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
     } catch (error) {
         console.error('Erro callback equip alma:', error);
     }
