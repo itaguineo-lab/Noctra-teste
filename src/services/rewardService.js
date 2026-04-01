@@ -3,95 +3,83 @@ const { dropSoul } = require('../core/player/souls');
 const { generateItem } = require('../data/items');
 
 function processVictory(player, enemy) {
-  if (!player.inventory) player.inventory = [];
-  if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
-  if (!Array.isArray(player.keysInventory)) player.keysInventory = [];
+    if (!player.inventory) player.inventory = [];
+    if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
+    if (!Array.isArray(player.keysInventory)) player.keysInventory = [];
 
-  // Atualiza kills
-  player.totalKills = (player.totalKills || 0) + 1;
+    player.totalKills = (player.totalKills || 0) + 1;
 
-  const baseXp = enemy.xp || enemy.exp || 0;
-  const baseGold = enemy.gold || 0;
+    const baseXp = enemy.xp || enemy.exp || 0;
+    const baseGold = enemy.gold || 0;
+    const vipMultiplier = player.vip ? 1.5 : 1;
 
-  const vipMultiplier = player.vip ? 1.5 : 1;
+    const xpGained = Math.floor(baseXp * vipMultiplier);
+    const goldGained = Math.floor(baseGold * vipMultiplier);
 
-  const xpGained = Math.floor(baseXp * vipMultiplier);
-  const goldGained = Math.floor(baseGold * vipMultiplier);
+    player.gold = (player.gold || 0) + goldGained;
+    player.xp = (player.xp || 0) + xpGained;
 
-  player.gold = (player.gold || 0) + goldGained;
-  player.xp = (player.xp || 0) + xpGained;
+    const leveledUp = addXp(player, 0);
 
-  const leveledUp = addXp(player, 0);
+    let droppedSoul = null;
+    let droppedItem = null;
+    let droppedKey = null;
+    const loot = [];
 
-  let droppedSoul = null;
-  let droppedItem = null;
-  let droppedKey = null;
-
-  const loot = [];
-
-  // DROP DE EQUIPAMENTO
-  const equipmentChance = enemy.isBoss ? 1 : 0.20;
-  if (Math.random() < equipmentChance) {
-    droppedItem = generateItem(player.level, null);
-
-    const inventoryCount = player.inventory.length;
-    const maxInventory = player.maxInventory || (player.vip ? 30 : 20);
-    if (inventoryCount >= maxInventory) {
-      loot.push(`❌ Inventário cheio! ${droppedItem.name} foi perdido.`);
-      droppedItem = null;
-    } else {
-      player.inventory.push(droppedItem);
-      loot.push(`${droppedItem.emoji} ${droppedItem.name}`);
+    // Drop de equipamento
+    const equipmentChance = enemy.isBoss ? 1 : 0.20;
+    if (Math.random() < equipmentChance) {
+        droppedItem = generateItem(player.level, null);
+        const inventoryCount = player.inventory.length;
+        const maxInventory = player.maxInventory || (player.vip ? 30 : 20);
+        if (inventoryCount >= maxInventory) {
+            loot.push(`❌ Inventário cheio! ${droppedItem.name} foi perdido.`);
+            droppedItem = null;
+        } else {
+            player.inventory.push(droppedItem);
+            loot.push(`${droppedItem.emoji} ${droppedItem.name}`);
+        }
     }
-  }
 
-  // ALMAS (somente bosses)
-  const soulChance = enemy.isBoss ? 0.01 : 0;
-  if (Math.random() < soulChance) {
-    droppedSoul = dropSoul(player.level);
-    if (droppedSoul) {
-      // Almas têm inventário próprio (soulsInventory) – sem limite por enquanto
-      player.soulsInventory.push(droppedSoul);
-      loot.push(`💀 Alma: ${droppedSoul.name}`);
+    // Almas
+    const soulChance = enemy.isBoss ? 0.01 : 0;
+    if (Math.random() < soulChance) {
+        droppedSoul = dropSoul(player.level);
+        if (droppedSoul) {
+            player.soulsInventory.push(droppedSoul);
+            loot.push(`💀 Alma: ${droppedSoul.name}`);
+        }
     }
-  }
 
-  // CHAVE DE MASMORRA (boss de campo)
-  const keyChance = enemy.isBoss ? 0.02 : 0;
-  if (Math.random() < keyChance) {
-    droppedKey = {
-      id: `key_${Date.now()}`,
-      name: 'Chave da Masmorra',
-      type: 'dungeon_key',
-      rarity: 'Épico'
+    // Chave de masmorra
+    const keyChance = enemy.isBoss ? 0.02 : 0;
+    if (Math.random() < keyChance) {
+        droppedKey = { id: `key_${Date.now()}`, name: 'Chave da Masmorra', type: 'dungeon_key', rarity: 'Épico' };
+        player.keysInventory.push(droppedKey);
+        loot.push('🗝️ Chave da Masmorra');
+    }
+
+    // Conquistas sem Nox
+    if (player.totalKills === 10 && !player.achievements?.kill10) {
+        if (!player.achievements) player.achievements = {};
+        player.achievements.kill10 = true;
+        player.glorias = (player.glorias || 0) + 5;
+        loot.push('🏆 Conquista: 10 mortes! +5 Glórias');
+    } else if (player.totalKills === 100 && !player.achievements?.kill100) {
+        player.achievements.kill100 = true;
+        player.glorias = (player.glorias || 0) + 20;
+        loot.push('🏆 Conquista: 100 mortes! +20 Glórias');
+    }
+
+    return {
+        xp: xpGained,
+        gold: goldGained,
+        loot,
+        droppedSoul,
+        droppedItem,
+        droppedKey,
+        leveledUp
     };
-    player.keysInventory.push(droppedKey);
-    loot.push('🗝️ Chave da Masmorra');
-  }
-
-  // Checar conquista de kills (simples)
-  if (player.totalKills === 10 && !player.achievements?.kill10) {
-    if (!player.achievements) player.achievements = {};
-    player.achievements.kill10 = true;
-    player.nox = (player.nox || 0) + 5;
-    loot.push('🏆 Conquista: 10 mortes! +5 Nox');
-  } else if (player.totalKills === 100 && !player.achievements?.kill100) {
-    player.achievements.kill100 = true;
-    player.nox = (player.nox || 0) + 20;
-    loot.push('🏆 Conquista: 100 mortes! +20 Nox');
-  }
-
-  return {
-    xp: xpGained,
-    gold: goldGained,
-    loot,
-    droppedSoul,
-    droppedItem,
-    droppedKey,
-    leveledUp
-  };
 }
 
-module.exports = {
-  processVictory
-};
+module.exports = { processVictory };
