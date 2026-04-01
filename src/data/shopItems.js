@@ -7,10 +7,9 @@ const shopItems = [
         type: 'consumable',
         effect: 'potionHp',
         value: 1,
-        heal: 50,
         currency: 'gold',
         price: 50,
-        description: 'Restaura 50 HP'
+        description: 'Restaura 40% do HP máximo no combate.'
     },
     {
         id: 'energy_potion',
@@ -19,10 +18,9 @@ const shopItems = [
         type: 'consumable',
         effect: 'potionEnergy',
         value: 1,
-        energy: 10,
         currency: 'gold',
         price: 80,
-        description: 'Recupera 10 de energia'
+        description: 'Recupera 10 de energia.'
     },
     {
         id: 'strength_tonic',
@@ -31,12 +29,9 @@ const shopItems = [
         type: 'consumable',
         effect: 'tonicStrength',
         value: 1,
-        buff: 'atk',
-        bonus: 10,
-        duration: 3,
         currency: 'gold',
         price: 120,
-        description: '+10 ATK por 3 combates'
+        description: '+10 ATK por 3 combates.'
     },
     {
         id: 'defense_tonic',
@@ -45,12 +40,9 @@ const shopItems = [
         type: 'consumable',
         effect: 'tonicDefense',
         value: 1,
-        buff: 'def',
-        bonus: 10,
-        duration: 3,
         currency: 'gold',
         price: 120,
-        description: '+10 DEF por 3 combates'
+        description: '+10 DEF por 3 combates.'
     },
 
     // Castelo (Nox)
@@ -62,7 +54,7 @@ const shopItems = [
         days: 7,
         currency: 'nox',
         price: 18,
-        description: 'Energia máxima 40, regen 3 min, +10 slots, +50% recompensas'
+        description: 'Energia máxima 40, regen 8 min, +10 slots, +50% recompensas.'
     },
     {
         id: 'vip_30d',
@@ -72,7 +64,7 @@ const shopItems = [
         days: 30,
         currency: 'nox',
         price: 60,
-        description: 'Energia máxima 40, regen 3 min, +10 slots, +50% recompensas'
+        description: 'Energia máxima 40, regen 8 min, +10 slots, +50% recompensas.'
     },
     {
         id: 'cosmetic_aura',
@@ -81,7 +73,7 @@ const shopItems = [
         type: 'cosmetic',
         currency: 'nox',
         price: 10,
-        description: 'Efeito visual exclusivo'
+        description: 'Efeito visual exclusivo.'
     },
 
     // Matadores (Glórias)
@@ -97,7 +89,7 @@ const shopItems = [
         crit: 5,
         currency: 'glorias',
         price: 100,
-        description: 'Arma lendária da arena'
+        description: 'Arma lendária da arena.'
     },
     {
         id: 'arena_armor',
@@ -111,7 +103,7 @@ const shopItems = [
         crit: 0,
         currency: 'glorias',
         price: 120,
-        description: 'Armadura de gladiador'
+        description: 'Armadura de gladiador.'
     }
 ];
 
