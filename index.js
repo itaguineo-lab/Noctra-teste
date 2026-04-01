@@ -27,7 +27,7 @@ const {
   handleInvJewelry,
   handleInvConsumables,
   handleInvSouls,
-  handleToggleEquip
+  handleInvSkins
 } = require('./src/handlers/inventory');
 
 const {
@@ -44,34 +44,19 @@ const {
   handleTravelLocked
 } = require('./src/handlers/travel');
 
-const {
-  handleVip
-} = require('./src/handlers/vip');
+const { handleVip } = require('./src/handlers/vip');
+const { handleDaily } = require('./src/handlers/daily');
+const { handleOnline } = require('./src/handlers/online');
 
-const {
-  handleDaily
-} = require('./src/handlers/daily');
-
-const {
-  handleOnline
-} = require('./src/handlers/online');
-
-const {
-  handleRename
-} = require('./src/commands/rename');
-
-const {
-  handleClass
-} = require('./src/commands/class');
+const { handleRename } = require('./src/commands/rename');
+const { handleClass } = require('./src/commands/class');
 
 const {
   handleEquip,
   handleEquipSoul
 } = require('./src/commands/equip');
 
-const {
-  mainMenu
-} = require('./src/menus/mainMenu');
+const { mainMenu } = require('./src/menus/mainMenu');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -93,9 +78,9 @@ bot.start(async (ctx) => {
     ctx,
     `╔════════════════════════╗
 ║      🌙 NOCTRA RPG      ║
-║    Bem-vindo, aventureiro    ║
+║   Bem-vindo aventureiro ║
 ╠════════════════════════╣
-║   Escolha sua ação:    ║
+║   Escolha sua ação     ║
 ╚════════════════════════╝`,
     {
       ...mainMenu()
@@ -104,11 +89,26 @@ bot.start(async (ctx) => {
 });
 
 /*
-====================================
-COMMANDS
-====================================
+MENU
 */
+bot.action('menu', async (ctx) => {
+  await safeEditOrReply(
+    ctx,
+    `╔════════════════════════╗
+║      🌙 NOCTRA RPG      ║
+║   Bem-vindo aventureiro ║
+╠════════════════════════╣
+║   Escolha sua ação     ║
+╚════════════════════════╝`,
+    {
+      ...mainMenu()
+    }
+  );
+});
 
+/*
+COMANDOS
+*/
 bot.command('hunt', handleHunt);
 bot.command('profile', handleProfile);
 bot.command('inventory', handleInventory);
@@ -124,32 +124,8 @@ bot.command('equip', handleEquip);
 bot.command('equipsoul', handleEquipSoul);
 
 /*
-====================================
-MAIN MENU
-====================================
+COMBATE
 */
-
-bot.action('menu', async (ctx) => {
-  await safeEditOrReply(
-    ctx,
-    `╔════════════════════════╗
-║      🌙 NOCTRA RPG      ║
-║    Bem-vindo, aventureiro    ║
-╠════════════════════════╣
-║   Escolha sua ação:    ║
-╚════════════════════════╝`,
-    {
-      ...mainMenu()
-    }
-  );
-});
-
-/*
-====================================
-COMBAT
-====================================
-*/
-
 bot.action('hunt', handleHunt);
 bot.action('combat_attack', handleAttack);
 bot.action('combat_soul', handleSoul);
@@ -157,35 +133,26 @@ bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 
 /*
-====================================
-PROFILE / ENERGY
-====================================
+PERFIL / ENERGIA
 */
-
 bot.action('profile', handleProfile);
 bot.action('energy', handleEnergy);
 bot.action('rest_energy', handleRestEnergy);
 
 /*
-====================================
-INVENTORY
-====================================
+INVENTÁRIO
 */
-
 bot.action('inventory', handleInventory);
 bot.action('inv_weapons', handleInvWeapons);
 bot.action('inv_armors', handleInvArmors);
 bot.action('inv_jewelry', handleInvJewelry);
 bot.action('inv_consumables', handleInvConsumables);
 bot.action('inv_souls', handleInvSouls);
-bot.action(/toggle_equip_(.+)/, handleToggleEquip);
+bot.action('inv_skins', handleInvSkins);
 
 /*
-====================================
-SHOP
-====================================
+LOJA
 */
-
 bot.action('shop', handleShop);
 bot.action('shop_village', handleShopVillage);
 bot.action('shop_castle', handleShopCastle);
@@ -193,30 +160,18 @@ bot.action('shop_arena', handleShopArena);
 bot.action(/buy_(.+)/, handleBuy);
 
 /*
-====================================
-TRAVEL
-====================================
+VIAGEM
 */
-
 bot.action('travel', handleTravel);
 bot.action(/travel_to_(.+)/, handleTravelTo);
 bot.action('travel_locked', handleTravelLocked);
 
 /*
-====================================
 EXTRAS
-====================================
 */
-
 bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
-
-/*
-====================================
-GLOBAL ERROR
-====================================
-*/
 
 bot.catch((err, ctx) => {
   console.error('❌ ERRO GLOBAL:', err);
@@ -226,12 +181,6 @@ bot.catch((err, ctx) => {
   } catch {}
 });
 
-/*
-====================================
-HTTP SERVER (RENDER KEEP ALIVE)
-====================================
-*/
-
 const PORT = process.env.PORT || 3000;
 
 http
@@ -239,36 +188,21 @@ http
     res.writeHead(200, {
       'Content-Type': 'text/plain'
     });
-
     res.end('NOCTRA ONLINE');
   })
   .listen(PORT, () => {
     console.log(`🌐 HTTP ONLINE ${PORT}`);
   });
 
-/*
-====================================
-BOT START (ANTI 409)
-====================================
-*/
-
 async function startBot() {
   try {
-    console.log('🚀 Iniciando Noctra...');
-
     const webhookInfo =
       await bot.telegram.getWebhookInfo();
 
     if (webhookInfo.url) {
-      console.log(
-        '🧹 Webhook encontrado, removendo...'
-      );
-
       await bot.telegram.deleteWebhook({
         drop_pending_updates: true
       });
-
-      console.log('✅ Webhook removido');
     }
 
     await bot.launch({
@@ -277,20 +211,11 @@ async function startBot() {
 
     console.log('✅ NOCTRA ONLINE');
   } catch (err) {
-    console.error(
-      '❌ FALHA AO INICIAR:',
-      err
-    );
+    console.error('❌ FALHA AO INICIAR:', err);
   }
 }
 
 startBot();
-
-/*
-====================================
-STOP
-====================================
-*/
 
 process.once('SIGINT', () => {
   bot.stop('SIGINT');
