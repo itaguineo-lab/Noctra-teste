@@ -107,7 +107,7 @@ async function finishFight(ctx, fight) {
 }
 
 async function handleHunt(ctx) {
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery(); // resposta imediata
 
     const player = getPlayer(ctx.from.id);
     if (!player) return ctx.reply('❌ Perfil não encontrado.');
@@ -130,7 +130,7 @@ async function handleHunt(ctx) {
 }
 
 async function handleAttack(ctx) {
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery(); // resposta imediata
 
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
@@ -158,23 +158,27 @@ async function handleAttack(ctx) {
 }
 
 async function handleSoul(ctx) {
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery(); // resposta imediata
+
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
     useSoul(fight, 0);
     if (fight.status === 'ongoing') processEnemyTurn(fight);
 
-    return fight.status !== 'ongoing'
-        ? finishFight(ctx, fight)
-        : editMessage(ctx, renderFightText(fight), {
-              parse_mode: 'Markdown',
-              ...combatMenu()
-          });
+    if (fight.status !== 'ongoing') {
+        return finishFight(ctx, fight);
+    }
+
+    await editMessage(ctx, renderFightText(fight), {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
 }
 
 async function handleConsumables(ctx) {
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery(); // resposta imediata
+
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
@@ -186,17 +190,24 @@ async function handleConsumables(ctx) {
     player.consumables.potionHp -= 1;
     const heal = Math.floor(fight.player.maxHp * 0.4);
     fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
+    fight.logs.push(`🧪 ${fight.player.name} usou uma poção e recuperou *${heal}* HP!`);
     savePlayer(ctx.from.id, player);
+
     processEnemyTurn(fight);
 
-    return editMessage(ctx, renderFightText(fight), {
+    if (fight.status !== 'ongoing') {
+        return finishFight(ctx, fight);
+    }
+
+    await editMessage(ctx, renderFightText(fight), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
 }
 
 async function handleFlee(ctx) {
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery(); // resposta imediata
+
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
