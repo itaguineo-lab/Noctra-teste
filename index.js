@@ -103,6 +103,12 @@ bot.start(async (ctx) => {
   );
 });
 
+/*
+====================================
+COMMANDS
+====================================
+*/
+
 bot.command('hunt', handleHunt);
 bot.command('profile', handleProfile);
 bot.command('inventory', handleInventory);
@@ -116,6 +122,12 @@ bot.command('rename', handleRename);
 bot.command('class', handleClass);
 bot.command('equip', handleEquip);
 bot.command('equipsoul', handleEquipSoul);
+
+/*
+====================================
+MAIN MENU
+====================================
+*/
 
 bot.action('menu', async (ctx) => {
   await safeEditOrReply(
@@ -132,16 +144,33 @@ bot.action('menu', async (ctx) => {
   );
 });
 
+/*
+====================================
+COMBAT
+====================================
+*/
+
 bot.action('hunt', handleHunt);
 bot.action('combat_attack', handleAttack);
 bot.action('combat_soul', handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 
-bot.action('profile', handleProfile);
+/*
+====================================
+PROFILE / ENERGY
+====================================
+*/
 
+bot.action('profile', handleProfile);
 bot.action('energy', handleEnergy);
 bot.action('rest_energy', handleRestEnergy);
+
+/*
+====================================
+INVENTORY
+====================================
+*/
 
 bot.action('inventory', handleInventory);
 bot.action('inv_weapons', handleInvWeapons);
@@ -151,19 +180,43 @@ bot.action('inv_consumables', handleInvConsumables);
 bot.action('inv_souls', handleInvSouls);
 bot.action(/toggle_equip_(.+)/, handleToggleEquip);
 
+/*
+====================================
+SHOP
+====================================
+*/
+
 bot.action('shop', handleShop);
 bot.action('shop_village', handleShopVillage);
 bot.action('shop_castle', handleShopCastle);
 bot.action('shop_arena', handleShopArena);
 bot.action(/buy_(.+)/, handleBuy);
 
+/*
+====================================
+TRAVEL
+====================================
+*/
+
 bot.action('travel', handleTravel);
 bot.action(/travel_to_(.+)/, handleTravelTo);
 bot.action('travel_locked', handleTravelLocked);
 
+/*
+====================================
+EXTRAS
+====================================
+*/
+
 bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
+
+/*
+====================================
+GLOBAL ERROR
+====================================
+*/
 
 bot.catch((err, ctx) => {
   console.error('❌ ERRO GLOBAL:', err);
@@ -172,6 +225,12 @@ bot.catch((err, ctx) => {
     ctx.reply('❌ Ocorreu um erro inesperado.');
   } catch {}
 });
+
+/*
+====================================
+HTTP SERVER (RENDER KEEP ALIVE)
+====================================
+*/
 
 const PORT = process.env.PORT || 3000;
 
@@ -187,13 +246,56 @@ http
     console.log(`🌐 HTTP ONLINE ${PORT}`);
   });
 
-bot.launch()
-  .then(() => {
-    console.log('✅ NOCTRA ONLINE');
-  })
-  .catch((err) => {
-    console.error('❌ FALHA AO INICIAR:', err);
-  });
+/*
+====================================
+BOT START (ANTI 409)
+====================================
+*/
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+async function startBot() {
+  try {
+    console.log('🚀 Iniciando Noctra...');
+
+    const webhookInfo =
+      await bot.telegram.getWebhookInfo();
+
+    if (webhookInfo.url) {
+      console.log(
+        '🧹 Webhook encontrado, removendo...'
+      );
+
+      await bot.telegram.deleteWebhook({
+        drop_pending_updates: true
+      });
+
+      console.log('✅ Webhook removido');
+    }
+
+    await bot.launch({
+      dropPendingUpdates: true
+    });
+
+    console.log('✅ NOCTRA ONLINE');
+  } catch (err) {
+    console.error(
+      '❌ FALHA AO INICIAR:',
+      err
+    );
+  }
+}
+
+startBot();
+
+/*
+====================================
+STOP
+====================================
+*/
+
+process.once('SIGINT', () => {
+  bot.stop('SIGINT');
+});
+
+process.once('SIGTERM', () => {
+  bot.stop('SIGTERM');
+});
