@@ -79,7 +79,7 @@ function unequipSlot(player, slot) {
     if (!player.equipment) player.equipment = {};
 
     const item = player.equipment[slot];
-    console.log(`🔍 Tentando desequipar slot ${slot}, item =`, item);
+    console.log(`🔍 Desequipando slot ${slot}, item encontrado:`, item ? `${item.name} (${item.id})` : 'null');
 
     if (!item) {
         console.log(`❌ Nada equipado no slot ${slot}`);
@@ -189,7 +189,7 @@ async function handleUnequipItem(ctx) {
         savePlayer(ctx.from.id, player);
         await ctx.answerCbQuery(`✅ ${result.item.name} removido para o inventário.`, true);
 
-        // Voltar ao menu principal de inventário para evitar inconsistências
+        // Recarregar a tela de inventário principal
         await ctx.editMessageText('🎒 *INVENTÁRIO*', { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
     } catch (error) {
         console.error('Erro ao desequipar:', error);
