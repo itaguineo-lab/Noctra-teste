@@ -23,20 +23,14 @@ function loadPlayersToCache() {
         }
         const data = fs.readFileSync(playersFilePath, 'utf8');
         playersCache = JSON.parse(data);
-        // Migração: garantir que todos os players tenham a estrutura correta
+        // Migração: garantir estrutura correta
         for (const id in playersCache) {
             const player = playersCache[id];
             if (player) {
-                // Garantir que equipment existe e tem todos os slots
-                if (!player.equipment || typeof player.equipment !== 'object') {
-                    player.equipment = {};
-                }
+                if (!player.equipment) player.equipment = {};
                 for (const slot of EQUIPMENT_SLOTS) {
-                    if (!player.equipment.hasOwnProperty(slot)) {
-                        player.equipment[slot] = null;
-                    }
+                    if (!player.equipment.hasOwnProperty(slot)) player.equipment[slot] = null;
                 }
-                // Garantir outros campos necessários
                 if (!player.soulsEquipped) player.soulsEquipped = [null, null];
                 if (!player.soulsInventory) player.soulsInventory = [];
                 if (!player.consumables) player.consumables = { potionHp: 0, potionEnergy: 0, tonicStrength: 0 };
@@ -98,9 +92,7 @@ function createDefaultPlayer(id, name = 'Viajante') {
 }
 
 function getPlayer(id, name = 'Viajante') {
-    if (playersCache === null) {
-        loadPlayersToCache();
-    }
+    if (playersCache === null) loadPlayersToCache();
     if (!playersCache[id]) {
         playersCache[id] = createDefaultPlayer(id, name);
         scheduleSave();
@@ -113,9 +105,7 @@ function getPlayer(id, name = 'Viajante') {
 }
 
 function savePlayer(id, player) {
-    if (playersCache === null) {
-        loadPlayersToCache();
-    }
+    if (playersCache === null) loadPlayersToCache();
     player.updatedAt = Date.now();
     player.lastActive = Date.now();
     playersCache[id] = player;
