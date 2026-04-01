@@ -18,10 +18,36 @@ function formatItem(item) {
     return `${item.name} (${stats.join(', ')})`;
 }
 
-function buildText(player) {
-    const eq = player.equipment || {};
+function filterItems(player, category) {
+    const all = player.inventory || [];
 
-    return `🎒 *Inventário* (${player.inventory.length}/${player.maxInventory || 20})
+    switch (category) {
+        case 'weapons':
+            return all.filter(i => i.slot === 'weapon');
+
+        case 'armors':
+            return all.filter(i =>
+                ['armor', 'boots', 'backpack'].includes(i.slot)
+            );
+
+        case 'jewelry':
+            return all.filter(i =>
+                ['necklace', 'ring'].includes(i.slot)
+            );
+
+        case 'consumables':
+            return all.filter(i => i.type === 'consumable');
+
+        default:
+            return all;
+    }
+}
+
+function buildText(player, category = null) {
+    const eq = player.equipment || {};
+    const items = filterItems(player, category);
+
+    let text = `🎒 *Inventário* (${items.length}/${player.maxInventory || 20})
 
 ⚔️ ATK ${player.atk}
 🛡️ DEF ${player.def}
@@ -35,10 +61,20 @@ Mochila: ${formatItem(eq.backpack)}
 Colar: ${formatItem(eq.necklace)}
 Anel: ${formatItem(eq.ring)}
 
-💡 Itens equipados ocupam slot.`;
+`;
+
+    if (items.length > 0) {
+        text += `📦 *Itens da categoria*\n`;
+
+        items.forEach(item => {
+            text += `• ${formatItem(item)}\n`;
+        });
+    }
+
+    return text;
 }
 
-function buildMenu(player) {
+function buildMenu(player, category = null) {
     const rows = [
         [
             Markup.button.callback('⚔️ Armas', 'inv_weapons'),
@@ -54,40 +90,22 @@ function buildMenu(player) {
         ]
     ];
 
-    const equippedSlots = [
-        'weapon',
-        'armor',
-        'boots',
-        'backpack',
-        'necklace',
-        'ring'
-    ];
+    const visibleItems = filterItems(player, category);
 
-    equippedSlots.forEach(slot => {
-        const item = player.equipment?.[slot];
-
-        if (item) {
-            rows.push([
-                Markup.button.callback(
-                    `⭐ Desequipar ${item.name}`,
-                    `unequip_${slot}`
-                )
-            ]);
-        }
-    });
-
-    player.inventory.forEach(item => {
+    visibleItems.forEach(item => {
         const equipped =
             player.equipment?.[item.slot]?.id === item.id;
 
-        if (!equipped) {
-            rows.push([
-                Markup.button.callback(
-                    `🔹 Equipar ${item.name}`,
-                    `equip_${item.slot}_${item.id}`
-                )
-            ]);
-        }
+        rows.push([
+            Markup.button.callback(
+                equipped
+                    ? `⭐ Desequipar ${item.name}`
+                    : `🔹 Equipar ${item.name}`,
+                equipped
+                    ? `unequip_${item.slot}`
+                    : `equip_${item.slot}_${item.id}`
+            )
+        ]);
     });
 
     rows.push([
@@ -97,25 +115,19 @@ function buildMenu(player) {
     return Markup.inlineKeyboard(rows);
 }
 
-async function renderInventory(ctx) {
+async function renderInventory(ctx, category = null) {
     const player = getPlayer(ctx.from.id);
 
-    const text = buildText(player);
-    const keyboard = buildMenu(player);
+    const text = buildText(player, category);
+    const keyboard = buildMenu(player, category);
 
     if (ctx.callbackQuery) {
         await ctx.answerCbQuery();
 
-        try {
-            return await ctx.editMessageText(text, {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
-        } catch (error) {
-            console.error('Erro edit inventory:', error.message);
-
-            return;
-        }
+        return ctx.editMessageText(text, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
     }
 
     return ctx.reply(text, {
@@ -129,19 +141,19 @@ async function handleInventory(ctx) {
 }
 
 async function handleInvWeapons(ctx) {
-    return renderInventory(ctx);
+    return renderInventory(ctx, 'weapons');
 }
 
 async function handleInvArmors(ctx) {
-    return renderInventory(ctx);
+    return renderInventory(ctx, 'armors');
 }
 
 async function handleInvJewelry(ctx) {
-    return renderInventory(ctx);
+    return renderInventory(ctx, 'jewelry');
 }
 
 async function handleInvConsumables(ctx) {
-    return renderInventory(ctx);
+    return renderInventory(ctx, 'consumables');
 }
 
 async function handleInvSouls(ctx) {
@@ -183,8 +195,11 @@ async function handleUnequipItem(ctx) {
     const match =
         ctx.callbackQuery.data.match(/^unequip_(.+)$/);
 
-    const slot = match[1];
+    if (!match) {
+        return ctx.answerCbQuery('Slot inválido');
+    }
 
+    const slot = match[1];
     const player = getPlayer(ctx.from.id);
 
     player.equipment[slot] = null;
