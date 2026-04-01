@@ -4,7 +4,9 @@ const { Telegraf } = require('telegraf');
 const http = require('http');
 
 const { mainMenu } = require('./src/menus/mainMenu');
+
 const { handleProfile } = require('./src/handlers/profile');
+
 const {
     handleInventory,
     handleInvWeapons,
@@ -17,6 +19,7 @@ const {
     handleEquipSoul,
     handleUnequipSoul
 } = require('./src/handlers/inventory');
+
 const {
     handleHunt,
     handleAttack,
@@ -24,11 +27,18 @@ const {
     handleConsumables,
     handleFlee
 } = require('./src/handlers/combat');
-const { handleTravel } = require('./src/handlers/travel');
+
+const {
+    handleTravel,
+    handleTravelTo,
+    handleTravelLocked
+} = require('./src/handlers/travel');
+
 const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
 const { handleVip } = require('./src/handlers/vip');
 const { handleDaily } = require('./src/handlers/daily');
 const { handleOnline } = require('./src/handlers/online');
+
 const {
     handleShop,
     handleShopVillage,
@@ -36,6 +46,7 @@ const {
     handleShopArena,
     handleBuy
 } = require('./src/handlers/shop');
+
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
 
@@ -69,6 +80,7 @@ bot.start(async (ctx) => {
 ╠════════════════════════╣
 ║   Escolha sua ação:    ║
 ╚════════════════════════╝`;
+
     await ctx.reply(welcomeMsg, {
         parse_mode: 'Markdown',
         ...mainMenu()
@@ -117,10 +129,13 @@ bot.action('inv_souls', handleInvSouls);
 // ======================
 // EQUIPAR / DESEQUIPAR ITENS E ALMAS
 // ======================
-bot.action(/^equip_(.+)_(.+)$/, handleEquipItem);
-bot.action(/^unequip_(.+)$/, handleUnequipItem);
+// Primeiro os casos específicos
 bot.action(/^equip_soul_(.+)$/, handleEquipSoul);
 bot.action(/^unequip_soul_(\d+)$/, handleUnequipSoul);
+
+// Depois os itens normais
+bot.action(/^equip_(weapon|armor|accessory)_(.+)$/, handleEquipItem);
+bot.action(/^unequip_(weapon|armor|accessory)$/, handleUnequipItem);
 
 // ======================
 // LOJA
@@ -133,19 +148,21 @@ bot.action(/buy_(.+)/, handleBuy);
 // ======================
 // VIAJAR
 // ======================
-bot.action(/travel_to_(.+)/, handleTravel);
-bot.action('travel_locked', (ctx) => ctx.answerCbQuery('🔒 Mapa bloqueado.', { show_alert: true }));
+bot.action(/travel_to_(.+)/, handleTravelTo);
+bot.action('travel_locked', handleTravelLocked);
 
 // ======================
 // MENU PRINCIPAL
 // ======================
 bot.action('menu', async (ctx) => {
     await ctx.answerCbQuery();
+
     const menuMsg = `╔════════════════════════╗
 ║      🌙 *NOCTRA RPG*      ║
 ╠════════════════════════╣
 ║   Escolha sua ação:    ║
 ╚════════════════════════╝`;
+
     await ctx.editMessageText(menuMsg, {
         parse_mode: 'Markdown',
         ...mainMenu()
@@ -157,17 +174,25 @@ bot.action('menu', async (ctx) => {
 // ======================
 bot.action('rename_help', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply(`📝 *Renomear*\n\nUse o comando:\n/rename <novo_nome>\n\n*Custo:* primeira vez grátis, depois 💎 100 Nox.`, { parse_mode: 'Markdown' });
+    await ctx.reply(
+        `📝 *Renomear*\n\nUse o comando:\n/rename <novo_nome>\n\n*Custo:* primeira vez grátis, depois 💎 100 Nox.`,
+        { parse_mode: 'Markdown' }
+    );
 });
+
 bot.action('class_help', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply(`🔄 *Trocar Classe*\n\nUse o comando:\n/class guerreiro | arqueiro | mago\n\n*Custo:* primeira vez grátis, depois 💎 500 Nox.`, { parse_mode: 'Markdown' });
+    await ctx.reply(
+        `🔄 *Trocar Classe*\n\nUse o comando:\n/class guerreiro | arqueiro | mago\n\n*Custo:* primeira vez grátis, depois 💎 500 Nox.`,
+        { parse_mode: 'Markdown' }
+    );
 });
 
 // ======================
 // SERVIDOR WEB (keep-alive)
 // ======================
 const PORT = process.env.PORT || 3000;
+
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Noctra online');
