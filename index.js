@@ -32,6 +32,7 @@ const {
   handleHunt,
   handleAttack,
   handleSoul,
+  handleConsumables,
   handleFlee
 } = require('./src/handlers/combat');
 
@@ -97,14 +98,14 @@ bot.start(async (ctx) => {
 
 /*
 ========================================
-MENU ACTIONS
+MENU
 ========================================
 */
 
 bot.action('menu', async (ctx) => {
-  const player = getPlayer(ctx.from.id);
-
   await ctx.answerCbQuery();
+
+  const player = getPlayer(ctx.from.id);
 
   await ctx.editMessageText(
     `╔════════════════════════╗
@@ -150,8 +151,8 @@ EQUIPAR / DESEQUIPAR
 ========================================
 */
 
-bot.action(/equip_.+/, handleEquipItem);
-bot.action(/unequip_.+/, handleUnequipItem);
+bot.action(/^equip_.+$/, handleEquipItem);
+bot.action(/^unequip_.+$/, handleUnequipItem);
 
 /*
 ========================================
@@ -162,6 +163,7 @@ COMBATE
 bot.action('hunt', handleHunt);
 bot.action('attack', handleAttack);
 bot.action('soul', handleSoul);
+bot.action('consumables', handleConsumables);
 bot.action('flee', handleFlee);
 
 /*
