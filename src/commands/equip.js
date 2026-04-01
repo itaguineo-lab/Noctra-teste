@@ -189,9 +189,7 @@ async function handleUnequipItem(ctx) {
         savePlayer(ctx.from.id, player);
         await ctx.answerCbQuery(`✅ ${result.item.name} removido para o inventário.`, true);
 
-        // Recarregar a tela de inventário da categoria atual
-        // Como não sabemos qual categoria estava aberta, voltamos ao menu principal de inventário
-        const { inventoryCategoryMenu } = require('../menus/inventoryMenu');
+        // Voltar ao menu principal de inventário para evitar inconsistências
         await ctx.editMessageText('🎒 *INVENTÁRIO*', { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
     } catch (error) {
         console.error('Erro ao desequipar:', error);
