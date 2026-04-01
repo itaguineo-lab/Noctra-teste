@@ -69,7 +69,6 @@ async function handleInvWeapons(ctx) {
     let text = `⚔️ *ARMAS*\n\n`;
     const keyboard = [];
 
-    // Item equipado
     if (equipped) {
         text += `🔹 *Equipada:* ${equipped.emoji || '⚪'} ${equipped.name}${formatItemStats(equipped)}\n`;
         keyboard.push([Markup.button.callback(`🔄 Desequipar ${slotLabel('weapon')}`, `unequip_item_weapon`)]);
@@ -131,7 +130,6 @@ async function handleInvJewelry(ctx) {
     let text = `💎 *JÓIAS*\n\n`;
     const keyboard = [];
 
-    // Anel equipado
     if (ringEquipped) {
         text += `🔹 *Anel equipado:* ${ringEquipped.emoji || '⚪'} ${ringEquipped.name}${formatItemStats(ringEquipped)}\n`;
         keyboard.push([Markup.button.callback(`🔄 Desequipar Anel`, `unequip_item_ring`)]);
@@ -139,7 +137,6 @@ async function handleInvJewelry(ctx) {
         text += `🔹 *Anel:* —\n`;
     }
 
-    // Colar equipado
     if (necklaceEquipped) {
         text += `🔹 *Colar equipado:* ${necklaceEquipped.emoji || '⚪'} ${necklaceEquipped.name}${formatItemStats(necklaceEquipped)}\n`;
         keyboard.push([Markup.button.callback(`🔄 Desequipar Colar`, `unequip_item_necklace`)]);
