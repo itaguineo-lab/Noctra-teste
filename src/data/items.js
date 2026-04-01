@@ -34,12 +34,36 @@ const itemTypes = [
     hpBase: 10
   },
   {
-    slot: 'accessory',
+    slot: 'necklace',
     namePrefix: 'Amuleto',
     atkBase: 2,
     defBase: 1,
     critBase: 3,
     hpBase: 5
+  },
+  {
+    slot: 'ring',
+    namePrefix: 'Anel',
+    atkBase: 3,
+    defBase: 0,
+    critBase: 4,
+    hpBase: 3
+  },
+  {
+    slot: 'boots',
+    namePrefix: 'Bota',
+    atkBase: 0,
+    defBase: 3,
+    critBase: 1,
+    hpBase: 4
+  },
+  {
+    slot: 'backpack',
+    namePrefix: 'Mochila',
+    atkBase: 0,
+    defBase: 2,
+    critBase: 0,
+    hpBase: 8
   }
 ];
 
@@ -61,19 +85,11 @@ function getRarity() {
 
 function generateItem(playerLevel, forcedType = null) {
   const type = forcedType
-    ? itemTypes.find(
-        t => t.slot === forcedType
-      ) || itemTypes[0]
-    : itemTypes[
-        Math.floor(
-          Math.random() * itemTypes.length
-        )
-      ];
+    ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0]
+    : itemTypes[Math.floor(Math.random() * itemTypes.length)];
 
   const rarity = getRarity();
-
-  const mult =
-    rarityMultiplier[rarity.name] || 1;
+  const mult = rarityMultiplier[rarity.name] || 1;
 
   const levelBonus = Math.max(
     1,
@@ -85,21 +101,11 @@ function generateItem(playerLevel, forcedType = null) {
     name: `${type.namePrefix} ${rarity.name}`,
     slot: type.slot,
     rarity: rarity.name,
-    atk: Math.floor(
-      (type.atkBase + levelBonus) * mult
-    ),
-    def: Math.floor(
-      (type.defBase + levelBonus) * mult
-    ),
-    crit: Math.floor(
-      (type.critBase + levelBonus / 2) * mult
-    ),
-    hp: Math.floor(
-      (type.hpBase + levelBonus * 2) * mult
-    ),
-    price: Math.floor(
-      rarity.price * (1 + playerLevel * 0.15)
-    ),
+    atk: Math.floor((type.atkBase + levelBonus) * mult),
+    def: Math.floor((type.defBase + levelBonus) * mult),
+    crit: Math.floor((type.critBase + levelBonus / 2) * mult),
+    hp: Math.floor((type.hpBase + levelBonus * 2) * mult),
+    price: Math.floor(rarity.price * (1 + playerLevel * 0.15)),
     emoji: rarity.emoji
   };
 }
