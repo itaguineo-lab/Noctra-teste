@@ -1,211 +1,156 @@
 require('dotenv').config();
 
-const express = require('express');
 const { Telegraf } = require('telegraf');
+const http = require('http');
 
 const { mainMenu } = require('./src/menus/mainMenu');
-
-/*
-========================================
-HANDLERS
-========================================
-*/
-
+const { handleProfile } = require('./src/handlers/profile');
 const {
-  handleProfile,
-  handleRenameAction,
-  handleChangeClassAction
-} = require('./src/handlers/profile');
-
-const {
-  handleInventory,
-  handleInvWeapons,
-  handleInvArmors,
-  handleInvJewelry,
-  handleInvConsumables,
-  handleInvSouls,
-  handleEquipItem,
-  handleUnequipItem
+    handleInventory,
+    handleInvWeapons,
+    handleInvArmors,
+    handleInvJewelry,
+    handleInvConsumables,
+    handleInvSouls,
+    handleEquipItem,
+    handleUnequipItem,
+    handleEquipSoul,
+    handleUnequipSoul
 } = require('./src/handlers/inventory');
-
 const {
-  handleHunt,
-  handleAttack,
-  handleSoul,
-  handleConsumables,
-  handleFlee
+    handleHunt,
+    handleAttack,
+    handleSoul,
+    handleConsumables,
+    handleFlee
 } = require('./src/handlers/combat');
-
-const {
-  handleTravel
-} = require('./src/handlers/travel');
-
-const {
-  handleEnergy,
-  handleRest
-} = require('./src/handlers/energy');
-
-const {
-  getPlayer,
-  createPlayer
-} = require('./src/core/player/playerService');
-
-/*
-========================================
-BOT + HTTP
-========================================
-*/
+const { handleTravel } = require('./src/handlers/travel');
+const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
+const { handleVip } = require('./src/handlers/vip');
+const { handleDaily } = require('./src/handlers/daily');
+const { handleOnline } = require('./src/handlers/online');
+const { handleShop, handleShopVillage, handleShopCastle, handleShopArena, handleBuy } = require('./src/handlers/shop');
+const { handleRename } = require('./src/commands/rename');
+const { handleClass } = require('./src/commands/class');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-const app = express();
-const PORT = process.env.PORT || 10000;
-
-app.get('/', (req, res) => {
-  res.send('NOCTRA ONLINE');
-});
-
-app.listen(PORT, () => {
-  console.log(`🌐 HTTP ONLINE ${PORT}`);
-});
-
-/*
-========================================
-START
-========================================
-*/
-
+// ======================
+// COMANDOS DE TEXTO
+// ======================
 bot.start(async (ctx) => {
-  let player = getPlayer(ctx.from.id);
-
-  if (!player) {
-    player = createPlayer(ctx.from);
-  }
-
-  await ctx.reply(
-    `╔════════════════════════╗
-║      🌙 NOCTRA RPG      ║
-║  Bem-vindo, aventureiro ║
+    const welcomeMsg = `╔════════════════════════╗
+║      🌙 *NOCTRA RPG*      ║
+║    Bem-vindo, aventureiro    ║
 ╠════════════════════════╣
 ║   Escolha sua ação:    ║
-╚════════════════════════╝`,
-    {
-      parse_mode: 'Markdown',
-      ...mainMenu(player)
-    }
-  );
+╚════════════════════════╝`;
+    await ctx.reply(welcomeMsg, {
+        parse_mode: 'Markdown',
+        ...mainMenu()
+    });
 });
 
-/*
-========================================
-MENU
-========================================
-*/
+bot.command('energy', handleEnergy);
+bot.command('rename', handleRename);
+bot.command('class', handleClass);
 
-bot.action('menu', async (ctx) => {
-  await ctx.answerCbQuery();
-
-  const player = getPlayer(ctx.from.id);
-
-  await ctx.editMessageText(
-    `╔════════════════════════╗
-║      🌙 NOCTRA RPG      ║
-║  Bem-vindo, aventureiro ║
-╠════════════════════════╣
-║   Escolha sua ação:    ║
-╚════════════════════════╝`,
-    {
-      parse_mode: 'Markdown',
-      ...mainMenu(player)
-    }
-  );
-});
-
-/*
-========================================
-PROFILE
-========================================
-*/
-
+// ======================
+// AÇÕES DO MENU PRINCIPAL
+// ======================
+bot.action('hunt', handleHunt);
 bot.action('profile', handleProfile);
-bot.action('rename_help', handleRenameAction);
-bot.action('class_help', handleChangeClassAction);
-
-/*
-========================================
-INVENTÁRIO
-========================================
-*/
-
+bot.action('energy', handleEnergy);
 bot.action('inventory', handleInventory);
+bot.action('shop', handleShop);
+bot.action('travel', handleTravel);
+bot.action('vip', handleVip);
+bot.action('daily', handleDaily);
+bot.action('online', handleOnline);
 
+// ======================
+// COMBATE
+// ======================
+bot.action('combat_attack', handleAttack);
+bot.action('combat_soul', handleSoul);
+bot.action('combat_consumables', handleConsumables);
+bot.action('combat_flee', handleFlee);
+
+// ======================
+// ENERGIA
+// ======================
+bot.action('rest_energy', handleRestEnergy);
+
+// ======================
+// INVENTÁRIO – CATEGORIAS
+// ======================
 bot.action('inv_weapons', handleInvWeapons);
 bot.action('inv_armors', handleInvArmors);
 bot.action('inv_jewelry', handleInvJewelry);
 bot.action('inv_consumables', handleInvConsumables);
 bot.action('inv_souls', handleInvSouls);
 
-/*
-========================================
-EQUIPAR / DESEQUIPAR
-========================================
-*/
+// ======================
+// EQUIPAR / DESEQUIPAR ITENS
+// ======================
+bot.action(/^equip_(.+)_(.+)$/, handleEquipItem);
+bot.action(/^unequip_(.+)$/, handleUnequipItem);
+bot.action(/^equip_soul_(.+)$/, handleEquipSoul);
+bot.action(/^unequip_soul_(\d+)$/, handleUnequipSoul);
 
-bot.action(/^equip_.+$/, handleEquipItem);
-bot.action(/^unequip_.+$/, handleUnequipItem);
+// ======================
+// LOJA
+// ======================
+bot.action('shop_village', handleShopVillage);
+bot.action('shop_castle', handleShopCastle);
+bot.action('shop_arena', handleShopArena);
+bot.action(/buy_(.+)/, handleBuy);
 
-/*
-========================================
-COMBATE
-========================================
-*/
+// ======================
+// VIAJAR
+// ======================
+bot.action(/travel_to_(.+)/, handleTravel);
+bot.action('travel_locked', (ctx) => ctx.answerCbQuery('🔒 Mapa bloqueado.', { show_alert: true }));
 
-bot.action('hunt', handleHunt);
-bot.action('attack', handleAttack);
-bot.action('soul', handleSoul);
-bot.action('consumables', handleConsumables);
-bot.action('flee', handleFlee);
-
-/*
-========================================
-ENERGIA
-========================================
-*/
-
-bot.action('energy', handleEnergy);
-bot.action('rest', handleRest);
-
-/*
-========================================
-VIAGEM
-========================================
-*/
-
-bot.action('travel', handleTravel);
-
-/*
-========================================
-ERROS
-========================================
-*/
-
-bot.catch((err) => {
-  console.error('❌ ERRO GLOBAL:', err);
+// ======================
+// MENU PRINCIPAL
+// ======================
+bot.action('menu', async (ctx) => {
+    await ctx.answerCbQuery();
+    const menuMsg = `╔════════════════════════╗
+║      🌙 *NOCTRA RPG*      ║
+╠════════════════════════╣
+║   Escolha sua ação:    ║
+╚════════════════════════╝`;
+    await ctx.editMessageText(menuMsg, {
+        parse_mode: 'Markdown',
+        ...mainMenu()
+    });
 });
 
-/*
-========================================
-LAUNCH
-========================================
-*/
+// ======================
+// AJUDA
+// ======================
+bot.action('rename_help', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(`📝 *Renomear*\n\nUse o comando:\n/rename <novo_nome>\n\n*Custo:* primeira vez grátis, depois 💎 100 Nox.`, { parse_mode: 'Markdown' });
+});
+bot.action('class_help', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(`🔄 *Trocar Classe*\n\nUse o comando:\n/class guerreiro | arqueiro | mago\n\n*Custo:* primeira vez grátis, depois 💎 500 Nox.`, { parse_mode: 'Markdown' });
+});
 
-bot.launch()
-  .then(() => {
-    console.log('✅ NOCTRA ONLINE');
-  })
-  .catch((err) => {
-    console.error('❌ FALHA AO INICIAR:', err);
-  });
+// ======================
+// SERVIDOR WEB
+// ======================
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Noctra online');
+}).listen(PORT);
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+// ======================
+// INICIALIZAÇÃO
+// ======================
+bot.launch();
+console.log('✅ NOCTRA ONLINE');
