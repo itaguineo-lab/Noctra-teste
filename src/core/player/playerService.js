@@ -1,8 +1,47 @@
+const fs = require('fs');
+const path = require('path');
+
+const playersFilePath = path.join(__dirname, '../../data/players.json');
+
+let playersCache = null;
+let saveTimeout = null;
+
 const BASE_STATS = {
     guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 },
     mago: { atk: 18, def: 4, hp: 80, crit: 8 },
     arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
 };
+
+function loadPlayersToCache() {
+    try {
+        if (!fs.existsSync(playersFilePath)) {
+            playersCache = {};
+            return;
+        }
+        const data = fs.readFileSync(playersFilePath, 'utf8');
+        playersCache = JSON.parse(data);
+    } catch (error) {
+        console.error('Erro ao carregar jogadores:', error);
+        playersCache = {};
+    }
+}
+
+function flushCacheToDisk() {
+    if (!playersCache) return;
+    try {
+        fs.writeFileSync(playersFilePath, JSON.stringify(playersCache, null, 2));
+    } catch (error) {
+        console.error('Erro ao salvar jogadores:', error);
+    }
+}
+
+function scheduleSave() {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+        flushCacheToDisk();
+        saveTimeout = null;
+    }, 2000);
+}
 
 function createDefaultPlayer(id, name = 'Viajante') {
     const player = {
@@ -13,22 +52,48 @@ function createDefaultPlayer(id, name = 'Viajante') {
         energy: 20, maxEnergy: 20,
         inventory: [],
         souls: [null, null],
+        soulsInventory: [],
+        consumables: { potionHp: 0, potionEnergy: 0, tonicStrength: 0 },
         equipment: {
             weapon: null,
             armor: null,
             shield: null,
             ring: null,
             necklace: null,
-            quiver: null,    // para arqueiro (pode dar bônus de crítico)
-            backpack: null   // aumenta slots de inventário
+            quiver: null,
+            backpack: null
         },
         keys: 0, vip: false, vipExpires: null,
         renamed: false, classChanged: false,
+        totalKills: 0,
+        lastActive: Date.now(),
         createdAt: Date.now(), updatedAt: Date.now()
     };
     recalculateStats(player);
     player.hp = player.maxHp;
     return player;
+}
+
+function getPlayer(id, name) {
+    if (playersCache === null) {
+        loadPlayersToCache();
+    }
+    if (!playersCache[id]) {
+        playersCache[id] = createDefaultPlayer(id, name);
+        scheduleSave();
+    }
+    playersCache[id].lastActive = Date.now();
+    return playersCache[id];
+}
+
+function savePlayer(id, player) {
+    if (playersCache === null) {
+        loadPlayersToCache();
+    }
+    player.updatedAt = Date.now();
+    player.lastActive = Date.now();
+    playersCache[id] = player;
+    scheduleSave();
 }
 
 function recalculateStats(player) {
@@ -45,8 +110,17 @@ function recalculateStats(player) {
             def += item.def || 0;
             maxHp += item.hp || 0;
             crit += item.crit || 0;
-            if (item.slot === 'backpack' && item.inventoryBonus) {
-                player.maxInventory = (player.maxInventory || 20) + item.inventoryBonus;
+        });
+    }
+
+    if (player.souls && Array.isArray(player.souls)) {
+        player.souls.forEach(soul => {
+            if (!soul) return;
+            if (soul.effect && soul.effect.type === 'passive') {
+                if (soul.effect.atkBonus) atk += soul.effect.atkBonus;
+                if (soul.effect.defBonus) def += soul.effect.defBonus;
+                if (soul.effect.hpBonus) maxHp += soul.effect.hpBonus;
+                if (soul.effect.critBonus) crit += soul.effect.critBonus;
             }
         });
     }
@@ -58,3 +132,9 @@ function recalculateStats(player) {
     if (player.hp > player.maxHp) player.hp = player.maxHp;
     return player;
 }
+
+process.once('beforeExit', flushCacheToDisk);
+process.once('SIGINT', flushCacheToDisk);
+process.once('SIGTERM', flushCacheToDisk);
+
+module.exports = { getPlayer, savePlayer, recalculateStats, createDefaultPlayer, playersCache };
