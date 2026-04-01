@@ -22,8 +22,8 @@ async function renderEnergy(ctx) {
 
     updateEnergy(player);
     const nextIn = getTimeToNextEnergy(player);
-    const energyBar = progressBar(player.energy, player.maxEnergy, 8);
-    const hpBar = progressBar(player.hp, player.maxHp, 8);
+    const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟨', '⬜');
+    const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
     const energyPercent = Math.floor((player.energy / player.maxEnergy) * 100);
 
     let text = `╔════════════════════════╗\n`;
@@ -55,6 +55,7 @@ async function renderEnergy(ctx) {
 }
 
 async function handleEnergy(ctx) { return renderEnergy(ctx); }
+
 async function handleRestEnergy(ctx) {
     try {
         const player = getPlayer(ctx.from.id);
