@@ -1,5 +1,4 @@
-const { getPlayerSafe, getMainMenuText } = require('../utils/helpers');
-const { savePlayer } = require('../core/player/playerService');
+const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { mainMenu } = require('../menus/mainMenu');
 
 function giveDailyChest(player) {
@@ -9,7 +8,6 @@ function giveDailyChest(player) {
     const reward = {
         gold: 100 + player.level * 20,
         keys: 1,
-        // Nox removido
     };
     player.gold = (player.gold || 0) + reward.gold;
     player.keys = (player.keys || 0) + reward.keys;
@@ -18,15 +16,16 @@ function giveDailyChest(player) {
 
 async function handleDaily(ctx) {
     try {
-        const player = getPlayerSafe(ctx.from.id);
+        const player = getPlayer(ctx.from.id, ctx.from.first_name);
         const reward = giveDailyChest(player);
         if (!reward) return ctx.answerCbQuery('🎁 Você já pegou hoje!', true);
         savePlayer(ctx.from.id, player);
-        let msg = `🎁 *Baú Diário*\n\n💰 +${reward.gold} ouro\n🗝️ +${reward.keys} chave\n\n${getMainMenuText(player, ctx.from.first_name)}`;
+        let msg = `🎁 *Baú Diário*\n\n💰 +${reward.gold} ouro\n🗝️ +${reward.keys} chave`;
         await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...mainMenu() });
     } catch (error) {
         console.error('Erro daily:', error);
         await ctx.answerCbQuery('Erro ao abrir baú.');
     }
 }
+
 module.exports = { handleDaily };
