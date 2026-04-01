@@ -46,9 +46,7 @@ function equipItemById(player, itemId) {
         };
     }
 
-    const itemIndex = player.inventory.findIndex(
-        item => item && String(item.id) === String(itemId)
-    );
+    const itemIndex = player.inventory.findIndex(item => item && String(item.id) === String(itemId));
     if (itemIndex === -1) return { ok: false, message: '❌ Item não encontrado.' };
 
     const item = player.inventory[itemIndex];
@@ -72,6 +70,22 @@ function equipItemById(player, itemId) {
     return { ok: true, item, currentEquip };
 }
 
+function unequipSlot(player, slot) {
+    const validSlots = ['weapon', 'armor', 'shield', 'ring', 'necklace', 'quiver', 'backpack'];
+    if (!validSlots.includes(slot)) return { ok: false, message: '❌ Slot inválido.' };
+    if (!player.equipment) player.equipment = {};
+    const item = player.equipment[slot];
+    if (!item) return { ok: false, message: '❌ Nada equipado neste slot.' };
+
+    player.equipment[slot] = null;
+    player.inventory.push(item);
+
+    recalculateStats(player);
+    if (player.hp > player.maxHp) player.hp = player.maxHp;
+
+    return { ok: true, item };
+}
+
 function equipSoulById(player, soulId) {
     if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
     if (!Array.isArray(player.soulsEquipped)) player.soulsEquipped = [null, null];
@@ -92,6 +106,21 @@ function equipSoulById(player, soulId) {
     if (player.hp > player.maxHp) player.hp = player.maxHp;
 
     return { ok: true, soul, slot: emptySlot + 1 };
+}
+
+function unequipSoul(player, slotIndex) {
+    if (!Array.isArray(player.soulsEquipped)) player.soulsEquipped = [null, null];
+    if (slotIndex < 0 || slotIndex >= player.soulsEquipped.length) return { ok: false, message: '❌ Slot inválido.' };
+    const soul = player.soulsEquipped[slotIndex];
+    if (!soul) return { ok: false, message: '❌ Nenhuma alma equipada neste slot.' };
+
+    player.soulsEquipped[slotIndex] = null;
+    player.soulsInventory.push(soul);
+
+    recalculateStats(player);
+    if (player.hp > player.maxHp) player.hp = player.maxHp;
+
+    return { ok: true, soul };
 }
 
 async function handleEquip(ctx) {
@@ -127,6 +156,28 @@ async function handleEquipSoul(ctx) {
     } catch (error) {
         console.error('Erro ao equipar alma:', error);
         await ctx.reply('❌ Erro ao equipar alma.');
+    }
+}
+
+async function handleUnequipItem(ctx) {
+    try {
+        await ctx.answerCbQuery();
+        const slot = ctx.match?.[1];
+        if (!slot) return;
+
+        const player = getPlayer(ctx.from.id);
+        const result = unequipSlot(player, slot);
+        if (!result.ok) {
+            return ctx.answerCbQuery(result.message, true);
+        }
+        savePlayer(ctx.from.id, player);
+        await ctx.answerCbQuery(`✅ ${result.item.name} removido para o inventário.`, true);
+        // Refresh the current inventory view (depends on which category)
+        // For simplicity, go back to inventory category menu
+        await ctx.editMessageText('🎒 *INVENTÁRIO*', { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
+    } catch (error) {
+        console.error('Erro ao desequipar:', error);
+        await ctx.answerCbQuery('Erro ao desequipar.', true);
     }
 }
 
@@ -177,8 +228,11 @@ async function handleEquipSoulCallback(ctx) {
 module.exports = {
     handleEquip,
     handleEquipSoul,
+    handleUnequipItem,
     handleEquipItemCallback,
     handleEquipSoulCallback,
     equipItemById,
-    equipSoulById
+    unequipSlot,
+    equipSoulById,
+    unequipSoul
 };
