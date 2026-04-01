@@ -1,116 +1,46 @@
 const { getPlayer } = require('../core/player/playerService');
-const { getXpToNextLevel } = require('../core/player/progression');
-const { getMapById, maps } = require('../core/world/maps');
 const { Markup } = require('telegraf');
-const { progressBar, formatNumber, formatItemStats } = require('../utils/formatters');
-const { getRarityEmoji } = require('../core/player/souls');
 
-function getPlayerMap(player) {
-    return getMapById(player.currentMap) || maps[0];
-}
-
-function formatClassName(className = 'guerreiro') {
-    return className.charAt(0).toUpperCase() + className.slice(1);
-}
-
-function slotLabel(slot) {
-    const map = {
-        weapon: '⚔️', armor: '🛡️', shield: '🛡️',
-        ring: '💍', necklace: '📿', quiver: '🏹', backpack: '🎒'
-    };
-    return map[slot] || '•';
-}
-
-function buildEquipmentText(player) {
-    const eq = player.equipment || {};
-    const slots = ['weapon', 'armor', 'shield', 'ring', 'necklace', 'quiver', 'backpack'];
-    let text = '';
-    for (const slot of slots) {
-        const item = eq[slot];
-        if (item) {
-            text += `   ${slotLabel(slot)} *${item.name}*${formatItemStats(item)}\n`;
-        } else {
-            text += `   ${slotLabel(slot)} Vazio\n`;
-        }
-    }
-    return text.trimEnd();
-}
-
-function buildSoulsText(player) {
-    const souls = player.soulsEquipped || [null, null];
-    if (!souls.length || !souls.some(Boolean)) {
-        return '   Nenhuma alma equipada.';
-    }
-    let text = '';
-    souls.forEach((soul, index) => {
-        if (soul) {
-            text += `   ${getRarityEmoji(soul.rarity)} *${soul.name}* (${soul.rarity})\n`;
-            if (soul.description) text += `      ${soul.description}\n`;
-        } else {
-            text += `   ⬜ Slot ${index + 1} vazio\n`;
-        }
-    });
-    return text.trimEnd();
-}
-
-async function safeEdit(ctx, text, options = {}) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery();
-            await ctx.editMessageText(text, options);
-        } else {
-            await ctx.reply(text, options);
-        }
-    } catch {
-        await ctx.reply(text, options);
-    }
+function line(icon, item) {
+    return `${icon} ${item ? item.name : 'Vazio'}`;
 }
 
 async function handleProfile(ctx) {
-    const player = getPlayer(ctx.from.id, ctx.from.first_name);
+    await ctx.answerCbQuery?.();
 
-    const xpNeeded = getXpToNextLevel(player.level);
-    const xpBar = progressBar(player.xp || 0, xpNeeded || 1, 8, '🟡', '⬜');
-    const hpBar = progressBar(player.hp || 0, player.maxHp || 1, 8, '🟥', '⬜');
-    const map = getPlayerMap(player);
+    const player = getPlayer(ctx.from.id);
 
-    const equipmentText = buildEquipmentText(player);
-    const soulsText = buildSoulsText(player);
+    const eq = player.equipment;
 
-    const kills = player.totalKills || 0;
-    const achievements = player.achievements || {};
-
-    let profileMsg = `👤 *${player.name}* (${formatClassName(player.class)})
+    const text = `👤 *${player.name}* (${player.class})
 
 ⭐ Nível ${player.level}
-✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}
-[${xpBar}]
+✨ XP: ${player.xp}
 
 ❤️ HP: ${player.hp}/${player.maxHp}
-[${hpBar}]
-
 ⚡ Energia: ${player.energy}/${player.maxEnergy}
-🗺️ ${map.emoji} ${map.name}
 
-*Equipamentos:*
-${equipmentText}
+*Equipamentos*
+${line('⚔️', eq.weapon)}
+${line('🛡️', eq.armor)}
+${line('📿', eq.necklace)}
+${line('💍', eq.ring)}
+${line('🥾', eq.boots)}
+${line('🏹', eq.quiver)}
+${line('🎒', eq.backpack)}
 
-💀 *Almas:*
-${soulsText}
+💀 Inimigos abatidos: ${player.totalKills || 0}`;
 
-📊 *Estatísticas*
-   💀 Inimigos abatidos: ${kills}
-   🏆 Conquistas: ${Object.keys(achievements).length || 'nenhuma'}`;
-
-    const keyboard = [
-        [Markup.button.callback('📝 Renomear', 'rename_help'), Markup.button.callback('🔄 Classe', 'class_help')],
-        [Markup.button.callback('◀️ Voltar', 'menu')]
-    ];
-
-    await safeEdit(ctx, profileMsg, {
+    return ctx.editMessageText(text, {
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(keyboard)
+        reply_markup: Markup.inlineKeyboard([
+            [
+                Markup.button.callback('🏠 Menu', 'menu')
+            ]
+        ]).reply_markup
     });
 }
 
-module.exports = { handleProfile };
+module.exports = {
+    handleProfile
+};
