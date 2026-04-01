@@ -36,35 +36,67 @@ async function renderEnergy(ctx) {
   }
 
   updateEnergy(player);
+
   const nextIn = getTimeToNextEnergy(player);
 
-  const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟨', '⬜');
-  const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
-  const energyPercent = Math.floor((player.energy / player.maxEnergy) * 100);
+  const energyBar = progressBar(
+    player.energy,
+    player.maxEnergy,
+    8,
+    '🟨',
+    '⬜'
+  );
 
-  let text = `╔════════════════════════╗\n`;
-  text += `║       ⚡ *ENERGIA*       ║\n`;
-  text += `╠════════════════════════╣\n`;
-  text += `║ ⚡ ${player.energy}/${player.maxEnergy}\n`;
-  text += `║ [${energyBar}] ${energyPercent}%\n`;
-  text += `╠════════════════════════╣\n`;
-  text += `║ ❤️ HP: ${player.hp}/${player.maxHp}\n`;
-  text += `║ [${hpBar}]\n`;
-  text += `╠════════════════════════╣\n`;
-  text += `║ ⏱️ Regeneração: ${player.vip ? '1 a cada 3 min' : '1 a cada 6 min'}\n`;
+  const hpBar = progressBar(
+    player.hp,
+    player.maxHp,
+    8,
+    '🟥',
+    '⬜'
+  );
+
+  const energyPercent = Math.floor(
+    (player.energy / player.maxEnergy) * 100
+  );
+
+  let text = `╔════════════════════════╗
+║       ⚡ *ENERGIA*       ║
+╠════════════════════════╣
+║ ⚡ ${player.energy}/${player.maxEnergy}
+║ [${energyBar}] ${energyPercent}%
+╠════════════════════════╣
+║ ❤️ HP: ${player.hp}/${player.maxHp}
+║ [${hpBar}]
+╠════════════════════════╣
+║ ⏱️ Regeneração: ${player.vip ? '1 a cada 3 min' : '1 a cada 6 min'}
+`;
+
   if (nextIn > 0) {
-    text += `║ ⏳ Próxima energia em: ${formatTime(nextIn)}\n`;
+    text += `║ ⏳ Próxima energia: ${formatTime(nextIn)}
+`;
   } else {
-    text += `║ ✅ Energia cheia!\n`;
+    text += `║ ✅ Energia cheia!
+`;
   }
-  text += `╠════════════════════════╣\n`;
-  text += `║ 🛌 Descansar recupera *todo HP*\n`;
-  text += `║ ⚡ Custo: *1 energia*\n`;
-  text += `╚════════════════════════╝`;
+
+  text += `╠════════════════════════╣
+║ 🛌 Descansar = HP total
+║ ⚡ Custo: 1 energia
+╚════════════════════════╝`;
 
   const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('🛌 Descansar (-1⚡)', 'rest_energy')],
-    [Markup.button.callback('🏠 Menu', 'menu')]
+    [
+      Markup.button.callback(
+        '🛌 Descansar (-1⚡)',
+        'rest'
+      )
+    ],
+    [
+      Markup.button.callback(
+        '🏠 Menu',
+        'menu'
+      )
+    ]
   ]);
 
   await safeEdit(ctx, text, {
@@ -77,20 +109,29 @@ async function handleEnergy(ctx) {
   return renderEnergy(ctx);
 }
 
-async function handleRestEnergy(ctx) {
+async function handleRest(ctx) {
   try {
     const player = getPlayer(ctx.from.id);
 
     if (!player) {
-      return ctx.answerCbQuery('Perfil não encontrado.', { show_alert: true });
+      return ctx.answerCbQuery(
+        'Perfil não encontrado.',
+        { show_alert: true }
+      );
     }
 
     if (player.hp >= player.maxHp) {
-      return ctx.answerCbQuery('❤️ HP já está cheio.', { show_alert: true });
+      return ctx.answerCbQuery(
+        '❤️ HP já está cheio.',
+        { show_alert: true }
+      );
     }
 
     if (player.energy < 1) {
-      return ctx.answerCbQuery('⚡ Energia insuficiente.', { show_alert: true });
+      return ctx.answerCbQuery(
+        '⚡ Energia insuficiente.',
+        { show_alert: true }
+      );
     }
 
     player.energy -= 1;
@@ -101,13 +142,17 @@ async function handleRestEnergy(ctx) {
     return renderEnergy(ctx);
   } catch (error) {
     console.error('Erro ao descansar:', error);
+
     try {
-      await ctx.answerCbQuery('Erro ao descansar.', { show_alert: true });
+      await ctx.answerCbQuery(
+        'Erro ao descansar.',
+        { show_alert: true }
+      );
     } catch {}
   }
 }
 
 module.exports = {
   handleEnergy,
-  handleRestEnergy
+  handleRest
 };
