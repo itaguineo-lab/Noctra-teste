@@ -9,7 +9,6 @@ function giveDailyChest(player) {
     const reward = {
         gold: 100 + player.level * 20,
         keys: 1
-        // Nox removido – só compra
     };
 
     player.gold = (player.gold || 0) + reward.gold;
