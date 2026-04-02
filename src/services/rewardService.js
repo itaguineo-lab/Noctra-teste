@@ -5,7 +5,7 @@ const { generateItem } = require('../data/items');
 function processVictory(player, enemy) {
     if (!player.inventory) player.inventory = [];
     if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
-    if (!Array.isArray(player.keysInventory)) player.keysInventory = [];
+    if (typeof player.keys !== 'number') player.keys = 0;
 
     player.totalKills = (player.totalKills || 0) + 1;
 
@@ -41,7 +41,7 @@ function processVictory(player, enemy) {
         }
     }
 
-    // Almas
+    // Almas (apenas bosses de mapa)
     const soulChance = enemy.isBoss ? 0.01 : 0;
     if (Math.random() < soulChance) {
         droppedSoul = dropSoul(player.level);
@@ -51,15 +51,15 @@ function processVictory(player, enemy) {
         }
     }
 
-    // Chave de masmorra
+    // Chave de masmorra (apenas bosses de MAPA, não de masmorra)
+    // Assumimos que enemy.isBoss e enemy.fromDungeon não existe; então só cai se for boss de mapa.
     const keyChance = enemy.isBoss ? 0.02 : 0;
     if (Math.random() < keyChance) {
-        droppedKey = { id: `key_${Date.now()}`, name: 'Chave da Masmorra', type: 'dungeon_key', rarity: 'Épico' };
-        player.keysInventory.push(droppedKey);
+        player.keys = (player.keys || 0) + 1;
         loot.push('🗝️ Chave da Masmorra');
     }
 
-    // Conquistas sem Nox
+    // Conquistas
     if (player.totalKills === 10 && !player.achievements?.kill10) {
         if (!player.achievements) player.achievements = {};
         player.achievements.kill10 = true;
