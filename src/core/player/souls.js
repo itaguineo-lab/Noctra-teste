@@ -5,7 +5,7 @@ const soulsList = [
     rarity: 'Comum',
     emoji: '🐺',
     effect: { type: 'damage', multiplier: 1.3 },
-    dropChance: 0.15,
+    dropChance: 0.08,   // antes 0.15
     minLevel: 1
   },
   {
@@ -14,7 +14,7 @@ const soulsList = [
     rarity: 'Comum',
     emoji: '💚',
     effect: { type: 'heal', multiplier: 0.3 },
-    dropChance: 0.12,
+    dropChance: 0.06,   // antes 0.12
     minLevel: 3
   },
   {
@@ -23,7 +23,7 @@ const soulsList = [
     rarity: 'Raro',
     emoji: '❄️',
     effect: { type: 'damage', multiplier: 1.45 },
-    dropChance: 0.08,
+    dropChance: 0.04,   // antes 0.08
     minLevel: 8
   },
   {
@@ -32,7 +32,7 @@ const soulsList = [
     rarity: 'Raro',
     emoji: '🛡️',
     effect: { type: 'passive', defBonus: 8, hpBonus: 20 },
-    dropChance: 0.06,
+    dropChance: 0.03,   // antes 0.06
     minLevel: 12
   },
   {
@@ -41,7 +41,7 @@ const soulsList = [
     rarity: 'Épico',
     emoji: '🩸',
     effect: { type: 'damage', multiplier: 1.6 },
-    dropChance: 0.04,
+    dropChance: 0.02,   // antes 0.04
     minLevel: 15
   },
   {
@@ -50,7 +50,7 @@ const soulsList = [
     rarity: 'Épico',
     emoji: '⚡',
     effect: { type: 'damage', multiplier: 1.75 },
-    dropChance: 0.03,
+    dropChance: 0.01,   // antes 0.03
     minLevel: 20
   },
   {
@@ -59,7 +59,7 @@ const soulsList = [
     rarity: 'Lendário',
     emoji: '🐉',
     effect: { type: 'passive', atkBonus: 15, critBonus: 5 },
-    dropChance: 0.01,
+    dropChance: 0.005,  // antes 0.01 (0.5%)
     minLevel: 24
   }
 ];
@@ -125,7 +125,6 @@ function getRarityEmoji(rarity) {
     Lendário: '🟡',
     Mítico: '🔴'
   };
-
   return map[rarity] || '⚪';
 }
 
