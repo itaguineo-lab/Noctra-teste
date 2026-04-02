@@ -14,6 +14,7 @@ function renderInventoryHeader(player) {
 ║ 📦 ${player.inventory.length}/${player.maxInventory || 20}
 ║ ⚔️ ATK ${player.atk}  🛡️ DEF ${player.def}
 ║ ❤️ HP ${player.maxHp}  💥 CRIT ${player.crit}%
+║ 🗝️ Chaves de Masmorra: ${player.keys || 0}
 ╚════════════════════════╝`;
 }
 
@@ -97,7 +98,6 @@ async function renderInventory(ctx, category = null) {
     const player = getPlayer(ctx.from.id);
     const inventory = player.inventory || [];
 
-    // Definição de categorias
     const categories = {
         weapons: { slots: ['weapon'], title: '⚔️ Armas', filter: i => i.slot === 'weapon' },
         armors: { slots: ['armor'], title: '🛡️ Armaduras', filter: i => i.slot === 'armor' },
@@ -106,7 +106,6 @@ async function renderInventory(ctx, category = null) {
     };
 
     if (!category) {
-        // Tela principal de categorias
         const header = renderInventoryHeader(player);
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('⚔️ Armas', 'inv_weapons'), Markup.button.callback('🛡️ Armaduras', 'inv_armors')],
@@ -151,6 +150,7 @@ async function handleInvConsumables(ctx) {
 ║ ⚡ Poção de Energia: ${c.potionEnergy || 0}
 ║ 💪 Tônico de Força: ${c.tonicStrength || 0}
 ║ 🛡️ Tônico de Defesa: ${c.tonicDefense || 0}
+║ 🗝️ Chaves de Masmorra: ${player.keys || 0}
 ╚════════════════════════╝`;
     const keyboard = Markup.inlineKeyboard([[Markup.button.callback('◀️ Voltar', 'inventory')]]);
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
@@ -172,7 +172,9 @@ async function handleInvSouls(ctx) {
     equipped.forEach((soul, idx) => {
         text += soul ? `║   ⭐ Alma ${idx+1}: ${soul.name}\n` : `║   ⬜ Slot ${idx+1}: vazio\n`;
     });
-    text += `╚════════════════════════╝`;
+    text += `╠════════════════════════╣
+║ 🗝️ Chaves de Masmorra: ${player.keys || 0}
+╚════════════════════════╝`;
 
     const keyboard = Markup.inlineKeyboard([
         ...souls.map(soul => [Markup.button.callback(`💀 Equipar ${soul.name}`, `equip_soul_${soul.instanceId || soul.id}`)]),
@@ -182,7 +184,7 @@ async function handleInvSouls(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Handlers de equipar/desequipar itens (corrigido com logs e comparação segura)
+// Handlers de equipar/desequipar itens
 async function handleEquipItem(ctx) {
     const match = ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
     if (!match) {
@@ -191,9 +193,6 @@ async function handleEquipItem(ctx) {
     }
     const [, slot, itemId] = match;
     const player = getPlayer(ctx.from.id);
-    console.log(`Tentando equipar: slot=${slot}, itemId=${itemId}`);
-    console.log('Inventário:', player.inventory.map(i => ({ id: i.id, name: i.name, slot: i.slot })));
-
     const item = player.inventory.find(i => i.slot === slot && String(i.id) === String(itemId));
     if (!item) {
         console.error(`Item não encontrado: slot=${slot}, id=${itemId}`);
@@ -205,7 +204,6 @@ async function handleEquipItem(ctx) {
     savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
 
-    // Redireciona para a categoria correspondente
     if (slot === 'weapon') return handleInvWeapons(ctx);
     if (slot === 'armor') return handleInvArmors(ctx);
     if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
