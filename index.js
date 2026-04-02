@@ -51,7 +51,7 @@ const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Verificação de handlers (para debug)
+// Verificação de handlers
 const requiredHandlers = [
     handleEnergy, handleRename, handleClass, handleProfile, handleInventory,
     handleTravel, handleShop, handleDaily, handleVip, handleOnline,
