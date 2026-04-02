@@ -106,8 +106,33 @@ async function handleInvConsumables(ctx) {
 ║ 🛡️ Tônico de Defesa: ${c.tonicDefense || 0}
 ║ 🗝️ Chaves de Masmorra: ${player.keys || 0}
 ╚══════════════════════════════════╝`;
-    const keyboard = Markup.inlineKeyboard([[Markup.button.callback('◀️ Voltar', 'inventory')]]);
-    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
+    const keyboard = Markup.inlineKeyboard([
+        (c.potionHp > 0) ? [Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')] : [],
+        [Markup.button.callback('◀️ Voltar', 'inventory')]
+    ].filter(row => row.length > 0));
+    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
+}
+
+// Usar poção fora de combate
+async function handleUsePotionOutside(ctx, type) {
+    const player = getPlayer(ctx.from.id);
+    const consumables = player.consumables || {};
+    
+    if (type === 'hp') {
+        if (!consumables.potionHp || consumables.potionHp <= 0) {
+            return ctx.answerCbQuery('❌ Você não tem poções de vida.', { show_alert: true });
+        }
+        if (player.hp >= player.maxHp) {
+            return ctx.answerCbQuery('❤️ Seu HP já está cheio.', { show_alert: true });
+        }
+        consumables.potionHp--;
+        const heal = Math.floor(player.maxHp * 0.4);
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        savePlayer(ctx.from.id, player);
+        await ctx.answerCbQuery(`🧪 Você usou uma poção e recuperou ${heal} HP!`, { show_alert: true });
+        return handleInvConsumables(ctx);
+    }
+    // Outros tipos podem ser adicionados depois
 }
 
 async function handleInvSouls(ctx) {
@@ -135,14 +160,18 @@ async function handleInvSouls(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Handlers de equipar/desequipar (via callback)
+// Handlers de equipar/desequipar (corrigidos com String())
 async function handleEquipItem(ctx) {
     const match = ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
     if (!match) return ctx.answerCbQuery('Erro interno.', { show_alert: true });
     const [, slot, itemId] = match;
     const player = getPlayer(ctx.from.id);
+    // Converte ambos para string para comparação segura
     const item = player.inventory.find(i => i.slot === slot && String(i.id) === String(itemId));
-    if (!item) return ctx.answerCbQuery('❌ Item não encontrado.', { show_alert: true });
+    if (!item) {
+        console.error(`Item não encontrado: slot=${slot}, id=${itemId}`);
+        return ctx.answerCbQuery('❌ Item não encontrado no inventário.', { show_alert: true });
+    }
     player.equipment[slot] = item;
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
@@ -212,5 +241,6 @@ module.exports = {
     handleEquipItem,
     handleUnequipItem,
     handleEquipSoul,
-    handleUnequipSoul
-}; 
+    handleUnequipSoul,
+    handleUsePotionOutside
+};
