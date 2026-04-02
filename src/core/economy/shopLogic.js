@@ -75,7 +75,9 @@ function processPurchase(player, item) {
             player.vip = true;
             player.vipExpires = new Date(newExpire).toISOString();
             player.maxEnergy = 40;
-            player.maxInventory = (player.maxInventory || 20) + 10;
+            // Adiciona bônus de inventário
+            player.bonusInventory = (player.bonusInventory || 0) + 10;
+            player.maxInventory = 20 + player.bonusInventory;
             break;
         }
 
