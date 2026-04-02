@@ -16,7 +16,6 @@ function combatMenu() {
     ]);
 }
 
-// Submenu para escolher qual alma usar
 function soulChoiceMenu() {
     return Markup.inlineKeyboard([
         [
