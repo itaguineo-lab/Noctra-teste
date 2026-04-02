@@ -24,6 +24,13 @@ function getPlayerLocation(player) {
     return getMapById(player.currentMap) || maps[0];
 }
 
+function getEquipmentSummary(player) {
+    const eq = player.equipment || {};
+    const weapon = eq.weapon ? eq.weapon.name : '—';
+    const armor = eq.armor ? eq.armor.name : '—';
+    return `⚔️ ${weapon}  |  🛡️ ${armor}`;
+}
+
 function getMainMenuText(player, username) {
     const xpNeeded = getXpToNextLevel(player.level);
     const vipStatus = player.vip ? '✨ *VIP*' : '👤 Comum';
@@ -34,25 +41,27 @@ function getMainMenuText(player, username) {
     const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
     const xpBar = progressBar(player.xp, xpNeeded, 8, '🟨', '⬜');
 
-    let text = `╔════════════════════════╗\n`;
-    text += `║      🌙 *NOCTRA RPG*      ║\n`;
-    text += `╠════════════════════════╣\n`;
+    let text = `╔══════════════════════════════════╗\n`;
+    text += `║         🌙 *NOCTRA RPG*          ║\n`;
+    text += `╠══════════════════════════════════╣\n`;
     text += `║ 🤴 ${player.name || username} | ${vipStatus}\n`;
     text += `║ 🏹 Classe: ${player.class.charAt(0).toUpperCase() + player.class.slice(1)}\n`;
     text += `║ 🆙 Nível: ${player.level}\n`;
     text += `║ ⚔️ ATK ${player.atk}  🛡️ DEF ${player.def}  💥 CRIT ${player.crit}%\n`;
-    text += `╠════════════════════════╣\n`;
+    text += `╠══════════════════════════════════╣\n`;
     text += `║ ❤️ HP: ${player.hp}/${player.maxHp}\n`;
     text += `║ [${hpBar}]\n`;
-    text += `╠════════════════════════╣\n`;
+    text += `╠══════════════════════════════════╣\n`;
     text += `║ ✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}\n`;
     text += `║ [${xpBar}]\n`;
-    text += `╠════════════════════════╣\n`;
+    text += `╠══════════════════════════════════╣\n`;
     text += `║ ⚡ Energia: ${player.energy}/${player.maxEnergy}${energyTimeStr}\n`;
     text += `║ 💰 Ouro: ${formatNumber(player.gold || 0)} | 💎 Nox: ${formatNumber(player.nox || 0)}\n`;
-    text += `╠════════════════════════╣\n`;
-    text += `║ 🌍 Local: *${location.emoji} ${location.name}*\n`;
-    text += `╚════════════════════════╝`;
+    text += `╠══════════════════════════════════╣\n`;
+    text += `║ 🗺️ ${location.emoji} ${location.name}\n`;
+    text += `║ 🎒 ${getEquipmentSummary(player)}\n`;
+    text += `║ 💀 Inimigos abatidos: ${player.totalKills || 0}\n`;
+    text += `╚══════════════════════════════════╝`;
 
     return text;
 }
