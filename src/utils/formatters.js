@@ -36,6 +36,21 @@ function formatTime(ms) {
 }
 
 /**
+ * Formata duração em milissegundos para "Xh Ym Zs"
+ */
+function formatDuration(ms) {
+    if (ms <= 0) return '0s';
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    const parts = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (seconds > 0) parts.push(`${seconds}s`);
+    return parts.join(' ');
+}
+
+/**
  * Formata o nome do item com cor de raridade para mensagens
  */
 function formatItemName(item) {
@@ -72,5 +87,6 @@ module.exports = {
     formatItemName, 
     formatSoulName,
     formatTime,
-    formatItemStats
+    formatItemStats,
+    formatDuration
 };
