@@ -17,69 +17,20 @@ const rarityMultiplier = {
 };
 
 const itemTypes = [
-  {
-    slot: 'weapon',
-    namePrefix: 'Espada',
-    atkBase: 5,
-    defBase: 0,
-    critBase: 2,
-    hpBase: 0
-  },
-  {
-    slot: 'armor',
-    namePrefix: 'Armadura',
-    atkBase: 0,
-    defBase: 5,
-    critBase: 0,
-    hpBase: 10
-  },
-  {
-    slot: 'necklace',
-    namePrefix: 'Amuleto',
-    atkBase: 2,
-    defBase: 1,
-    critBase: 3,
-    hpBase: 5
-  },
-  {
-    slot: 'ring',
-    namePrefix: 'Anel',
-    atkBase: 3,
-    defBase: 0,
-    critBase: 4,
-    hpBase: 3
-  },
-  {
-    slot: 'boots',
-    namePrefix: 'Bota',
-    atkBase: 0,
-    defBase: 3,
-    critBase: 1,
-    hpBase: 4
-  },
-  {
-    slot: 'backpack',
-    namePrefix: 'Mochila',
-    atkBase: 0,
-    defBase: 2,
-    critBase: 0,
-    hpBase: 8
-  }
+  { slot: 'weapon', namePrefix: 'Espada', atkBase: 5, defBase: 0, critBase: 2, hpBase: 0 },
+  { slot: 'armor', namePrefix: 'Armadura', atkBase: 0, defBase: 5, critBase: 0, hpBase: 10 },
+  { slot: 'necklace', namePrefix: 'Amuleto', atkBase: 2, defBase: 1, critBase: 3, hpBase: 5 },
+  { slot: 'ring', namePrefix: 'Anel', atkBase: 3, defBase: 0, critBase: 4, hpBase: 3 },
+  { slot: 'boots', namePrefix: 'Bota', atkBase: 0, defBase: 3, critBase: 1, hpBase: 4 }
 ];
 
 function getRarity() {
   const roll = Math.random() * 100;
-
   let total = 0;
-
   for (const rarity of raridades) {
     total += rarity.chance;
-
-    if (roll <= total) {
-      return rarity;
-    }
+    if (roll <= total) return rarity;
   }
-
   return raridades[0];
 }
 
@@ -87,17 +38,11 @@ function generateItem(playerLevel, forcedType = null) {
   const type = forcedType
     ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0]
     : itemTypes[Math.floor(Math.random() * itemTypes.length)];
-
   const rarity = getRarity();
   const mult = rarityMultiplier[rarity.name] || 1;
-
-  const levelBonus = Math.max(
-    1,
-    Math.floor(playerLevel * 0.8)
-  );
-
+  const levelBonus = Math.max(1, Math.floor(playerLevel * 0.8));
   return {
-    id: `item_${Date.now()}_${Math.floor(Math.random() * 9999)}`,
+    id: `item_${Date.now()}_${Math.floor(Math.random() * 9999)}`, // string única
     name: `${type.namePrefix} ${rarity.name}`,
     slot: type.slot,
     rarity: rarity.name,
@@ -110,8 +55,4 @@ function generateItem(playerLevel, forcedType = null) {
   };
 }
 
-module.exports = {
-  raridades,
-  itemTypes,
-  generateItem
-};
+module.exports = { raridades, itemTypes, generateItem };
