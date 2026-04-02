@@ -24,8 +24,8 @@ async function handleVip(ctx) {
 
         msg += `*Benefícios:*\n`;
         msg += `⚡ Energia máxima: 40\n`;
-        msg += `⏱️ Regeneração: 1 a cada 8 minutos\n`;  // atualizado
-        msg += `💰 +50% recompensas\n`;
+        msg += `⏱️ Regeneração: 1 a cada 8 minutos\n`;
+        msg += `💰 +50% recompensas (XP e ouro)\n`;
         msg += `🎒 +10 slots de inventário\n`;
         msg += `🎁 Baú extra diário\n\n`;
 
