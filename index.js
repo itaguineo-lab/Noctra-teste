@@ -47,11 +47,21 @@ const {
 } = require('./src/handlers/shop');
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
-const { handleEquip, handleEquipSoul: handleEquipSoulCommand } = require('./src/commands/equip');
+const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Remove webhook apenas se existir
+// Verificação de handlers (para debug)
+const requiredHandlers = [
+    handleEnergy, handleRename, handleClass, handleProfile, handleInventory,
+    handleTravel, handleShop, handleDaily, handleVip, handleOnline,
+    handleEquip, handleEquipSoulCommand
+];
+requiredHandlers.forEach((h, i) => {
+    if (typeof h !== 'function') console.error(`Handler ${i} is undefined!`);
+});
+
+// Remove webhook
 (async () => {
     try {
         const webhookInfo = await bot.telegram.getWebhookInfo();
@@ -75,11 +85,7 @@ bot.start(async (ctx) => {
 ╠══════════════════════════════════╣
 ║   Escolha sua ação:              ║
 ╚══════════════════════════════════╝`;
-
-    await ctx.reply(welcomeMsg, {
-        parse_mode: 'Markdown',
-        ...mainMenu()
-    });
+    await ctx.reply(welcomeMsg, { parse_mode: 'Markdown', ...mainMenu() });
 });
 
 bot.command('energy', handleEnergy);
@@ -162,36 +168,19 @@ bot.action('menu', async (ctx) => {
 ╠══════════════════════════════════╣
 ║   Escolha sua ação:              ║
 ╚══════════════════════════════════╝`;
-    await ctx.editMessageText(menuMsg, {
-        parse_mode: 'Markdown',
-        ...mainMenu()
-    });
+    await ctx.editMessageText(menuMsg, { parse_mode: 'Markdown', ...mainMenu() });
 });
 
 // Ajuda
 bot.action('rename_help', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply(
-        `📝 *Renomear*\n\n` +
-        `Use o comando:\n` +
-        `/rename <novo_nome>\n\n` +
-        `*Custo:* primeira vez grátis, depois 💎 100 Nox.`,
-        { parse_mode: 'Markdown' }
-    );
+    await ctx.reply(`📝 *Renomear*\n\nUse: /rename <novo_nome>\n\n*Custo:* 1ª grátis, depois 💎 100 Nox.`, { parse_mode: 'Markdown' });
 });
-
 bot.action('class_help', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply(
-        `🔄 *Trocar Classe*\n\n` +
-        `Use o comando:\n` +
-        `/class guerreiro | arqueiro | mago\n\n` +
-        `*Custo:* primeira vez grátis, depois 💎 500 Nox.`,
-        { parse_mode: 'Markdown' }
-    );
+    await ctx.reply(`🔄 *Trocar Classe*\n\nUse: /class guerreiro | arqueiro | mago\n\n*Custo:* 1ª grátis, depois 💎 500 Nox.`, { parse_mode: 'Markdown' });
 });
 
-// Servidor web para manter o bot ativo no Render
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
