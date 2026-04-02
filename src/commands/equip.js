@@ -95,7 +95,7 @@ async function handleEquip(ctx) {
     }
 }
 
-async function handleEquipSoul(ctx) {
+async function handleEquipSoulCommand(ctx) {
     try {
         const text = ctx.message?.text || '';
         const soulId = ctx.match?.[1] || text.split(' ').slice(1).join(' ').trim();
@@ -158,7 +158,7 @@ async function handleEquipSoulCallback(ctx) {
 
 module.exports = {
     handleEquip,
-    handleEquipSoul,
+    handleEquipSoulCommand,
     handleUnequipItem,
     handleEquipItemCallback,
     handleEquipSoulCallback,
