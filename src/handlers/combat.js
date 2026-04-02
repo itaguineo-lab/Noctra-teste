@@ -29,7 +29,8 @@ const {
 } = require('../menus/combatMenu');
 
 const {
-    progressBar
+    progressBar,
+    formatNumber
 } = require('../utils/formatters');
 
 const {
@@ -62,9 +63,20 @@ function getRandomMessage(type) {
     return list[Math.floor(Math.random() * list.length)];
 }
 
+function renderBuffs(buffs) {
+    if (!buffs || buffs.length === 0) return '';
+    let text = '';
+    buffs.forEach(buff => {
+        if (buff.type === 'atk') text += `💪 ATK +${buff.value} (${buff.remainingTurns}) `;
+        if (buff.type === 'def') text += `🛡️ DEF +${buff.value} (${buff.remainingTurns}) `;
+    });
+    return text.trim();
+}
+
 function renderFightText(fight, player) {
     const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟥', '⬜');
     const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬜');
+    const buffsText = renderBuffs(fight.player.buffs);
 
     let text = `⚔️ *BATALHA*\n\n`;
     text += `👤 *${fight.player.name}* [Lv ${player.level}]\n`;
@@ -73,8 +85,8 @@ function renderFightText(fight, player) {
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
     text += `🎯 CRIT ${fight.player.crit}%\n`;
     if (fight.player.defending) text += `🛡️ *Defendendo* (dano reduzido 50%)\n`;
+    if (buffsText) text += `✨ Buffs: ${buffsText}\n`;
     
-    // Mostrar almas equipadas
     const soul1 = fight.player.souls[0] ? fight.player.souls[0].name : 'vazio';
     const soul2 = fight.player.souls[1] ? fight.player.souls[1].name : 'vazio';
     text += `💀 Almas: [${soul1}] | [${soul2}]\n`;
@@ -103,7 +115,7 @@ async function editMessage(ctx, text, options = {}) {
     }
 }
 
-async function finishFight(ctx, fight) {
+async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
     const player = getPlayer(ctx.from.id);
 
     if (fight.status === 'win') {
@@ -115,19 +127,62 @@ async function finishFight(ctx, fight) {
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
-        let msg = `🏆 *VITÓRIA!*\n\n✨ +${rewards.xp} XP\n💰 +${rewards.gold} Ouro`;
+        // Verifica se houve level up
+        const oldLevel = player.level - (rewards.leveledUp ? 1 : 0);
+        const xpNeeded = oldLevel ? Math.floor(100 * Math.pow(oldLevel, 1.2)) : 0;
+        const xpProgress = oldLevel ? Math.floor((player.xp / xpNeeded) * 100) : 0;
+
+        let msg = `╔════════════════════════╗\n`;
+        msg += `║     🏆 *VITÓRIA!*      ║\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ 👤 Inimigo: ${fight.enemy.name}\n`;
+        msg += `║ ⚔️ Turnos: ${turnCount}\n`;
+        msg += `║ 💥 Dano causado: ${damageDealt}\n`;
+        msg += `║ 🛡️ Dano recebido: ${damageReceived}\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ ✨ +${rewards.xp} XP\n`;
+        msg += `║ 💰 +${rewards.gold} Ouro\n`;
         if (rewards.loot.length) {
-            msg += `\n\n🎁 ${rewards.loot.join('\n')}`;
+            msg += `║ 🎁 ${rewards.loot.join('\n║ 🎁 ')}\n`;
         }
+        if (rewards.leveledUp) {
+            msg += `╠════════════════════════╣\n`;
+            msg += `║ 🌟 *LEVEL UP!* Nv ${oldLevel} → ${player.level}\n`;
+            msg += `║ ❤️ HP: ${player.maxHp} (+${player.maxHp - (oldLevel? player.maxHp - 20 : 0)})\n`;
+            msg += `║ ⚔️ ATK: ${player.atk}  🛡️ DEF: ${player.def}\n`;
+        } else {
+            msg += `╠════════════════════════╣\n`;
+            msg += `║ 📊 Progresso: ${xpProgress}% para próximo nível\n`;
+        }
+        msg += `╚════════════════════════╝`;
+
         return editMessage(ctx, msg, { parse_mode: 'Markdown', ...postCombatMenu() });
     }
 
     if (fight.status === 'loss') {
-        player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
+        const penaltyHp = Math.max(1, Math.floor(player.maxHp * 0.25));
+        player.hp = penaltyHp;
         updateBuffs(player);
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
-        return editMessage(ctx, `💀 *DERROTA*`, { parse_mode: 'Markdown', ...postCombatMenu() });
+
+        let msg = `╔════════════════════════╗\n`;
+        msg += `║     💀 *DERROTA*       ║\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ Você foi abatido por...\n`;
+        msg += `║ 👹 ${fight.enemy.name}\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ ⚔️ Turnos: ${turnCount}\n`;
+        msg += `║ 💥 Dano causado: ${damageDealt}\n`;
+        msg += `║ 🛡️ Dano recebido: ${damageReceived}\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ ⚡ -1 energia (penalidade)\n`;
+        msg += `║ ❤️ HP restante: ${Math.floor((penaltyHp / player.maxHp) * 100)}%\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ 🏃‍♂️ Fuja ou recupere-se!\n`;
+        msg += `╚════════════════════════╝`;
+
+        return editMessage(ctx, msg, { parse_mode: 'Markdown', ...postCombatMenu() });
     }
 
     if (fight.status === 'fled') {
@@ -136,7 +191,18 @@ async function finishFight(ctx, fight) {
         updateBuffs(player);
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
-        return editMessage(ctx, `🏃 *FUGIU*`, { parse_mode: 'Markdown', ...postCombatMenu() });
+
+        let msg = `╔════════════════════════╗\n`;
+        msg += `║     🏃 *FUGIU*         ║\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ Você escapou com vida!\n`;
+        msg += `║ 👹 ${fight.enemy.name} ficou para trás.\n`;
+        msg += `╠════════════════════════╣\n`;
+        msg += `║ ❤️ HP: ${player.hp}/${player.maxHp}\n`;
+        msg += `║ ⚡ Energia: ${player.energy}/${player.maxEnergy}\n`;
+        msg += `╚════════════════════════╝`;
+
+        return editMessage(ctx, msg, { parse_mode: 'Markdown', ...postCombatMenu() });
     }
 }
 
@@ -155,6 +221,9 @@ async function handleHunt(ctx) {
     const fight = createFight(player, enemy);
     fight.player.buffs = [...(player.buffs || [])];
     fight.player.defending = false;
+    fight.turnCount = 0;
+    fight.totalDamageDealt = 0;
+    fight.totalDamageReceived = 0;
     activeFights.set(ctx.from.id, fight);
 
     return editMessage(ctx, renderFightText(fight, player), {
@@ -170,7 +239,9 @@ async function handleAttack(ctx) {
     if (!fight) return;
 
     const originalLog = fight.logs.length;
+    fight.turnCount++;
     processPlayerTurn(fight);
+    fight.totalDamageDealt += fight.lastDamageDealt;
 
     if (fight.logs.length > originalLog) {
         const lastMsg = fight.logs[fight.logs.length - 1];
@@ -183,6 +254,7 @@ async function handleAttack(ctx) {
 
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
+        fight.totalDamageReceived += fight.lastDamageReceived;
         if (fight.logs.length > originalLog + 1) {
             const enemyMsg = fight.logs[fight.logs.length - 1];
             if (enemyMsg.includes('causou') && !enemyMsg.includes('CRÍTICO')) {
@@ -201,7 +273,7 @@ async function handleAttack(ctx) {
     savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+        return finishFight(ctx, fight, fight.turnCount, fight.totalDamageDealt, fight.totalDamageReceived);
     }
 
     return editMessage(ctx, renderFightText(fight, player), {
@@ -216,10 +288,12 @@ async function handleDefend(ctx) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
+    fight.turnCount++;
     applyDefend(fight);
     fight.logs.push(`🛡️ ${fight.player.name} se prepara para defender!`);
 
     processEnemyTurn(fight);
+    fight.totalDamageReceived += fight.lastDamageReceived;
     fight.player.defending = false;
 
     const player = getPlayer(ctx.from.id);
@@ -228,7 +302,7 @@ async function handleDefend(ctx) {
     savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+        return finishFight(ctx, fight, fight.turnCount, fight.totalDamageDealt, fight.totalDamageReceived);
     }
 
     return editMessage(ctx, renderFightText(fight, player), {
@@ -242,7 +316,6 @@ async function handleSoulMenu(ctx) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
-    // Verifica se há alguma alma equipada
     const hasSoul = fight.player.souls.some(s => s !== null);
     if (!hasSoul) {
         await ctx.answerCbQuery('❌ Você não tem nenhuma alma equipada!', { show_alert: true });
@@ -276,10 +349,12 @@ async function handleSoul(ctx) {
         });
     }
 
+    fight.turnCount++;
     useSoul(fight, soulIndex);
 
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
+        fight.totalDamageReceived += fight.lastDamageReceived;
     }
 
     const player = getPlayer(ctx.from.id);
@@ -288,7 +363,7 @@ async function handleSoul(ctx) {
     savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+        return finishFight(ctx, fight, fight.turnCount, fight.totalDamageDealt, fight.totalDamageReceived);
     }
 
     return editMessage(ctx, renderFightText(fight, player), {
@@ -382,7 +457,9 @@ async function useConsumable(ctx, type) {
 
     savePlayer(ctx.from.id, player);
 
+    fight.turnCount++;
     processEnemyTurn(fight);
+    fight.totalDamageReceived += fight.lastDamageReceived;
 
     const playerUpdated = getPlayer(ctx.from.id);
     playerUpdated.hp = fight.player.hp;
@@ -390,7 +467,7 @@ async function useConsumable(ctx, type) {
     savePlayer(ctx.from.id, playerUpdated);
 
     if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+        return finishFight(ctx, fight, fight.turnCount, fight.totalDamageDealt, fight.totalDamageReceived);
     }
 
     return editMessage(ctx, renderFightText(fight, playerUpdated), {
@@ -412,8 +489,9 @@ async function handleFlee(ctx) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
+    fight.turnCount++;
     attemptFlee(fight);
-    return finishFight(ctx, fight);
+    return finishFight(ctx, fight, fight.turnCount, fight.totalDamageDealt, fight.totalDamageReceived);
 }
 
 async function handleCombatBack(ctx) {
