@@ -1,60 +1,185 @@
-const raridades = [
-  { name: 'Comum', chance: 50, price: 50, emoji: '⚪' },
-  { name: 'Incomum', chance: 25, price: 120, emoji: '🟢' },
-  { name: 'Raro', chance: 15, price: 300, emoji: '🔵' },
-  { name: 'Épico', chance: 7, price: 800, emoji: '🟣' },
-  { name: 'Lendário', chance: 2.5, price: 2000, emoji: '🟠' },
-  { name: 'Mítico', chance: 0.5, price: 5000, emoji: '🔴' }
-];
+require('dotenv').config();
 
-const rarityMultiplier = {
-  Comum: 1,
-  Incomum: 1.3,
-  Raro: 1.7,
-  Épico: 2.3,
-  Lendário: 3.2,
-  Mítico: 5
-};
+const { Telegraf } = require('telegraf');
+const http = require('http');
 
-const itemTypes = [
-  { slot: 'weapon', namePrefix: 'Espada', atkBase: 5, defBase: 0, critBase: 2, hpBase: 0 },
-  { slot: 'armor', namePrefix: 'Armadura', atkBase: 0, defBase: 5, critBase: 0, hpBase: 10 },
-  { slot: 'necklace', namePrefix: 'Amuleto', atkBase: 2, defBase: 1, critBase: 3, hpBase: 5 },
-  { slot: 'ring', namePrefix: 'Anel', atkBase: 3, defBase: 0, critBase: 4, hpBase: 3 },
-  { slot: 'boots', namePrefix: 'Bota', atkBase: 0, defBase: 3, critBase: 1, hpBase: 4 }
-];
+const { mainMenu } = require('./src/menus/mainMenu');
+const { handleProfile } = require('./src/handlers/profile');
+const {
+    handleInventory,
+    handleInvWeapons,
+    handleInvArmors,
+    handleInvJewelry,
+    handleInvBoots,
+    handleInvConsumables,
+    handleInvSouls,
+    handleEquipItem,
+    handleUnequipItem,
+    handleEquipSoul,
+    handleUnequipSoul,
+    handleUsePotionOutside
+} = require('./src/handlers/inventory');
+const {
+    handleHunt,
+    handleAttack,
+    handleDefend,
+    handleSoulMenu,
+    handleSoul,
+    handleConsumables,
+    handleFlee,
+    handleCombatBack,
+    useConsumable
+} = require('./src/handlers/combat');
+const {
+    handleTravel,
+    handleTravelTo,
+    handleTravelLocked
+} = require('./src/handlers/travel');
+const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
+const { handleVip } = require('./src/handlers/vip');
+const { handleDaily } = require('./src/handlers/daily');
+const { handleOnline } = require('./src/handlers/online');
+const {
+    handleShop,
+    handleShopVillage,
+    handleShopCastle,
+    handleShopArena,
+    handleBuy
+} = require('./src/handlers/shop');
+const { handleRename } = require('./src/commands/rename');
+const { handleClass } = require('./src/commands/class');
+const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
-function getRarity() {
-  const roll = Math.random() * 100;
-  let total = 0;
-  for (const rarity of raridades) {
-    total += rarity.chance;
-    if (roll <= total) return rarity;
-  }
-  return raridades[0];
-}
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-function generateItem(playerLevel, forcedType = null) {
-  const type = forcedType
-    ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0]
-    : itemTypes[Math.floor(Math.random() * itemTypes.length)];
-  const rarity = getRarity();
-  const mult = rarityMultiplier[rarity.name] || 1;
-  const levelBonus = Math.max(1, Math.floor(playerLevel * 0.8));
-  // ID mais limpo: sem espaços e sem caracteres especiais
-  const id = `item_${Date.now()}_${Math.floor(Math.random() * 999999)}`;
-  return {
-    id: id,
-    name: `${type.namePrefix} ${rarity.name}`,
-    slot: type.slot,
-    rarity: rarity.name,
-    atk: Math.floor((type.atkBase + levelBonus) * mult),
-    def: Math.floor((type.defBase + levelBonus) * mult),
-    crit: Math.floor((type.critBase + levelBonus / 2) * mult),
-    hp: Math.floor((type.hpBase + levelBonus * 2) * mult),
-    price: Math.floor(rarity.price * (1 + playerLevel * 0.15)),
-    emoji: rarity.emoji
-  };
-}
+// Remove webhook
+(async () => {
+    try {
+        const webhookInfo = await bot.telegram.getWebhookInfo();
+        if (webhookInfo.url) {
+            console.log(`⚠️ Webhook ativo: ${webhookInfo.url}. Removendo...`);
+            await bot.telegram.deleteWebhook();
+            console.log('✅ Webhook removido. Usando polling.');
+        } else {
+            console.log('✅ Nenhum webhook ativo. Usando polling.');
+        }
+    } catch (err) {
+        console.error('❌ Erro ao verificar webhook:', err.message);
+    }
+})();
 
-module.exports = { raridades, itemTypes, generateItem };
+// Comandos de texto
+bot.start(async (ctx) => {
+    const welcomeMsg = `╔══════════════════════════════════╗
+║         🌙 *NOCTRA RPG*          ║
+║    Bem-vindo, aventureiro        ║
+╠══════════════════════════════════╣
+║   Escolha sua ação:              ║
+╚══════════════════════════════════╝`;
+    await ctx.reply(welcomeMsg, { parse_mode: 'Markdown', ...mainMenu() });
+});
+
+bot.command('energy', handleEnergy);
+bot.command('rename', handleRename);
+bot.command('class', handleClass);
+bot.command('profile', handleProfile);
+bot.command('inventory', handleInventory);
+bot.command('travel', handleTravel);
+bot.command('shop', handleShop);
+bot.command('daily', handleDaily);
+bot.command('vip', handleVip);
+bot.command('online', handleOnline);
+bot.command('equip', handleEquip);
+bot.command('equipsoul', handleEquipSoulCommand);
+
+// Ações de menu
+bot.action('hunt', handleHunt);
+bot.action('profile', handleProfile);
+bot.action('energy', handleEnergy);
+bot.action('inventory', handleInventory);
+bot.action('shop', handleShop);
+bot.action('travel', handleTravel);
+bot.action('vip', handleVip);
+bot.action('daily', handleDaily);
+bot.action('online', handleOnline);
+
+// Combate
+bot.action('combat_attack', handleAttack);
+bot.action('combat_defend', handleDefend);
+bot.action('combat_soul_menu', handleSoulMenu);
+bot.action(/combat_soul_([01])/, handleSoul);
+bot.action('combat_consumables', handleConsumables);
+bot.action('combat_flee', handleFlee);
+bot.action('combat_back', handleCombatBack);
+
+// Submenu de consumíveis (combate)
+bot.action('use_potion_hp', (ctx) => useConsumable(ctx, 'potion_hp'));
+bot.action('use_potion_energy', (ctx) => useConsumable(ctx, 'potion_energy'));
+bot.action('use_tonic_strength', (ctx) => useConsumable(ctx, 'tonic_strength'));
+bot.action('use_tonic_defense', (ctx) => useConsumable(ctx, 'tonic_defense'));
+bot.action('noop', async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleConsumables(ctx);
+});
+
+// Uso de poção fora de combate
+bot.action('use_potion_outside_hp', (ctx) => handleUsePotionOutside(ctx, 'hp'));
+
+// Energia
+bot.action('rest_energy', handleRestEnergy);
+
+// Inventário – categorias
+bot.action('inv_weapons', handleInvWeapons);
+bot.action('inv_armors', handleInvArmors);
+bot.action('inv_jewelry', handleInvJewelry);
+bot.action('inv_boots', handleInvBoots);
+bot.action('inv_consumables', handleInvConsumables);
+bot.action('inv_souls', handleInvSouls);
+
+// Equipar / Desequipar itens
+bot.action(/^equip_(weapon|armor|necklace|ring|boots)_(.+)$/, handleEquipItem);
+bot.action(/^unequip_(weapon|armor|necklace|ring|boots)$/, handleUnequipItem);
+
+// Almas
+bot.action(/^equip_soul_(.+)$/, handleEquipSoul);
+bot.action(/^unequip_soul_(\d+)$/, handleUnequipSoul);
+
+// Loja
+bot.action('shop_village', handleShopVillage);
+bot.action('shop_castle', handleShopCastle);
+bot.action('shop_arena', handleShopArena);
+bot.action(/buy_(.+)/, handleBuy);
+
+// Viagem
+bot.action(/travel_to_(.+)/, handleTravelTo);
+bot.action('travel_locked', handleTravelLocked);
+
+// Menu
+bot.action('menu', async (ctx) => {
+    await ctx.answerCbQuery();
+    const menuMsg = `╔══════════════════════════════════╗
+║         🌙 *NOCTRA RPG*          ║
+╠══════════════════════════════════╣
+║   Escolha sua ação:              ║
+╚══════════════════════════════════╝`;
+    await ctx.editMessageText(menuMsg, { parse_mode: 'Markdown', ...mainMenu() });
+});
+
+// Ajuda
+bot.action('rename_help', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(`📝 *Renomear*\n\nUse: /rename <novo_nome>\n\n*Custo:* 1ª grátis, depois 💎 100 Nox.`, { parse_mode: 'Markdown' });
+});
+bot.action('class_help', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(`🔄 *Trocar Classe*\n\nUse: /class guerreiro | arqueiro | mago\n\n*Custo:* 1ª grátis, depois 💎 500 Nox.`, { parse_mode: 'Markdown' });
+});
+
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Noctra online');
+}).listen(PORT);
+
+bot.launch();
+console.log('✅ NOCTRA ONLINE (polling mode)');
