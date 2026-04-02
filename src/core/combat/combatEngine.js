@@ -30,7 +30,8 @@ function createFight(player, enemy) {
             shield: 0,
             energy: player.energy,
             maxEnergy: player.maxEnergy,
-            buffs: [] // será preenchido depois
+            buffs: [],
+            defending: false
         },
         enemy: {
             id: enemy.id || enemy.name,
@@ -56,6 +57,10 @@ function createFight(player, enemy) {
         lastDamageDealt: 0,
         lastDamageReceived: 0
     };
+}
+
+function applyDefend(fight) {
+    fight.player.defending = true;
 }
 
 function applyTurnEffects(fight) {
@@ -126,7 +131,15 @@ function processEnemyTurn(fight) {
         fight.turn++;
         return null;
     }
-    const result = calculateDamage(fight.enemy, fight.player);
+
+    // Aplica redução de dano se o jogador estiver defendendo
+    let damageMultiplier = 1;
+    if (fight.player.defending) {
+        damageMultiplier = 0.5;
+        fight.logs.push(`🛡️ ${fight.player.name} defende e reduz o dano pela metade!`);
+    }
+
+    const result = calculateDamage(fight.enemy, fight.player, { multiplier: damageMultiplier });
     fight.player.hp = Math.max(0, fight.player.hp - result.damage);
     fight.lastDamageReceived = result.damage;
     fight.logs.push(
@@ -162,5 +175,6 @@ module.exports = {
     processPlayerTurn,
     processEnemyTurn,
     attemptFlee,
-    useSoul
+    useSoul,
+    applyDefend
 };
