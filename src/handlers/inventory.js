@@ -182,7 +182,7 @@ async function handleInvSouls(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Handlers de equipar/desequipar itens (já existentes, mas vamos manter)
+// Handlers de equipar/desequipar itens
 async function handleEquipItem(ctx) {
     const [, slot, itemId] = ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
     const player = getPlayer(ctx.from.id);
@@ -226,6 +226,12 @@ async function handleEquipSoul(ctx) {
     const soul = player.soulsInventory.find(s => (s.instanceId || s.id) === soulId);
     if (!soul) return ctx.answerCbQuery('Alma não encontrada.');
 
+    // Verificar se a alma já está equipada
+    const alreadyEquipped = player.soulsEquipped.some(s => s && (s.instanceId || s.id) === soulId);
+    if (alreadyEquipped) {
+        return ctx.answerCbQuery('⚠️ Esta alma já está equipada.', { show_alert: true });
+    }
+
     const emptySlot = player.soulsEquipped.findIndex(s => !s);
     if (emptySlot === -1) return ctx.answerCbQuery('Slots de almas cheios.');
 
@@ -243,10 +249,12 @@ async function handleUnequipSoul(ctx) {
     const soul = player.soulsEquipped[slotIdx];
     if (!soul) return ctx.answerCbQuery('Nada equipado.');
 
+    // Devolve a alma ao inventário
+    player.soulsInventory.push(soul);
     player.soulsEquipped[slotIdx] = null;
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
-    await ctx.answerCbQuery(`💀 ${soul.name} removida!`);
+    await ctx.answerCbQuery(`💀 ${soul.name} removida e devolvida ao inventário!`);
     return handleInvSouls(ctx);
 }
 
