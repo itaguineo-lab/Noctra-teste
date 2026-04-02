@@ -14,6 +14,16 @@ const BASE_STATS = {
 
 const EQUIPMENT_SLOTS = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
 
+// Atualiza buffs: decrementa turns e remove os expirados
+function updateBuffs(player) {
+    if (!player.buffs) player.buffs = [];
+    player.buffs = player.buffs.filter(buff => {
+        buff.remainingTurns--;
+        return buff.remainingTurns > 0;
+    });
+    return player;
+}
+
 // Verifica e aplica/remove benefícios VIP conforme a data
 function checkVipStatus(player) {
     const now = new Date();
@@ -254,5 +264,6 @@ module.exports = {
     createDefaultPlayer,
     ensurePlayerState,
     flushCacheToDisk,
-    getAllPlayers
+    getAllPlayers,
+    updateBuffs
 };
