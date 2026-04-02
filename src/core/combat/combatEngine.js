@@ -29,7 +29,8 @@ function createFight(player, enemy) {
             souls: Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [null, null],
             shield: 0,
             energy: player.energy,
-            maxEnergy: player.maxEnergy
+            maxEnergy: player.maxEnergy,
+            buffs: [] // será preenchido depois
         },
         enemy: {
             id: enemy.id || enemy.name,
@@ -45,7 +46,8 @@ function createFight(player, enemy) {
             isBoss: !!enemy.isBoss,
             frozen: false,
             bleedTurns: 0,
-            poisonTurns: 0
+            poisonTurns: 0,
+            buffs: []
         },
         turn: 1,
         status: 'ongoing',
