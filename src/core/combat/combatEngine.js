@@ -132,7 +132,6 @@ function processEnemyTurn(fight) {
         return null;
     }
 
-    // Aplica redução de dano se o jogador estiver defendendo
     let damageMultiplier = 1;
     if (fight.player.defending) {
         damageMultiplier = 0.5;
