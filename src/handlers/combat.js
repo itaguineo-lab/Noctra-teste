@@ -127,7 +127,6 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
-        // Verifica se houve level up
         const oldLevel = player.level - (rewards.leveledUp ? 1 : 0);
         const xpNeeded = oldLevel ? Math.floor(100 * Math.pow(oldLevel, 1.2)) : 0;
         const xpProgress = oldLevel ? Math.floor((player.xp / xpNeeded) * 100) : 0;
@@ -238,6 +237,18 @@ async function handleAttack(ctx) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
+    // Decrementa buffs antes do turno do jogador
+    if (fight.player.buffs && fight.player.buffs.length) {
+        fight.player.buffs = fight.player.buffs.filter(buff => {
+            buff.remainingTurns--;
+            return buff.remainingTurns > 0;
+        });
+        // Sincroniza com o player real
+        const player = getPlayer(ctx.from.id);
+        player.buffs = fight.player.buffs;
+        savePlayer(ctx.from.id, player);
+    }
+
     const originalLog = fight.logs.length;
     fight.turnCount++;
     processPlayerTurn(fight);
@@ -287,6 +298,17 @@ async function handleDefend(ctx) {
 
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
+
+    // Decrementa buffs antes do turno
+    if (fight.player.buffs && fight.player.buffs.length) {
+        fight.player.buffs = fight.player.buffs.filter(buff => {
+            buff.remainingTurns--;
+            return buff.remainingTurns > 0;
+        });
+        const player = getPlayer(ctx.from.id);
+        player.buffs = fight.player.buffs;
+        savePlayer(ctx.from.id, player);
+    }
 
     fight.turnCount++;
     applyDefend(fight);
@@ -347,6 +369,17 @@ async function handleSoul(ctx) {
             parse_mode: 'Markdown',
             ...combatMenu()
         });
+    }
+
+    // Decrementa buffs antes do turno
+    if (fight.player.buffs && fight.player.buffs.length) {
+        fight.player.buffs = fight.player.buffs.filter(buff => {
+            buff.remainingTurns--;
+            return buff.remainingTurns > 0;
+        });
+        const player = getPlayer(ctx.from.id);
+        player.buffs = fight.player.buffs;
+        savePlayer(ctx.from.id, player);
     }
 
     fight.turnCount++;
@@ -424,6 +457,8 @@ async function useConsumable(ctx, type) {
                 consumables.potionEnergy--;
                 const energyGain = 10;
                 fight.player.energy = Math.min(fight.player.maxEnergy, fight.player.energy + energyGain);
+                // Atualiza também a energia do jogador real
+                player.energy = fight.player.energy;
                 fight.logs.push(`⚡ ${fight.player.name} usou uma poção de energia e recuperou *${energyGain}* energia!`);
                 success = true;
             }
