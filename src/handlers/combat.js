@@ -18,11 +18,13 @@ const {
     processPlayerTurn,
     processEnemyTurn,
     attemptFlee,
-    useSoul
+    useSoul,
+    applyDefend
 } = require('../core/combat/combatEngine');
 
 const {
     combatMenu,
+    soulChoiceMenu,
     postCombatMenu
 } = require('../menus/combatMenu');
 
@@ -69,8 +71,9 @@ function renderFightText(fight, player) {
     text += `❤️ ${fight.player.hp}/${fight.player.maxHp}\n`;
     text += `[${playerBar}]\n`;
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
-    text += `🎯 CRIT ${fight.player.crit}%\n\n`;
-    text += `👹 *${fight.enemy.name}* [Lv ${fight.enemy.level}]\n`;
+    text += `🎯 CRIT ${fight.player.crit}%\n`;
+    if (fight.player.defending) text += `🛡️ *Defendendo* (dano reduzido 50%)\n`;
+    text += `\n👹 *${fight.enemy.name}* [Lv ${fight.enemy.level}]\n`;
     text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}\n`;
     text += `[${enemyBar}]\n\n`;
     text += `🎁 *Recompensas*\n`;
@@ -102,7 +105,7 @@ async function finishFight(ctx, fight) {
         player.hp = fight.player.hp;
         player.energy = fight.player.energy;
         recalculateStats(player);
-        updateBuffs(player); // limpa buffs expirados
+        updateBuffs(player);
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
@@ -144,8 +147,8 @@ async function handleHunt(ctx) {
 
     const enemy = getRandomEnemy(player.currentMap, player.level);
     const fight = createFight(player, enemy);
-    // Copia buffs para o combate
     fight.player.buffs = [...(player.buffs || [])];
+    fight.player.defending = false;
     activeFights.set(ctx.from.id, fight);
 
     return editMessage(ctx, renderFightText(fight, player), {
@@ -185,6 +188,9 @@ async function handleAttack(ctx) {
         }
     }
 
+    // Resetar estado de defesa após o turno
+    fight.player.defending = false;
+
     const player = getPlayer(ctx.from.id);
     player.hp = fight.player.hp;
     player.energy = fight.player.energy;
@@ -197,6 +203,49 @@ async function handleAttack(ctx) {
     return editMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
+    });
+}
+
+// Nova ação: Defender
+async function handleDefend(ctx) {
+    await ctx.answerCbQuery();
+
+    const fight = activeFights.get(ctx.from.id);
+    if (!fight) return;
+
+    applyDefend(fight);
+    fight.logs.push(`🛡️ ${fight.player.name} se prepara para defender!`);
+
+    // Turno do inimigo após defender
+    processEnemyTurn(fight);
+
+    // Resetar defesa após o turno
+    fight.player.defending = false;
+
+    const player = getPlayer(ctx.from.id);
+    player.hp = fight.player.hp;
+    player.energy = fight.player.energy;
+    savePlayer(ctx.from.id, player);
+
+    if (fight.status !== 'ongoing') {
+        return finishFight(ctx, fight);
+    }
+
+    return editMessage(ctx, renderFightText(fight, player), {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
+}
+
+// Exibe o submenu para escolher a alma
+async function handleSoulMenu(ctx) {
+    await ctx.answerCbQuery();
+    const fight = activeFights.get(ctx.from.id);
+    if (!fight) return;
+
+    await ctx.editMessageText('💀 *Escolha qual alma usar:*', {
+        parse_mode: 'Markdown',
+        ...soulChoiceMenu()
     });
 }
 
@@ -222,13 +271,14 @@ async function handleSoul(ctx) {
         return finishFight(ctx, fight);
     }
 
+    // Volta para o menu principal de combate
     return editMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
 }
 
-// Submenu de consumíveis
+// Submenu de consumíveis (igual antes)
 async function showConsumableMenu(ctx) {
     const player = getPlayer(ctx.from.id);
     const consumables = player.consumables || {};
@@ -290,7 +340,7 @@ async function useConsumable(ctx, type) {
                 consumables.tonicStrength--;
                 const buff = { type: 'atk', value: 10, remainingTurns: 3 };
                 player.buffs.push(buff);
-                fight.player.buffs.push(buff); // também na luta
+                fight.player.buffs.push(buff);
                 fight.logs.push(`💪 ${fight.player.name} usou um tônico de força! +10 ATK por 3 turnos.`);
                 success = true;
             }
@@ -326,7 +376,6 @@ async function useConsumable(ctx, type) {
         return finishFight(ctx, fight);
     }
 
-    // Volta para o menu de combate
     return editMessage(ctx, renderFightText(fight, playerUpdated), {
         parse_mode: 'Markdown',
         ...combatMenu()
@@ -364,6 +413,8 @@ async function handleCombatBack(ctx) {
 module.exports = {
     handleHunt,
     handleAttack,
+    handleDefend,
+    handleSoulMenu,
     handleSoul,
     handleConsumables,
     handleFlee,
