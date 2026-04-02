@@ -3,26 +3,15 @@ const { Markup } = require('telegraf');
 function combatMenu() {
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback(
-                '🗡️ Atacar',
-                'combat_attack'
-            )
+            Markup.button.callback('🗡️ Atacar', 'combat_attack')
         ],
         [
-            Markup.button.callback(
-                '💀 Alma',
-                'combat_soul'
-            ),
-            Markup.button.callback(
-                '🧪 Poção',
-                'combat_consumables'
-            )
+            Markup.button.callback('💀 Alma 1', 'combat_soul_0'),
+            Markup.button.callback('💀 Alma 2', 'combat_soul_1')
         ],
         [
-            Markup.button.callback(
-                '🏃 Fugir',
-                'combat_flee'
-            )
+            Markup.button.callback('🧪 Poção', 'combat_consumables'),
+            Markup.button.callback('🏃 Fugir', 'combat_flee')
         ]
     ]);
 }
@@ -30,20 +19,11 @@ function combatMenu() {
 function postCombatMenu() {
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback(
-                '⚔️ Caçar novamente',
-                'hunt'
-            )
+            Markup.button.callback('⚔️ Caçar novamente', 'hunt')
         ],
         [
-            Markup.button.callback(
-                '🎒 Inventário',
-                'inventory'
-            ),
-            Markup.button.callback(
-                '🏠 Menu',
-                'menu'
-            )
+            Markup.button.callback('🎒 Inventário', 'inventory'),
+            Markup.button.callback('🏠 Menu', 'menu')
         ]
     ]);
 }
