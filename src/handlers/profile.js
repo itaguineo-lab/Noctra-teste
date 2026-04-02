@@ -25,60 +25,63 @@ function formatEquipmentLine(slot, item) {
 
 function buildSoulsText(player) {
     const souls = player.soulsEquipped || [null, null];
-    if (!souls.length || !souls.some(Boolean)) {
-        return '   Nenhuma alma equipada.';
-    }
+    if (!souls.length || !souls.some(Boolean)) return '   Nenhuma alma equipada.';
     let text = '';
     souls.forEach((soul, index) => {
-        if (soul) {
-            text += `   ${getRarityEmoji(soul.rarity)} ${soul.name} (${soul.rarity})\n`;
-        } else {
-            text += `   ⬜ Slot ${index + 1} vazio\n`;
-        }
+        if (soul) text += `   ${getRarityEmoji(soul.rarity)} ${soul.name} (${soul.rarity})\n`;
+        else text += `   ⬜ Slot ${index + 1} vazio\n`;
     });
     return text.trimEnd();
 }
 
+function buildAchievementsText(player) {
+    const ach = player.achievements || {};
+    const list = [];
+    if (ach.kill10) list.push('🏆 10 mortes');
+    if (ach.kill100) list.push('🏆 100 mortes');
+    if (list.length === 0) return '   Nenhuma conquista ainda.';
+    return list.join('\n');
+}
+
 async function handleProfile(ctx) {
     await ctx.answerCbQuery?.();
-
     const player = getPlayer(ctx.from.id);
     const xpNeeded = getXpToNextLevel(player.level);
     const xpBar = progressBar(player.xp || 0, xpNeeded || 1, 8, '🟨', '⬜');
     const hpBar = progressBar(player.hp || 0, player.maxHp || 1, 8, '🟥', '⬜');
     const map = getPlayerMap(player);
-
     const eq = player.equipment || {};
     const kills = player.totalKills || 0;
     const achievementsCount = Object.keys(player.achievements || {}).length;
 
-    let profileMsg = `╔════════════════════════╗
-║      👤 *PERFIL*       ║
-╠════════════════════════╣
+    let profileMsg = `╔══════════════════════════════════╗
+║            👤 *PERFIL*             ║
+╠══════════════════════════════════╣
 ║ 🤴 *${player.name}* (${formatClassName(player.class)})
 ║ ⭐ Nível ${player.level}
 ║ ✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}
 ║ [${xpBar}]
-╠════════════════════════╣
+╠══════════════════════════════════╣
 ║ ❤️ HP: ${player.hp}/${player.maxHp}
 ║ [${hpBar}]
 ║ ⚡ Energia: ${player.energy}/${player.maxEnergy}
 ║ 🗺️ ${map.emoji} ${map.name}
-╠════════════════════════╣
+╠══════════════════════════════════╣
 ║ *Equipamentos:*
 ║ ${formatEquipmentLine('⚔️ Arma', eq.weapon)}
 ║ ${formatEquipmentLine('🛡️ Armadura', eq.armor)}
 ║ ${formatEquipmentLine('💍 Anel', eq.ring)}
 ║ ${formatEquipmentLine('📿 Colar', eq.necklace)}
 ║ ${formatEquipmentLine('👢 Botas', eq.boots)}
-╠════════════════════════╣
-║ 💀 *Almas:*
+╠══════════════════════════════════╣
+║ 💀 *Almas equipadas:*
 ${buildSoulsText(player)}
-╠════════════════════════╣
+╠══════════════════════════════════╣
 ║ 📊 *Estatísticas*
 ║    💀 Inimigos abatidos: ${kills}
-║    🏆 Conquistas: ${achievementsCount}
-╚════════════════════════╝`;
+║    🏆 Conquistas (${achievementsCount}):
+${buildAchievementsText(player)}
+╚══════════════════════════════════╝`;
 
     const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📝 Renomear', 'rename_help'), Markup.button.callback('🔄 Classe', 'class_help')],
@@ -86,15 +89,9 @@ ${buildSoulsText(player)}
     ]);
 
     try {
-        await ctx.editMessageText(profileMsg, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
+        await ctx.editMessageText(profileMsg, { parse_mode: 'Markdown', ...keyboard });
     } catch {
-        await ctx.reply(profileMsg, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
+        await ctx.reply(profileMsg, { parse_mode: 'Markdown', ...keyboard });
     }
 }
 
