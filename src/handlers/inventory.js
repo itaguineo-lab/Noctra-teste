@@ -106,11 +106,16 @@ async function handleInvConsumables(ctx) {
 ║ 🛡️ Tônico de Defesa: ${c.tonicDefense || 0}
 ║ 🗝️ Chaves de Masmorra: ${player.keys || 0}
 ╚══════════════════════════════════╝`;
-    const keyboard = Markup.inlineKeyboard([
-        (c.potionHp > 0) ? [Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')] : [],
-        [Markup.button.callback('◀️ Voltar', 'inventory')]
-    ].filter(row => row.length > 0));
-    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
+    
+    // Botões: usar poção (se disponível) e voltar
+    const buttons = [];
+    if (c.potionHp > 0) {
+        buttons.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
+    }
+    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
 async function handleUsePotionOutside(ctx, type) {
@@ -157,22 +162,33 @@ async function handleInvSouls(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Handlers de equipar/desequipar (corrigidos com String() e extração limpa)
+// Handlers de equipar/desequipar com comparação robusta e logs
 async function handleEquipItem(ctx) {
     const match = ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
-    if (!match) return ctx.answerCbQuery('Erro interno.', { show_alert: true });
+    if (!match) {
+        console.error('Formato inválido:', ctx.callbackQuery.data);
+        return ctx.answerCbQuery('Erro interno.', { show_alert: true });
+    }
     const [, slot, itemIdRaw] = match;
     const itemId = String(itemIdRaw).trim();
     const player = getPlayer(ctx.from.id);
+    
+    // Log para depuração
+    console.log(`[Equipar] Slot: ${slot}, ID: ${itemId}`);
+    console.log(`[Equipar] Inventário:`, player.inventory.map(i => ({ id: String(i.id), name: i.name, slot: i.slot })));
+    
     const item = player.inventory.find(i => i.slot === slot && String(i.id) === itemId);
     if (!item) {
         console.error(`Item não encontrado: slot=${slot}, id=${itemId}`);
         return ctx.answerCbQuery('❌ Item não encontrado no inventário.', { show_alert: true });
     }
+    
     player.equipment[slot] = item;
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
+    
+    // Redireciona para a categoria correta
     if (slot === 'weapon') return handleInvWeapons(ctx);
     if (slot === 'armor') return handleInvArmors(ctx);
     if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
