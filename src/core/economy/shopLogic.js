@@ -1,18 +1,11 @@
 function ensurePlayerEconomy(player) {
     if (!player) throw new Error('Player inválido.');
-
     player.gold ??= 0;
     player.nox ??= 0;
     player.glorias ??= 0;
     player.inventory ??= [];
     player.maxInventory ??= player.vip ? 30 : 20;
-    player.consumables ??= {
-        potionHp: 0,
-        potionEnergy: 0,
-        tonicStrength: 0,
-        tonicDefense: 0
-    };
-
+    player.consumables ??= { potionHp: 0, potionEnergy: 0, tonicStrength: 0, tonicDefense: 0 };
     return player;
 }
 
@@ -36,14 +29,11 @@ function pay(player, currency, price) {
 
 function processPurchase(player, item) {
     ensurePlayerEconomy(player);
-
     if (!item) return { success: false, message: 'Item inválido.' };
     if (!canPay(player, item.currency, item.price)) {
         return { success: false, message: `❌ Você não tem ${currencyLabel(item.currency)} suficiente.` };
     }
-
     pay(player, item.currency, item.price);
-
     switch (item.type) {
         case 'consumable': {
             const key = item.effect;
@@ -51,7 +41,6 @@ function processPurchase(player, item) {
             player.consumables[key] = (player.consumables[key] || 0) + (item.value || 1);
             break;
         }
-
         case 'equipment': {
             player.inventory.push({
                 id: `${item.id}_${Date.now()}`,
@@ -65,32 +54,26 @@ function processPurchase(player, item) {
             });
             break;
         }
-
         case 'vip': {
             const now = Date.now();
             const currentExpire = player.vipExpires ? new Date(player.vipExpires).getTime() : now;
             const base = Math.max(now, currentExpire);
             const newExpire = base + (item.days * 24 * 60 * 60 * 1000);
-
             player.vip = true;
             player.vipExpires = new Date(newExpire).toISOString();
             player.maxEnergy = 40;
-            // Adiciona bônus de inventário
             player.bonusInventory = (player.bonusInventory || 0) + 10;
             player.maxInventory = 20 + player.bonusInventory;
             break;
         }
-
         case 'cosmetic': {
             player.cosmetics = player.cosmetics || [];
             player.cosmetics.push({ id: item.id, name: item.name });
             break;
         }
-
         default:
             return { success: false, message: 'Tipo de item desconhecido.' };
     }
-
     return { success: true, message: `✅ Você comprou ${item.name}!` };
 }
 
