@@ -4,260 +4,250 @@ const {
     savePlayer,
     recalculateStats
 } = require('../core/player/playerService');
+const { formatItemStats } = require('../utils/formatters');
 
-function formatStats(item) {
-    if (!item) return '—';
-
-    const stats = [];
-
-    if (item.atk) stats.push(`ATK+${item.atk}`);
-    if (item.def) stats.push(`DEF+${item.def}`);
-    if (item.hp) stats.push(`HP+${item.hp}`);
-    if (item.crit) stats.push(`CRIT+${item.crit}%`);
-
-    return stats.join(', ');
+// Helper para renderizar inventário com bordas
+function renderInventoryHeader(player) {
+    return `╔════════════════════════╗
+║      🎒 *INVENTÁRIO*      ║
+╠════════════════════════╣
+║ 📦 ${player.inventory.length}/${player.maxInventory || 20}
+║ ⚔️ ATK ${player.atk}  🛡️ DEF ${player.def}
+║ ❤️ HP ${player.maxHp}  💥 CRIT ${player.crit}%
+╚════════════════════════╝`;
 }
 
-function getCategoryConfig(category) {
-    return {
-        weapons: {
-            title: '⚔️ Armas',
-            slots: ['weapon'],
-            label: 'Arma'
-        },
-        armors: {
-            title: '🛡️ Armaduras',
-            slots: ['armor', 'boots', 'backpack'],
-            label: 'Equipamentos'
-        },
-        jewelry: {
-            title: '💎 Joias',
-            slots: ['necklace', 'ring'],
-            label: 'Joias'
-        },
-        consumables: {
-            title: '🧪 Consumíveis',
-            slots: [],
-            label: 'Itens'
-        }
-    }[category];
-}
+function renderEquipmentSection(player, category) {
+    const eq = player.equipment || {};
+    const slots = {
+        weapons: ['weapon'],
+        armors: ['armor'],
+        jewelry: ['necklace', 'ring'],
+        boots: ['boots']
+    };
+    const selectedSlots = slots[category] || [];
 
-function buildText(player, category = null) {
-    let text = `🎒 *Inventário* (${player.inventory.length}/${player.maxInventory || 20})
+    if (!selectedSlots.length) return '';
 
-⚔️ ATK ${player.atk}
-🛡️ DEF ${player.def}
-❤️ HP ${player.maxHp}
-🎯 CRIT ${player.crit}%`;
-
-    if (!category) {
-        return text;
-    }
-
-    const config = getCategoryConfig(category);
-
-    text += `\n\n${config.title}\n`;
-
-    config.slots.forEach(slot => {
-        const equipped = player.equipment?.[slot];
-
-        const slotName = {
-            weapon: 'Arma',
-            armor: 'Armadura',
-            boots: 'Bota',
-            backpack: 'Mochila',
-            necklace: 'Colar',
-            ring: 'Anel'
-        }[slot] || slot;
-
-        text += `\n${slotName}: `;
-
-        if (equipped) {
-            text += `${equipped.name} ⭐ (${formatStats(equipped)})`;
-        } else {
-            text += '—';
-        }
+    let text = `╠════════════════════════╣\n║ *Equipados*:\n`;
+    selectedSlots.forEach(slot => {
+        const item = eq[slot];
+        const name = item ? `${item.name} ${formatItemStats(item)}` : '—';
+        text += `║   ${slotLabel(slot)}: ${name}\n`;
     });
-
-    text += `\n\n📦 *Itens disponíveis*\n`;
-
-    const available = player.inventory.filter(item =>
-        config.slots.includes(item.slot)
-    );
-
-    if (!available.length) {
-        text += `Nenhum item disponível`;
-    } else {
-        available.forEach(item => {
-            const isEquipped =
-                player.equipment?.[item.slot]?.id === item.id;
-
-            text += `\n${isEquipped ? '⭐' : '🔹'} ${item.name} (${formatStats(item)})`;
-        });
-    }
-
     return text;
 }
 
-function buildMenu(player, category = null) {
-    const rows = [
-        [
-            Markup.button.callback('⚔️ Armas', 'inv_weapons'),
-            Markup.button.callback('🛡️ Armaduras', 'inv_armors')
-        ],
-        [
-            Markup.button.callback('💎 Joias', 'inv_jewelry'),
-            Markup.button.callback('🧪 Consumíveis', 'inv_consumables')
-        ],
-        [
-            Markup.button.callback('🎨 Skins', 'inv_skins'),
-            Markup.button.callback('✨ Almas', 'inv_souls')
-        ]
-    ];
+function slotLabel(slot) {
+    const map = {
+        weapon: '⚔️',
+        armor: '🛡️',
+        necklace: '📿',
+        ring: '💍',
+        boots: '👢'
+    };
+    return map[slot] || '•';
+}
 
-    if (category) {
-        const config = getCategoryConfig(category);
+function buildItemsList(items, equippedItems, category) {
+    if (!items.length) return '║   Nenhum item disponível.\n';
 
-        config.slots.forEach(slot => {
-            const equipped = player.equipment?.[slot];
+    let text = '';
+    items.forEach(item => {
+        const isEquipped = equippedItems[item.slot]?.id === item.id;
+        const prefix = isEquipped ? '⭐' : '🔹';
+        text += `║   ${prefix} ${item.name}${formatItemStats(item)}\n`;
+    });
+    return text;
+}
 
-            if (equipped) {
-                rows.push([
-                    Markup.button.callback(
-                        `⭐ Desequipar ${equipped.name}`,
-                        `unequip_${slot}`
-                    )
-                ]);
-            }
+function buildMenuButtons(items, equippedItems, category, categorySlots) {
+    const buttons = [];
 
-            const items = player.inventory.filter(
-                item => item.slot === slot
-            );
+    // Botões para equipar itens não equipados
+    items.forEach(item => {
+        if (equippedItems[item.slot]?.id !== item.id) {
+            buttons.push([
+                Markup.button.callback(
+                    `🔹 Equipar ${item.name}`,
+                    `equip_${item.slot}_${item.id}`
+                )
+            ]);
+        }
+    });
 
-            items.forEach(item => {
-                const isEquipped =
-                    equipped?.id === item.id;
+    // Botões para desequipar slots ocupados
+    categorySlots.forEach(slot => {
+        if (equippedItems[slot]) {
+            buttons.push([
+                Markup.button.callback(
+                    `⭐ Desequipar ${equippedItems[slot].name}`,
+                    `unequip_${slot}`
+                )
+            ]);
+        }
+    });
 
-                if (!isEquipped) {
-                    rows.push([
-                        Markup.button.callback(
-                            `🔹 Equipar ${item.name}`,
-                            `equip_${slot}_${item.id}`
-                        )
-                    ]);
-                }
-            });
-        });
-    }
-
-    rows.push([
-        Markup.button.callback('🏠 Menu', 'menu')
-    ]);
-
-    return Markup.inlineKeyboard(rows);
+    // Voltar
+    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    return Markup.inlineKeyboard(buttons);
 }
 
 async function renderInventory(ctx, category = null) {
     const player = getPlayer(ctx.from.id);
+    const inventory = player.inventory || [];
 
-    const text = buildText(player, category);
-    const keyboard = buildMenu(player, category);
+    // Definição de categorias
+    const categories = {
+        weapons: { slots: ['weapon'], title: '⚔️ Armas', filter: i => i.slot === 'weapon' },
+        armors: { slots: ['armor'], title: '🛡️ Armaduras', filter: i => i.slot === 'armor' },
+        jewelry: { slots: ['necklace', 'ring'], title: '💎 Joias', filter: i => i.slot === 'necklace' || i.slot === 'ring' },
+        boots: { slots: ['boots'], title: '👢 Botas', filter: i => i.slot === 'boots' }
+    };
 
-    await ctx.answerCbQuery?.();
-
-    return ctx.editMessageText(text, {
-        parse_mode: 'Markdown',
-        ...keyboard
-    });
-}
-
-async function handleInventory(ctx) {
-    return renderInventory(ctx);
-}
-
-async function handleInvWeapons(ctx) {
-    return renderInventory(ctx, 'weapons');
-}
-
-async function handleInvArmors(ctx) {
-    return renderInventory(ctx, 'armors');
-}
-
-async function handleInvJewelry(ctx) {
-    return renderInventory(ctx, 'jewelry');
-}
-
-async function handleInvConsumables(ctx) {
-    return renderInventory(ctx, 'consumables');
-}
-
-async function handleInvSouls(ctx) {
-    return renderInventory(ctx);
-}
-
-async function handleEquipItem(ctx) {
-    const [, slot, itemId] =
-        ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
-
-    const player = getPlayer(ctx.from.id);
-
-    const item = player.inventory.find(
-        i =>
-            i.slot === slot &&
-            String(i.id) === String(itemId)
-    );
-
-    if (!item) {
-        return ctx.answerCbQuery('Item inválido');
+    if (!category) {
+        // Tela principal de categorias
+        const header = renderInventoryHeader(player);
+        const keyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('⚔️ Armas', 'inv_weapons'), Markup.button.callback('🛡️ Armaduras', 'inv_armors')],
+            [Markup.button.callback('💎 Joias', 'inv_jewelry'), Markup.button.callback('👢 Botas', 'inv_boots')],
+            [Markup.button.callback('🧪 Consumíveis', 'inv_consumables'), Markup.button.callback('💀 Almas', 'inv_souls')],
+            [Markup.button.callback('🏠 Menu', 'menu')]
+        ]);
+        return ctx.editMessageText(header, { parse_mode: 'Markdown', ...keyboard });
     }
 
-    player.equipment[slot] = item;
+    const cat = categories[category];
+    if (!cat) return ctx.editMessageText('Categoria inválida.', { parse_mode: 'Markdown' });
 
+    const items = inventory.filter(cat.filter);
+    const equipped = player.equipment || {};
+
+    let text = `${renderInventoryHeader(player)}\n`;
+    text += `╠════════════════════════╣\n`;
+    text += `║ *${cat.title}*\n`;
+    text += `╠════════════════════════╣\n`;
+    text += buildItemsList(items, equipped, category);
+    text += `╚════════════════════════╝`;
+
+    const keyboard = buildMenuButtons(items, equipped, category, cat.slots);
+
+    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
+}
+
+// Handlers de navegação
+async function handleInventory(ctx) { return renderInventory(ctx); }
+async function handleInvWeapons(ctx) { return renderInventory(ctx, 'weapons'); }
+async function handleInvArmors(ctx) { return renderInventory(ctx, 'armors'); }
+async function handleInvJewelry(ctx) { return renderInventory(ctx, 'jewelry'); }
+async function handleInvBoots(ctx) { return renderInventory(ctx, 'boots'); }
+async function handleInvConsumables(ctx) {
+    const player = getPlayer(ctx.from.id);
+    const c = player.consumables || {};
+    const text = `╔════════════════════════╗
+║      🧪 *CONSUMÍVEIS*      ║
+╠════════════════════════╣
+║ ❤️ Poção de HP: ${c.potionHp || 0}
+║ ⚡ Poção de Energia: ${c.potionEnergy || 0}
+║ 💪 Tônico de Força: ${c.tonicStrength || 0}
+║ 🛡️ Tônico de Defesa: ${c.tonicDefense || 0}
+╚════════════════════════╝`;
+    const keyboard = Markup.inlineKeyboard([[Markup.button.callback('◀️ Voltar', 'inventory')]]);
+    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
+}
+async function handleInvSouls(ctx) {
+    const player = getPlayer(ctx.from.id);
+    const souls = player.soulsInventory || [];
+    const equipped = player.soulsEquipped || [null, null];
+
+    let text = `╔════════════════════════╗
+║      💀 *ALMAS*      ║
+╠════════════════════════╣
+║ *Inventário* (${souls.length})\n`;
+    souls.forEach(soul => {
+        text += `║   🔹 ${soul.name} (${soul.rarity})\n`;
+    });
+    text += `╠════════════════════════╣
+║ *Equipadas*\n`;
+    equipped.forEach((soul, idx) => {
+        text += soul ? `║   ⭐ Alma ${idx+1}: ${soul.name}\n` : `║   ⬜ Slot ${idx+1}: vazio\n`;
+    });
+    text += `╚════════════════════════╝`;
+
+    const keyboard = Markup.inlineKeyboard([
+        ...souls.map(soul => [Markup.button.callback(`💀 Equipar ${soul.name}`, `equip_soul_${soul.instanceId || soul.id}`)]),
+        ...equipped.map((soul, idx) => soul ? [Markup.button.callback(`⭐ Desequipar Alma ${idx+1}`, `unequip_soul_${idx}`)] : []),
+        [Markup.button.callback('◀️ Voltar', 'inventory')]
+    ]);
+    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
+}
+
+// Handlers de equipar/desequipar itens (já existentes, mas vamos manter)
+async function handleEquipItem(ctx) {
+    const [, slot, itemId] = ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
+    const player = getPlayer(ctx.from.id);
+    const item = player.inventory.find(i => i.slot === slot && String(i.id) === String(itemId));
+    if (!item) return ctx.answerCbQuery('Item não encontrado.');
+
+    player.equipment[slot] = item;
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
+    await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
 
-    const category =
-        slot === 'weapon'
-            ? 'weapons'
-            : ['armor', 'boots', 'backpack'].includes(slot)
-            ? 'armors'
-            : ['necklace', 'ring'].includes(slot)
-            ? 'jewelry'
-            : null;
-
-    return renderInventory(ctx, category);
+    // Redireciona para a categoria correspondente
+    if (slot === 'weapon') return handleInvWeapons(ctx);
+    if (slot === 'armor') return handleInvArmors(ctx);
+    if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
+    if (slot === 'boots') return handleInvBoots(ctx);
+    return handleInventory(ctx);
 }
 
 async function handleUnequipItem(ctx) {
-    const [, slot] =
-        ctx.callbackQuery.data.match(/^unequip_(.+)$/);
-
+    const [, slot] = ctx.callbackQuery.data.match(/^unequip_(.+)$/);
     const player = getPlayer(ctx.from.id);
+    const item = player.equipment[slot];
+    if (!item) return ctx.answerCbQuery('Nada equipado.');
 
     player.equipment[slot] = null;
-
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
+    await ctx.answerCbQuery(`✅ ${item.name} removido!`);
 
-    const category =
-        slot === 'weapon'
-            ? 'weapons'
-            : ['armor', 'boots', 'backpack'].includes(slot)
-            ? 'armors'
-            : ['necklace', 'ring'].includes(slot)
-            ? 'jewelry'
-            : null;
-
-    return renderInventory(ctx, category);
+    if (slot === 'weapon') return handleInvWeapons(ctx);
+    if (slot === 'armor') return handleInvArmors(ctx);
+    if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
+    if (slot === 'boots') return handleInvBoots(ctx);
+    return handleInventory(ctx);
 }
 
 async function handleEquipSoul(ctx) {
-    return ctx.answerCbQuery('✨ Em breve');
+    const soulId = ctx.match[1];
+    const player = getPlayer(ctx.from.id);
+    const soul = player.soulsInventory.find(s => (s.instanceId || s.id) === soulId);
+    if (!soul) return ctx.answerCbQuery('Alma não encontrada.');
+
+    const emptySlot = player.soulsEquipped.findIndex(s => !s);
+    if (emptySlot === -1) return ctx.answerCbQuery('Slots de almas cheios.');
+
+    player.soulsEquipped[emptySlot] = soul;
+    // Não remove do inventário (como no Teletofus)
+    recalculateStats(player);
+    savePlayer(ctx.from.id, player);
+    await ctx.answerCbQuery(`💀 ${soul.name} equipada!`);
+    return handleInvSouls(ctx);
 }
 
 async function handleUnequipSoul(ctx) {
-    return ctx.answerCbQuery('✨ Em breve');
+    const slotIdx = parseInt(ctx.match[1]);
+    const player = getPlayer(ctx.from.id);
+    const soul = player.soulsEquipped[slotIdx];
+    if (!soul) return ctx.answerCbQuery('Nada equipado.');
+
+    player.soulsEquipped[slotIdx] = null;
+    recalculateStats(player);
+    savePlayer(ctx.from.id, player);
+    await ctx.answerCbQuery(`💀 ${soul.name} removida!`);
+    return handleInvSouls(ctx);
 }
 
 module.exports = {
@@ -265,6 +255,7 @@ module.exports = {
     handleInvWeapons,
     handleInvArmors,
     handleInvJewelry,
+    handleInvBoots,
     handleInvConsumables,
     handleInvSouls,
     handleEquipItem,
