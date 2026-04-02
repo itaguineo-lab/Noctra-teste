@@ -1,5 +1,5 @@
 const { getPlayer, savePlayer } = require('../core/player/playerService');
-const { updateEnergy, getTimeToNextEnergy } = require('../services/energyService');
+const { updateEnergy, getTimeToNextEnergy, getRegenInterval } = require('../services/energyService');
 const { progressBar, formatTime } = require('../utils/formatters');
 const { Markup } = require('telegraf');
 
@@ -22,29 +22,30 @@ async function renderEnergy(ctx) {
 
     updateEnergy(player);
     const nextIn = getTimeToNextEnergy(player);
+    const interval = getRegenInterval(player);
+    const energyToFull = player.maxEnergy - player.energy;
+    const timeToFull = energyToFull * interval;
+
     const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟨', '⬜');
     const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
     const energyPercent = Math.floor((player.energy / player.maxEnergy) * 100);
 
-    let text = `╔════════════════════════╗\n`;
-    text += `║       ⚡ *ENERGIA*       ║\n`;
-    text += `╠════════════════════════╣\n`;
-    text += `║ ⚡ ${player.energy}/${player.maxEnergy}\n`;
-    text += `║ [${energyBar}] ${energyPercent}%\n`;
-    text += `╠════════════════════════╣\n`;
-    text += `║ ❤️ HP: ${player.hp}/${player.maxHp}\n`;
-    text += `║ [${hpBar}]\n`;
-    text += `╠════════════════════════╣\n`;
-    text += `║ ⏱️ Regeneração: ${player.vip ? '1 a cada 8 min' : '1 a cada 10 min'}\n`;
-    if (nextIn > 0) {
-        text += `║ ⏳ Próxima energia em: ${formatTime(nextIn)}\n`;
-    } else {
-        text += `║ ✅ Energia cheia!\n`;
-    }
-    text += `╠════════════════════════╣\n`;
-    text += `║ 🛌 Descansar recupera *todo HP*\n`;
-    text += `║ ⚡ Custo: *1 energia*\n`;
-    text += `╚════════════════════════╝`;
+    let text = `╔══════════════════════════════════╗
+║              ⚡ *ENERGIA*              ║
+╠══════════════════════════════════╣
+║ ⚡ ${player.energy}/${player.maxEnergy}
+║ [${energyBar}] ${energyPercent}%
+╠══════════════════════════════════╣
+║ ❤️ HP: ${player.hp}/${player.maxHp}
+║ [${hpBar}]
+╠══════════════════════════════════╣
+║ ⏱️ Regeneração: ${player.vip ? '1 a cada 8 min' : '1 a cada 10 min'}
+║ ⏳ Próxima energia em: ${formatTime(nextIn)}
+║ 🕒 Tempo até encher: ${formatTime(timeToFull)}
+╠══════════════════════════════════╣
+║ 🛌 Descansar recupera *todo HP*
+║ ⚡ Custo: *1 energia*
+╚══════════════════════════════════╝`;
 
     const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🛌 Descansar (-1⚡)', 'rest_energy')],
