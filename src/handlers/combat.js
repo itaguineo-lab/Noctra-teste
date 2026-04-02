@@ -33,6 +33,8 @@ const {
     getRandomEnemy
 } = require('../core/world/enemies');
 
+const { Markup } = require('telegraf');
+
 const activeFights = new Map();
 
 // Mensagens variadas de ataque
@@ -97,6 +99,7 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
         player.hp = fight.player.hp;
+        player.energy = fight.player.energy; // persistir energia
         recalculateStats(player);
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
@@ -117,6 +120,7 @@ async function finishFight(ctx, fight) {
 
     if (fight.status === 'fled') {
         player.hp = fight.player.hp;
+        player.energy = fight.player.energy;
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
         return editMessage(ctx, `🏃 *FUGIU*`, { parse_mode: 'Markdown', ...postCombatMenu() });
@@ -177,6 +181,7 @@ async function handleAttack(ctx) {
 
     const player = getPlayer(ctx.from.id);
     player.hp = fight.player.hp;
+    player.energy = fight.player.energy;
     savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
@@ -192,9 +197,7 @@ async function handleAttack(ctx) {
 async function handleSoul(ctx) {
     await ctx.answerCbQuery();
 
-    // Extrai o índice da alma do callback (ex: combat_soul_0)
     const soulIndex = ctx.match?.[1] ? parseInt(ctx.match[1]) : 0;
-
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
@@ -206,6 +209,7 @@ async function handleSoul(ctx) {
 
     const player = getPlayer(ctx.from.id);
     player.hp = fight.player.hp;
+    player.energy = fight.player.energy;
     savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
@@ -218,43 +222,112 @@ async function handleSoul(ctx) {
     });
 }
 
-async function handleConsumables(ctx) {
-    await ctx.answerCbQuery();
+// Submenu de consumíveis
+async function showConsumableMenu(ctx) {
+    const player = getPlayer(ctx.from.id);
+    const consumables = player.consumables || {};
+    const keyboard = [];
 
+    if (consumables.potionHp > 0) {
+        keyboard.push([Markup.button.callback(`❤️ Poção de Vida (${consumables.potionHp})`, 'use_potion_hp')]);
+    }
+    if (consumables.potionEnergy > 0) {
+        keyboard.push([Markup.button.callback(`⚡ Poção de Energia (${consumables.potionEnergy})`, 'use_potion_energy')]);
+    }
+    if (consumables.tonicStrength > 0) {
+        keyboard.push([Markup.button.callback(`💪 Tônico de Força (${consumables.tonicStrength})`, 'use_tonic_strength')]);
+    }
+    if (consumables.tonicDefense > 0) {
+        keyboard.push([Markup.button.callback(`🛡️ Tônico de Defesa (${consumables.tonicDefense})`, 'use_tonic_defense')]);
+    }
+    if (keyboard.length === 0) {
+        keyboard.push([Markup.button.callback('❌ Nenhum consumível', 'noop')]);
+    }
+    keyboard.push([Markup.button.callback('◀️ Voltar', 'combat_back')]);
+
+    await ctx.editMessageText('🧪 *Escolha um consumível:*', {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(keyboard)
+    });
+}
+
+async function useConsumable(ctx, type) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
     const player = getPlayer(ctx.from.id);
     const consumables = player.consumables || {};
 
-    // Menu de escolha de consumível (simplificado: só poção de HP por enquanto)
-    // Podemos expandir com mais opções depois
-    if ((consumables.potionHp || 0) > 0) {
-        consumables.potionHp -= 1;
-        const heal = Math.floor(fight.player.maxHp * 0.4);
-        fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
-        fight.logs.push(`🧪 ${fight.player.name} usou uma poção e recuperou *${heal}* HP!`);
-    } else if ((consumables.potionEnergy || 0) > 0) {
-        consumables.potionEnergy -= 1;
-        const energyGain = 10;
-        fight.player.energy = Math.min(fight.player.maxEnergy, fight.player.energy + energyGain);
-        fight.logs.push(`⚡ ${fight.player.name} usou uma poção de energia e recuperou *${energyGain}* energia!`);
-    } else {
-        return ctx.answerCbQuery('❌ Você não possui consumíveis.', { show_alert: true });
+    let success = false;
+
+    switch (type) {
+        case 'potion_hp':
+            if (consumables.potionHp > 0) {
+                consumables.potionHp--;
+                const heal = Math.floor(fight.player.maxHp * 0.4);
+                fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
+                fight.logs.push(`🧪 ${fight.player.name} usou uma poção e recuperou *${heal}* HP!`);
+                success = true;
+            }
+            break;
+        case 'potion_energy':
+            if (consumables.potionEnergy > 0) {
+                consumables.potionEnergy--;
+                const energyGain = 10;
+                fight.player.energy = Math.min(fight.player.maxEnergy, fight.player.energy + energyGain);
+                fight.logs.push(`⚡ ${fight.player.name} usou uma poção de energia e recuperou *${energyGain}* energia!`);
+                success = true;
+            }
+            break;
+        case 'tonic_strength':
+            if (consumables.tonicStrength > 0) {
+                consumables.tonicStrength--;
+                player.buffs.push({ type: 'atk', value: 10, remainingTurns: 3 });
+                fight.logs.push(`💪 ${fight.player.name} usou um tônico de força! +10 ATK por 3 turnos.`);
+                success = true;
+            }
+            break;
+        case 'tonic_defense':
+            if (consumables.tonicDefense > 0) {
+                consumables.tonicDefense--;
+                player.buffs.push({ type: 'def', value: 10, remainingTurns: 3 });
+                fight.logs.push(`🛡️ ${fight.player.name} usou um tônico de defesa! +10 DEF por 3 turnos.`);
+                success = true;
+            }
+            break;
+    }
+
+    if (!success) {
+        await ctx.answerCbQuery('❌ Você não possui este consumível.', { show_alert: true });
+        return showConsumableMenu(ctx);
     }
 
     savePlayer(ctx.from.id, player);
 
+    // Processa turno do inimigo após uso
     processEnemyTurn(fight);
+
+    const playerUpdated = getPlayer(ctx.from.id);
+    playerUpdated.hp = fight.player.hp;
+    playerUpdated.energy = fight.player.energy;
+    savePlayer(ctx.from.id, playerUpdated);
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
     }
 
-    return editMessage(ctx, renderFightText(fight, player), {
+    // Volta para o menu de combate
+    return editMessage(ctx, renderFightText(fight, playerUpdated), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
+}
+
+async function handleConsumables(ctx) {
+    await ctx.answerCbQuery();
+    const fight = activeFights.get(ctx.from.id);
+    if (!fight) return;
+    await showConsumableMenu(ctx);
 }
 
 async function handleFlee(ctx) {
@@ -267,11 +340,24 @@ async function handleFlee(ctx) {
     return finishFight(ctx, fight);
 }
 
+async function handleCombatBack(ctx) {
+    const fight = activeFights.get(ctx.from.id);
+    if (!fight) return;
+
+    const player = getPlayer(ctx.from.id);
+    return editMessage(ctx, renderFightText(fight, player), {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
+}
+
 module.exports = {
     handleHunt,
     handleAttack,
     handleSoul,
     handleConsumables,
     handleFlee,
+    handleCombatBack,
+    useConsumable, // para uso direto no index
     activeFights
 };
