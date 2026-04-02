@@ -23,7 +23,10 @@ const {
     handleAttack,
     handleSoul,
     handleConsumables,
-    handleFlee
+    handleFlee,
+    handleCombatBack,
+    useConsumable,
+    activeFights
 } = require('./src/handlers/combat');
 const {
     handleTravel,
@@ -101,9 +104,20 @@ bot.action('online', handleOnline);
 
 // Combate
 bot.action('combat_attack', handleAttack);
-bot.action(/combat_soul_([01])/, handleSoul); // agora aceita índice
+bot.action(/combat_soul_([01])/, handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
+bot.action('combat_back', handleCombatBack);
+
+// Submenu de consumíveis
+bot.action('use_potion_hp', (ctx) => useConsumable(ctx, 'potion_hp'));
+bot.action('use_potion_energy', (ctx) => useConsumable(ctx, 'potion_energy'));
+bot.action('use_tonic_strength', (ctx) => useConsumable(ctx, 'tonic_strength'));
+bot.action('use_tonic_defense', (ctx) => useConsumable(ctx, 'tonic_defense'));
+bot.action('noop', async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleConsumables(ctx); // volta ao menu de consumíveis
+});
 
 // Energia
 bot.action('rest_energy', handleRestEnergy);
