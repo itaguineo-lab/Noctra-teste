@@ -28,14 +28,15 @@ function checkVipStatus(player) {
         if (isVip) {
             // Ativa benefícios
             player.maxEnergy = 40;
-            player.maxInventory = Math.max(player.maxInventory || 20, (player.maxInventory || 20) + 10);
+            player.bonusInventory = (player.bonusInventory || 0) + 10;
         } else {
             // Remove benefícios
             player.maxEnergy = 20;
-            // Não reduz inventário se já estiver cheio, apenas define o novo máximo
-            if (player.maxInventory > 20) player.maxInventory = 20;
-            if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
+            player.bonusInventory = Math.max(0, (player.bonusInventory || 0) - 10);
         }
+        // Recalcula inventário máximo
+        player.maxInventory = 20 + (player.bonusInventory || 0);
+        if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
     }
     return player;
 }
@@ -62,8 +63,12 @@ function ensurePlayerState(player) {
 
     // Inventário
     player.inventory ??= [];
-    player.maxInventory ??= player.vip ? 30 : 20;
+    player.bonusInventory ??= 0;
+    player.maxInventory = 20 + (player.bonusInventory || 0);
     player.consumables ??= { potionHp: 0, potionEnergy: 0, tonicStrength: 0, tonicDefense: 0 };
+
+    // Buffs temporários
+    player.buffs ??= [];
 
     // Equipamentos
     player.equipment ??= {};
@@ -149,8 +154,10 @@ function createDefaultPlayer(id, name = 'Viajante') {
         energy: 20,
         maxEnergy: 20,
         inventory: [],
+        bonusInventory: 0,
         maxInventory: 20,
         consumables: { potionHp: 0, potionEnergy: 0, tonicStrength: 0, tonicDefense: 0 },
+        buffs: [],
         equipment: {},
         soulsInventory: [],
         soulsEquipped: [null, null],
