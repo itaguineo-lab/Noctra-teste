@@ -41,8 +41,10 @@ function generateItem(playerLevel, forcedType = null) {
   const rarity = getRarity();
   const mult = rarityMultiplier[rarity.name] || 1;
   const levelBonus = Math.max(1, Math.floor(playerLevel * 0.8));
+  // ID mais limpo: sem espaços e sem caracteres especiais
+  const id = `item_${Date.now()}_${Math.floor(Math.random() * 999999)}`;
   return {
-    id: `item_${Date.now()}_${Math.floor(Math.random() * 9999)}`, // string única
+    id: id,
     name: `${type.namePrefix} ${rarity.name}`,
     slot: type.slot,
     rarity: rarity.name,
