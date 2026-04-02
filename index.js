@@ -47,6 +47,7 @@ const {
 } = require('./src/handlers/shop');
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
+const { handleEquip, handleEquipSoul: handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -91,6 +92,8 @@ bot.command('shop', handleShop);
 bot.command('daily', handleDaily);
 bot.command('vip', handleVip);
 bot.command('online', handleOnline);
+bot.command('equip', handleEquip);
+bot.command('equipsoul', handleEquipSoulCommand);
 
 // Ações de menu
 bot.action('hunt', handleHunt);
