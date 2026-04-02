@@ -113,11 +113,9 @@ async function handleInvConsumables(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(keyboard) });
 }
 
-// Usar poção fora de combate
 async function handleUsePotionOutside(ctx, type) {
     const player = getPlayer(ctx.from.id);
     const consumables = player.consumables || {};
-    
     if (type === 'hp') {
         if (!consumables.potionHp || consumables.potionHp <= 0) {
             return ctx.answerCbQuery('❌ Você não tem poções de vida.', { show_alert: true });
@@ -132,7 +130,6 @@ async function handleUsePotionOutside(ctx, type) {
         await ctx.answerCbQuery(`🧪 Você usou uma poção e recuperou ${heal} HP!`, { show_alert: true });
         return handleInvConsumables(ctx);
     }
-    // Outros tipos podem ser adicionados depois
 }
 
 async function handleInvSouls(ctx) {
@@ -160,14 +157,14 @@ async function handleInvSouls(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Handlers de equipar/desequipar (corrigidos com String())
+// Handlers de equipar/desequipar (corrigidos com String() e extração limpa)
 async function handleEquipItem(ctx) {
     const match = ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
     if (!match) return ctx.answerCbQuery('Erro interno.', { show_alert: true });
-    const [, slot, itemId] = match;
+    const [, slot, itemIdRaw] = match;
+    const itemId = String(itemIdRaw).trim();
     const player = getPlayer(ctx.from.id);
-    // Converte ambos para string para comparação segura
-    const item = player.inventory.find(i => i.slot === slot && String(i.id) === String(itemId));
+    const item = player.inventory.find(i => i.slot === slot && String(i.id) === itemId);
     if (!item) {
         console.error(`Item não encontrado: slot=${slot}, id=${itemId}`);
         return ctx.answerCbQuery('❌ Item não encontrado no inventário.', { show_alert: true });
