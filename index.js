@@ -68,12 +68,12 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // Comandos de texto
 bot.start(async (ctx) => {
-    const welcomeMsg = `╔════════════════════════╗
-║      🌙 *NOCTRA RPG*      ║
-║    Bem-vindo, aventureiro    ║
-╠════════════════════════╣
-║   Escolha sua ação:    ║
-╚════════════════════════╝`;
+    const welcomeMsg = `╔══════════════════════════════════╗
+║         🌙 *NOCTRA RPG*          ║
+║    Bem-vindo, aventureiro        ║
+╠══════════════════════════════════╣
+║   Escolha sua ação:              ║
+╚══════════════════════════════════╝`;
 
     await ctx.reply(welcomeMsg, {
         parse_mode: 'Markdown',
@@ -154,11 +154,11 @@ bot.action('travel_locked', handleTravelLocked);
 // Menu
 bot.action('menu', async (ctx) => {
     await ctx.answerCbQuery();
-    const menuMsg = `╔════════════════════════╗
-║      🌙 *NOCTRA RPG*      ║
-╠════════════════════════╣
-║   Escolha sua ação:    ║
-╚════════════════════════╝`;
+    const menuMsg = `╔══════════════════════════════════╗
+║         🌙 *NOCTRA RPG*          ║
+╠══════════════════════════════════╣
+║   Escolha sua ação:              ║
+╚══════════════════════════════════╝`;
     await ctx.editMessageText(menuMsg, {
         parse_mode: 'Markdown',
         ...mainMenu()
