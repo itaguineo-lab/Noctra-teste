@@ -10,6 +10,7 @@ const {
     handleInvWeapons,
     handleInvArmors,
     handleInvJewelry,
+    handleInvBoots,
     handleInvConsumables,
     handleInvSouls,
     handleEquipItem,
@@ -100,7 +101,7 @@ bot.action('online', handleOnline);
 
 // Combate
 bot.action('combat_attack', handleAttack);
-bot.action('combat_soul', handleSoul);
+bot.action(/combat_soul_([01])/, handleSoul); // agora aceita índice
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 
@@ -111,6 +112,7 @@ bot.action('rest_energy', handleRestEnergy);
 bot.action('inv_weapons', handleInvWeapons);
 bot.action('inv_armors', handleInvArmors);
 bot.action('inv_jewelry', handleInvJewelry);
+bot.action('inv_boots', handleInvBoots);
 bot.action('inv_consumables', handleInvConsumables);
 bot.action('inv_souls', handleInvSouls);
 
