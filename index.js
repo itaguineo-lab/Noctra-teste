@@ -16,7 +16,8 @@ const {
     handleEquipItem,
     handleUnequipItem,
     handleEquipSoul,
-    handleUnequipSoul
+    handleUnequipSoul,
+    handleUsePotionOutside
 } = require('./src/handlers/inventory');
 const {
     handleHunt,
@@ -50,16 +51,6 @@ const { handleClass } = require('./src/commands/class');
 const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-
-// Verificação de handlers
-const requiredHandlers = [
-    handleEnergy, handleRename, handleClass, handleProfile, handleInventory,
-    handleTravel, handleShop, handleDaily, handleVip, handleOnline,
-    handleEquip, handleEquipSoulCommand
-];
-requiredHandlers.forEach((h, i) => {
-    if (typeof h !== 'function') console.error(`Handler ${i} is undefined!`);
-});
 
 // Remove webhook
 (async () => {
@@ -121,7 +112,7 @@ bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 bot.action('combat_back', handleCombatBack);
 
-// Submenu de consumíveis
+// Submenu de consumíveis (combate)
 bot.action('use_potion_hp', (ctx) => useConsumable(ctx, 'potion_hp'));
 bot.action('use_potion_energy', (ctx) => useConsumable(ctx, 'potion_energy'));
 bot.action('use_tonic_strength', (ctx) => useConsumable(ctx, 'tonic_strength'));
@@ -130,6 +121,9 @@ bot.action('noop', async (ctx) => {
     await ctx.answerCbQuery();
     await handleConsumables(ctx);
 });
+
+// Uso de poção fora de combate (via inventário)
+bot.action('use_potion_outside_hp', (ctx) => handleUsePotionOutside(ctx, 'hp'));
 
 // Energia
 bot.action('rest_energy', handleRestEnergy);
