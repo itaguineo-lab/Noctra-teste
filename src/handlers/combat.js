@@ -73,6 +73,12 @@ function renderFightText(fight, player) {
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
     text += `🎯 CRIT ${fight.player.crit}%\n`;
     if (fight.player.defending) text += `🛡️ *Defendendo* (dano reduzido 50%)\n`;
+    
+    // Mostrar almas equipadas
+    const soul1 = fight.player.souls[0] ? fight.player.souls[0].name : 'vazio';
+    const soul2 = fight.player.souls[1] ? fight.player.souls[1].name : 'vazio';
+    text += `💀 Almas: [${soul1}] | [${soul2}]\n`;
+    
     text += `\n👹 *${fight.enemy.name}* [Lv ${fight.enemy.level}]\n`;
     text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}\n`;
     text += `[${enemyBar}]\n\n`;
@@ -166,7 +172,6 @@ async function handleAttack(ctx) {
     const originalLog = fight.logs.length;
     processPlayerTurn(fight);
 
-    // Mensagem variada
     if (fight.logs.length > originalLog) {
         const lastMsg = fight.logs[fight.logs.length - 1];
         if (lastMsg.includes('causou') && !lastMsg.includes('CRÍTICO')) {
@@ -188,7 +193,6 @@ async function handleAttack(ctx) {
         }
     }
 
-    // Resetar estado de defesa após o turno
     fight.player.defending = false;
 
     const player = getPlayer(ctx.from.id);
@@ -206,7 +210,6 @@ async function handleAttack(ctx) {
     });
 }
 
-// Nova ação: Defender
 async function handleDefend(ctx) {
     await ctx.answerCbQuery();
 
@@ -216,10 +219,7 @@ async function handleDefend(ctx) {
     applyDefend(fight);
     fight.logs.push(`🛡️ ${fight.player.name} se prepara para defender!`);
 
-    // Turno do inimigo após defender
     processEnemyTurn(fight);
-
-    // Resetar defesa após o turno
     fight.player.defending = false;
 
     const player = getPlayer(ctx.from.id);
@@ -237,11 +237,21 @@ async function handleDefend(ctx) {
     });
 }
 
-// Exibe o submenu para escolher a alma
 async function handleSoulMenu(ctx) {
     await ctx.answerCbQuery();
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
+
+    // Verifica se há alguma alma equipada
+    const hasSoul = fight.player.souls.some(s => s !== null);
+    if (!hasSoul) {
+        await ctx.answerCbQuery('❌ Você não tem nenhuma alma equipada!', { show_alert: true });
+        const player = getPlayer(ctx.from.id);
+        return editMessage(ctx, renderFightText(fight, player), {
+            parse_mode: 'Markdown',
+            ...combatMenu()
+        });
+    }
 
     await ctx.editMessageText('💀 *Escolha qual alma usar:*', {
         parse_mode: 'Markdown',
@@ -255,6 +265,16 @@ async function handleSoul(ctx) {
     const soulIndex = ctx.match?.[1] ? parseInt(ctx.match[1]) : 0;
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
+
+    const soul = fight.player.souls[soulIndex];
+    if (!soul) {
+        await ctx.answerCbQuery('❌ Nenhuma alma equipada neste slot.', { show_alert: true });
+        const player = getPlayer(ctx.from.id);
+        return editMessage(ctx, renderFightText(fight, player), {
+            parse_mode: 'Markdown',
+            ...combatMenu()
+        });
+    }
 
     useSoul(fight, soulIndex);
 
@@ -271,14 +291,12 @@ async function handleSoul(ctx) {
         return finishFight(ctx, fight);
     }
 
-    // Volta para o menu principal de combate
     return editMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
 }
 
-// Submenu de consumíveis (igual antes)
 async function showConsumableMenu(ctx) {
     const player = getPlayer(ctx.from.id);
     const consumables = player.consumables || {};
@@ -364,7 +382,6 @@ async function useConsumable(ctx, type) {
 
     savePlayer(ctx.from.id, player);
 
-    // Processa turno do inimigo após uso
     processEnemyTurn(fight);
 
     const playerUpdated = getPlayer(ctx.from.id);
