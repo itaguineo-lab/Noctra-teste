@@ -33,7 +33,17 @@ async function handleDaily(ctx) {
 
         savePlayer(ctx.from.id, player);
 
-        let msg = `🎁 *Baú Diário*\n\n💰 +${reward.gold} ouro\n🗝️ +${reward.keys} chave`;
+        let msg = `╔════════════════════════╗
+║      🎁 *BAÚ DIÁRIO*      ║
+╠════════════════════════╣
+║  📦 Você abriu o baú e encontrou:
+║
+║  💰 +${reward.gold} ouro
+║  🗝️ +${reward.keys} chave
+╠════════════════════════╣
+║  Volte amanhã para mais!
+╚════════════════════════╝`;
+
         await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
     } catch (error) {
         console.error('Erro daily:', error);
