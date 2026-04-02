@@ -14,7 +14,7 @@ const BASE_STATS = {
 
 const EQUIPMENT_SLOTS = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
 
-// Atualiza buffs: decrementa turns e remove os expirados
+// Atualiza buffs: decrementa remainingTurns e remove os expirados
 function updateBuffs(player) {
     if (!player.buffs) player.buffs = [];
     player.buffs = player.buffs.filter(buff => {
