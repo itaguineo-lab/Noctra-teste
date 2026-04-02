@@ -26,7 +26,7 @@ function processVictory(player, enemy) {
     let droppedKey = null;
     const loot = [];
 
-    // Drop de equipamento
+    // Drop de equipamento (mesma chance)
     const equipmentChance = enemy.isBoss ? 1 : 0.20;
     if (Math.random() < equipmentChance) {
         droppedItem = generateItem(player.level, null);
@@ -41,8 +41,9 @@ function processVictory(player, enemy) {
         }
     }
 
-    // Almas (apenas bosses de mapa)
-    const soulChance = enemy.isBoss ? 0.01 : 0;
+    // Almas (apenas bosses de mapa) – DROP RATES AJUSTADOS (mas quem define é souls.js)
+    // Nota: a função dropSoul já tem suas próprias chances; mantemos a chance de boss em 1%
+    const soulChance = enemy.isBoss ? 0.01 : 0; // 1% para boss
     if (Math.random() < soulChance) {
         droppedSoul = dropSoul(player.level);
         if (droppedSoul) {
@@ -51,9 +52,8 @@ function processVictory(player, enemy) {
         }
     }
 
-    // Chave de masmorra (apenas bosses de MAPA, não de masmorra)
-    // Assumimos que enemy.isBoss e enemy.fromDungeon não existe; então só cai se for boss de mapa.
-    const keyChance = enemy.isBoss ? 0.02 : 0;
+    // Chave de masmorra (apenas bosses de mapa)
+    const keyChance = enemy.isBoss ? 0.02 : 0; // 2%
     if (Math.random() < keyChance) {
         player.keys = (player.keys || 0) + 1;
         loot.push('🗝️ Chave da Masmorra');
