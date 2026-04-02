@@ -5,10 +5,7 @@ function giveDailyChest(player) {
     const today = new Date().toDateString();
     if (player.lastDailyChest === today) return null;
     player.lastDailyChest = today;
-    const reward = {
-        gold: 100 + player.level * 20,
-        keys: 1
-    };
+    const reward = { gold: 100 + player.level * 20, keys: 1 };
     player.gold = (player.gold || 0) + reward.gold;
     player.keys = (player.keys || 0) + reward.keys;
     return reward;
@@ -27,14 +24,10 @@ async function handleDaily(ctx) {
         const player = getPlayer(ctx.from.id, ctx.from.first_name);
         const reward = giveDailyChest(player);
         if (!reward) return ctx.answerCbQuery('🎁 Você já pegou hoje!', true);
-
         savePlayer(ctx.from.id, player);
-
-        // Animação simulada
         let anim = '🎁🎁🎁 ✨✨✨';
         await ctx.answerCbQuery(anim, true);
         await new Promise(resolve => setTimeout(resolve, 500));
-
         let msg = `╔══════════════════════════════════╗
 ║            🎁 *BAÚ DIÁRIO*            ║
 ╠══════════════════════════════════╣
@@ -45,7 +38,6 @@ async function handleDaily(ctx) {
 ╠══════════════════════════════════╣
 ║  Volte amanhã para mais!
 ╚══════════════════════════════════╝`;
-
         await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
     } catch (error) {
         console.error('Erro daily:', error);
