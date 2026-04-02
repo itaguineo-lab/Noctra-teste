@@ -14,7 +14,6 @@ const BASE_STATS = {
 
 const EQUIPMENT_SLOTS = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
 
-// Atualiza buffs: decrementa remainingTurns e remove os expirados
 function updateBuffs(player) {
     if (!player.buffs) player.buffs = [];
     player.buffs = player.buffs.filter(buff => {
@@ -24,38 +23,27 @@ function updateBuffs(player) {
     return player;
 }
 
-// Verifica e aplica/remove benefícios VIP conforme a data
 function checkVipStatus(player) {
     const now = new Date();
     const vipExpires = player.vipExpires ? new Date(player.vipExpires) : null;
-
-    const wasVip = player.vip;
     const isVip = vipExpires && vipExpires > now;
-
-    if (isVip !== wasVip) {
+    if (isVip !== player.vip) {
         player.vip = isVip;
-
         if (isVip) {
-            // Ativa benefícios
             player.maxEnergy = 40;
             player.bonusInventory = (player.bonusInventory || 0) + 10;
         } else {
-            // Remove benefícios
             player.maxEnergy = 20;
             player.bonusInventory = Math.max(0, (player.bonusInventory || 0) - 10);
         }
-        // Recalcula inventário máximo
         player.maxInventory = 20 + (player.bonusInventory || 0);
         if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
     }
     return player;
 }
 
-// Garante que o objeto do jogador tenha todos os campos necessários
 function ensurePlayerState(player) {
-    if (!player || typeof player !== 'object') return null;
-
-    // Campos básicos
+    if (!player) return null;
     player.id ??= player.id;
     player.name ??= 'Viajante';
     player.class ??= 'guerreiro';
@@ -65,56 +53,31 @@ function ensurePlayerState(player) {
     player.nox ??= 0;
     player.glorias ??= 0;
     player.keys ??= 0;
-
-    // Energia
     player.maxEnergy ??= player.vip ? 40 : 20;
     player.energy ??= player.maxEnergy;
     player.lastEnergyUpdate ??= Date.now();
-
-    // Inventário
     player.inventory ??= [];
     player.bonusInventory ??= 0;
-    player.maxInventory = 20 + (player.bonusInventory || 0);
+    player.maxInventory = 20 + player.bonusInventory;
     player.consumables ??= { potionHp: 0, potionEnergy: 0, tonicStrength: 0, tonicDefense: 0 };
-
-    // Buffs temporários
     player.buffs ??= [];
-
-    // Equipamentos
     player.equipment ??= {};
-    EQUIPMENT_SLOTS.forEach(slot => {
-        if (!(slot in player.equipment)) player.equipment[slot] = null;
-    });
-
-    // Almas
+    EQUIPMENT_SLOTS.forEach(slot => { if (!(slot in player.equipment)) player.equipment[slot] = null; });
     player.soulsInventory ??= [];
     player.soulsEquipped ??= [null, null];
-
-    // Estatísticas
     player.totalKills ??= 0;
     player.achievements ??= {};
     player.lastActive ??= Date.now();
-
-    // Mapa atual
     player.currentMap ??= 'clareira_sombria';
-
-    // VIP
     player.vip ??= false;
     player.vipExpires ??= null;
     player.renamed ??= false;
     player.classChanged ??= false;
-
-    // Datas
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
-
-    // Aplica estado VIP
     checkVipStatus(player);
-
-    // Garantir HP/Stats
     if (!player.maxHp) recalculateStats(player);
     player.hp ??= player.maxHp;
-
     return player;
 }
 
@@ -186,12 +149,10 @@ function createDefaultPlayer(id, name = 'Viajante') {
 
 function getPlayer(id, name = 'Viajante') {
     if (playersCache === null) loadPlayersToCache();
-
     if (!playersCache[id]) {
         playersCache[id] = createDefaultPlayer(id, name);
         scheduleSave();
     }
-
     const player = ensurePlayerState(playersCache[id]);
     player.lastActive = Date.now();
     return player;
@@ -207,13 +168,10 @@ function savePlayer(id, player) {
 
 function recalculateStats(player) {
     const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
-
     let atk = base.atk + (player.level - 1) * 3;
     let def = base.def + (player.level - 1) * 2;
     let maxHp = base.hp + (player.level - 1) * 20;
     let crit = base.crit;
-
-    // Equipamentos
     if (player.equipment) {
         Object.values(player.equipment).forEach(item => {
             if (!item) return;
@@ -223,8 +181,6 @@ function recalculateStats(player) {
             crit += item.crit || 0;
         });
     }
-
-    // Almas equipadas (efeitos passivos)
     if (Array.isArray(player.soulsEquipped)) {
         player.soulsEquipped.forEach(soul => {
             if (!soul || !soul.effect) return;
@@ -236,18 +192,14 @@ function recalculateStats(player) {
             }
         });
     }
-
     player.atk = Math.max(1, atk);
     player.def = Math.max(0, def);
     player.maxHp = Math.max(10, maxHp);
     player.crit = Math.min(50, crit);
-
     if (player.hp > player.maxHp) player.hp = player.maxHp;
-
     return player;
 }
 
-// Exporta a cache para uso em online.js
 function getAllPlayers() {
     if (playersCache === null) loadPlayersToCache();
     return playersCache;
