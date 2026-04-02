@@ -25,8 +25,7 @@ const {
     handleConsumables,
     handleFlee,
     handleCombatBack,
-    useConsumable,
-    activeFights
+    useConsumable
 } = require('./src/handlers/combat');
 const {
     handleTravel,
