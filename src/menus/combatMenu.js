@@ -10,7 +10,7 @@ function combatMenu() {
             Markup.button.callback('💀 Alma 2', 'combat_soul_1')
         ],
         [
-            Markup.button.callback('🧪 Poção', 'combat_consumables'),
+            Markup.button.callback('🧪 Consumíveis', 'combat_consumables'),
             Markup.button.callback('🏃 Fugir', 'combat_flee')
         ]
     ]);
