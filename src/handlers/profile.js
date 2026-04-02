@@ -5,14 +5,8 @@ const { Markup } = require('telegraf');
 const { progressBar, formatNumber } = require('../utils/formatters');
 const { getRarityEmoji } = require('../core/player/souls');
 
-function getPlayerMap(player) {
-    return getMapById(player.currentMap) || maps[0];
-}
-
-function formatClassName(className = 'guerreiro') {
-    return className.charAt(0).toUpperCase() + className.slice(1);
-}
-
+function getPlayerMap(player) { return getMapById(player.currentMap) || maps[0]; }
+function formatClassName(className = 'guerreiro') { return className.charAt(0).toUpperCase() + className.slice(1); }
 function formatEquipmentLine(slot, item) {
     if (!item) return `${slot}: —`;
     const stats = [];
@@ -22,7 +16,6 @@ function formatEquipmentLine(slot, item) {
     if (item.crit) stats.push(`💥+${item.crit}%`);
     return `${slot}: ${item.emoji || '⚪'} ${item.name} (${stats.join(', ')})`;
 }
-
 function buildSoulsText(player) {
     const souls = player.soulsEquipped || [null, null];
     if (!souls.length || !souls.some(Boolean)) return '   Nenhuma alma equipada.';
@@ -33,7 +26,6 @@ function buildSoulsText(player) {
     });
     return text.trimEnd();
 }
-
 function buildAchievementsText(player) {
     const ach = player.achievements || {};
     const list = [];
@@ -53,7 +45,6 @@ async function handleProfile(ctx) {
     const eq = player.equipment || {};
     const kills = player.totalKills || 0;
     const achievementsCount = Object.keys(player.achievements || {}).length;
-
     let profileMsg = `╔══════════════════════════════════╗
 ║            👤 *PERFIL*             ║
 ╠══════════════════════════════════╣
@@ -82,12 +73,10 @@ ${buildSoulsText(player)}
 ║    🏆 Conquistas (${achievementsCount}):
 ${buildAchievementsText(player)}
 ╚══════════════════════════════════╝`;
-
     const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📝 Renomear', 'rename_help'), Markup.button.callback('🔄 Classe', 'class_help')],
         [Markup.button.callback('◀️ Voltar', 'menu')]
     ]);
-
     try {
         await ctx.editMessageText(profileMsg, { parse_mode: 'Markdown', ...keyboard });
     } catch {
