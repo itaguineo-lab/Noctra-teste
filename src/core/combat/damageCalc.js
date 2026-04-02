@@ -6,14 +6,20 @@ function calculateDamage(attacker, defender, options = {}) {
     } = options;
 
     let atk = attacker.atk || 1;
-    const def = defender.def || 0;
+    let def = defender.def || 0;
     const critChance = attacker.crit || 5;
 
-    // Aplicar buffs temporários (apenas do atacante)
+    // Aplicar buffs de ataque no atacante
     if (attacker.buffs && Array.isArray(attacker.buffs)) {
         attacker.buffs.forEach(buff => {
             if (buff.type === 'atk') atk += buff.value;
-            if (buff.type === 'def' && defender === attacker) {} // não aplica aqui
+        });
+    }
+
+    // Aplicar buffs de defesa no defensor
+    if (defender.buffs && Array.isArray(defender.buffs)) {
+        defender.buffs.forEach(buff => {
+            if (buff.type === 'def') def += buff.value;
         });
     }
 
