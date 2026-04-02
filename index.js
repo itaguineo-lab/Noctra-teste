@@ -21,6 +21,8 @@ const {
 const {
     handleHunt,
     handleAttack,
+    handleDefend,
+    handleSoulMenu,
     handleSoul,
     handleConsumables,
     handleFlee,
@@ -103,6 +105,8 @@ bot.action('online', handleOnline);
 
 // Combate
 bot.action('combat_attack', handleAttack);
+bot.action('combat_defend', handleDefend);
+bot.action('combat_soul_menu', handleSoulMenu);
 bot.action(/combat_soul_([01])/, handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
@@ -115,7 +119,7 @@ bot.action('use_tonic_strength', (ctx) => useConsumable(ctx, 'tonic_strength'));
 bot.action('use_tonic_defense', (ctx) => useConsumable(ctx, 'tonic_defense'));
 bot.action('noop', async (ctx) => {
     await ctx.answerCbQuery();
-    await handleConsumables(ctx); // volta ao menu de consumíveis
+    await handleConsumables(ctx);
 });
 
 // Energia
