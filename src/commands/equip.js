@@ -16,101 +16,55 @@ function renderInventoryOverview(player, headline = '🎒 *INVENTÁRIO*') {
     const eq = player.equipment || {};
     const inventoryCount = (player.inventory || []).length;
     const inventoryMax = player.maxInventory || 20;
-
-    let text = `${headline} (${inventoryCount}/${inventoryMax})
-
-⚔️ ATK ${player.atk}    🛡️ DEF ${player.def}
-❤️ HP ${player.hp}/${player.maxHp}    💥 CRIT ${player.crit}%
-
-${formatEquipmentItem('⚔️ Arma', eq.weapon)}
-${formatEquipmentItem('🛡️ Armadura', eq.armor)}
-${formatEquipmentItem('🛡️ Escudo', eq.shield)}
-${formatEquipmentItem('💍 Anel', eq.ring)}
-${formatEquipmentItem('📿 Colar', eq.necklace)}
-${formatEquipmentItem('🏹 Aljava', eq.quiver)}
-${formatEquipmentItem('🎒 Mochila', eq.backpack)}
-
-💀 *Almas equipadas*
-1. ${player.soulsEquipped?.[0]?.name || 'Slot vazio'}
-2. ${player.soulsEquipped?.[1]?.name || 'Slot vazio'}
-`;
+    let text = `${headline} (${inventoryCount}/${inventoryMax})\n\n⚔️ ATK ${player.atk}    🛡️ DEF ${player.def}\n❤️ HP ${player.hp}/${player.maxHp}    💥 CRIT ${player.crit}%\n\n`;
+    text += `${formatEquipmentItem('⚔️ Arma', eq.weapon)}\n`;
+    text += `${formatEquipmentItem('🛡️ Armadura', eq.armor)}\n`;
+    text += `${formatEquipmentItem('💍 Anel', eq.ring)}\n`;
+    text += `${formatEquipmentItem('📿 Colar', eq.necklace)}\n`;
+    text += `${formatEquipmentItem('👢 Botas', eq.boots)}\n\n`;
+    text += `💀 *Almas equipadas*\n1. ${player.soulsEquipped?.[0]?.name || 'Slot vazio'}\n2. ${player.soulsEquipped?.[1]?.name || 'Slot vazio'}`;
     return text;
 }
 
-// Equipar: item permanece no inventário, apenas referência em equipment
 function equipItemById(player, itemId) {
     if (!Array.isArray(player.inventory)) player.inventory = [];
-    if (!player.equipment) {
-        player.equipment = {
-            weapon: null, armor: null, shield: null,
-            ring: null, necklace: null, quiver: null, backpack: null
-        };
-    }
-
+    if (!player.equipment) player.equipment = { weapon: null, armor: null, necklace: null, ring: null, boots: null };
     const itemIndex = player.inventory.findIndex(item => item && String(item.id) === String(itemId));
     if (itemIndex === -1) return { ok: false, message: '❌ Item não encontrado no inventário.' };
-
     const item = player.inventory[itemIndex];
-    const validSlots = ['weapon', 'armor', 'shield', 'ring', 'necklace', 'quiver', 'backpack'];
-    if (!item.slot || !validSlots.includes(item.slot)) {
-        return { ok: false, message: '❌ Este item não pode ser equipado.' };
-    }
-
+    const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
+    if (!item.slot || !validSlots.includes(item.slot)) return { ok: false, message: '❌ Este item não pode ser equipado.' };
     const currentEquip = player.equipment[item.slot] || null;
-    // Se já estiver equipado, nada muda
-    if (currentEquip && String(currentEquip.id) === String(item.id)) {
-        return { ok: false, message: '⚠️ Este item já está equipado.' };
-    }
-
-    // Equipa o novo item (não remove do inventário)
+    if (currentEquip && String(currentEquip.id) === String(item.id)) return { ok: false, message: '⚠️ Este item já está equipado.' };
     player.equipment[item.slot] = item;
-
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
-
     return { ok: true, item, currentEquip };
 }
 
-// Desequipar: apenas remove a referência
 function unequipSlot(player, slot) {
-    const validSlots = ['weapon', 'armor', 'shield', 'ring', 'necklace', 'quiver', 'backpack'];
+    const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
     if (!validSlots.includes(slot)) return { ok: false, message: '❌ Slot inválido.' };
     if (!player.equipment) player.equipment = {};
-
     const item = player.equipment[slot];
     if (!item) return { ok: false, message: '❌ Nada equipado neste slot.' };
-
     player.equipment[slot] = null;
-
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
-
     return { ok: true, item };
 }
 
 function equipSoulById(player, soulId) {
     if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
     if (!Array.isArray(player.soulsEquipped)) player.soulsEquipped = [null, null];
-
-    const soulIndex = player.soulsInventory.findIndex(
-        soul => soul && String(soul.instanceId || soul.id) === String(soulId)
-    );
+    const soulIndex = player.soulsInventory.findIndex(soul => soul && String(soul.instanceId || soul.id) === String(soulId));
     if (soulIndex === -1) return { ok: false, message: '❌ Alma não encontrada no inventário.' };
-
     const emptySlot = player.soulsEquipped.findIndex(soul => !soul);
     if (emptySlot === -1) return { ok: false, message: '❌ Slots de almas cheios.' };
-
     const soul = player.soulsInventory[soulIndex];
     player.soulsEquipped[emptySlot] = soul;
-    // Alma NÃO é removida do soulsInventory (permanece)
-    // Teletofus mantém as almas no inventário quando equipadas? Precisamos ver.
-    // Por simplicidade, vamos manter no inventário também.
-    // Mas se quiser remover, descomente a linha abaixo:
-    // player.soulsInventory.splice(soulIndex, 1);
-
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
-
     return { ok: true, soul, slot: emptySlot + 1 };
 }
 
@@ -119,26 +73,20 @@ function unequipSoul(player, slotIndex) {
     if (slotIndex < 0 || slotIndex >= player.soulsEquipped.length) return { ok: false, message: '❌ Slot inválido.' };
     const soul = player.soulsEquipped[slotIndex];
     if (!soul) return { ok: false, message: '❌ Nenhuma alma equipada neste slot.' };
-
     player.soulsEquipped[slotIndex] = null;
-    // Não remove do inventário (alma permanece)
     recalculateStats(player);
     if (player.hp > player.maxHp) player.hp = player.maxHp;
-
     return { ok: true, soul };
 }
 
-// ====================== HANDLERS ======================
 async function handleEquip(ctx) {
     try {
         const text = ctx.message?.text || '';
         const itemId = ctx.match?.[1] || text.split(' ').slice(1).join(' ').trim();
         if (!itemId) return ctx.reply('❌ ID do item inválido.');
-
         const player = getPlayer(ctx.from.id);
         const result = equipItemById(player, itemId);
         if (!result.ok) return ctx.reply(result.message);
-
         savePlayer(ctx.from.id, player);
         await ctx.reply(`⚔️ *Equipado:* ${result.item.name}`, { parse_mode: 'Markdown' });
     } catch (error) {
@@ -152,11 +100,9 @@ async function handleEquipSoul(ctx) {
         const text = ctx.message?.text || '';
         const soulId = ctx.match?.[1] || text.split(' ').slice(1).join(' ').trim();
         if (!soulId) return ctx.reply('❌ Alma inválida.');
-
         const player = getPlayer(ctx.from.id);
         const result = equipSoulById(player, soulId);
         if (!result.ok) return ctx.reply(result.message);
-
         savePlayer(ctx.from.id, player);
         await ctx.reply(`💀 *Alma equipada:* ${result.soul.name}`, { parse_mode: 'Markdown' });
     } catch (error) {
@@ -169,22 +115,12 @@ async function handleUnequipItem(ctx) {
     try {
         await ctx.answerCbQuery();
         const slot = ctx.match?.[1];
-        if (!slot) {
-            await ctx.answerCbQuery('❌ Slot não identificado.', true);
-            return;
-        }
-
+        if (!slot) { await ctx.answerCbQuery('❌ Slot não identificado.', true); return; }
         const player = getPlayer(ctx.from.id);
         const result = unequipSlot(player, slot);
-        if (!result.ok) {
-            await ctx.answerCbQuery(result.message, true);
-            return;
-        }
-
+        if (!result.ok) { await ctx.answerCbQuery(result.message, true); return; }
         savePlayer(ctx.from.id, player);
         await ctx.answerCbQuery(`✅ ${result.item.name} removido do equipamento.`, true);
-
-        // Recarregar a tela de inventário principal
         await ctx.editMessageText('🎒 *INVENTÁRIO*', { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
     } catch (error) {
         console.error('Erro ao desequipar:', error);
@@ -197,21 +133,13 @@ async function handleEquipItemCallback(ctx) {
         await ctx.answerCbQuery();
         const itemId = ctx.match?.[1];
         if (!itemId) return;
-
         const player = getPlayer(ctx.from.id);
         const result = equipItemById(player, itemId);
-        if (!result.ok) {
-            return ctx.editMessageText(`❌ ${result.message.replace(/^❌\s*/, '')}`, {
-                parse_mode: 'Markdown',
-                ...inventoryCategoryMenu()
-            });
-        }
+        if (!result.ok) return ctx.editMessageText(`❌ ${result.message.replace(/^❌\s*/, '')}`, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
         savePlayer(ctx.from.id, player);
         const text = `${renderInventoryOverview(player)}\n\n✅ *${result.item.name} equipado com sucesso!*`;
         return ctx.editMessageText(text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
-    } catch (error) {
-        console.error('Erro callback equip item:', error);
-    }
+    } catch (error) { console.error('Erro callback equip item:', error); }
 }
 
 async function handleEquipSoulCallback(ctx) {
@@ -219,21 +147,13 @@ async function handleEquipSoulCallback(ctx) {
         await ctx.answerCbQuery();
         const soulId = ctx.match?.[1];
         if (!soulId) return;
-
         const player = getPlayer(ctx.from.id);
         const result = equipSoulById(player, soulId);
-        if (!result.ok) {
-            return ctx.editMessageText(`❌ ${result.message.replace(/^❌\s*/, '')}`, {
-                parse_mode: 'Markdown',
-                ...inventoryCategoryMenu()
-            });
-        }
+        if (!result.ok) return ctx.editMessageText(`❌ ${result.message.replace(/^❌\s*/, '')}`, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
         savePlayer(ctx.from.id, player);
         const text = `${renderInventoryOverview(player)}\n\n✅ *${result.soul.name} equipada com sucesso!*`;
         return ctx.editMessageText(text, { parse_mode: 'Markdown', ...inventoryCategoryMenu() });
-    } catch (error) {
-        console.error('Erro callback equip alma:', error);
-    }
+    } catch (error) { console.error('Erro callback equip alma:', error); }
 }
 
 module.exports = {
