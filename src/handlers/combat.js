@@ -192,11 +192,13 @@ async function handleAttack(ctx) {
 async function handleSoul(ctx) {
     await ctx.answerCbQuery();
 
+    // Extrai o índice da alma do callback (ex: combat_soul_0)
+    const soulIndex = ctx.match?.[1] ? parseInt(ctx.match[1]) : 0;
+
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
 
-    // Por enquanto usa sempre a primeira alma
-    useSoul(fight, 0);
+    useSoul(fight, soulIndex);
 
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
@@ -225,14 +227,21 @@ async function handleConsumables(ctx) {
     const player = getPlayer(ctx.from.id);
     const consumables = player.consumables || {};
 
-    if ((consumables.potionHp || 0) <= 0) {
-        return ctx.answerCbQuery('❌ Você não possui poções de vida.', { show_alert: true });
+    // Menu de escolha de consumível (simplificado: só poção de HP por enquanto)
+    // Podemos expandir com mais opções depois
+    if ((consumables.potionHp || 0) > 0) {
+        consumables.potionHp -= 1;
+        const heal = Math.floor(fight.player.maxHp * 0.4);
+        fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
+        fight.logs.push(`🧪 ${fight.player.name} usou uma poção e recuperou *${heal}* HP!`);
+    } else if ((consumables.potionEnergy || 0) > 0) {
+        consumables.potionEnergy -= 1;
+        const energyGain = 10;
+        fight.player.energy = Math.min(fight.player.maxEnergy, fight.player.energy + energyGain);
+        fight.logs.push(`⚡ ${fight.player.name} usou uma poção de energia e recuperou *${energyGain}* energia!`);
+    } else {
+        return ctx.answerCbQuery('❌ Você não possui consumíveis.', { show_alert: true });
     }
-
-    consumables.potionHp -= 1;
-    const heal = Math.floor(fight.player.maxHp * 0.4);
-    fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
-    fight.logs.push(`🧪 ${fight.player.name} usou uma poção e recuperou *${heal}* HP!`);
 
     savePlayer(ctx.from.id, player);
 
