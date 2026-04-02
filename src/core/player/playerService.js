@@ -14,6 +14,32 @@ const BASE_STATS = {
 
 const EQUIPMENT_SLOTS = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
 
+// Verifica e aplica/remove benefícios VIP conforme a data
+function checkVipStatus(player) {
+    const now = new Date();
+    const vipExpires = player.vipExpires ? new Date(player.vipExpires) : null;
+
+    const wasVip = player.vip;
+    const isVip = vipExpires && vipExpires > now;
+
+    if (isVip !== wasVip) {
+        player.vip = isVip;
+
+        if (isVip) {
+            // Ativa benefícios
+            player.maxEnergy = 40;
+            player.maxInventory = Math.max(player.maxInventory || 20, (player.maxInventory || 20) + 10);
+        } else {
+            // Remove benefícios
+            player.maxEnergy = 20;
+            // Não reduz inventário se já estiver cheio, apenas define o novo máximo
+            if (player.maxInventory > 20) player.maxInventory = 20;
+            if (player.energy > player.maxEnergy) player.energy = player.maxEnergy;
+        }
+    }
+    return player;
+}
+
 // Garante que o objeto do jogador tenha todos os campos necessários
 function ensurePlayerState(player) {
     if (!player || typeof player !== 'object') return null;
@@ -66,6 +92,9 @@ function ensurePlayerState(player) {
     // Datas
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
+
+    // Aplica estado VIP
+    checkVipStatus(player);
 
     // Garantir HP/Stats
     if (!player.maxHp) recalculateStats(player);
