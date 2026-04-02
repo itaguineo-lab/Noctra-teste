@@ -1,7 +1,8 @@
 const {
     getPlayer,
     savePlayer,
-    recalculateStats
+    recalculateStats,
+    updateBuffs
 } = require('../core/player/playerService');
 
 const {
@@ -99,8 +100,9 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
         player.hp = fight.player.hp;
-        player.energy = fight.player.energy; // persistir energia
+        player.energy = fight.player.energy;
         recalculateStats(player);
+        updateBuffs(player); // limpa buffs expirados
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
@@ -113,6 +115,7 @@ async function finishFight(ctx, fight) {
 
     if (fight.status === 'loss') {
         player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
+        updateBuffs(player);
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
         return editMessage(ctx, `💀 *DERROTA*`, { parse_mode: 'Markdown', ...postCombatMenu() });
@@ -121,6 +124,7 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'fled') {
         player.hp = fight.player.hp;
         player.energy = fight.player.energy;
+        updateBuffs(player);
         savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
         return editMessage(ctx, `🏃 *FUGIU*`, { parse_mode: 'Markdown', ...postCombatMenu() });
@@ -140,6 +144,8 @@ async function handleHunt(ctx) {
 
     const enemy = getRandomEnemy(player.currentMap, player.level);
     const fight = createFight(player, enemy);
+    // Copia buffs para o combate
+    fight.player.buffs = [...(player.buffs || [])];
     activeFights.set(ctx.from.id, fight);
 
     return editMessage(ctx, renderFightText(fight, player), {
@@ -282,7 +288,9 @@ async function useConsumable(ctx, type) {
         case 'tonic_strength':
             if (consumables.tonicStrength > 0) {
                 consumables.tonicStrength--;
-                player.buffs.push({ type: 'atk', value: 10, remainingTurns: 3 });
+                const buff = { type: 'atk', value: 10, remainingTurns: 3 };
+                player.buffs.push(buff);
+                fight.player.buffs.push(buff); // também na luta
                 fight.logs.push(`💪 ${fight.player.name} usou um tônico de força! +10 ATK por 3 turnos.`);
                 success = true;
             }
@@ -290,7 +298,9 @@ async function useConsumable(ctx, type) {
         case 'tonic_defense':
             if (consumables.tonicDefense > 0) {
                 consumables.tonicDefense--;
-                player.buffs.push({ type: 'def', value: 10, remainingTurns: 3 });
+                const buff = { type: 'def', value: 10, remainingTurns: 3 };
+                player.buffs.push(buff);
+                fight.player.buffs.push(buff);
                 fight.logs.push(`🛡️ ${fight.player.name} usou um tônico de defesa! +10 DEF por 3 turnos.`);
                 success = true;
             }
@@ -358,6 +368,6 @@ module.exports = {
     handleConsumables,
     handleFlee,
     handleCombatBack,
-    useConsumable, // para uso direto no index
+    useConsumable,
     activeFights
 };
