@@ -8,13 +8,12 @@ function giveDailyChest(player) {
 
     const reward = {
         gold: 100 + player.level * 20,
-        keys: 1,
-        nox: Math.random() < 0.05 ? 1 : 0  // 5% de chance
+        keys: 1
+        // Nox removido – só compra
     };
 
     player.gold = (player.gold || 0) + reward.gold;
     player.keys = (player.keys || 0) + reward.keys;
-    if (reward.nox) player.nox = (player.nox || 0) + reward.nox;
 
     return reward;
 }
@@ -36,8 +35,6 @@ async function handleDaily(ctx) {
         savePlayer(ctx.from.id, player);
 
         let msg = `🎁 *Baú Diário*\n\n💰 +${reward.gold} ouro\n🗝️ +${reward.keys} chave`;
-        if (reward.nox) msg += `\n💎 +${reward.nox} Nox`;
-
         await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
     } catch (error) {
         console.error('Erro daily:', error);
