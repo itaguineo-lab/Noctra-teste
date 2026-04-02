@@ -5,15 +5,12 @@ function giveDailyChest(player) {
     const today = new Date().toDateString();
     if (player.lastDailyChest === today) return null;
     player.lastDailyChest = today;
-
     const reward = {
         gold: 100 + player.level * 20,
         keys: 1
     };
-
     player.gold = (player.gold || 0) + reward.gold;
     player.keys = (player.keys || 0) + reward.keys;
-
     return reward;
 }
 
@@ -33,16 +30,21 @@ async function handleDaily(ctx) {
 
         savePlayer(ctx.from.id, player);
 
-        let msg = `╔════════════════════════╗
-║      🎁 *BAÚ DIÁRIO*      ║
-╠════════════════════════╣
+        // Animação simulada
+        let anim = '🎁🎁🎁 ✨✨✨';
+        await ctx.answerCbQuery(anim, true);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        let msg = `╔══════════════════════════════════╗
+║            🎁 *BAÚ DIÁRIO*            ║
+╠══════════════════════════════════╣
 ║  📦 Você abriu o baú e encontrou:
 ║
 ║  💰 +${reward.gold} ouro
 ║  🗝️ +${reward.keys} chave
-╠════════════════════════╣
+╠══════════════════════════════════╣
 ║  Volte amanhã para mais!
-╚════════════════════════╝`;
+╚══════════════════════════════════╝`;
 
         await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
     } catch (error) {
