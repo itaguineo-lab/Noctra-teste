@@ -45,7 +45,7 @@ async function renderEnergy(ctx) {
 ╚══════════════════════════════════╝`;
     const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🛌 Descansar (-1⚡)', 'rest_energy')],
-        [Markup.button.callback('⚡ Comprar Energia (💎5 +10)', 'buy_energy')], // NOVO
+        [Markup.button.callback('⚡ Comprar Energia (💎5 +10)', 'buy_energy')],
         [Markup.button.callback('🏠 Menu', 'menu')]
     ]);
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
@@ -69,12 +69,11 @@ async function handleRestEnergy(ctx) {
     }
 }
 
-// NOVO: comprar energia
 async function handleBuyEnergy(ctx) {
     try {
         await ctx.answerCbQuery();
         const player = getPlayer(ctx.from.id);
-        const COST = 5; // Nox
+        const COST = 5;
         const AMOUNT = 10;
         if ((player.nox || 0) < COST) {
             return ctx.answerCbQuery(`❌ Você precisa de 💎 ${COST} Nox.`, { show_alert: true });
