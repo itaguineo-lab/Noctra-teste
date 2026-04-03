@@ -43,7 +43,6 @@ const shopItems = [
         price: 120,
         description: '+10 DEF por 3 combates.'
     },
-    // NOVOS ITENS
     {
         id: 'dungeon_key',
         name: 'Chave de Masmorra',
