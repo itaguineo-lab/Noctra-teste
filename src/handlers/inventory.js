@@ -33,20 +33,14 @@ function buildItemsList(items, equippedItems) {
     return text;
 }
 
-function buildMenuButtons(items, equippedItems, categorySlots) {
-    const buttons = [];
-    items.forEach(item => {
-        if (equippedItems[item.slot]?.id !== item.id) {
-            buttons.push([Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${item.slot}_${item.id}`)]);
-        }
-    });
-    categorySlots.forEach(slot => {
-        if (equippedItems[slot]) {
-            buttons.push([Markup.button.callback(`⭐ Desequipar ${equippedItems[slot].name}`, `unequip_${slot}`)]);
-        }
-    });
-    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
-    return Markup.inlineKeyboard(buttons);
+// Gera botões de equipar/desequipar diretamente no item
+function buildItemActionButtons(item, equippedItems) {
+    const isEquipped = equippedItems[item.slot]?.id === item.id;
+    if (isEquipped) {
+        return [Markup.button.callback(`⭐ Desequipar ${item.name}`, `unequip_${item.slot}`)];
+    } else {
+        return [Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${item.slot}_${item.id}`)];
+    }
 }
 
 async function renderInventory(ctx, category = null) {
@@ -83,7 +77,15 @@ async function renderInventory(ctx, category = null) {
     text += buildItemsList(items, equipped);
     text += `╚══════════════════════════════════╝`;
 
-    const keyboard = buildMenuButtons(items, equipped, cat.slots);
+    // Botões para cada item (equipar/desequipar)
+    const buttons = [];
+    items.forEach(item => {
+        const actionButtons = buildItemActionButtons(item, equipped);
+        buttons.push(actionButtons);
+    });
+    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+
+    const keyboard = Markup.inlineKeyboard(buttons);
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
@@ -177,7 +179,7 @@ function findItemById(inventory, slot, targetId) {
     });
 }
 
-// Handlers de equipar/desequipar com busca robusta
+// Handlers de equipar/desequipar
 async function handleEquipItem(ctx) {
     const match = ctx.callbackQuery.data.match(/^equip_(.+)_(.+)$/);
     if (!match) {
@@ -205,6 +207,7 @@ async function handleEquipItem(ctx) {
     savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
     
+    // Redireciona para a categoria correta
     if (slot === 'weapon') return handleInvWeapons(ctx);
     if (slot === 'armor') return handleInvArmors(ctx);
     if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
