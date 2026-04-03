@@ -1,28 +1,28 @@
 const { Markup } = require('telegraf');
 
-function inventoryCategoryMenu() {
+function inventoryMainMenu() {
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback('⚔️ Armas', 'inv_weapons'),
-            Markup.button.callback('🛡️ Armaduras', 'inv_armors')
+            Markup.button.callback('⚔️ Armas', 'inv_weapon'),
+            Markup.button.callback('🛡️ Armaduras', 'inv_armor')
         ],
         [
-            Markup.button.callback('💍 Joias', 'inv_jewelry'),
-            Markup.button.callback('👢 Botas', 'inv_boots')
+            Markup.button.callback('💍 Jóias', 'inv_jewelry'),
+            Markup.button.callback('🎨 Skins', 'inv_skin')
         ],
         [
-            Markup.button.callback('🧪 Consumíveis', 'inv_consumables'),
-            Markup.button.callback('💀 Almas', 'inv_souls')
+            Markup.button.callback('🧪 Consumíveis', 'inv_consumable'),
+            Markup.button.callback('💀 Almas', 'inv_soul')
         ],
         [
-            Markup.button.callback('✨ Auto Equip', 'auto_equip')
+            Markup.button.callback('✨ Equipar melhor', 'auto_equip')
         ],
         [
-            Markup.button.callback('🏠 Menu', 'menu')
+            Markup.button.callback('◀️ Voltar', 'menu')
         ]
     ]);
 }
 
 module.exports = {
-    inventoryCategoryMenu
+    inventoryMainMenu
 };
