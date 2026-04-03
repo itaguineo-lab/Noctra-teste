@@ -43,6 +43,29 @@ const shopItems = [
         price: 120,
         description: '+10 DEF por 3 combates.'
     },
+    // NOVOS ITENS
+    {
+        id: 'dungeon_key',
+        name: 'Chave de Masmorra',
+        shop: 'village',
+        type: 'consumable',
+        effect: 'keys',
+        value: 1,
+        currency: 'nox',
+        price: 3,
+        description: 'Permite uma entrada na masmorra.'
+    },
+    {
+        id: 'energy_refill_10',
+        name: 'Recarga de Energia (+10)',
+        shop: 'village',
+        type: 'consumable',
+        effect: 'energyRefill',
+        value: 10,
+        currency: 'nox',
+        price: 5,
+        description: 'Recupera 10 de energia instantaneamente.'
+    },
     {
         id: 'vip_7d',
         name: 'VIP 7 Dias',
