@@ -45,6 +45,7 @@ async function renderEnergy(ctx) {
 ╚══════════════════════════════════╝`;
     const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🛌 Descansar (-1⚡)', 'rest_energy')],
+        [Markup.button.callback('⚡ Comprar Energia (💎5 +10)', 'buy_energy')], // NOVO
         [Markup.button.callback('🏠 Menu', 'menu')]
     ]);
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
@@ -68,4 +69,25 @@ async function handleRestEnergy(ctx) {
     }
 }
 
-module.exports = { handleEnergy, handleRestEnergy };
+// NOVO: comprar energia
+async function handleBuyEnergy(ctx) {
+    try {
+        await ctx.answerCbQuery();
+        const player = getPlayer(ctx.from.id);
+        const COST = 5; // Nox
+        const AMOUNT = 10;
+        if ((player.nox || 0) < COST) {
+            return ctx.answerCbQuery(`❌ Você precisa de 💎 ${COST} Nox.`, { show_alert: true });
+        }
+        player.nox -= COST;
+        player.energy = Math.min(player.maxEnergy, player.energy + AMOUNT);
+        savePlayer(ctx.from.id, player);
+        await ctx.answerCbQuery(`✅ +${AMOUNT} energia!`, { show_alert: true });
+        return renderEnergy(ctx);
+    } catch (error) {
+        console.error('Erro comprar energia:', error);
+        await ctx.answerCbQuery('Erro ao comprar energia.', { show_alert: true });
+    }
+}
+
+module.exports = { handleEnergy, handleRestEnergy, handleBuyEnergy };
