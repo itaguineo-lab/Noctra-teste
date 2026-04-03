@@ -1,5 +1,4 @@
 const shopItems = [
-    // Loja da Vila (ouro)
     {
         id: 'hp_potion',
         name: 'Poção de Vida',
@@ -44,8 +43,6 @@ const shopItems = [
         price: 120,
         description: '+10 DEF por 3 combates.'
     },
-
-    // Castelo (Nox)
     {
         id: 'vip_7d',
         name: 'VIP 7 Dias',
@@ -53,8 +50,8 @@ const shopItems = [
         type: 'vip',
         days: 7,
         currency: 'nox',
-        price: 18,
-        description: 'Energia máxima 40, regen 8 min, +10 slots, +50% recompensas.'
+        price: 15,
+        description: 'Energia 40, regen 8 min, +10 slots, +50% recompensas.'
     },
     {
         id: 'vip_30d',
@@ -63,8 +60,8 @@ const shopItems = [
         type: 'vip',
         days: 30,
         currency: 'nox',
-        price: 60,
-        description: 'Energia máxima 40, regen 8 min, +10 slots, +50% recompensas.'
+        price: 50,
+        description: 'Energia 40, regen 8 min, +10 slots, +50% recompensas.'
     },
     {
         id: 'cosmetic_aura',
@@ -72,38 +69,8 @@ const shopItems = [
         shop: 'castle',
         type: 'cosmetic',
         currency: 'nox',
-        price: 10,
+        price: 8,
         description: 'Efeito visual exclusivo.'
-    },
-
-    // Matadores (Glórias)
-    {
-        id: 'arena_blade',
-        name: 'Lâmina da Arena',
-        shop: 'arena',
-        type: 'equipment',
-        slot: 'weapon',
-        atk: 15,
-        def: 0,
-        hp: 0,
-        crit: 5,
-        currency: 'glorias',
-        price: 100,
-        description: 'Arma lendária da arena.'
-    },
-    {
-        id: 'arena_armor',
-        name: 'Armadura do Campeão',
-        shop: 'arena',
-        type: 'equipment',
-        slot: 'armor',
-        atk: 0,
-        def: 15,
-        hp: 30,
-        crit: 0,
-        currency: 'glorias',
-        price: 120,
-        description: 'Armadura de gladiador.'
     }
 ];
 
