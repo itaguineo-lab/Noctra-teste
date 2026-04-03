@@ -1,19 +1,42 @@
-const RARITY_COLORS = {
-    Comum: '⚪',
-    Incomum: '🟢',
-    Raro: '🔵',
-    Épico: '🟣',
-    Lendário: '🟡',
-    Mítico: '🔴'
+const RARITIES = {
+    Comum: {
+        emoji: '⚪',
+        mult: 1.0,
+        weight: 50
+    },
+    Incomum: {
+        emoji: '🟢',
+        mult: 1.3,
+        weight: 25
+    },
+    Raro: {
+        emoji: '🔵',
+        mult: 1.7,
+        weight: 15
+    },
+    Épico: {
+        emoji: '🟣',
+        mult: 2.3,
+        weight: 7
+    },
+    Lendário: {
+        emoji: '🟠',
+        mult: 3.2,
+        weight: 2.5
+    },
+    Mítico: {
+        emoji: '🔴',
+        mult: 5,
+        weight: 0.5
+    }
 };
-
-const RARITY_EMOJIS = RARITY_COLORS;
 
 const SLOT_EMOJIS = {
     weapon: '⚔️',
     armor: '🛡️',
-    accessory: '📿',
-    material: '🧩',
+    necklace: '📿',
+    ring: '💍',
+    boots: '👢',
     consumable: '🧪'
 };
 
@@ -23,43 +46,23 @@ const CLASSES = [
     'mago'
 ];
 
-const RARITY_MULT = {
-    Comum: 1.0,
-    Incomum: 1.2,
-    Raro: 1.5,
-    Épico: 2.0,
-    Lendário: 2.5,
-    Mítico: 3.5
-};
-
-function getRarityColor(rarity) {
-    return (
-        RARITY_COLORS[rarity] ||
-        '⚪'
-    );
+function getRarityEmoji(rarity) {
+    return RARITIES[rarity]?.emoji || '⚪';
 }
 
-function getRarityEmoji(rarity) {
-    return (
-        RARITY_EMOJIS[rarity] ||
-        '⚪'
-    );
+function getRarityMult(rarity) {
+    return RARITIES[rarity]?.mult || 1;
 }
 
 function getSlotEmoji(slot) {
-    return (
-        SLOT_EMOJIS[slot] ||
-        '📦'
-    );
+    return SLOT_EMOJIS[slot] || '📦';
 }
 
 module.exports = {
-    RARITY_COLORS,
-    RARITY_EMOJIS,
+    RARITIES,
     SLOT_EMOJIS,
     CLASSES,
-    RARITY_MULT,
-    getRarityColor,
     getRarityEmoji,
+    getRarityMult,
     getSlotEmoji
 };
