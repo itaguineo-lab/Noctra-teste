@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const { Telegraf } = require('telegraf');
-const http = require('http');
+const express = require('express');
 
 const { mainMenu } = require('./src/menus/mainMenu');
 
@@ -59,12 +59,14 @@ const {
 
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
+
 const {
     handleEquip,
     handleEquipSoulCommand
 } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
+const app = express();
 
 function getMainMenuMessage() {
     return `╔══════════════════════════════════╗
@@ -190,7 +192,7 @@ bot.action('combat_flee', handleFlee);
 bot.action('combat_back', handleCombatBack);
 
 /*
-  MASMORRA COM BATALHA
+  MASMORRA
 */
 bot.action('dungeon', handleDungeon);
 bot.action('dungeon_attack', handleDungeonAttack);
@@ -258,18 +260,30 @@ bot.action('class_help', async (ctx) => {
 });
 
 /*
-  KEEP ALIVE
+  HEALTH / KEEP ALIVE
 */
 const PORT = process.env.PORT || 3000;
 
-http.createServer((req, res) => {
-    res.writeHead(200, {
-        'Content-Type': 'text/plain'
+app.get('/', (req, res) => {
+    res.status(200).send('🌙 NOCTRA ONLINE');
+});
+
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'online',
+        service: 'NOCTRA RPG',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
     });
+});
 
-    res.end('Noctra online');
-}).listen(PORT);
+app.listen(PORT, () => {
+    console.log(`🌐 Health server ativo na porta ${PORT}`);
+});
 
+/*
+  BOT LAUNCH
+*/
 bot.launch();
 
 console.log('✅ NOCTRA ONLINE');
