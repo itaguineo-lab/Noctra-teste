@@ -1,81 +1,45 @@
+const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { generateItem } = require('../data/items');
 
-function getDungeonByMap(mapId) {
-    const dungeons = {
-        clareira_sombria: {
-            id: 'wolf_den',
-            name: '🐺 Covil do Alfa',
-            minLevel: 3,
-            goldReward: 120,
-            xpReward: 80
-        },
-        cripta_em_ruinas: {
-            id: 'necro_crypt',
-            name: '☠️ Cripta do Necromante',
-            minLevel: 8,
-            goldReward: 250,
-            xpReward: 180
-        },
-        pantano_corrompido: {
-            id: 'swamp_core',
-            name: '🧪 Núcleo do Pântano',
-            minLevel: 15,
-            goldReward: 500,
-            xpReward: 350
-        },
-        deserto_incandescente: {
-            id: 'flame_tomb',
-            name: '🔥 Tumba das Brasas',
-            minLevel: 24,
-            goldReward: 900,
-            xpReward: 650
-        }
-    };
-
-    return (
-        dungeons[mapId] ||
-        dungeons.clareira_sombria
-    );
-}
-
-function canEnterDungeon(player, dungeon) {
-    if (player.level < dungeon.minLevel) {
-        return {
-            success: false,
-            message:
-                `❌ Nível insuficiente.\n` +
-                `Requer nível ${dungeon.minLevel}.`
-        };
+const DUNGEON_STAGES = [
+    {
+        type: 'mob',
+        name: '🐺 Sala 1 — Lobos Sombrio',
+        xp: 20,
+        gold: 30
+    },
+    {
+        type: 'event',
+        name: '🪙 Sala 2 — Baú Antigo',
+        xp: 15,
+        gold: 50
+    },
+    {
+        type: 'elite',
+        name: '☠️ Sala 3 — Guardião Elite',
+        xp: 40,
+        gold: 70
+    },
+    {
+        type: 'boss',
+        name: '👑 Sala Final — Boss',
+        xp: 80,
+        gold: 120
     }
-
-    if ((player.energy || 0) < 3) {
-        return {
-            success: false,
-            message:
-                `⚡ Energia insuficiente.\n` +
-                `Necessário: 3`
-        };
-    }
-
-    return { success: true };
-}
+];
 
 function getDungeonCooldown(player) {
     const now = Date.now();
     const lastRun = player.lastDungeonRun || 0;
-    const cooldown = 6 * 60 * 60 * 1000; // 6 horas
+    const cooldown = 6 * 60 * 60 * 1000;
 
-    const remaining = cooldown - (now - lastRun);
-
-    return Math.max(0, remaining);
+    return Math.max(0, cooldown - (now - lastRun));
 }
 
 function formatCooldown(ms) {
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const minutes = Math.floor(
-        (ms % (1000 * 60 * 60)) / (1000 * 60)
-    );
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
 
     return `${hours}h ${minutes}min`;
 }
@@ -84,40 +48,87 @@ async function handleDungeon(ctx) {
     await ctx.answerCbQuery?.();
 
     const player = getPlayer(ctx.from.id);
-    const dungeon = getDungeonByMap(player.currentMap);
 
     const cooldownRemaining = getDungeonCooldown(player);
 
     if (cooldownRemaining > 0) {
         return ctx.reply(
-            `⏳ A masmorra já foi concluída recentemente.\n\n` +
-            `Tempo restante: ${formatCooldown(cooldownRemaining)}`
+            `⏳ Masmorra em recarga.\nTempo restante: ${formatCooldown(cooldownRemaining)}`
         );
     }
 
-    const check = canEnterDungeon(player, dungeon);
-
-    if (!check.success) {
-        return ctx.reply(check.message);
+    if ((player.energy || 0) < 3) {
+        return ctx.reply('⚡ Energia insuficiente. Necessário: 3');
     }
 
-    /*
-      custo
-    */
     player.energy -= 3;
 
-    /*
-      recompensa
-    */
-    const gold = dungeon.goldReward;
-    const xp = dungeon.xpReward;
+    player.dungeonProgress = {
+        stage: 0,
+        startedAt: Date.now()
+    };
 
-    player.gold += gold;
-    player.xp += xp;
+    savePlayer(ctx.from.id, player);
 
-    /*
-      loot garantido de boss
-    */
+    return showDungeonStage(ctx, player);
+}
+
+async function showDungeonStage(ctx, player) {
+    const progress = player.dungeonProgress;
+    const stage = DUNGEON_STAGES[progress.stage];
+
+    return ctx.reply(
+        `🏰 *MASMORRA*\n\n${stage.name}\n\nEscolha sua ação:`,
+        {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [
+                    Markup.button.callback(
+                        '⚔️ Avançar',
+                        'dungeon_next'
+                    )
+                ],
+                [
+                    Markup.button.callback(
+                        '🏃 Fugir',
+                        'dungeon_flee'
+                    )
+                ]
+            ])
+        }
+    );
+}
+
+async function handleDungeonNext(ctx) {
+    await ctx.answerCbQuery();
+
+    const player = getPlayer(ctx.from.id);
+
+    if (!player.dungeonProgress) {
+        return ctx.reply('❌ Nenhuma masmorra ativa.');
+    }
+
+    const currentStage =
+        DUNGEON_STAGES[player.dungeonProgress.stage];
+
+    player.xp += currentStage.xp;
+    player.gold += currentStage.gold;
+
+    player.dungeonProgress.stage++;
+
+    if (
+        player.dungeonProgress.stage >=
+        DUNGEON_STAGES.length
+    ) {
+        return finishDungeon(ctx, player);
+    }
+
+    savePlayer(ctx.from.id, player);
+
+    return showDungeonStage(ctx, player);
+}
+
+async function finishDungeon(ctx, player) {
     let droppedItem = null;
 
     if (
@@ -137,33 +148,42 @@ async function handleDungeon(ctx) {
         player.inventory.push(droppedItem);
     }
 
-    /*
-      cooldown
-    */
     player.lastDungeonRun = Date.now();
+    player.dungeonProgress = null;
 
     savePlayer(ctx.from.id, player);
 
     let msg =
-        `🏰 *MASMORRA CONCLUÍDA*\n\n` +
-        `${dungeon.name}\n\n` +
-        `✨ +${xp} XP\n` +
-        `💰 +${gold} ouro\n`;
+        `🏆 *MASMORRA CONCLUÍDA*\n\n` +
+        `✨ Dungeon finalizada com sucesso!\n`;
 
     if (droppedItem) {
         msg +=
-            `\n🎁 Loot:\n` +
+            `\n🎁 Loot Final:\n` +
             `${droppedItem.emoji} ${droppedItem.name}`;
     }
-
-    msg +=
-        `\n\n⚡ -3 energia`;
 
     return ctx.reply(msg, {
         parse_mode: 'Markdown'
     });
 }
 
+async function handleDungeonFlee(ctx) {
+    await ctx.answerCbQuery();
+
+    const player = getPlayer(ctx.from.id);
+
+    player.dungeonProgress = null;
+
+    savePlayer(ctx.from.id, player);
+
+    return ctx.reply(
+        '🏃 Você abandonou a masmorra.'
+    );
+}
+
 module.exports = {
-    handleDungeon
+    handleDungeon,
+    handleDungeonNext,
+    handleDungeonFlee
 };
