@@ -1,7 +1,7 @@
 function calculateDamage(attacker, defender, options = {}) {
     const {
         multiplier = 1,
-        critBonus = 1.5,
+        critBonus = 1.6,
         minDamage = 1
     } = options;
 
@@ -9,39 +9,31 @@ function calculateDamage(attacker, defender, options = {}) {
     let def = defender.def || 0;
     const critChance = attacker.crit || 5;
 
-    // Aplicar buffs de ataque no atacante
-    if (attacker.buffs && Array.isArray(attacker.buffs)) {
-        attacker.buffs.forEach(buff => {
-            if (buff.type === 'atk') atk += buff.value;
-        });
-    }
-
-    // Aplicar buffs de defesa no defensor
-    if (defender.buffs && Array.isArray(defender.buffs)) {
-        defender.buffs.forEach(buff => {
-            if (buff.type === 'def') def += buff.value;
-        });
-    }
-
-    const variance = 0.9 + Math.random() * 0.2;
+    const variance = 0.92 + Math.random() * 0.16;
 
     let rawDamage = atk * variance * multiplier;
 
-    const isCrit = Math.random() * 100 <= critChance;
+    const isCrit =
+        Math.random() * 100 <= critChance;
 
     if (isCrit) {
         rawDamage *= critBonus;
     }
 
-    // defesa escalável
-    const mitigation = def / (def + 50);
-    const finalDamage = Math.max(minDamage, Math.floor(rawDamage * (1 - mitigation)));
+    const mitigation = def / (def + 45);
+
+    const finalDamage = Math.max(
+        minDamage,
+        Math.floor(rawDamage * (1 - mitigation))
+    );
 
     return {
         damage: finalDamage,
         isCrit,
         rawDamage: Math.floor(rawDamage),
-        mitigation: Number(mitigation.toFixed(2))
+        mitigation: Number(
+            mitigation.toFixed(2)
+        )
     };
 }
 
