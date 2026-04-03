@@ -1,31 +1,31 @@
 const { Markup } = require('telegraf');
-const { getPlayer, savePlayer } = require('../core/player/playerService');
-const { generateItem } = require('../data/items');
+const {
+    getPlayer,
+    savePlayer
+} = require('../core/player/playerService');
 
-const DUNGEON_STAGES = [
+const DUNGEON_ENEMIES = [
     {
-        type: 'mob',
-        name: '🐺 Sala 1 — Lobos Sombrio',
-        xp: 20,
-        gold: 30
+        name: '🐺 Lobo Sombrio',
+        hp: 30,
+        atk: 8,
+        gold: 25,
+        xp: 20
     },
     {
-        type: 'event',
-        name: '🪙 Sala 2 — Baú Antigo',
-        xp: 15,
-        gold: 50
+        name: '☠️ Guardião Espectral',
+        hp: 50,
+        atk: 12,
+        gold: 40,
+        xp: 35
     },
     {
-        type: 'elite',
-        name: '☠️ Sala 3 — Guardião Elite',
-        xp: 40,
-        gold: 70
-    },
-    {
-        type: 'boss',
-        name: '👑 Sala Final — Boss',
-        xp: 80,
-        gold: 120
+        name: '👑 Lorde das Sombras',
+        hp: 80,
+        atk: 18,
+        gold: 80,
+        xp: 60,
+        boss: true
     }
 ];
 
@@ -58,34 +58,40 @@ async function handleDungeon(ctx) {
     }
 
     if ((player.energy || 0) < 3) {
-        return ctx.reply('⚡ Energia insuficiente. Necessário: 3');
+        return ctx.reply(
+            '⚡ Energia insuficiente. Necessário: 3'
+        );
     }
 
     player.energy -= 3;
 
     player.dungeonProgress = {
         stage: 0,
-        startedAt: Date.now()
+        enemy: {
+            ...DUNGEON_ENEMIES[0]
+        }
     };
 
     savePlayer(ctx.from.id, player);
 
-    return showDungeonStage(ctx, player);
+    return renderDungeonBattle(ctx, player);
 }
 
-async function showDungeonStage(ctx, player) {
-    const progress = player.dungeonProgress;
-    const stage = DUNGEON_STAGES[progress.stage];
+async function renderDungeonBattle(ctx, player) {
+    const enemy = player.dungeonProgress.enemy;
 
     return ctx.reply(
-        `🏰 *MASMORRA*\n\n${stage.name}\n\nEscolha sua ação:`,
+        `🏰 *MASMORRA*\n\n` +
+            `${enemy.name}\n` +
+            `❤️ HP: ${enemy.hp}\n\n` +
+            `Seu HP: ${player.hp}/${player.maxHp}`,
         {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
                 [
                     Markup.button.callback(
-                        '⚔️ Avançar',
-                        'dungeon_next'
+                        '⚔️ Atacar',
+                        'dungeon_attack'
                     )
                 ],
                 [
@@ -99,91 +105,155 @@ async function showDungeonStage(ctx, player) {
     );
 }
 
-async function handleDungeonNext(ctx) {
+async function handleDungeonAttack(ctx) {
     await ctx.answerCbQuery();
 
     const player = getPlayer(ctx.from.id);
 
     if (!player.dungeonProgress) {
-        return ctx.reply('❌ Nenhuma masmorra ativa.');
+        return ctx.reply(
+            '❌ Nenhuma masmorra ativa.'
+        );
     }
 
-    const currentStage =
-        DUNGEON_STAGES[player.dungeonProgress.stage];
+    const enemy = player.dungeonProgress.enemy;
 
-    player.xp += currentStage.xp;
-    player.gold += currentStage.gold;
+    const playerDamage = Math.max(
+        1,
+        player.atk -
+            Math.floor(Math.random() * 4)
+    );
+
+    enemy.hp -= playerDamage;
+
+    let text =
+        `⚔️ Você causou ${playerDamage} de dano!\n`;
+
+    if (enemy.hp > 0) {
+        const enemyDamage = Math.max(
+            1,
+            enemy.atk -
+                Math.floor(
+                    player.def / 3
+                )
+        );
+
+        player.hp -= enemyDamage;
+
+        text +=
+            `${enemy.name} causou ${enemyDamage} de dano!\n`;
+
+        if (player.hp <= 0) {
+            player.hp = player.maxHp;
+            player.dungeonProgress = null;
+
+            savePlayer(ctx.from.id, player);
+
+            return ctx.reply(
+                `💀 Você foi derrotado na masmorra.\nRetornou à vila.`
+            );
+        }
+
+        savePlayer(ctx.from.id, player);
+
+        return ctx.reply(
+            text +
+                `\n❤️ ${enemy.name}: ${enemy.hp}\n` +
+                `❤️ Você: ${player.hp}/${player.maxHp}`,
+            {
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(
+                            '⚔️ Continuar',
+                            'dungeon_attack'
+                        )
+                    ]
+                ])
+            }
+        );
+    }
+
+    player.gold += enemy.gold;
+    player.xp += enemy.xp;
 
     player.dungeonProgress.stage++;
 
     if (
         player.dungeonProgress.stage >=
-        DUNGEON_STAGES.length
+        DUNGEON_ENEMIES.length
     ) {
-        return finishDungeon(ctx, player);
-    }
+        player.lastDungeonRun =
+            Date.now();
 
-    savePlayer(ctx.from.id, player);
+        player.dungeonProgress =
+            null;
 
-    return showDungeonStage(ctx, player);
-}
-
-async function finishDungeon(ctx, player) {
-    let droppedItem = null;
-
-    if (
-        player.inventory.length <
-        player.maxInventory
-    ) {
-        droppedItem = generateItem(
-            player.level,
-            null,
-            {
-                currentMap: player.currentMap,
-                isBoss: true,
-                isDungeonBoss: true
-            }
+        savePlayer(
+            ctx.from.id,
+            player
         );
 
-        player.inventory.push(droppedItem);
+        return ctx.reply(
+            `🏆 Boss derrotado!\n💰 +${enemy.gold}\n✨ +${enemy.xp} XP`
+        );
     }
 
-    player.lastDungeonRun = Date.now();
-    player.dungeonProgress = null;
+    player.dungeonProgress.enemy =
+        {
+            ...DUNGEON_ENEMIES[
+                player
+                    .dungeonProgress
+                    .stage
+            ]
+        };
 
     savePlayer(ctx.from.id, player);
 
-    let msg =
-        `🏆 *MASMORRA CONCLUÍDA*\n\n` +
-        `✨ Dungeon finalizada com sucesso!\n`;
+    return ctx.reply(
+        `✅ ${enemy.name} derrotado!\n\nPróxima sala...`,
+        {
+            ...Markup.inlineKeyboard([
+                [
+                    Markup.button.callback(
+                        '➡️ Avançar',
+                        'dungeon_next_room'
+                    )
+                ]
+            ])
+        }
+    );
+}
 
-    if (droppedItem) {
-        msg +=
-            `\n🎁 Loot Final:\n` +
-            `${droppedItem.emoji} ${droppedItem.name}`;
-    }
+async function handleDungeonNextRoom(ctx) {
+    await ctx.answerCbQuery();
 
-    return ctx.reply(msg, {
-        parse_mode: 'Markdown'
-    });
+    const player = getPlayer(ctx.from.id);
+
+    return renderDungeonBattle(
+        ctx,
+        player
+    );
 }
 
 async function handleDungeonFlee(ctx) {
     await ctx.answerCbQuery();
 
-    const player = getPlayer(ctx.from.id);
+    const player = getPlayer(
+        ctx.from.id
+    );
 
     player.dungeonProgress = null;
 
     savePlayer(ctx.from.id, player);
 
     return ctx.reply(
-        '🏃 Você abandonou a masmorra.'
+        '🏃 Você fugiu da masmorra.'
     );
 }
 
 module.exports = {
     handleDungeon,
-    handleDungeonNext,
+    handleDungeonAttack,
+    handleDungeonNextRoom,
     handleDungeonFlee
 };
