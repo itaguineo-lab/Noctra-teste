@@ -4,20 +4,10 @@ const { Telegraf } = require('telegraf');
 const http = require('http');
 
 const { mainMenu } = require('./src/menus/mainMenu');
+
 const { handleProfile } = require('./src/handlers/profile');
 const {
     handleInventory,
-    handleInvWeapons,
-    handleInvArmors,
-    handleInvJewelry,
-    handleInvBoots,
-    handleInvConsumables,
-    handleInvSouls,
-    handleEquipItem,
-    handleUnequipItem,
-    handleEquipSoul,
-    handleUnequipSoul,
-    handleUsePotionOutside,
     handleAutoEquip
 } = require('./src/handlers/inventory');
 
@@ -75,32 +65,25 @@ function getMainMenuMessage() {
 ╚══════════════════════════════════╝`;
 }
 
+/*
+  REMOVE WEBHOOK
+*/
 (async () => {
     try {
-        const webhookInfo =
-            await bot.telegram.getWebhookInfo();
+        const webhookInfo = await bot.telegram.getWebhookInfo();
 
         if (webhookInfo.url) {
-            console.log(
-                `⚠️ Webhook ativo: ${webhookInfo.url}. Removendo...`
-            );
-
+            console.log(`⚠️ Webhook ativo: ${webhookInfo.url}. Removendo...`);
             await bot.telegram.deleteWebhook();
-
-            console.log(
-                '✅ Webhook removido. Usando polling.'
-            );
+            console.log('✅ Webhook removido.');
         }
     } catch (err) {
-        console.error(
-            '❌ Erro ao verificar webhook:',
-            err.message
-        );
+        console.error('❌ Erro webhook:', err.message);
     }
 })();
 
 /*
-  COMANDOS
+  START
 */
 bot.start(async (ctx) => {
     await ctx.reply(getMainMenuMessage(), {
@@ -109,6 +92,9 @@ bot.start(async (ctx) => {
     });
 });
 
+/*
+  COMANDOS
+*/
 bot.command('energy', handleEnergy);
 bot.command('rename', handleRename);
 bot.command('class', handleClass);
@@ -123,18 +109,15 @@ bot.command('equip', handleEquip);
 bot.command('equipsoul', handleEquipSoulCommand);
 
 /*
-  MENU
+  MENU PRINCIPAL
 */
 bot.action('menu', async (ctx) => {
     await ctx.answerCbQuery();
 
-    await ctx.editMessageText(
-        getMainMenuMessage(),
-        {
-            parse_mode: 'Markdown',
-            ...mainMenu()
-        }
-    );
+    await ctx.editMessageText(getMainMenuMessage(), {
+        parse_mode: 'Markdown',
+        ...mainMenu()
+    });
 });
 
 /*
@@ -150,6 +133,7 @@ bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
 bot.action('dungeon', handleDungeon);
+bot.action('auto_equip', handleAutoEquip);
 
 /*
   COMBATE
@@ -181,39 +165,11 @@ bot.action('use_tonic_defense', (ctx) =>
     useConsumable(ctx, 'tonic_defense')
 );
 
-bot.action('use_potion_outside_hp', (ctx) =>
-    handleUsePotionOutside(ctx, 'hp')
-);
-
 bot.action('rest_energy', handleRestEnergy);
 
 bot.action('noop', async (ctx) => {
     await ctx.answerCbQuery();
 });
-
-/*
-  INVENTÁRIO
-*/
-bot.action('inv_weapons', handleInvWeapons);
-bot.action('inv_armors', handleInvArmors);
-bot.action('inv_jewelry', handleInvJewelry);
-bot.action('inv_boots', handleInvBoots);
-bot.action('inv_consumables', handleInvConsumables);
-bot.action('inv_souls', handleInvSouls);
-bot.action('auto_equip', handleAutoEquip);
-
-bot.action(
-    /^equip_(weapon|armor|necklace|ring|boots)_(.+)$/,
-    handleEquipItem
-);
-
-bot.action(
-    /^unequip_(weapon|armor|necklace|ring|boots)$/,
-    handleUnequipItem
-);
-
-bot.action(/^equip_soul_(.+)$/, handleEquipSoul);
-bot.action(/^unequip_soul_(\d+)$/, handleUnequipSoul);
 
 /*
   LOJA
