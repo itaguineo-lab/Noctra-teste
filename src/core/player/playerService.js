@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { updateEnergy } = require('../../services/energyService');
 
 const playersFilePath = path.join(__dirname, '../../data/players.json');
 
@@ -130,7 +131,7 @@ function ensurePlayerState(player) {
     player.updatedAt ??= Date.now();
     player.lastActive ??= Date.now();
 
-    // NOVOS CAMPOS
+    // Campos para sistemas novos
     player.soulPityCounter ??= 0;
     player.lastDailyReset ??= 0;
     player.streak ??= 0;
@@ -138,7 +139,8 @@ function ensurePlayerState(player) {
     player.dailyMissions ??= {
         kills: 0,
         energySpent: 0,
-        dailyChestCollected: false
+        dailyChestCollected: false,
+        rewardsClaimed: false
     };
 
     applyVipState(player);
@@ -184,6 +186,7 @@ function createDefaultPlayer(id, name = 'Viajante') {
     return ensurePlayerState({ id, name });
 }
 
+// CORREÇÃO CRÍTICA: getPlayer agora chama updateEnergy
 function getPlayer(id, name = 'Viajante') {
     if (playersCache === null) loadPlayersToCache();
     if (!playersCache[id]) {
@@ -191,6 +194,8 @@ function getPlayer(id, name = 'Viajante') {
         scheduleSave();
     }
     const player = ensurePlayerState(playersCache[id]);
+    // Aplica regeneração de energia sempre que o jogador é carregado
+    updateEnergy(player);
     player.lastActive = Date.now();
     return player;
 }
@@ -209,6 +214,18 @@ function getAllPlayers() {
     return playersCache;
 }
 
+// Função auxiliar para sincronizar stats do jogador com um objeto de luta (usada no combat.js)
+function syncFightStatsFromPlayer(player, fight) {
+    if (!fight || !fight.player) return;
+    fight.player.atk = player.atk;
+    fight.player.def = player.def;
+    fight.player.maxHp = player.maxHp;
+    fight.player.crit = player.crit;
+    fight.player.energy = player.energy;
+    fight.player.maxEnergy = player.maxEnergy;
+    fight.player.buffs = Array.isArray(player.buffs) ? player.buffs.map(buff => ({ ...buff })) : [];
+}
+
 process.once('beforeExit', flushCacheToDisk);
 process.once('SIGINT', flushCacheToDisk);
 process.once('SIGTERM', flushCacheToDisk);
@@ -221,5 +238,6 @@ module.exports = {
     ensurePlayerState,
     flushCacheToDisk,
     getAllPlayers,
-    updateBuffs
+    updateBuffs,
+    syncFightStatsFromPlayer
 };
