@@ -1,12 +1,3 @@
-const raridades = [
-  { name: 'Comum', chance: 50, price: 50, emoji: '⚪' },
-  { name: 'Incomum', chance: 25, price: 120, emoji: '🟢' },
-  { name: 'Raro', chance: 15, price: 300, emoji: '🔵' },
-  { name: 'Épico', chance: 7, price: 800, emoji: '🟣' },
-  { name: 'Lendário', chance: 2.5, price: 2000, emoji: '🟠' },
-  { name: 'Mítico', chance: 0.5, price: 5000, emoji: '🔴' }
-];
-
 const rarityMultiplier = {
   Comum: 1,
   Incomum: 1.3,
@@ -14,6 +5,15 @@ const rarityMultiplier = {
   Épico: 2.3,
   Lendário: 3.2,
   Mítico: 5
+};
+
+const rarityData = {
+  Comum: { price: 50, emoji: '⚪' },
+  Incomum: { price: 120, emoji: '🟢' },
+  Raro: { price: 300, emoji: '🔵' },
+  Épico: { price: 800, emoji: '🟣' },
+  Lendário: { price: 2000, emoji: '🟠' },
+  Mítico: { price: 5000, emoji: '🔴' }
 };
 
 const itemTypes = [
@@ -24,30 +24,100 @@ const itemTypes = [
   { slot: 'boots', namePrefix: 'Bota', atkBase: 0, defBase: 3, critBase: 1, hpBase: 4 }
 ];
 
-function getRarity() {
-  const roll = Math.random() * 100;
-  let total = 0;
-  for (const rarity of raridades) {
-    total += rarity.chance;
-    if (roll <= total) return rarity;
-  }
-  return raridades[0];
+/**
+ * Raridades permitidas por mapa
+ */
+const mapRarityRules = {
+  clareira_sombria: ['Comum', 'Incomum'],
+  cripta_em_ruinas: ['Incomum', 'Raro'],
+  pantano_corrompido: ['Raro', 'Épico'],
+  deserto_incandescente: ['Épico']
+};
+
+/**
+ * Escolhe raridade normal por mapa
+ */
+function getMapRarity(currentMap = 'clareira_sombria') {
+  const allowed = mapRarityRules[currentMap] || ['Comum'];
+
+  const weightedPool = [];
+
+  allowed.forEach(rarity => {
+    if (rarity === 'Comum') weightedPool.push(...Array(50).fill(rarity));
+    if (rarity === 'Incomum') weightedPool.push(...Array(30).fill(rarity));
+    if (rarity === 'Raro') weightedPool.push(...Array(15).fill(rarity));
+    if (rarity === 'Épico') weightedPool.push(...Array(5).fill(rarity));
+  });
+
+  return weightedPool[Math.floor(Math.random() * weightedPool.length)];
 }
 
-function generateItem(playerLevel, forcedType = null) {
+/**
+ * Loot exclusivo de boss
+ */
+function getBossRarity(currentMap = 'clareira_sombria', isDungeonBoss = false) {
+  const roll = Math.random() * 100;
+
+  if (isDungeonBoss) {
+    if (roll <= 3) return 'Mítico';
+    if (roll <= 25) return 'Lendário';
+    if (roll <= 70) return 'Épico';
+    return 'Raro';
+  }
+
+  switch (currentMap) {
+    case 'clareira_sombria':
+      return roll <= 20 ? 'Raro' : 'Incomum';
+
+    case 'cripta_em_ruinas':
+      if (roll <= 10) return 'Lendário';
+      if (roll <= 45) return 'Épico';
+      return 'Raro';
+
+    case 'pantano_corrompido':
+      if (roll <= 15) return 'Lendário';
+      if (roll <= 60) return 'Épico';
+      return 'Raro';
+
+    case 'deserto_incandescente':
+      if (roll <= 25) return 'Lendário';
+      if (roll <= 30) return 'Mítico';
+      return 'Épico';
+
+    default:
+      return 'Comum';
+  }
+}
+
+/**
+ * Geração principal
+ */
+function generateItem(playerLevel, forcedType = null, options = {}) {
+  const {
+    currentMap = 'clareira_sombria',
+    isBoss = false,
+    isDungeonBoss = false
+  } = options;
+
   const type = forcedType
     ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0]
     : itemTypes[Math.floor(Math.random() * itemTypes.length)];
-  const rarity = getRarity();
-  const mult = rarityMultiplier[rarity.name] || 1;
+
+  const rarityName = isBoss
+    ? getBossRarity(currentMap, isDungeonBoss)
+    : getMapRarity(currentMap);
+
+  const rarity = rarityData[rarityName];
+  const mult = rarityMultiplier[rarityName] || 1;
   const levelBonus = Math.max(1, Math.floor(playerLevel * 0.8));
-  // ID mais limpo: sem espaços e sem caracteres especiais
+
   const id = `item_${Date.now()}_${Math.floor(Math.random() * 999999)}`;
+
   return {
-    id: id,
-    name: `${type.namePrefix} ${rarity.name}`,
+    id,
+    name: `${type.namePrefix} ${rarityName}`,
     slot: type.slot,
-    rarity: rarity.name,
+    rarity: rarityName,
     atk: Math.floor((type.atkBase + levelBonus) * mult),
     def: Math.floor((type.defBase + levelBonus) * mult),
     crit: Math.floor((type.critBase + levelBonus / 2) * mult),
@@ -57,4 +127,10 @@ function generateItem(playerLevel, forcedType = null) {
   };
 }
 
-module.exports = { raridades, itemTypes, generateItem };
+module.exports = {
+  itemTypes,
+  rarityMultiplier,
+  generateItem,
+  getMapRarity,
+  getBossRarity
+};
