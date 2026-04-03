@@ -12,9 +12,7 @@ async function handleRanking(ctx) {
             kills: p.totalKills || 0
         }));
 
-    // Top 10 por nível
     const topLevel = [...list].sort((a,b) => b.level - a.level).slice(0,10);
-    // Top 10 por kills
     const topKills = [...list].sort((a,b) => b.kills - a.kills).slice(0,10);
 
     let msg = `🏆 *RANKING GLOBAL*\n\n`;
