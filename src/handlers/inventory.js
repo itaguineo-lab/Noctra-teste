@@ -9,180 +9,84 @@ const {
     inventoryMainMenu
 } = require('../menus/inventoryMenu');
 
-const EQUIPABLE_SLOTS = [
-    'weapon',
-    'armor',
-    'necklace',
-    'ring',
-    'boots'
-];
-
-const CATEGORY_CONFIG = {
-    weapon: {
-        title: '⚔️ Armas',
-        slots: ['weapon'],
-        interactive: true
-    },
-    armor: {
-        title: '🛡️ Armaduras',
-        slots: ['armor'],
-        interactive: true
-    },
-    jewelry: {
-        title: '💍 Jóias',
-        slots: ['ring', 'necklace'],
-        interactive: true
-    },
-    skin: {
-        title: '🎨 Skins',
-        slots: ['skin'],
-        interactive: false
-    },
-    consumable: {
-        title: '🧪 Consumíveis',
-        slots: ['consumable'],
-        interactive: false
-    },
-    soul: {
-        title: '💀 Almas',
-        slots: ['soul'],
-        interactive: false
-    }
-};
-
-function getCategoryConfig(category) {
-    return CATEGORY_CONFIG[category] || CATEGORY_CONFIG.weapon;
-}
-
 function getCategoryItems(player, category) {
     const inventory = player.inventory || [];
 
-    switch (category) {
-        case 'weapon':
-            return inventory.filter(
-                item => item.slot === 'weapon'
-            );
-
-        case 'armor':
-            return inventory.filter(
-                item => item.slot === 'armor'
-            );
-
-        case 'jewelry':
-            return inventory.filter(item =>
-                ['ring', 'necklace'].includes(
-                    item.slot
-                )
-            );
-
-        case 'skin':
-            return inventory.filter(
-                item => item.slot === 'skin'
-            );
-
-        case 'consumable':
-            return inventory.filter(
-                item => item.slot === 'consumable'
-            );
-
-        case 'soul':
-            return player.soulsInventory || [];
-
-        default:
-            return [];
+    if (category === 'weapon') {
+        return inventory.filter(i => i.slot === 'weapon');
     }
-}
 
-function getEquippedBySlot(player, slot) {
-    return player.equipment?.[slot] || null;
-}
-
-function formatItem(item, isEquipped = false) {
-    const stats = [];
-
-    if (item.atk)
-        stats.push(`⚔️ +${item.atk}`);
-    if (item.def)
-        stats.push(`🛡️ +${item.def}`);
-    if (item.hp)
-        stats.push(`❤️ +${item.hp}`);
-    if (item.crit)
-        stats.push(`💥 +${item.crit}%`);
-
-    return `${item.emoji || '⚪'} ${
-        item.name
-    } ${isEquipped ? '✅' : ''}
-${stats.join(' | ') || 'Sem bônus'}`;
-}
-
-function buildCategoryText(
-    player,
-    category,
-    items
-) {
-    const config = getCategoryConfig(category);
-
-    let text = `🎒 *${config.title}*\n\n`;
-
-    if (!items.length) {
-        text += 'Nenhum item nesta categoria.';
-        return text;
+    if (category === 'armor') {
+        return inventory.filter(i => i.slot === 'armor');
     }
+
+    if (category === 'jewelry') {
+        return inventory.filter(i =>
+            ['ring', 'necklace'].includes(i.slot)
+        );
+    }
+
+    return [];
+}
+
+function categoryFromSlot(slot) {
+    if (slot === 'weapon') return 'weapon';
+    if (slot === 'armor') return 'armor';
+    return 'jewelry';
+}
+
+function titleFromCategory(category) {
+    if (category === 'weapon') return '⚔️ Armas';
+    if (category === 'armor') return '🛡️ Armaduras';
+    return '💍 Jóias';
+}
+
+function renderCategoryText(player, category) {
+    const items = getCategoryItems(player, category);
+
+    let text = `🎒 *${titleFromCategory(category)}*\n\n`;
+
+    const equippedSlots = player.equipment || {};
 
     items.forEach(item => {
-        const equipped =
-            getEquippedBySlot(
-                player,
-                item.slot
-            );
-
+        const equipped = equippedSlots[item.slot];
         const isEquipped =
             equipped &&
-            String(equipped.id) ===
-                String(item.id);
+            equipped.name === item.name;
 
-        text += `${formatItem(
-            item,
-            isEquipped
-        )}\n\n`;
+        text += `${item.emoji || '⚪'} ${item.name} ${isEquipped ? '✅' : ''}\n`;
+        text += `⚔️ ${item.atk || 0} | 🛡️ ${item.def || 0} | ❤️ ${item.hp || 0} | 💥 ${item.crit || 0}%\n\n`;
     });
 
     return text;
 }
 
-function buildCategoryKeyboard(
-    player,
-    category,
-    items
-) {
+function renderCategoryKeyboard(player, category) {
+    const items = getCategoryItems(player, category);
+
     const rows = [];
 
     items.forEach(item => {
         const equipped =
-            getEquippedBySlot(
-                player,
-                item.slot
-            );
+            player.equipment?.[item.slot];
 
         const isEquipped =
             equipped &&
-            String(equipped.id) ===
-                String(item.id);
+            equipped.name === item.name;
 
-        if (
-            CATEGORY_CONFIG[category]
-                .interactive
-        ) {
+        if (isEquipped) {
             rows.push([
-                isEquipped
-                    ? Markup.button.callback(
-                          `➖ Desequipar ${item.name}`,
-                          `unequip_manual_${item.slot}`
-                      )
-                    : Markup.button.callback(
-                          `✨ Equipar ${item.name}`,
-                          `equip_manual_${item.id}`
-                      )
+                Markup.button.callback(
+                    `➖ Desequipar ${item.name}`,
+                    `unequip_manual_${item.slot}`
+                )
+            ]);
+        } else {
+            rows.push([
+                Markup.button.callback(
+                    `✨ Equipar ${item.name}`,
+                    `equip_manual_${item.name}`
+                )
             ]);
         }
     });
@@ -197,65 +101,21 @@ function buildCategoryKeyboard(
     return Markup.inlineKeyboard(rows);
 }
 
-async function handleInventory(ctx) {
-    const player = getPlayer(
-        ctx.from.id
-    );
+async function showCategory(ctx, category) {
+    const player = getPlayer(ctx.from.id);
 
-    await ctx.answerCbQuery?.();
+    const text = renderCategoryText(player, category);
 
-    return ctx.reply(
-        '🎒 *INVENTÁRIO*\n\nEscolha uma categoria:',
-        {
-            parse_mode: 'Markdown',
-            ...inventoryMainMenu(player)
-        }
-    );
-}
-
-async function showCategory(
-    ctx,
-    category,
-    title,
-    options = {}
-) {
-    const player = getPlayer(
-        ctx.from.id
-    );
-
-    if (
-        !options.skipAnswer &&
-        ctx.callbackQuery
-    ) {
-        await ctx.answerCbQuery();
-    }
-
-    const items = getCategoryItems(
+    const keyboard = renderCategoryKeyboard(
         player,
         category
     );
 
-    const text = buildCategoryText(
-        player,
-        category,
-        items
-    );
-
-    const keyboard =
-        buildCategoryKeyboard(
-            player,
-            category,
-            items
-        );
-
     try {
-        return await ctx.editMessageText(
-            text,
-            {
-                parse_mode: 'Markdown',
-                ...keyboard
-            }
-        );
+        return await ctx.editMessageText(text, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
     } catch {
         return await ctx.reply(text, {
             parse_mode: 'Markdown',
@@ -264,186 +124,70 @@ async function showCategory(
     }
 }
 
-function getBestItemForSlot(
-    items,
-    slot
-) {
-    const slotItems = items.filter(
-        item => item.slot === slot
-    );
-
-    if (!slotItems.length) return null;
-
-    return slotItems.sort((a, b) => {
-        const scoreA =
-            (a.atk || 0) * 2 +
-            (a.def || 0) * 1.5 +
-            (a.hp || 0) +
-            (a.crit || 0) * 2;
-
-        const scoreB =
-            (b.atk || 0) * 2 +
-            (b.def || 0) * 1.5 +
-            (b.hp || 0) +
-            (b.crit || 0) * 2;
-
-        return scoreB - scoreA;
-    })[0];
-}
-
-async function handleAutoEquip(
-    ctx
-) {
+async function handleEquipManual(ctx) {
     await ctx.answerCbQuery();
 
-    const player = getPlayer(
-        ctx.from.id
-    );
+    const itemName = ctx.match[1];
 
-    let equipped = 0;
+    const player = getPlayer(ctx.from.id);
 
-    EQUIPABLE_SLOTS.forEach(slot => {
-        const best =
-            getBestItemForSlot(
-                player.inventory || [],
-                slot
-            );
-
-        if (best) {
-            player.equipment[slot] =
-                best;
-            equipped++;
-        }
-    });
-
-    recalculateStats(player);
-    savePlayer(ctx.from.id, player);
-
-    return ctx.reply(
-        `✨ ${equipped} item(ns) equipados automaticamente!`
-    );
-}
-
-async function handleEquipManual(
-    ctx
-) {
-    await ctx.answerCbQuery();
-
-    const itemId = ctx.match?.[1];
-
-    const player = getPlayer(
-        ctx.from.id
-    );
-
-    const item = (
-        player.inventory || []
-    ).find(
-        i =>
-            String(i.id) ===
-            String(itemId)
+    const item = (player.inventory || []).find(
+        i => i.name === itemName
     );
 
     if (!item) {
-        return ctx.answerCbQuery(
-            '❌ Item não encontrado.',
-            { show_alert: true }
-        );
+        return ctx.reply('❌ Item não encontrado.');
     }
 
-    player.equipment[item.slot] =
-        item;
+    player.equipment[item.slot] = item;
 
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    const category =
-        item.slot === 'weapon'
-            ? 'weapon'
-            : item.slot === 'armor'
-            ? 'armor'
-            : 'jewelry';
-
-    const title =
-        category === 'weapon'
-            ? '⚔️ Armas'
-            : category === 'armor'
-            ? '🛡️ Armaduras'
-            : '💍 Jóias';
-
     return showCategory(
         ctx,
-        category,
-        title,
-        {
-            skipAnswer: true
-        }
+        categoryFromSlot(item.slot)
     );
 }
 
-async function handleUnequipManual(
-    ctx
-) {
-    const slot = ctx.match?.[1];
+async function handleUnequipManual(ctx) {
+    await ctx.answerCbQuery();
 
-    const player = getPlayer(
-        ctx.from.id
-    );
+    const slot = ctx.match[1];
 
-    if (!slot) {
-        return ctx.answerCbQuery(
-            '❌ Slot inválido.',
-            { show_alert: true }
-        );
-    }
+    const player = getPlayer(ctx.from.id);
 
     if (!player.equipment) {
         player.equipment = {};
     }
 
-    const equippedItem =
-        player.equipment[slot];
-
-    if (!equippedItem) {
-        return ctx.answerCbQuery(
-            '❌ Nenhum item equipado.',
-            { show_alert: true }
-        );
-    }
-
-    // LIMPEZA REAL DO SLOT
-    delete player.equipment[slot];
     player.equipment[slot] = null;
 
     recalculateStats(player);
     savePlayer(ctx.from.id, player);
 
-    const category =
-        slot === 'weapon'
-            ? 'weapon'
-            : slot === 'armor'
-            ? 'armor'
-            : 'jewelry';
-
-    const title =
-        category === 'weapon'
-            ? '⚔️ Armas'
-            : category === 'armor'
-            ? '🛡️ Armaduras'
-            : '💍 Jóias';
-
     return showCategory(
         ctx,
-        category,
-        title,
+        categoryFromSlot(slot)
+    );
+}
+
+async function handleInventory(ctx) {
+    const player = getPlayer(ctx.from.id);
+
+    await ctx.answerCbQuery?.();
+
+    return ctx.reply(
+        '🎒 *INVENTÁRIO*',
         {
-            skipAnswer: true
+            parse_mode: 'Markdown',
+            ...inventoryMainMenu(player)
         }
     );
 }
 
 module.exports = {
     handleInventory,
-    handleAutoEquip,
     handleEquipManual,
     handleUnequipManual,
     showCategory
