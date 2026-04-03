@@ -30,8 +30,7 @@ const {
 } = require('./src/handlers/travel');
 const {
     handleEnergy,
-    handleRestEnergy,
-    handleBuyEnergy
+    handleRestEnergy
 } = require('./src/handlers/energy');
 const { handleVip } = require('./src/handlers/vip');
 const { handleDaily } = require('./src/handlers/daily');
@@ -177,7 +176,6 @@ bot.action('use_potion_energy', (ctx) => useConsumable(ctx, 'potion_energy'));
 bot.action('use_tonic_strength', (ctx) => useConsumable(ctx, 'tonic_strength'));
 bot.action('use_tonic_defense', (ctx) => useConsumable(ctx, 'tonic_defense'));
 bot.action('rest_energy', handleRestEnergy);
-bot.action('buy_energy', handleBuyEnergy);
 bot.action('noop', async (ctx) => { await ctx.answerCbQuery(); });
 
 /*
