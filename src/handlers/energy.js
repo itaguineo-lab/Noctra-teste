@@ -17,9 +17,11 @@ async function safeEdit(ctx, text, options = {}) {
 }
 
 async function renderEnergy(ctx) {
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
     if (!player) return ctx.reply('❌ Perfil não encontrado.');
     updateEnergy(player);
+    savePlayer(ctx.from.id, player);
+    
     const nextIn = getTimeToNextEnergy(player);
     const interval = getRegenInterval(player);
     const energyToFull = player.maxEnergy - player.energy;
@@ -27,6 +29,7 @@ async function renderEnergy(ctx) {
     const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟨', '⬜');
     const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
     const energyPercent = Math.floor((player.energy / player.maxEnergy) * 100);
+    
     let text = `╔══════════════════════════════════╗
 ║              ⚡ *ENERGIA*              ║
 ╠══════════════════════════════════╣
@@ -42,10 +45,12 @@ async function renderEnergy(ctx) {
 ╠══════════════════════════════════╣
 ║ 🛌 Descansar recupera *todo HP*
 ║ ⚡ Custo: *1 energia*
+║ 💎 Comprar energia na LOJA (5 Nox +10)
 ╚══════════════════════════════════╝`;
+    
     const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🛌 Descansar (-1⚡)', 'rest_energy')],
-        [Markup.button.callback('⚡ Comprar Energia (💎5 +10)', 'buy_energy')],
+        [Markup.button.callback('🛒 Ir à Loja', 'shop')],
         [Markup.button.callback('🏠 Menu', 'menu')]
     ]);
     await safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
@@ -55,13 +60,18 @@ async function handleEnergy(ctx) { return renderEnergy(ctx); }
 
 async function handleRestEnergy(ctx) {
     try {
-        const player = getPlayer(ctx.from.id);
+        let player = getPlayer(ctx.from.id);
+        updateEnergy(player);
         if (!player) return ctx.answerCbQuery('Perfil não encontrado.', { show_alert: true });
         if (player.hp >= player.maxHp) return ctx.answerCbQuery('❤️ HP já está cheio.', { show_alert: true });
         if (player.energy < 1) return ctx.answerCbQuery('⚡ Energia insuficiente.', { show_alert: true });
         player.energy -= 1;
         player.hp = player.maxHp;
         savePlayer(ctx.from.id, player);
+        
+        const { checkMissionProgress } = require('./daily');
+        checkMissionProgress(player, 'energy', 1);
+        
         return renderEnergy(ctx);
     } catch (error) {
         console.error('Erro ao descansar:', error);
@@ -69,24 +79,6 @@ async function handleRestEnergy(ctx) {
     }
 }
 
-async function handleBuyEnergy(ctx) {
-    try {
-        await ctx.answerCbQuery();
-        const player = getPlayer(ctx.from.id);
-        const COST = 5;
-        const AMOUNT = 10;
-        if ((player.nox || 0) < COST) {
-            return ctx.answerCbQuery(`❌ Você precisa de 💎 ${COST} Nox.`, { show_alert: true });
-        }
-        player.nox -= COST;
-        player.energy = Math.min(player.maxEnergy, player.energy + AMOUNT);
-        savePlayer(ctx.from.id, player);
-        await ctx.answerCbQuery(`✅ +${AMOUNT} energia!`, { show_alert: true });
-        return renderEnergy(ctx);
-    } catch (error) {
-        console.error('Erro comprar energia:', error);
-        await ctx.answerCbQuery('Erro ao comprar energia.', { show_alert: true });
-    }
-}
+// REMOVIDO handleBuyEnergy – usar a loja normal
 
-module.exports = { handleEnergy, handleRestEnergy, handleBuyEnergy };
+module.exports = { handleEnergy, handleRestEnergy };
