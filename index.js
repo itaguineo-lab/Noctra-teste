@@ -6,9 +6,12 @@ const http = require('http');
 const { mainMenu } = require('./src/menus/mainMenu');
 
 const { handleProfile } = require('./src/handlers/profile');
+
 const {
     handleInventory,
-    handleAutoEquip
+    handleAutoEquip,
+    handleEquipManual,
+    showCategory
 } = require('./src/handlers/inventory');
 
 const {
@@ -134,6 +137,35 @@ bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
 bot.action('dungeon', handleDungeon);
 bot.action('auto_equip', handleAutoEquip);
+
+/*
+  INVENTÁRIO SUBMENUS
+*/
+bot.action('inv_weapon', (ctx) =>
+    showCategory(ctx, 'weapon', '⚔️ Armas')
+);
+
+bot.action('inv_armor', (ctx) =>
+    showCategory(ctx, 'armor', '🛡️ Armaduras')
+);
+
+bot.action('inv_jewelry', (ctx) =>
+    showCategory(ctx, 'jewelry', '💍 Jóias')
+);
+
+bot.action('inv_skin', (ctx) =>
+    showCategory(ctx, 'skin', '🎨 Skins')
+);
+
+bot.action('inv_consumable', (ctx) =>
+    showCategory(ctx, 'consumable', '🧪 Consumíveis')
+);
+
+bot.action('inv_soul', (ctx) =>
+    showCategory(ctx, 'soul', '💀 Almas')
+);
+
+bot.action(/equip_manual_(.+)/, handleEquipManual);
 
 /*
   COMBATE
