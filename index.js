@@ -52,7 +52,8 @@ const {
 
 const {
     handleDungeon,
-    handleDungeonNext,
+    handleDungeonAttack,
+    handleDungeonNextRoom,
     handleDungeonFlee
 } = require('./src/handlers/dungeon');
 
@@ -141,14 +142,10 @@ bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
 
-bot.action('dungeon', handleDungeon);
-bot.action('dungeon_next', handleDungeonNext);
-bot.action('dungeon_flee', handleDungeonFlee);
-
 bot.action('auto_equip', handleAutoEquip);
 
 /*
-  INVENTÁRIO SUBMENUS
+  INVENTÁRIO
 */
 bot.action('inv_weapon', (ctx) =>
     showCategory(ctx, 'weapon', '⚔️ Armas')
@@ -182,7 +179,7 @@ bot.action(
 );
 
 /*
-  COMBATE
+  COMBATE NORMAL
 */
 bot.action('combat_attack', handleAttack);
 bot.action('combat_defend', handleDefend);
@@ -191,6 +188,14 @@ bot.action(/combat_soul_([01])/, handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 bot.action('combat_back', handleCombatBack);
+
+/*
+  MASMORRA COM BATALHA
+*/
+bot.action('dungeon', handleDungeon);
+bot.action('dungeon_attack', handleDungeonAttack);
+bot.action('dungeon_next_room', handleDungeonNextRoom);
+bot.action('dungeon_flee', handleDungeonFlee);
 
 /*
   CONSUMÍVEIS
@@ -247,7 +252,7 @@ bot.action('class_help', async (ctx) => {
     await ctx.answerCbQuery();
 
     await ctx.reply(
-        `🔄 *Trocar Classe*\n\nUse: /class guerreiro | arqueiro | mago\n\n*Custo:* 1ª grátis, depois 💎 25 Nox.`,
+        `🔄 *Trocar Classe*\n\nUse: /class guerreiro | arqueiro | mago\n\n*Custo:* 💎 25 Nox.`,
         { parse_mode: 'Markdown' }
     );
 });
