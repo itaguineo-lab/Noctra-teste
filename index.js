@@ -11,6 +11,7 @@ const {
     handleInventory,
     handleAutoEquip,
     handleEquipManual,
+    handleUnequipManual,
     showCategory
 } = require('./src/handlers/inventory');
 
@@ -174,6 +175,11 @@ bot.action('inv_soul', (ctx) =>
 );
 
 bot.action(/equip_manual_(.+)/, handleEquipManual);
+
+bot.action(
+    /^unequip_manual_(weapon|armor|necklace|ring|boots)$/,
+    handleUnequipManual
+);
 
 /*
   COMBATE
