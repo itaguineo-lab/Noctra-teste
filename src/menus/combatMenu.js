@@ -8,7 +8,7 @@ function combatMenu() {
         ],
         [
             Markup.button.callback('💀 Alma', 'combat_soul_menu'),
-            Markup.button.callback('🧪 Consumíveis', 'combat_consumables')
+            Markup.button.callback('🧪 Itens', 'combat_consumables')
         ],
         [
             Markup.button.callback('🏃 Fugir', 'combat_flee')
@@ -31,7 +31,8 @@ function soulChoiceMenu() {
 function postCombatMenu() {
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback('⚔️ Caçar novamente', 'hunt')
+            Markup.button.callback('⚔️ Caçar novamente', 'hunt'),
+            Markup.button.callback('🏰 Masmorra', 'dungeon')
         ],
         [
             Markup.button.callback('🎒 Inventário', 'inventory'),
