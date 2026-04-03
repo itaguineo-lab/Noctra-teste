@@ -8,9 +8,9 @@ function resetDailyMissionsIfNeeded(player) {
         player.dailyMissions = {
             kills: 0,
             energySpent: 0,
-            dailyChestCollected: false
+            dailyChestCollected: false,
+            rewardsClaimed: false  // NOVO CAMPO
         };
-        // Streak: se não logou ontem, reset streak
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         if (player.lastLoginDate !== yesterday.toDateString()) {
@@ -33,7 +33,6 @@ function giveDailyChest(player) {
     let bonusKeys = 1;
     let bonusStreak = 0;
 
-    // Streak bônus
     player.streak = (player.streak || 0) + 1;
     if (player.streak >= 7) {
         bonusGold += 200;
@@ -50,12 +49,6 @@ function giveDailyChest(player) {
     return { gold: bonusGold, keys: bonusKeys, streak: player.streak, bonusStreak };
 }
 
-function checkMissionProgress(player, type, amount = 1) {
-    if (!player.dailyMissions) return;
-    if (type === 'kill') player.dailyMissions.kills += amount;
-    if (type === 'energy') player.dailyMissions.energySpent += amount;
-}
-
 function getMissionRewards(player) {
     const missions = player.dailyMissions;
     const rewards = { gold: 0, keys: 0, xp: 0 };
@@ -67,11 +60,14 @@ function getMissionRewards(player) {
 }
 
 function applyMissionRewards(player) {
+    if (player.dailyMissions.rewardsClaimed) return { gold: 0, keys: 0, xp: 0 };
+    
     const rewards = getMissionRewards(player);
     if (rewards.gold > 0 || rewards.keys > 0 || rewards.xp > 0) {
         player.gold += rewards.gold;
         player.keys += rewards.keys;
         player.xp += rewards.xp;
+        player.dailyMissions.rewardsClaimed = true;
         savePlayer(player.id, player);
     }
     return rewards;
@@ -116,9 +112,13 @@ async function handleDaily(ctx) {
         msg += `║ 🎁 Abrir baú diário: ${player.dailyMissions.dailyChestCollected ? '✅' : '❌'}\n`;
         msg += `╠══════════════════════════════════╣\n`;
         msg += `║ *🏆 RECOMPENSAS RECEBIDAS*\n`;
-        msg += `║ 💰 +${missionRewards.gold} ouro\n`;
-        msg += `║ 🗝️ +${missionRewards.keys} chave\n`;
-        msg += `║ ✨ +${missionRewards.xp} XP\n`;
+        if (player.dailyMissions.rewardsClaimed) {
+            msg += `║ 💰 +${missionRewards.gold} ouro\n`;
+            msg += `║ 🗝️ +${missionRewards.keys} chave\n`;
+            msg += `║ ✨ +${missionRewards.xp} XP\n`;
+        } else {
+            msg += `║ ⏳ Complete as missões para receber!\n`;
+        }
         msg += `╠══════════════════════════════════╣\n`;
         msg += `║ 🔥 *Streak atual:* ${player.streak || 0} dias\n`;
         msg += `╚══════════════════════════════════╝`;
@@ -128,6 +128,17 @@ async function handleDaily(ctx) {
         console.error('Erro daily:', error);
         await ctx.answerCbQuery('Erro ao abrir baú.');
     }
+}
+
+function checkMissionProgress(player, type, amount = 1) {
+    if (!player.dailyMissions) return;
+    if (type === 'kill') player.dailyMissions.kills += amount;
+    if (type === 'energy') player.dailyMissions.energySpent += amount;
+    // Reset flag de recompensas se as missões mudarem (opcional)
+    if (type === 'kill' || type === 'energy') {
+        player.dailyMissions.rewardsClaimed = false;
+    }
+    savePlayer(player.id, player);
 }
 
 module.exports = { handleDaily, checkMissionProgress };
