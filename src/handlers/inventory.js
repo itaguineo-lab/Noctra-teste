@@ -161,13 +161,19 @@ async function handleInvSouls(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Função auxiliar para encontrar item por ID (case-insensitive, trim)
+// === FUNÇÃO CORRIGIDA PARA ENCONTRAR ITEM ===
 function findItemById(inventory, slot, targetId) {
-    const normalizedTarget = String(targetId).trim();
+    const normalizedTarget = String(targetId).trim().toLowerCase();
     return inventory.find(item => {
         if (item.slot !== slot) return false;
-        const itemId = String(item.id).trim();
-        return itemId === normalizedTarget;
+        const itemId = String(item.id).trim().toLowerCase();
+        // Comparação exata
+        if (itemId === normalizedTarget) return true;
+        // Comparação com sufixo (últimos 6 caracteres) – útil se o ID for truncado
+        const targetSuffix = normalizedTarget.slice(-6);
+        const itemSuffix = itemId.slice(-6);
+        if (targetSuffix && itemSuffix === targetSuffix) return true;
+        return false;
     });
 }
 
@@ -206,7 +212,6 @@ async function handleEquipItem(ctx) {
     return handleInventory(ctx);
 }
 
-// CORREÇÃO: desequipar agora funciona corretamente
 async function handleUnequipItem(ctx) {
     const match = ctx.callbackQuery.data.match(/^unequip_(.+)$/);
     if (!match) {
@@ -227,7 +232,6 @@ async function handleUnequipItem(ctx) {
     savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(`✅ ${item.name} removido!`);
     
-    // Redireciona para a categoria correta após desequipar
     if (slot === 'weapon') return handleInvWeapons(ctx);
     if (slot === 'armor') return handleInvArmors(ctx);
     if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
