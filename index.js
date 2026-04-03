@@ -49,7 +49,11 @@ const {
     handleBuy
 } = require('./src/handlers/shop');
 
-const { handleDungeon } = require('./src/handlers/dungeon');
+const {
+    handleDungeon,
+    handleDungeonNext,
+    handleDungeonFlee
+} = require('./src/handlers/dungeon');
 
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
@@ -135,7 +139,11 @@ bot.action('travel', handleTravel);
 bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
+
 bot.action('dungeon', handleDungeon);
+bot.action('dungeon_next', handleDungeonNext);
+bot.action('dungeon_flee', handleDungeonFlee);
+
 bot.action('auto_equip', handleAutoEquip);
 
 /*
