@@ -79,6 +79,4 @@ async function handleRestEnergy(ctx) {
     }
 }
 
-// REMOVIDO handleBuyEnergy – usar a loja normal
-
 module.exports = { handleEnergy, handleRestEnergy };
