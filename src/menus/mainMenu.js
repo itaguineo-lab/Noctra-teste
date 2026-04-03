@@ -21,10 +21,11 @@ function mainMenu() {
         [
             Markup.button.callback('💎 VIP', 'vip'),
             Markup.button.callback('👥 Online', 'online')
+        ],
+        [
+            Markup.button.callback('🏆 Ranking', 'ranking')
         ]
     ]);
 }
 
-module.exports = {
-    mainMenu
-};
+module.exports = { mainMenu };
