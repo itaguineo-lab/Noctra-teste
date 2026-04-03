@@ -7,7 +7,6 @@ const { mainMenu } = require('./src/menus/mainMenu');
 const { handleProfile } = require('./src/handlers/profile');
 const {
     handleInventory,
-    handleAutoEquip,
     handleEquipManual,
     handleUnequipManual,
     showCategory
@@ -134,17 +133,17 @@ bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
 bot.action('ranking', handleRanking);
-bot.action('auto_equip', handleAutoEquip);
+// bot.action('auto_equip', handleAutoEquip);  // REMOVIDO – função não existe
 
 /*
   INVENTÁRIO
 */
-bot.action('inv_weapon', (ctx) => showCategory(ctx, 'weapon', '⚔️ Armas'));
-bot.action('inv_armor', (ctx) => showCategory(ctx, 'armor', '🛡️ Armaduras'));
-bot.action('inv_jewelry', (ctx) => showCategory(ctx, 'jewelry', '💍 Jóias'));
-bot.action('inv_skin', (ctx) => showCategory(ctx, 'skin', '🎨 Skins'));
-bot.action('inv_consumable', (ctx) => showCategory(ctx, 'consumable', '🧪 Consumíveis'));
-bot.action('inv_soul', (ctx) => showCategory(ctx, 'soul', '💀 Almas'));
+bot.action('inv_weapon', (ctx) => showCategory(ctx, 'weapon'));
+bot.action('inv_armor', (ctx) => showCategory(ctx, 'armor'));
+bot.action('inv_jewelry', (ctx) => showCategory(ctx, 'jewelry'));
+bot.action('inv_skin', (ctx) => showCategory(ctx, 'skin'));
+bot.action('inv_consumable', (ctx) => showCategory(ctx, 'consumable'));
+bot.action('inv_soul', (ctx) => showCategory(ctx, 'soul'));
 
 bot.action(/equip_manual_(.+)/, handleEquipManual);
 bot.action(/^unequip_manual_(weapon|armor|necklace|ring|boots)$/, handleUnequipManual);
