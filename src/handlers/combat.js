@@ -5,7 +5,8 @@ const {
 } = require('../core/player/playerService');
 
 const {
-    consumeEnergy
+    consumeEnergy,
+    updateEnergy
 } = require('../services/energyService');
 
 const {
@@ -36,7 +37,7 @@ const {
 } = require('../core/world/enemies');
 
 const { Markup } = require('telegraf');
-const { checkMissionProgress } = require('./daily'); // <-- ADICIONADO
+const { checkMissionProgress } = require('./daily');
 
 const activeFights = new Map();
 
@@ -111,23 +112,34 @@ async function editMessage(ctx, text, options = {}) {
     }
 }
 
-function syncFightBuffsToPlayer(playerId, fight) {
-    const player = getPlayer(playerId);
-    player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
-    savePlayer(playerId, player);
-    return player;
+function syncFightStatsFromPlayer(player, fight) {
+    fight.player.atk = player.atk;
+    fight.player.def = player.def;
+    fight.player.maxHp = player.maxHp;
+    fight.player.crit = player.crit;
+    fight.player.energy = player.energy;
+    fight.player.maxEnergy = player.maxEnergy;
+    fight.player.buffs = Array.isArray(player.buffs) ? player.buffs.map(buff => ({ ...buff })) : [];
 }
 
 function tickFightBuffs(playerId, fight) {
     if (!fight.player.buffs || !fight.player.buffs.length) return;
+    
     fight.player.buffs = fight.player.buffs
         .map(buff => ({ ...buff, remainingTurns: Math.max(0, (Number(buff.remainingTurns) || 0) - 1) }))
         .filter(buff => buff.remainingTurns > 0);
-    syncFightBuffsToPlayer(playerId, fight);
+    
+    // Sincroniza os buffs com o player e recalcula os stats do fight
+    const player = getPlayer(playerId);
+    player.buffs = fight.player.buffs.map(buff => ({ ...buff }));
+    recalculateStats(player);
+    syncFightStatsFromPlayer(player, fight);
+    savePlayer(playerId, player);
 }
 
 async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
+    updateEnergy(player);
 
     if (fight.status === 'win') {
         const beforeStats = {
@@ -146,7 +158,6 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
         player.hp = Math.min(player.hp, player.maxHp);
         player.energy = Math.min(player.energy, player.maxEnergy);
 
-        // Atualiza missão de kill
         checkMissionProgress(player, 'kill', 1);
 
         savePlayer(ctx.from.id, player);
@@ -201,12 +212,16 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
 
 async function handleHunt(ctx) {
     await ctx.answerCbQuery();
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
+    updateEnergy(player);
+    
     if (player.energy < 1) return ctx.reply('⚡ Sem energia.');
     const enemy = getRandomEnemy(player.currentMap, player.level);
     if (!enemy) return ctx.reply('❌ Nenhum inimigo disponível neste mapa.');
     if (!consumeEnergy(player, 1)) return ctx.reply('⚡ Sem energia.');
+    
     savePlayer(ctx.from.id, player);
+    player = getPlayer(ctx.from.id); // recarrega com energia atualizada
 
     const fight = createFight(player, enemy);
     fight.player.buffs = Array.isArray(player.buffs) ? player.buffs.map(buff => ({ ...buff })) : [];
@@ -223,12 +238,12 @@ async function handleAttack(ctx) {
     await ctx.answerCbQuery();
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
+    
     tickFightBuffs(ctx.from.id, fight);
     fight.turnCount++;
     processPlayerTurn(fight);
     fight.totalDamageDealt += fight.lastDamageDealt;
 
-    // Atualiza logs com mensagens personalizadas
     if (fight.logs.length > 0) {
         const lastMsg = fight.logs[fight.logs.length - 1];
         if (lastMsg.includes('causou') && !lastMsg.includes('CRÍTICO')) {
@@ -252,11 +267,14 @@ async function handleAttack(ctx) {
     }
 
     fight.player.defending = false;
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
+    updateEnergy(player);
     player.hp = fight.player.hp;
     player.energy = fight.player.energy;
     player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
     savePlayer(ctx.from.id, player);
+
+    checkMissionProgress(player, 'energy', 1);
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight, fight.turnCount, fight.totalDamageDealt, fight.totalDamageReceived);
@@ -275,7 +293,8 @@ async function handleDefend(ctx) {
     processEnemyTurn(fight);
     fight.totalDamageReceived += fight.lastDamageReceived;
     fight.player.defending = false;
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
+    updateEnergy(player);
     player.hp = fight.player.hp;
     player.energy = fight.player.energy;
     player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
@@ -293,7 +312,8 @@ async function handleSoulMenu(ctx) {
     const hasSoul = fight.player.souls.some(s => s !== null);
     if (!hasSoul) {
         await ctx.answerCbQuery('❌ Você não tem nenhuma alma equipada!', { show_alert: true });
-        const player = getPlayer(ctx.from.id);
+        let player = getPlayer(ctx.from.id);
+        updateEnergy(player);
         return editMessage(ctx, renderFightText(fight, player), { parse_mode: 'Markdown', ...combatMenu() });
     }
     await ctx.editMessageText('💀 *Escolha qual alma usar:*', { parse_mode: 'Markdown', ...soulChoiceMenu() });
@@ -307,7 +327,8 @@ async function handleSoul(ctx) {
     const soul = fight.player.souls[soulIndex];
     if (!soul) {
         await ctx.answerCbQuery('❌ Nenhuma alma equipada neste slot.', { show_alert: true });
-        const player = getPlayer(ctx.from.id);
+        let player = getPlayer(ctx.from.id);
+        updateEnergy(player);
         return editMessage(ctx, renderFightText(fight, player), { parse_mode: 'Markdown', ...combatMenu() });
     }
     tickFightBuffs(ctx.from.id, fight);
@@ -317,7 +338,8 @@ async function handleSoul(ctx) {
         processEnemyTurn(fight);
         fight.totalDamageReceived += fight.lastDamageReceived;
     }
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
+    updateEnergy(player);
     player.hp = fight.player.hp;
     player.energy = fight.player.energy;
     player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
@@ -344,7 +366,8 @@ async function showConsumableMenu(ctx) {
 async function useConsumable(ctx, type) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
+    updateEnergy(player);
     const consumables = player.consumables || {};
     let success = false;
     tickFightBuffs(ctx.from.id, fight);
@@ -365,6 +388,7 @@ async function useConsumable(ctx, type) {
                 const energyGain = 10;
                 fight.player.energy = Math.min(fight.player.maxEnergy, fight.player.energy + energyGain);
                 fight.logs.push(`⚡ ${fight.player.name} usou uma poção de energia e recuperou *${energyGain}* energia!`);
+                checkMissionProgress(player, 'energy', energyGain);
                 success = true;
             }
             break;
@@ -397,6 +421,8 @@ async function useConsumable(ctx, type) {
     player.hp = fight.player.hp;
     player.energy = fight.player.energy;
     player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
+    recalculateStats(player);
+    syncFightStatsFromPlayer(player, fight);
     savePlayer(ctx.from.id, player);
     fight.turnCount++;
 
@@ -405,7 +431,8 @@ async function useConsumable(ctx, type) {
         fight.totalDamageReceived += fight.lastDamageReceived;
     }
 
-    const playerUpdated = getPlayer(ctx.from.id);
+    let playerUpdated = getPlayer(ctx.from.id);
+    updateEnergy(playerUpdated);
     playerUpdated.hp = fight.player.hp;
     playerUpdated.energy = fight.player.energy;
     playerUpdated.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
@@ -437,7 +464,8 @@ async function handleFlee(ctx) {
 async function handleCombatBack(ctx) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return;
-    const player = getPlayer(ctx.from.id);
+    let player = getPlayer(ctx.from.id);
+    updateEnergy(player);
     return editMessage(ctx, renderFightText(fight, player), { parse_mode: 'Markdown', ...combatMenu() });
 }
 
