@@ -66,4 +66,10 @@ async function handleTravelLocked(ctx) {
     return ctx.answerCbQuery('🔒 Este mapa ainda está bloqueado.', { show_alert: true });
 }
 
-module.exports = { handleTravel, handleTravelTo, handleTravelLocked };
+// Placeholder para masmorra (ainda não implementada)
+async function handleDungeon(ctx) {
+    await ctx.answerCbQuery();
+    await ctx.reply('🏰 *MASMORRA*\n\nEm breve você poderá enfrentar desafios em grupo aqui! Por enquanto, aproveite para caçar e evoluir.', { parse_mode: 'Markdown' });
+}
+
+module.exports = { handleTravel, handleTravelTo, handleTravelLocked, handleDungeon };
