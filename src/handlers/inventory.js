@@ -207,7 +207,6 @@ async function handleEquipItem(ctx) {
     savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
     
-    // Redireciona para a categoria correta
     if (slot === 'weapon') return handleInvWeapons(ctx);
     if (slot === 'armor') return handleInvArmors(ctx);
     if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
