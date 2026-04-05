@@ -1,6 +1,6 @@
-// src/core/player/playerService.js
 const Player = require('./PlayerModel');
 const mongoose = require('mongoose');
+
 let isConnected = false;
 
 async function connectToMongo() {
@@ -47,19 +47,36 @@ async function getAllPlayers() {
     return cache;
 }
 
-// Sua função recalculateStats permanece a mesma, apenas operando no objeto
 function recalculateStats(player) {
-    const BASE_STATS = { guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 }, mago: { atk: 18, def: 4, hp: 80, crit: 8 }, arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 } };
+    const BASE_STATS = {
+        guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 },
+        mago: { atk: 18, def: 4, hp: 80, crit: 8 },
+        arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
+    };
     const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
     let atk = base.atk + (player.level - 1) * 3;
     let def = base.def + (player.level - 1) * 2;
     let maxHp = base.hp + (player.level - 1) * 20;
     let crit = base.crit;
     if (player.equipment) {
-        Object.values(player.equipment).forEach(item => { if (item) { atk += item.atk || 0; def += item.def || 0; maxHp += item.hp || 0; crit += item.crit || 0; } });
+        Object.values(player.equipment).forEach(item => {
+            if (!item) return;
+            atk += item.atk || 0;
+            def += item.def || 0;
+            maxHp += item.hp || 0;
+            crit += item.crit || 0;
+        });
     }
     if (Array.isArray(player.soulsEquipped)) {
-        player.soulsEquipped.forEach(soul => { if (soul?.effect?.type === 'passive') { atk += soul.effect.atkBonus || 0; def += soul.effect.defBonus || 0; maxHp += soul.effect.hpBonus || 0; crit += soul.effect.critBonus || 0; } });
+        player.soulsEquipped.forEach(soul => {
+            if (!soul || !soul.effect) return;
+            if (soul.effect.type === 'passive') {
+                atk += soul.effect.atkBonus || 0;
+                def += soul.effect.defBonus || 0;
+                maxHp += soul.effect.hpBonus || 0;
+                crit += soul.effect.critBonus || 0;
+            }
+        });
     }
     player.atk = Math.max(1, atk);
     player.def = Math.max(0, def);
@@ -69,6 +86,23 @@ function recalculateStats(player) {
     return player;
 }
 
-function updateBuffs(player) { player.buffs = player.buffs?.filter(b => { b.remainingTurns--; return b.remainingTurns > 0; }) || []; return player; }
+function updateBuffs(player) {
+    if (!player.buffs) player.buffs = [];
+    player.buffs = player.buffs.filter(buff => {
+        buff.remainingTurns--;
+        return buff.remainingTurns > 0;
+    });
+    return player;
+}
 
-module.exports = { getPlayer, savePlayer, recalculateStats, updateBuffs, getAllPlayers, connectToMongo };
+function ensurePlayerState(player) { return player; } // simplificado
+
+module.exports = {
+    getPlayer,
+    savePlayer,
+    recalculateStats,
+    updateBuffs,
+    getAllPlayers,
+    connectToMongo,
+    ensurePlayerState
+};
