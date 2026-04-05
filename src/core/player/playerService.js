@@ -10,9 +10,17 @@ async function connectToMongo() {
         console.error('❌ A variável de ambiente MONGODB_URI não está definida.');
         return;
     }
-    await mongoose.connect(mongoUri);
-    isConnected = true;
-    console.log('✅ Conectado ao MongoDB');
+    try {
+        await mongoose.connect(mongoUri, {
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 45000,
+        });
+        isConnected = true;
+        console.log('✅ Conectado ao MongoDB');
+    } catch (error) {
+        console.error('❌ Erro ao conectar ao MongoDB:', error.message);
+        throw error;
+    }
 }
 
 async function getPlayer(id, name = 'Viajante') {
@@ -24,6 +32,7 @@ async function getPlayer(id, name = 'Viajante') {
     }
     player.lastActive = new Date();
     await player.save();
+    // Converte para objeto plano para evitar problemas com métodos do Mongoose
     return player.toObject();
 }
 
@@ -95,7 +104,7 @@ function updateBuffs(player) {
     return player;
 }
 
-function ensurePlayerState(player) { return player; } // simplificado
+function ensurePlayerState(player) { return player; }
 
 module.exports = {
     getPlayer,
