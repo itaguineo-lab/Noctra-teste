@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const { Telegraf } = require('telegraf');
 const http = require('http');
+const { connectToMongo } = require('./src/core/player/playerService');
 
 const { mainMenu } = require('./src/menus/mainMenu');
 const { handleProfile } = require('./src/handlers/profile');
@@ -52,7 +53,7 @@ const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Remove webhook
+// Remove webhook (apenas para polling)
 (async () => {
     try {
         const webhookInfo = await bot.telegram.getWebhookInfo();
@@ -181,5 +182,10 @@ http.createServer((req, res) => {
     res.end('Noctra online');
 }).listen(PORT);
 
-bot.launch();
-console.log('✅ NOCTRA ONLINE (polling mode)');
+// Inicialização com MongoDB
+(async () => {
+    await connectToMongo();
+    console.log('✅ Banco de dados MongoDB conectado');
+    bot.launch();
+    console.log('✅ NOCTRA ONLINE (polling mode)');
+})();
