@@ -30,7 +30,8 @@ const {
 } = require('../menus/combatMenu');
 
 const {
-    progressBar
+    progressBar,
+    formatNumber
 } = require('../utils/formatters');
 
 const {
@@ -142,13 +143,11 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
         };
 
         const rewards = processVictory(player, fight.enemy);
-        // NÃO CURA AUTOMATICAMENTE – mantém o HP que restou na luta
         player.hp = Math.min(fight.player.hp, player.maxHp);
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
         player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
 
         recalculateStats(player);
-        // Garante que o HP não ultrapasse o máximo
         player.hp = Math.min(player.hp, player.maxHp);
         player.energy = Math.min(player.energy, player.maxEnergy);
 
@@ -156,29 +155,25 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
         activeFights.delete(ctx.from.id);
 
         const oldLevel = beforeStats.level;
+        const xpNeeded = Math.floor(100 * Math.pow(oldLevel, 1.2));
+        const xpProgress = xpNeeded > 0 ? Math.floor((player.xp / xpNeeded) * 100) : 0;
+        const xpBar = progressBar(player.xp, xpNeeded, 8, '🟨', '⬜');
+
         const levelUpText = rewards.leveledUp
             ? `╠════════════════════════╣\n║ 🌟 *LEVEL UP!* Nv ${oldLevel} → ${player.level}\n║ ❤️ HP: ${beforeStats.maxHp} → ${player.maxHp}\n║ ⚔️ ATK: ${beforeStats.atk} → ${player.atk}\n║ 🛡️ DEF: ${beforeStats.def} → ${player.def}\n`
-            : '';
-
-        const xpNeeded = Math.floor(100 * Math.pow(player.level, 1.2));
-        const xpProgress = xpNeeded > 0 ? Math.floor((player.xp / xpNeeded) * 100) : 0;
+            : `╠════════════════════════╣\n║ 📊 XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}\n║ [${xpBar}] ${xpProgress}%\n`;
 
         let msg = `╔════════════════════════╗\n║     🏆 *VITÓRIA!*      ║\n╠════════════════════════╣\n║ 👤 Inimigo: ${fight.enemy.name}\n║ ⚔️ Turnos: ${turnCount}\n║ 💥 Dano causado: ${damageDealt}\n║ 🛡️ Dano recebido: ${damageReceived}\n╠════════════════════════╣\n║ ✨ +${rewards.xp} XP\n║ 💰 +${rewards.gold} Ouro\n`;
         if (rewards.loot.length) {
             msg += `║ 🎁 ${rewards.loot.join('\n║ 🎁 ')}\n`;
         }
-        if (rewards.leveledUp) {
-            msg += levelUpText;
-        } else {
-            msg += `╠════════════════════════╣\n║ 📊 Progresso: ${xpProgress}% para próximo nível\n`;
-        }
+        msg += levelUpText;
         msg += `╚════════════════════════╝`;
 
         return editMessage(ctx, msg, { parse_mode: 'Markdown', ...postCombatMenu() });
     }
 
     if (fight.status === 'loss') {
-        // Penalidade: perde 1 energia e HP cai para 25% do máximo (sem cura extra)
         const penaltyHp = Math.max(1, Math.floor(player.maxHp * 0.25));
         const penaltyEnergy = Math.max(0, (player.energy || 0) - 1);
         player.hp = penaltyHp;
