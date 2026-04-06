@@ -8,63 +8,20 @@ const { getMainMenuText } = require('./src/utils/helpers');
 const { mainMenu } = require('./src/menus/mainMenu');
 const { handleProfile } = require('./src/handlers/profile');
 
-const {
-    handleInventory,
-    handleInvWeapons,
-    handleInvArmors,
-    handleInvJewelry,
-    handleInvBoots,
-    handleInvConsumables,
-    handleInvSouls,
-    handleEquipItem,
-    handleUnequipItem,
-    handleEquipSoul,
-    handleUnequipSoul,
-    handleUsePotionOutside
-} = require('./src/handlers/inventory');
+const inventoryHandlers = require('./src/handlers/inventory');
+const combatHandlers = require('./src/handlers/combat');
+const travelHandlers = require('./src/handlers/travel');
+const energyHandlers = require('./src/handlers/energy');
+const vipHandlers = require('./src/handlers/vip');
+const dailyHandlers = require('./src/handlers/daily');
+const onlineHandlers = require('./src/handlers/online');
+const rankingHandlers = require('./src/handlers/ranking');
+const dungeonHandlers = require('./src/handlers/dungeon');
+const shopHandlers = require('./src/handlers/shop');
 
-const {
-    handleHunt,
-    handleAttack,
-    handleDefend,
-    handleSoulMenu,
-    handleSoul,
-    handleConsumables,
-    handleFlee,
-    handleCombatBack,
-    useConsumable
-} = require('./src/handlers/combat');
-
-const {
-    handleTravel,
-    handleTravelTo,
-    handleTravelLocked
-} = require('./src/handlers/travel');
-
-const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
-const { handleVip } = require('./src/handlers/vip');
-const { handleDaily } = require('./src/handlers/daily');
-const { handleOnline } = require('./src/handlers/online');
-const { handleRanking } = require('./src/handlers/ranking');
-
-const {
-    handleDungeon,
-    handleDungeonAttack,
-    handleDungeonNextRoom,
-    handleDungeonFlee
-} = require('./src/handlers/dungeon');
-
-const {
-    handleShop,
-    handleShopVillage,
-    handleShopCastle,
-    handleShopArena,
-    handleBuy
-} = require('./src/handlers/shop');
-
-const { handleRename } = require('./src/commands/rename');
-const { handleClass } = require('./src/commands/class');
-const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
+const renameCommand = require('./src/commands/rename');
+const classCommand = require('./src/commands/class');
+const equipCommand = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -108,7 +65,29 @@ async function startBot() {
 
 /*
 =================================
-COMANDOS
+HELPER
+=================================
+*/
+
+function safeCommand(name, handler) {
+    if (typeof handler === 'function') {
+        bot.command(name, handler);
+    } else {
+        console.log(`⚠️ Handler ausente para /${name}`);
+    }
+}
+
+function safeAction(pattern, handler) {
+    if (typeof handler === 'function') {
+        bot.action(pattern, handler);
+    } else {
+        console.log(`⚠️ Handler ausente para action: ${pattern}`);
+    }
+}
+
+/*
+=================================
+START
 =================================
 */
 
@@ -124,19 +103,26 @@ bot.start(async (ctx) => {
     });
 });
 
-bot.command('energy', handleEnergy);
-bot.command('rename', handleRename);
-bot.command('class', handleClass);
-bot.command('profile', handleProfile);
-bot.command('inventory', handleInventory);
-bot.command('travel', handleTravel);
-bot.command('shop', handleShop);
-bot.command('daily', handleDaily);
-bot.command('vip', handleVip);
-bot.command('online', handleOnline);
-bot.command('equip', handleEquip);
-bot.command('equipsoul', handleEquipSoulCommand);
-bot.command('ranking', handleRanking);
+/*
+=================================
+COMANDOS
+=================================
+*/
+
+safeCommand('energy', energyHandlers.handleEnergy);
+safeCommand('rename', renameCommand.handleRename);
+safeCommand('class', classCommand.handleClass);
+safeCommand('profile', handleProfile);
+safeCommand('inventory', inventoryHandlers.handleInventory);
+safeCommand('travel', travelHandlers.handleTravel);
+safeCommand('shop', shopHandlers.handleShop);
+safeCommand('daily', dailyHandlers.handleDaily);
+safeCommand('vip', vipHandlers.handleVip);
+safeCommand('online', onlineHandlers.handleOnline);
+safeCommand('ranking', rankingHandlers.handleRanking);
+
+safeCommand('equip', equipCommand.handleEquip);
+safeCommand('equipsoul', equipCommand.handleEquipSoulCommand);
 
 /*
 =================================
@@ -144,17 +130,17 @@ AÇÕES MENU
 =================================
 */
 
-bot.action('hunt', handleHunt);
-bot.action('profile', handleProfile);
-bot.action('energy', handleEnergy);
-bot.action('inventory', handleInventory);
-bot.action('shop', handleShop);
-bot.action('travel', handleTravel);
-bot.action('vip', handleVip);
-bot.action('daily', handleDaily);
-bot.action('online', handleOnline);
-bot.action('ranking', handleRanking);
-bot.action('dungeon', handleDungeon);
+safeAction('hunt', combatHandlers.handleHunt);
+safeAction('profile', handleProfile);
+safeAction('energy', energyHandlers.handleEnergy);
+safeAction('inventory', inventoryHandlers.handleInventory);
+safeAction('shop', shopHandlers.handleShop);
+safeAction('travel', travelHandlers.handleTravel);
+safeAction('vip', vipHandlers.handleVip);
+safeAction('daily', dailyHandlers.handleDaily);
+safeAction('online', onlineHandlers.handleOnline);
+safeAction('ranking', rankingHandlers.handleRanking);
+safeAction('dungeon', dungeonHandlers.handleDungeon);
 
 /*
 =================================
@@ -162,13 +148,13 @@ COMBATE
 =================================
 */
 
-bot.action('combat_attack', handleAttack);
-bot.action('combat_defend', handleDefend);
-bot.action('combat_soul_menu', handleSoulMenu);
-bot.action(/combat_soul_([01])/, handleSoul);
-bot.action('combat_consumables', handleConsumables);
-bot.action('combat_flee', handleFlee);
-bot.action('combat_back', handleCombatBack);
+safeAction('combat_attack', combatHandlers.handleAttack);
+safeAction('combat_defend', combatHandlers.handleDefend);
+safeAction('combat_soul_menu', combatHandlers.handleSoulMenu);
+safeAction(/combat_soul_([01])/, combatHandlers.handleSoul);
+safeAction('combat_consumables', combatHandlers.handleConsumables);
+safeAction('combat_flee', combatHandlers.handleFlee);
+safeAction('combat_back', combatHandlers.handleCombatBack);
 
 /*
 =================================
@@ -176,32 +162,25 @@ CONSUMÍVEIS
 =================================
 */
 
-bot.action('use_potion_hp', (ctx) =>
-    useConsumable(ctx, 'potion_hp')
-);
+safeAction('rest_energy', energyHandlers.handleRestEnergy);
 
-bot.action('use_potion_energy', (ctx) =>
-    useConsumable(ctx, 'potion_energy')
-);
+if (typeof combatHandlers.useConsumable === 'function') {
+    bot.action('use_potion_hp', (ctx) =>
+        combatHandlers.useConsumable(ctx, 'potion_hp')
+    );
 
-bot.action('use_tonic_strength', (ctx) =>
-    useConsumable(ctx, 'tonic_strength')
-);
+    bot.action('use_potion_energy', (ctx) =>
+        combatHandlers.useConsumable(ctx, 'potion_energy')
+    );
 
-bot.action('use_tonic_defense', (ctx) =>
-    useConsumable(ctx, 'tonic_defense')
-);
+    bot.action('use_tonic_strength', (ctx) =>
+        combatHandlers.useConsumable(ctx, 'tonic_strength')
+    );
 
-bot.action('noop', async (ctx) => {
-    await ctx.answerCbQuery();
-    await handleConsumables(ctx);
-});
-
-bot.action('use_potion_outside_hp', (ctx) =>
-    handleUsePotionOutside(ctx, 'hp')
-);
-
-bot.action('rest_energy', handleRestEnergy);
+    bot.action('use_tonic_defense', (ctx) =>
+        combatHandlers.useConsumable(ctx, 'tonic_defense')
+    );
+}
 
 /*
 =================================
@@ -209,25 +188,25 @@ INVENTÁRIO
 =================================
 */
 
-bot.action('inv_weapons', handleInvWeapons);
-bot.action('inv_armors', handleInvArmors);
-bot.action('inv_jewelry', handleInvJewelry);
-bot.action('inv_boots', handleInvBoots);
-bot.action('inv_consumables', handleInvConsumables);
-bot.action('inv_souls', handleInvSouls);
+safeAction('inv_weapons', inventoryHandlers.handleInvWeapons);
+safeAction('inv_armors', inventoryHandlers.handleInvArmors);
+safeAction('inv_jewelry', inventoryHandlers.handleInvJewelry);
+safeAction('inv_boots', inventoryHandlers.handleInvBoots);
+safeAction('inv_consumables', inventoryHandlers.handleInvConsumables);
+safeAction('inv_souls', inventoryHandlers.handleInvSouls);
 
-bot.action(
+safeAction(
     /^equip_(weapon|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/,
-    handleEquipItem
+    inventoryHandlers.handleEquipItem
 );
 
-bot.action(
+safeAction(
     /^unequip_(weapon|armor|necklace|ring|boots)$/,
-    handleUnequipItem
+    inventoryHandlers.handleUnequipItem
 );
 
-bot.action(/^equip_soul_(.+)$/, handleEquipSoul);
-bot.action(/^unequip_soul_(\d+)$/, handleUnequipSoul);
+safeAction(/^equip_soul_(.+)$/, inventoryHandlers.handleEquipSoul);
+safeAction(/^unequip_soul_(\d+)$/, inventoryHandlers.handleUnequipSoul);
 
 /*
 =================================
@@ -235,10 +214,10 @@ LOJA
 =================================
 */
 
-bot.action('shop_village', handleShopVillage);
-bot.action('shop_castle', handleShopCastle);
-bot.action('shop_arena', handleShopArena);
-bot.action(/buy_(.+)/, handleBuy);
+safeAction('shop_village', shopHandlers.handleShopVillage);
+safeAction('shop_castle', shopHandlers.handleShopCastle);
+safeAction('shop_arena', shopHandlers.handleShopArena);
+safeAction(/buy_(.+)/, shopHandlers.handleBuy);
 
 /*
 =================================
@@ -246,8 +225,8 @@ VIAGEM
 =================================
 */
 
-bot.action(/travel_to_(.+)/, handleTravelTo);
-bot.action('travel_locked', handleTravelLocked);
+safeAction(/travel_to_(.+)/, travelHandlers.handleTravelTo);
+safeAction('travel_locked', travelHandlers.handleTravelLocked);
 
 /*
 =================================
@@ -255,9 +234,9 @@ DUNGEON
 =================================
 */
 
-bot.action('dungeon_attack', handleDungeonAttack);
-bot.action('dungeon_next_room', handleDungeonNextRoom);
-bot.action('dungeon_flee', handleDungeonFlee);
+safeAction('dungeon_attack', dungeonHandlers.handleDungeonAttack);
+safeAction('dungeon_next_room', dungeonHandlers.handleDungeonNextRoom);
+safeAction('dungeon_flee', dungeonHandlers.handleDungeonFlee);
 
 /*
 =================================
