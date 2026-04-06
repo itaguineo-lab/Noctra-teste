@@ -5,12 +5,11 @@ const http = require('http');
 
 const { connectToMongo } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
-const { mainMenu } = require('./src/menus/mainMenu');
 
+const { mainMenu } = require('./src/menus/mainMenu');
 const { handleProfile } = require('./src/handlers/profile');
 
 const {
-    renderInventory,
     handleInventory,
     handleInvWeapons,
     handleInvArmors,
@@ -20,6 +19,8 @@ const {
     handleInvSouls,
     handleEquipItem,
     handleUnequipItem,
+    handleInventoryPage,
+    handleInventoryCategory,
     handleEquipSoul,
     handleUnequipSoul,
     handleUsePotionOutside
@@ -67,6 +68,7 @@ const {
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
 const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
+const { handleReset } = require('./src/commands/reset');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -95,21 +97,31 @@ async function startBot() {
     launched = true;
 
     try {
-        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+        await bot.telegram.deleteWebhook({
+            drop_pending_updates: true
+        });
+
         console.log('✅ Webhook removido');
+
         await sleep(3000);
 
         await connectToMongo();
         console.log('✅ Banco de dados MongoDB conectado');
 
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        for (let attempt = 1; attempt <= 4; attempt++) {
             try {
-                await bot.launch({ dropPendingUpdates: true });
+                await bot.launch({
+                    dropPendingUpdates: true
+                });
+
                 console.log('✅ NOCTRA ONLINE (polling mode)');
-                break;
+                return;
             } catch (error) {
-                if (error?.response?.error_code === 409 && attempt < 3) {
-                    console.log(`⚠️ 409 Conflict no launch. Tentativa ${attempt}/3. Aguardando a instância anterior encerrar...`);
+                if (error?.response?.error_code === 409 && attempt < 4) {
+                    console.log(
+                        `⚠️ 409 Conflict no launch. Tentativa ${attempt}/4. Aguardando a instância anterior encerrar...`
+                    );
+
                     await sleep(5000);
                     continue;
                 }
@@ -126,6 +138,12 @@ async function startBot() {
         console.error('❌ Erro ao iniciar:', err);
     }
 }
+
+/*
+=================================
+START
+=================================
+*/
 
 bot.start(async (ctx) => {
     const menuText = await getMainMenuText(
@@ -158,6 +176,7 @@ bindCommand('online', handleOnline);
 bindCommand('equip', handleEquip);
 bindCommand('equipsoul', handleEquipSoulCommand);
 bindCommand('ranking', handleRanking);
+bindCommand('reset', handleReset);
 
 /*
 =================================
@@ -197,22 +216,70 @@ CONSUMÍVEIS
 =================================
 */
 
-bindAction('use_potion_hp', (ctx) => useConsumable(ctx, 'potion_hp'));
-bindAction('use_potion_energy', (ctx) => useConsumable(ctx, 'potion_energy'));
-bindAction('use_tonic_strength', (ctx) => useConsumable(ctx, 'tonic_strength'));
-bindAction('use_tonic_defense', (ctx) => useConsumable(ctx, 'tonic_defense'));
+bindAction('use_potion_hp', (ctx) =>
+    useConsumable(ctx, 'potion_hp')
+);
+
+bindAction('use_potion_energy', (ctx) =>
+    useConsumable(ctx, 'potion_energy')
+);
+
+bindAction('use_tonic_strength', (ctx) =>
+    useConsumable(ctx, 'tonic_strength')
+);
+
+bindAction('use_tonic_defense', (ctx) =>
+    useConsumable(ctx, 'tonic_defense')
+);
 
 bindAction('noop', async (ctx) => {
     await ctx.answerCbQuery();
     await handleConsumables(ctx);
 });
 
-bindAction('use_potion_outside_hp', (ctx) => handleUsePotionOutside(ctx, 'hp'));
+bindAction('use_potion_outside_hp', (ctx) =>
+    handleUsePotionOutside(ctx, 'hp')
+);
+
 bindAction('rest_energy', handleRestEnergy);
 
 /*
 =================================
-INVENTÁRIO
+INVENTÁRIO NOVO
+=================================
+*/
+
+bindAction('inventory', handleInventory);
+
+bindAction('invcat:weapons', handleInventoryCategory);
+bindAction('invcat:armors', handleInventoryCategory);
+bindAction('invcat:jewelry', handleInventoryCategory);
+bindAction('invcat:boots', handleInventoryCategory);
+bindAction('invcat:consumables', handleInventoryCategory);
+bindAction('invcat:skins', handleInventoryCategory);
+bindAction('invcat:souls', handleInventoryCategory);
+
+bindAction(
+    /^invpage:(weapons|armors|jewelry|boots):(\d+)$/,
+    handleInventoryPage
+);
+
+bindAction(
+    /^eq:(weapons|armors|jewelry|boots):(\d+):(\d+)$/,
+    handleEquipItem
+);
+
+bindAction(
+    /^uneq:(weapon|armor|necklace|ring|boots):(weapons|armors|jewelry|boots):(\d+)$/,
+    handleUnequipItem
+);
+
+bindAction(/^equip_soul_(.+)$/, handleEquipSoul);
+bindAction(/^unequip_soul_(\d+)$/, handleUnequipSoul);
+
+/*
+=================================
+ALIASES LEGADOS
 =================================
 */
 
@@ -223,17 +290,29 @@ bindAction('inv_boots', handleInvBoots);
 bindAction('inv_consumables', handleInvConsumables);
 bindAction('inv_souls', handleInvSouls);
 
-/* aliases legados do menu antigo */
 bindAction('inv_weapon', handleInvWeapons);
 bindAction('inv_armor', handleInvArmors);
+
 bindAction('inv_skin', async (ctx) => {
-    await ctx.answerCbQuery('🎨 Skins em breve.', { show_alert: true });
+    await ctx.answerCbQuery('🎨 Skins em breve.', {
+        show_alert: true
+    });
 });
+
 bindAction('auto_equip', async (ctx) => {
-    await ctx.answerCbQuery('✨ Auto equip em ajuste.', { show_alert: true });
+    await ctx.answerCbQuery('✨ Auto equip em ajuste.', {
+        show_alert: true
+    });
 });
+
 bindAction('inv_consumable', handleInvConsumables);
 bindAction('inv_soul', handleInvSouls);
+
+/*
+=================================
+COMPATIBILIDADE LEGADA EQUIP
+=================================
+*/
 
 bindAction(
     /^equip_(weapon|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/,
@@ -244,9 +323,6 @@ bindAction(
     /^unequip_(weapon|armor|necklace|ring|boots)$/,
     handleUnequipItem
 );
-
-bindAction(/^equip_soul_(.+)$/, handleEquipSoul);
-bindAction(/^unequip_soul_(\d+)$/, handleUnequipSoul);
 
 /*
 =================================
@@ -307,7 +383,10 @@ HTTP SERVER RENDER
 const PORT = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.writeHead(200, {
+        'Content-Type': 'text/plain'
+    });
+
     res.end('Noctra online');
 }).listen(PORT, () => {
     console.log(`🌐 Porta ${PORT}`);
