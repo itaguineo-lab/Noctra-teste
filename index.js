@@ -56,19 +56,16 @@ const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Remove webhook (apenas para polling)
+// Remove webhook FORÇADAMENTE e garante que não haja conflito
 (async () => {
     try {
-        const webhookInfo = await bot.telegram.getWebhookInfo();
-        if (webhookInfo.url) {
-            console.log(`⚠️ Webhook ativo: ${webhookInfo.url}. Removendo...`);
-            await bot.telegram.deleteWebhook();
-            console.log('✅ Webhook removido. Usando polling.');
-        } else {
-            console.log('✅ Nenhum webhook ativo. Usando polling.');
-        }
+        // Tenta remover qualquer webhook existente
+        await bot.telegram.deleteWebhook();
+        console.log('✅ Webhook removido.');
+        // Aguarda um pouco para garantir que o Telegram processe
+        await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (err) {
-        console.error('❌ Erro ao verificar webhook:', err.message);
+        console.error('❌ Erro ao remover webhook:', err.message);
     }
 })();
 
