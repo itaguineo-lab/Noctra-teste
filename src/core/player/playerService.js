@@ -3,6 +3,80 @@ const mongoose = require('mongoose');
 
 let isConnected = false;
 
+// Garante que todos os campos necessários existam no objeto do jogador
+function ensurePlayerState(player) {
+    if (!player) return {};
+    
+    // Campos básicos
+    player.id ??= player.id;
+    player.name ??= 'Viajante';
+    player.class ??= 'guerreiro';
+    player.level ??= 1;
+    player.xp ??= 0;
+    player.gold ??= 100;
+    player.nox ??= 0;
+    player.glorias ??= 0;
+    player.keys ??= 0;
+
+    // Energia
+    player.maxEnergy ??= player.vip ? 40 : 20;
+    player.energy ??= player.maxEnergy;
+    player.lastEnergyUpdate ??= Date.now();
+
+    // Inventário
+    player.inventory ??= [];
+    player.bonusInventory ??= 0;
+    player.maxInventory = 20 + (player.bonusInventory || 0);
+    player.consumables ??= { potionHp: 0, potionEnergy: 0, tonicStrength: 0, tonicDefense: 0 };
+
+    // Buffs temporários
+    player.buffs ??= [];
+
+    // Equipamentos
+    player.equipment ??= {};
+    const EQUIPMENT_SLOTS = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
+    EQUIPMENT_SLOTS.forEach(slot => {
+        if (!(slot in player.equipment)) player.equipment[slot] = null;
+    });
+
+    // Almas
+    player.soulsInventory ??= [];
+    player.soulsEquipped ??= [null, null];
+
+    // Estatísticas
+    player.totalKills ??= 0;
+    player.achievements ??= {};
+    player.lastActive ??= Date.now();
+
+    // Mapa atual
+    player.currentMap ??= 'clareira_sombria';
+
+    // VIP
+    player.vip ??= false;
+    player.vipExpires ??= null;
+    player.renamed ??= false;
+    player.classChanged ??= false;
+
+    // Masmorra
+    player.dungeonProgress ??= null;
+    player.lastDungeonRun ??= 0;
+    player.soulPityCounter ??= 0;
+    player.cosmetics ??= [];
+    
+    // Baú diário
+    player.lastDailyChest ??= null;
+
+    // Datas
+    player.createdAt ??= Date.now();
+    player.updatedAt ??= Date.now();
+
+    // Recálculo de stats se necessário
+    if (!player.maxHp) recalculateStats(player);
+    player.hp ??= player.maxHp;
+    
+    return player;
+}
+
 async function connectToMongo() {
     if (isConnected) return;
     const mongoUri = process.env.MONGODB_URI;
@@ -30,29 +104,39 @@ async function getPlayer(id, name = 'Viajante') {
         player = new Player({ id, name });
         await player.save();
     }
-    player.lastActive = new Date();
-    await player.save();
-    // Converte para objeto plano para evitar problemas com métodos do Mongoose
-    return player.toObject();
+    // Converte para objeto plano e aplica ensurePlayerState
+    const playerObj = player.toObject();
+    ensurePlayerState(playerObj);
+    playerObj.lastActive = new Date();
+    await savePlayer(id, playerObj);
+    return playerObj;
 }
 
 async function savePlayer(id, playerData) {
     await connectToMongo();
     const { _id, ...updateData } = playerData;
     updateData.updatedAt = new Date();
+    // Garante que os campos estejam presentes antes de salvar
+    ensurePlayerState(updateData);
     const result = await Player.findOneAndUpdate(
         { id },
         { $set: updateData },
         { new: true, upsert: true }
     );
-    return result.toObject();
+    const savedObj = result.toObject();
+    ensurePlayerState(savedObj);
+    return savedObj;
 }
 
 async function getAllPlayers() {
     await connectToMongo();
     const players = await Player.find({});
     const cache = {};
-    players.forEach(p => { cache[p.id] = p.toObject(); });
+    players.forEach(p => {
+        const obj = p.toObject();
+        ensurePlayerState(obj);
+        cache[obj.id] = obj;
+    });
     return cache;
 }
 
@@ -103,8 +187,6 @@ function updateBuffs(player) {
     });
     return player;
 }
-
-function ensurePlayerState(player) { return player; }
 
 module.exports = {
     getPlayer,
