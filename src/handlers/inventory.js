@@ -29,16 +29,26 @@ function formatItemLine(item) {
     return `${item.emoji || '⚪'} ${item.name}${level} (${stats.join(', ')})`;
 }
 
+// Função para extrair o slot real do item (fallback para itens antigos)
+function getRealSlot(item) {
+    if (!item.slot) return 'unknown';
+    const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
+    for (const validSlot of validSlots) {
+        if (item.slot.startsWith(validSlot)) return validSlot;
+    }
+    return item.slot;
+}
+
 async function renderInventory(ctx, category = null) {
     const player = await getPlayer(ctx.from.id);
     const inventory = player.inventory || [];
     const equipped = player.equipment || {};
 
     const categories = {
-        weapons: { title: '⚔️ Armas', filter: i => i.slot === 'weapon' },
-        armors: { title: '🛡️ Armaduras', filter: i => i.slot === 'armor' },
-        jewelry: { title: '💎 Joias', filter: i => i.slot === 'necklace' || i.slot === 'ring' },
-        boots: { title: '👢 Botas', filter: i => i.slot === 'boots' }
+        weapons: { title: '⚔️ Armas', filter: i => getRealSlot(i) === 'weapon' },
+        armors: { title: '🛡️ Armaduras', filter: i => getRealSlot(i) === 'armor' },
+        jewelry: { title: '💎 Joias', filter: i => getRealSlot(i) === 'necklace' || getRealSlot(i) === 'ring' },
+        boots: { title: '👢 Botas', filter: i => getRealSlot(i) === 'boots' }
     };
 
     if (!category) {
@@ -70,15 +80,15 @@ async function renderInventory(ctx, category = null) {
     text += `╠══════════════════════════════════╣\n`;
 
     for (const item of items) {
-        const isEquipped = equipped[item.slot]?.id === item.id;
+        const realSlot = getRealSlot(item);
+        const isEquipped = equipped[realSlot]?.id === item.id;
         const line = formatItemLine(item);
         text += `║ ${line}\n`;
 
         if (isEquipped) {
-            buttons.push([Markup.button.callback(`⭐ Desequipar ${item.name}`, `unequip_${item.slot}`)]);
+            buttons.push([Markup.button.callback(`⭐ Desequipar ${item.name}`, `unequip_${realSlot}`)]);
         } else {
-            // GARANTE que o slot seja o nome correto (ex: 'necklace')
-            buttons.push([Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${item.slot}_${item.id}`)]);
+            buttons.push([Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${realSlot}_${item.id}`)]);
         }
     }
     text += `╚══════════════════════════════════╝`;
@@ -159,7 +169,8 @@ async function handleInvSouls(ctx) {
 function findItemById(inventory, slot, targetId) {
     const normalizedTarget = String(targetId).trim();
     return inventory.find(item => {
-        if (item.slot !== slot) return false;
+        const realSlot = getRealSlot(item);
+        if (realSlot !== slot) return false;
         return String(item.id) === normalizedTarget;
     });
 }
@@ -176,7 +187,7 @@ async function handleEquipItem(ctx) {
     const inventory = player.inventory || [];
 
     console.log(`[Equipar] Slot: ${slot}, ID: "${itemId}"`);
-    console.log(`[Equipar] Itens no slot ${slot}:`, inventory.filter(i => i.slot === slot).map(i => ({ id: String(i.id), name: i.name })));
+    console.log(`[Equipar] Itens no slot ${slot}:`, inventory.filter(i => getRealSlot(i) === slot).map(i => ({ id: String(i.id), name: i.name })));
 
     const item = findItemById(inventory, slot, itemId);
     if (!item) {
