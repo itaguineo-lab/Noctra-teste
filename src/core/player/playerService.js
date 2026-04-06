@@ -3,18 +3,17 @@ const mongoose = require('mongoose');
 
 let isConnected = false;
 
-// Corrige os slots dos itens antigos (ex: 'necklace_item_123' -> 'necklace')
+// Corrige os slots dos itens antigos (ex: 'armor_item_123' -> 'armor')
 function migrateItemSlot(item) {
     if (!item || typeof item !== 'object') return item;
     const originalSlot = item.slot;
     if (!originalSlot) return item;
     
-    // Verifica se o slot está no formato antigo (contém underscore e prefixo de slot)
     const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
     for (const validSlot of validSlots) {
         if (originalSlot.startsWith(validSlot) && originalSlot !== validSlot) {
             item.slot = validSlot;
-            console.log(`[Migração] Slot corrigido: ${originalSlot} -> ${validSlot}`);
+            console.log(`[Migração] Slot corrigido: ${originalSlot} -> ${validSlot} (item: ${item.name})`);
             break;
         }
     }
@@ -40,9 +39,8 @@ function ensurePlayerState(player) {
     player.energy ??= player.maxEnergy;
     player.lastEnergyUpdate ??= Date.now();
 
-    // Inventário
+    // Inventário – corrige slots de todos os itens
     player.inventory ??= [];
-    // Migração: corrige slots de todos os itens no inventário
     player.inventory = player.inventory.map(migrateItemSlot);
     
     player.bonusInventory ??= 0;
@@ -52,12 +50,11 @@ function ensurePlayerState(player) {
     // Buffs temporários
     player.buffs ??= [];
 
-    // Equipamentos
+    // Equipamentos – corrige slots dos itens equipados
     player.equipment ??= {};
     const EQUIPMENT_SLOTS = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
     EQUIPMENT_SLOTS.forEach(slot => {
         if (!(slot in player.equipment)) player.equipment[slot] = null;
-        // Migração: corrige slot do item equipado, se existir
         if (player.equipment[slot]) {
             player.equipment[slot] = migrateItemSlot(player.equipment[slot]);
         }
@@ -131,6 +128,7 @@ async function getPlayer(id, name = 'Viajante') {
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
     playerObj.lastActive = new Date();
+    // Salva de volta para persistir as correções de slot
     await savePlayer(id, playerObj);
     return playerObj;
 }
