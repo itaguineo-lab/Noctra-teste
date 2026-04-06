@@ -40,6 +40,7 @@ function buildMenuButtons(items, equippedItems, categorySlots) {
     if (items) {
         items.forEach(item => {
             if (equippedItems[item.slot]?.id !== item.id) {
+                // CORREÇÃO: usa item.slot diretamente (ex: "necklace") e item.id
                 buttons.push([Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${item.slot}_${item.id}`)]);
             }
         });
@@ -93,6 +94,7 @@ async function renderInventory(ctx, category = null) {
         if (isEquipped) {
             buttons.push([Markup.button.callback(`⭐ Desequipar ${item.name}`, `unequip_${item.slot}`)]);
         } else {
+            // CORREÇÃO: usa item.slot diretamente (ex: "necklace") e item.id
             buttons.push([Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${item.slot}_${item.id}`)]);
         }
     });
