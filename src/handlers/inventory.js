@@ -34,7 +34,6 @@ async function renderInventory(ctx, category = null) {
     const inventory = player.inventory || [];
     const equipped = player.equipment || {};
 
-    // Definição das categorias
     const categories = {
         weapons: { title: '⚔️ Armas', filter: i => i.slot === 'weapon' },
         armors: { title: '🛡️ Armaduras', filter: i => i.slot === 'armor' },
@@ -64,7 +63,6 @@ async function renderInventory(ctx, category = null) {
         );
     }
 
-    // Monta a lista de itens com botões "Equipar" ou "Desequipar"
     const buttons = [];
     let text = `${renderInventoryHeader(player)}\n`;
     text += `╠══════════════════════════════════╣\n`;
@@ -79,7 +77,7 @@ async function renderInventory(ctx, category = null) {
         if (isEquipped) {
             buttons.push([Markup.button.callback(`⭐ Desequipar ${item.name}`, `unequip_${item.slot}`)]);
         } else {
-            // Callback com formato: equip_{slot}_{itemId}
+            // GARANTE que o slot seja o nome correto (ex: 'necklace')
             buttons.push([Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${item.slot}_${item.id}`)]);
         }
     }
@@ -90,7 +88,6 @@ async function renderInventory(ctx, category = null) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Handlers de navegação
 async function handleInventory(ctx) { return renderInventory(ctx); }
 async function handleInvWeapons(ctx) { return renderInventory(ctx, 'weapons'); }
 async function handleInvArmors(ctx) { return renderInventory(ctx, 'armors'); }
@@ -159,7 +156,6 @@ async function handleInvSouls(ctx) {
     return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-// Busca item por ID (exato, sem sufixos)
 function findItemById(inventory, slot, targetId) {
     const normalizedTarget = String(targetId).trim();
     return inventory.find(item => {
@@ -194,7 +190,6 @@ async function handleEquipItem(ctx) {
     await savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
 
-    // Redireciona para a mesma categoria
     if (slot === 'weapon') return handleInvWeapons(ctx);
     if (slot === 'armor') return handleInvArmors(ctx);
     if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
