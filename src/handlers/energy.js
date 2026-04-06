@@ -17,10 +17,10 @@ async function safeEdit(ctx, text, options = {}) {
 }
 
 async function renderEnergy(ctx) {
-    let player = getPlayer(ctx.from.id);
+    let player = await getPlayer(ctx.from.id);
     if (!player) return ctx.reply('❌ Perfil não encontrado.');
     updateEnergy(player);
-    savePlayer(ctx.from.id, player);
+    await savePlayer(ctx.from.id, player);
     
     const nextIn = getTimeToNextEnergy(player);
     const interval = getRegenInterval(player);
@@ -60,17 +60,14 @@ async function handleEnergy(ctx) { return renderEnergy(ctx); }
 
 async function handleRestEnergy(ctx) {
     try {
-        let player = getPlayer(ctx.from.id);
+        let player = await getPlayer(ctx.from.id);
         updateEnergy(player);
         if (!player) return ctx.answerCbQuery('Perfil não encontrado.', { show_alert: true });
         if (player.hp >= player.maxHp) return ctx.answerCbQuery('❤️ HP já está cheio.', { show_alert: true });
         if (player.energy < 1) return ctx.answerCbQuery('⚡ Energia insuficiente.', { show_alert: true });
         player.energy -= 1;
         player.hp = player.maxHp;
-        savePlayer(ctx.from.id, player);
-        
-        const { checkMissionProgress } = require('./daily');
-        checkMissionProgress(player, 'energy', 1);
+        await savePlayer(ctx.from.id, player);
         
         return renderEnergy(ctx);
     } catch (error) {
