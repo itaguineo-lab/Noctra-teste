@@ -11,7 +11,7 @@ async function safeEdit(ctx, text, options = {}) {
 
 async function handleVip(ctx) {
     try {
-        const player = getPlayer(ctx.from.id);
+        const player = await getPlayer(ctx.from.id);
         const vipActive = player.vip && player.vipExpires && new Date() < new Date(player.vipExpires);
 
         let msg = `💎 *VIP*\n\n`;
