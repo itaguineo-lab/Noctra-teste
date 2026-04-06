@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const { Telegraf } = require('telegraf');
 const http = require('http');
-
 const { connectToMongo } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
 
@@ -42,11 +41,7 @@ const {
     handleTravelLocked
 } = require('./src/handlers/travel');
 
-const {
-    handleEnergy,
-    handleRestEnergy
-} = require('./src/handlers/energy');
-
+const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
 const { handleVip } = require('./src/handlers/vip');
 const { handleDaily } = require('./src/handlers/daily');
 const { handleOnline } = require('./src/handlers/online');
@@ -86,7 +81,7 @@ async function startBot() {
 
         console.log('✅ Webhook removido');
 
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         await connectToMongo();
         console.log('✅ Banco de dados MongoDB conectado');
@@ -99,7 +94,7 @@ async function startBot() {
             console.log('✅ NOCTRA ONLINE (polling mode)');
         } catch (error) {
             if (error?.response?.error_code === 409) {
-                console.log('⚠️ Instância anterior ainda finalizando no Render');
+                console.log('⚠️ Instância antiga ainda encerrando no Render');
                 return;
             }
 
@@ -110,6 +105,12 @@ async function startBot() {
         console.error('❌ Erro ao iniciar:', err);
     }
 }
+
+/*
+=================================
+COMANDOS
+=================================
+*/
 
 bot.start(async (ctx) => {
     const menuText = await getMainMenuText(
@@ -137,6 +138,12 @@ bot.command('equip', handleEquip);
 bot.command('equipsoul', handleEquipSoulCommand);
 bot.command('ranking', handleRanking);
 
+/*
+=================================
+AÇÕES MENU
+=================================
+*/
+
 bot.action('hunt', handleHunt);
 bot.action('profile', handleProfile);
 bot.action('energy', handleEnergy);
@@ -149,6 +156,12 @@ bot.action('online', handleOnline);
 bot.action('ranking', handleRanking);
 bot.action('dungeon', handleDungeon);
 
+/*
+=================================
+COMBATE
+=================================
+*/
+
 bot.action('combat_attack', handleAttack);
 bot.action('combat_defend', handleDefend);
 bot.action('combat_soul_menu', handleSoulMenu);
@@ -156,6 +169,12 @@ bot.action(/combat_soul_([01])/, handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 bot.action('combat_back', handleCombatBack);
+
+/*
+=================================
+CONSUMÍVEIS
+=================================
+*/
 
 bot.action('use_potion_hp', (ctx) =>
     useConsumable(ctx, 'potion_hp')
@@ -173,11 +192,22 @@ bot.action('use_tonic_defense', (ctx) =>
     useConsumable(ctx, 'tonic_defense')
 );
 
+bot.action('noop', async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleConsumables(ctx);
+});
+
 bot.action('use_potion_outside_hp', (ctx) =>
     handleUsePotionOutside(ctx, 'hp')
 );
 
 bot.action('rest_energy', handleRestEnergy);
+
+/*
+=================================
+INVENTÁRIO
+=================================
+*/
 
 bot.action('inv_weapons', handleInvWeapons);
 bot.action('inv_armors', handleInvArmors);
@@ -199,17 +229,41 @@ bot.action(
 bot.action(/^equip_soul_(.+)$/, handleEquipSoul);
 bot.action(/^unequip_soul_(\d+)$/, handleUnequipSoul);
 
+/*
+=================================
+LOJA
+=================================
+*/
+
 bot.action('shop_village', handleShopVillage);
 bot.action('shop_castle', handleShopCastle);
 bot.action('shop_arena', handleShopArena);
 bot.action(/buy_(.+)/, handleBuy);
 
+/*
+=================================
+VIAGEM
+=================================
+*/
+
 bot.action(/travel_to_(.+)/, handleTravelTo);
 bot.action('travel_locked', handleTravelLocked);
+
+/*
+=================================
+DUNGEON
+=================================
+*/
 
 bot.action('dungeon_attack', handleDungeonAttack);
 bot.action('dungeon_next_room', handleDungeonNextRoom);
 bot.action('dungeon_flee', handleDungeonFlee);
+
+/*
+=================================
+MENU
+=================================
+*/
 
 bot.action('menu', async (ctx) => {
     await ctx.answerCbQuery();
@@ -224,6 +278,12 @@ bot.action('menu', async (ctx) => {
         ...mainMenu()
     });
 });
+
+/*
+=================================
+HTTP SERVER RENDER
+=================================
+*/
 
 const PORT = process.env.PORT || 3000;
 
