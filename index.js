@@ -56,13 +56,15 @@ const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+// Flag para garantir que o bot seja lançado apenas uma vez
+let launched = false;
+
 // Remove webhook FORÇADAMENTE com drop_pending_updates
 (async () => {
     try {
         await bot.telegram.deleteWebhook({ drop_pending_updates: true });
         console.log('✅ Webhook removido com drop_pending_updates.');
-        // Aguarda 3 segundos para garantir que o Telegram processe
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
     } catch (err) {
         console.error('❌ Erro ao remover webhook:', err.message);
     }
@@ -180,8 +182,10 @@ http.createServer((req, res) => {
     res.end('Noctra online');
 }).listen(PORT);
 
-// Inicialização com MongoDB
+// Inicialização com MongoDB (garantindo que o bot seja lançado apenas uma vez)
 (async () => {
+    if (launched) return;
+    launched = true;
     await connectToMongo();
     console.log('✅ Banco de dados MongoDB conectado');
     bot.launch();
