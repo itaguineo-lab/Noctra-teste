@@ -4,10 +4,39 @@ const {
     savePlayer,
     recalculateStats
 } = require('../core/player/playerService');
+const { inventoryMainMenu } = require('../menus/inventoryMenu');
+
+const PAGE_SIZE = 5;
+
+const CATEGORY_CONFIG = {
+    weapons: {
+        title: '⚔️ Armas',
+        slots: ['weapon']
+    },
+    armors: {
+        title: '🛡️ Armaduras',
+        slots: ['armor']
+    },
+    jewelry: {
+        title: '💎 Joias',
+        slots: ['necklace', 'ring']
+    },
+    boots: {
+        title: '👢 Botas',
+        slots: ['boots']
+    }
+};
 
 function renderInventoryHeader(player) {
     const inventory = player.inventory || [];
     const maxInv = player.maxInventory || 20;
+
+    const weapon = player.equipment?.weapon?.name || '—';
+    const armor = player.equipment?.armor?.name || '—';
+    const necklace = player.equipment?.necklace?.name || '—';
+    const ring = player.equipment?.ring?.name || '—';
+    const boots = player.equipment?.boots?.name || '—';
+
     return `╔══════════════════════════════════╗
 ║            🎒 *INVENTÁRIO*            ║
 ╠══════════════════════════════════╣
@@ -15,111 +44,201 @@ function renderInventoryHeader(player) {
 ║ ⚔️ ATK ${player.atk || 0}  🛡️ DEF ${player.def || 0}
 ║ ❤️ HP ${player.maxHp || 0}  💥 CRIT ${player.crit || 0}%
 ║ 🗝️ Chaves: ${player.keys || 0}
+╠══════════════════════════════════╣
+║ 🗡️ Arma: ${weapon}
+║ 🛡️ Armadura: ${armor}
+║ 💎 Amuleto: ${necklace}
+║ 💍 Anel: ${ring}
+║ 👢 Botas: ${boots}
 ╚══════════════════════════════════╝`;
 }
 
-function formatItemLine(item) {
+function formatItemLine(item, equipped = false) {
+    const star = equipped ? '⭐ ' : '';
     const level = item.level ? ` [Lv${item.level}]` : '';
+
     const stats = [];
     if (item.atk) stats.push(`ATK+${item.atk}`);
     if (item.def) stats.push(`DEF+${item.def}`);
     if (item.hp) stats.push(`HP+${item.hp}`);
     if (item.crit) stats.push(`CRIT+${item.crit}%`);
-    return `${item.emoji || '⚪'} ${item.name}${level} (${stats.join(', ')})`;
+
+    return `${star}${item.emoji || '⚪'} ${item.name}${level} (${stats.join(', ')})`;
 }
 
 function getRealSlot(item) {
     if (!item?.slot) return 'unknown';
+
     const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
     for (const validSlot of validSlots) {
         if (item.slot.startsWith(validSlot)) return validSlot;
     }
+
     return item.slot;
 }
 
-async function renderInventory(ctx, category = null) {
-    const player = await getPlayer(ctx.from.id);
-    const inventory = player.inventory || [];
-    const equipped = player.equipment || {};
+function getItemKey(item) {
+    if (!item || typeof item !== 'object') return '';
+    return String(
+        item.id ??
+        item._id ??
+        item.instanceId ??
+        `${item.slot || 'unknown'}|${item.name || 'item'}|${item.level || 0}|${item.atk || 0}|${item.def || 0}|${item.hp || 0}|${item.crit || 0}`
+    );
+}
 
-    const categories = {
-        weapons: { title: '⚔️ Armas', filter: i => getRealSlot(i) === 'weapon' },
-        armors: { title: '🛡️ Armaduras', filter: i => getRealSlot(i) === 'armor' },
-        jewelry: { title: '💎 Joias', filter: i => getRealSlot(i) === 'necklace' || getRealSlot(i) === 'ring' },
-        boots: { title: '👢 Botas', filter: i => getRealSlot(i) === 'boots' }
-    };
+function getCategoryItems(player = {}, category = 'weapons') {
+    const config = CATEGORY_CONFIG[category];
+    if (!config) return [];
 
-    if (!category) {
-        const header = renderInventoryHeader(player);
-        const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('⚔️ Armas', 'inv_weapons'), Markup.button.callback('🛡️ Armaduras', 'inv_armors')],
-            [Markup.button.callback('💎 Joias', 'inv_jewelry'), Markup.button.callback('👢 Botas', 'inv_boots')],
-            [Markup.button.callback('🧪 Consumíveis', 'inv_consumables'), Markup.button.callback('💀 Almas', 'inv_souls')],
-            [Markup.button.callback('🏠 Menu', 'menu')]
-        ]);
-        return ctx.editMessageText(header, { parse_mode: 'Markdown', ...keyboard });
-    }
+    const inventory = Array.isArray(player.inventory) ? player.inventory : [];
+    const equipment = player.equipment || {};
 
-    const cat = categories[category];
-    if (!cat) return ctx.editMessageText('Categoria inválida.', { parse_mode: 'Markdown' });
+    const equippedItems = [];
+    const equippedKeys = new Set();
 
-    const items = inventory.filter(cat.filter);
-    if (items.length === 0) {
-        return ctx.editMessageText(
-            `${renderInventoryHeader(player)}\n\n║ *${cat.title}*\n║   Nenhum item encontrado.\n╚══════════════════════════════════╝`,
-            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('◀️ Voltar', 'inventory')]]) }
-        );
-    }
-
-    const buttons = [];
-    let text = `${renderInventoryHeader(player)}\n`;
-    text += `╠══════════════════════════════════╣\n`;
-    text += `║ *${cat.title}*\n`;
-    text += `╠══════════════════════════════════╣\n`;
-
-    for (const item of items) {
-        const realSlot = getRealSlot(item);
-        const isEquipped = String(equipped[realSlot]?.id || '') === String(item.id);
-        const line = formatItemLine(item);
-        text += `║ ${line}\n`;
-
-        if (isEquipped) {
-            buttons.push([Markup.button.callback(`⭐ Desequipar ${item.name}`, `unequip_${realSlot}`)]);
-        } else {
-            buttons.push([Markup.button.callback(`🔹 Equipar ${item.name}`, `equip_${realSlot}_${item.id}`)]);
+    for (const slot of config.slots) {
+        const equipped = equipment[slot];
+        if (equipped) {
+            equippedItems.push({ ...equipped, __equipped: true });
+            equippedKeys.add(getItemKey(equipped));
         }
     }
 
+    const inventoryItems = inventory
+        .filter(item => config.slots.includes(getRealSlot(item)))
+        .filter(item => !equippedKeys.has(getItemKey(item)))
+        .map(item => ({ ...item, __equipped: false }));
+
+    return [...equippedItems, ...inventoryItems];
+}
+
+function getPageItems(items, page) {
+    const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const start = (safePage - 1) * PAGE_SIZE;
+    return {
+        totalPages,
+        page: safePage,
+        start,
+        items: items.slice(start, start + PAGE_SIZE)
+    };
+}
+
+function renderCategoryButtons(page) {
+    return [
+        [
+            Markup.button.callback('⚔️ Armas', `invcat:weapons`),
+            Markup.button.callback('🛡️ Armaduras', `invcat:armors`)
+        ],
+        [
+            Markup.button.callback('💎 Joias', `invcat:jewelry`),
+            Markup.button.callback('👢 Botas', `invcat:boots`)
+        ],
+        [
+            Markup.button.callback('🧪 Consumíveis', 'invcat:consumables'),
+            Markup.button.callback('💀 Almas', 'invcat:souls')
+        ],
+        [
+            Markup.button.callback('🏠 Menu', 'menu')
+        ]
+    ];
+}
+
+async function renderInventory(ctx, category = null, page = 1) {
+    const player = await getPlayer(ctx.from.id);
+
+    if (!category) {
+        return ctx.editMessageText(
+            renderInventoryHeader(player),
+            {
+                parse_mode: 'Markdown',
+                ...inventoryMainMenu(player)
+            }
+        );
+    }
+
+    if (!CATEGORY_CONFIG[category]) {
+        return ctx.editMessageText('Categoria inválida.', { parse_mode: 'Markdown' });
+    }
+
+    const config = CATEGORY_CONFIG[category];
+    const allItems = getCategoryItems(player, category);
+    const { totalPages, page: safePage, start, items: pageItems } = getPageItems(allItems, page);
+
+    let text = `${renderInventoryHeader(player)}\n\n`;
+    text += `║ *${config.title}* — página ${safePage}/${totalPages}\n`;
+    text += `╠══════════════════════════════════╣\n`;
+
+    const buttons = [];
+
+    pageItems.forEach((item, index) => {
+        const realSlot = getRealSlot(item);
+        const isEquipped = Boolean(item.__equipped);
+
+        text += `║ ${formatItemLine(item, isEquipped)}\n`;
+
+        if (isEquipped) {
+            buttons.push([
+                Markup.button.callback(
+                    `⭐ Desequipar ${item.name}`,
+                    `uneq:${realSlot}:${category}:${safePage}`
+                )
+            ]);
+        } else {
+            buttons.push([
+                Markup.button.callback(
+                    `🔹 Equipar ${item.name}`,
+                    `eq:${category}:${safePage}:${start + index}`
+                )
+            ]);
+        }
+    });
+
     text += `╚══════════════════════════════════╝`;
 
+    const navRow = [];
+    if (safePage > 1) navRow.push(Markup.button.callback('⬅️', `invpage:${category}:${safePage - 1}`));
+    if (safePage < totalPages) navRow.push(Markup.button.callback('➡️', `invpage:${category}:${safePage + 1}`));
+    if (navRow.length) buttons.push(navRow);
+
     buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
-    const keyboard = Markup.inlineKeyboard(buttons);
-    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
+
+    return ctx.editMessageText(text, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(buttons)
+    });
 }
 
 async function handleInventory(ctx) {
+    await ctx.answerCbQuery?.().catch(() => {});
     return renderInventory(ctx);
 }
 
 async function handleInvWeapons(ctx) {
-    return renderInventory(ctx, 'weapons');
+    await ctx.answerCbQuery?.().catch(() => {});
+    return renderInventory(ctx, 'weapons', 1);
 }
 
 async function handleInvArmors(ctx) {
-    return renderInventory(ctx, 'armors');
+    await ctx.answerCbQuery?.().catch(() => {});
+    return renderInventory(ctx, 'armors', 1);
 }
 
 async function handleInvJewelry(ctx) {
-    return renderInventory(ctx, 'jewelry');
+    await ctx.answerCbQuery?.().catch(() => {});
+    return renderInventory(ctx, 'jewelry', 1);
 }
 
 async function handleInvBoots(ctx) {
-    return renderInventory(ctx, 'boots');
+    await ctx.answerCbQuery?.().catch(() => {});
+    return renderInventory(ctx, 'boots', 1);
 }
 
 async function handleInvConsumables(ctx) {
     const player = await getPlayer(ctx.from.id);
     const c = player.consumables || {};
+
     const text = `╔══════════════════════════════════╗
 ║            🧪 *CONSUMÍVEIS*          ║
 ╠══════════════════════════════════╣
@@ -134,29 +253,10 @@ async function handleInvConsumables(ctx) {
     if (c.potionHp > 0) buttons.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
     buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
 
-    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
-}
-
-async function handleUsePotionOutside(ctx, type) {
-    const player = await getPlayer(ctx.from.id);
-    const consumables = player.consumables || {};
-
-    if (type === 'hp') {
-        if (!consumables.potionHp || consumables.potionHp <= 0) {
-            return ctx.answerCbQuery('❌ Você não tem poções de vida.', { show_alert: true });
-        }
-        if (player.hp >= player.maxHp) {
-            return ctx.answerCbQuery('❤️ Seu HP já está cheio.', { show_alert: true });
-        }
-
-        consumables.potionHp--;
-        const heal = Math.floor(player.maxHp * 0.4);
-        player.hp = Math.min(player.maxHp, player.hp + heal);
-
-        await savePlayer(ctx.from.id, player);
-        await ctx.answerCbQuery(`🧪 Você usou uma poção e recuperou ${heal} HP!`, { show_alert: true });
-        return handleInvConsumables(ctx);
-    }
+    return ctx.editMessageText(text, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(buttons)
+    });
 }
 
 async function handleInvSouls(ctx) {
@@ -169,7 +269,9 @@ async function handleInvSouls(ctx) {
 ╠══════════════════════════════════╣
 ║ *Inventário* (${souls.length})\n`;
 
-    souls.forEach(soul => { text += `║   🔹 ${soul.name} (${soul.rarity})\n`; });
+    souls.forEach(soul => {
+        text += `║   🔹 ${soul.name} (${soul.rarity})\n`;
+    });
 
     text += `╠══════════════════════════════════╣
 ║ *Equipadas*\n`;
@@ -188,107 +290,231 @@ async function handleInvSouls(ctx) {
         [Markup.button.callback('◀️ Voltar', 'inventory')]
     ]);
 
-    return ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
-}
-
-function findItemById(inventory, slot, targetId) {
-    const normalizedTarget = String(targetId).trim();
-    return inventory.find(item => {
-        const realSlot = getRealSlot(item);
-        if (realSlot !== slot) return false;
-        return String(item.id) === normalizedTarget;
+    return ctx.editMessageText(text, {
+        parse_mode: 'Markdown',
+        ...keyboard
     });
 }
 
-async function handleEquipItem(ctx) {
-    const rawData = ctx.callbackQuery.data;
-
-    const match = rawData.match(
-        /^equip_(weapon|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/
-    );
-
-    if (!match) {
-        console.error('[Equipar] Formato inválido:', rawData);
-        return ctx.answerCbQuery('⚠️ Mensagem antiga. Abra o inventário novamente.', { show_alert: true });
-    }
-
-    const [, slot, itemIdRaw] = match;
-    const itemId = String(itemIdRaw).trim();
-
+async function handleUsePotionOutside(ctx, type) {
     const player = await getPlayer(ctx.from.id);
-    const inventory = player.inventory || [];
+    const consumables = player.consumables || {};
 
-    console.log(`[Equipar] Slot: ${slot}, ID: "${itemId}"`);
+    if (type === 'hp') {
+        if (!consumables.potionHp || consumables.potionHp <= 0) {
+            return ctx.answerCbQuery('❌ Você não tem poções de vida.', { show_alert: true });
+        }
+        if (player.hp >= player.maxHp) {
+            return ctx.answerCbQuery('❤️ Seu HP já está cheio.', { show_alert: true });
+        }
 
-    const item = findItemById(inventory, slot, itemId);
+        consumables.potionHp--;
+        const heal = Math.floor(player.maxHp * 0.4);
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        player.consumables = consumables;
+
+        await savePlayer(ctx.from.id, player);
+        await ctx.answerCbQuery(`🧪 Você usou uma poção e recuperou ${heal} HP!`, { show_alert: true });
+        return handleInvConsumables(ctx);
+    }
+}
+
+function sameItem(a, b) {
+    return getItemKey(a) === getItemKey(b);
+}
+
+async function equipByCurrentList(ctx, category, page, index) {
+    const player = await getPlayer(ctx.from.id);
+    const items = getCategoryItems(player, category);
+    const { items: pageItems, page: safePage, totalPages } = getPageItems(items, page);
+    const item = pageItems[index];
 
     if (!item) {
-        console.error(`[Equipar] Item NÃO encontrado: slot=${slot}, id=${itemId}`);
-        return ctx.answerCbQuery('❌ Item não encontrado no inventário.', { show_alert: true });
+        await ctx.answerCbQuery('⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
+        return renderInventory(ctx, category, safePage > totalPages ? totalPages : safePage);
+    }
+
+    const slot = getRealSlot(item);
+    if (!slot || slot === 'unknown') {
+        await ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+        return renderInventory(ctx, category, safePage);
     }
 
     if (!player.equipment) player.equipment = {};
-    player.equipment[slot] = item;
+    if (!Array.isArray(player.inventory)) player.inventory = [];
+
+    const currentEquipped = player.equipment[slot];
+
+    if (currentEquipped && !sameItem(currentEquipped, item)) {
+        player.inventory.push(currentEquipped);
+    }
+
+    player.inventory = player.inventory.filter(invItem => !sameItem(invItem, item));
+    player.equipment[slot] = { ...item, __equipped: true };
 
     recalculateStats(player);
     await savePlayer(ctx.from.id, player);
-    await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
 
-    if (slot === 'weapon') return handleInvWeapons(ctx);
-    if (slot === 'armor') return handleInvArmors(ctx);
-    if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
-    if (slot === 'boots') return handleInvBoots(ctx);
-    return handleInventory(ctx);
+    await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
+    return renderInventory(ctx, category, safePage);
 }
 
-async function handleUnequipItem(ctx) {
-    const rawData = ctx.callbackQuery.data;
-    const match = rawData.match(/^unequip_(weapon|armor|necklace|ring|boots)$/);
-
-    if (!match) {
-        console.error('[Desequipar] Formato inválido:', rawData);
-        return ctx.answerCbQuery('Erro interno.', { show_alert: true });
-    }
-
-    const slot = match[1];
+async function unequipBySlot(ctx, slot, category, page) {
     const player = await getPlayer(ctx.from.id);
-    const item = player.equipment?.[slot];
+    if (!player.equipment) player.equipment = {};
+    if (!Array.isArray(player.inventory)) player.inventory = [];
 
+    const item = player.equipment[slot];
     if (!item) {
-        return ctx.answerCbQuery('❌ Nada equipado neste slot.', { show_alert: true });
+        await ctx.answerCbQuery('❌ Nada equipado neste slot.', { show_alert: true });
+        return renderInventory(ctx, category, page);
     }
 
+    player.inventory.push(item);
     player.equipment[slot] = null;
 
     recalculateStats(player);
     await savePlayer(ctx.from.id, player);
-    await ctx.answerCbQuery(`✅ ${item.name} removido!`);
 
-    if (slot === 'weapon') return handleInvWeapons(ctx);
-    if (slot === 'armor') return handleInvArmors(ctx);
-    if (slot === 'necklace' || slot === 'ring') return handleInvJewelry(ctx);
-    if (slot === 'boots') return handleInvBoots(ctx);
-    return handleInventory(ctx);
+    await ctx.answerCbQuery(`✅ ${item.name} removido!`);
+    return renderInventory(ctx, category, page);
+}
+
+async function handleEquipItem(ctx) {
+    const raw = ctx.callbackQuery.data;
+
+    let match = raw.match(/^eq:(weapons|armors|jewelry|boots):(\d+):(\d+)$/);
+    if (match) {
+        const [, category, pageStr, indexStr] = match;
+        return equipByCurrentList(ctx, category, Number(pageStr), Number(indexStr));
+    }
+
+    const legacy = raw.match(/^equip_(weapon|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/);
+    if (legacy) {
+        const [, slot, itemIdRaw] = legacy;
+        const player = await getPlayer(ctx.from.id);
+        const inventory = player.inventory || [];
+
+        const item = inventory.find(invItem => {
+            return (
+                getRealSlot(invItem) === slot &&
+                String(invItem.id ?? invItem._id ?? invItem.instanceId) === String(itemIdRaw)
+            );
+        });
+
+        if (!item) {
+            console.error('[Equipar legado] Item NÃO encontrado:', raw);
+            return ctx.answerCbQuery('❌ Item não encontrado no inventário.', { show_alert: true });
+        }
+
+        if (!player.equipment) player.equipment = {};
+        if (!Array.isArray(player.inventory)) player.inventory = [];
+
+        const currentEquipped = player.equipment[slot];
+        if (currentEquipped && !sameItem(currentEquipped, item)) {
+            player.inventory.push(currentEquipped);
+        }
+
+        player.inventory = player.inventory.filter(invItem => !sameItem(invItem, item));
+        player.equipment[slot] = { ...item, __equipped: true };
+
+        recalculateStats(player);
+        await savePlayer(ctx.from.id, player);
+
+        await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
+        return renderInventory(ctx, slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'), 1);
+    }
+
+    console.error('[Equipar] Formato inválido:', raw);
+    return ctx.answerCbQuery('Erro interno.', { show_alert: true });
+}
+
+async function handleUnequipItem(ctx) {
+    const raw = ctx.callbackQuery.data;
+
+    let match = raw.match(/^uneq:(weapon|armor|necklace|ring|boots):(weapons|armors|jewelry|boots):(\d+)$/);
+    if (match) {
+        const [, slot, category, pageStr] = match;
+        return unequipBySlot(ctx, slot, category, Number(pageStr));
+    }
+
+    const legacy = raw.match(/^unequip_(weapon|armor|necklace|ring|boots)$/);
+    if (legacy) {
+        const slot = legacy[1];
+        const player = await getPlayer(ctx.from.id);
+        const item = player.equipment?.[slot];
+
+        if (!item) {
+            return ctx.answerCbQuery('❌ Nada equipado neste slot.', { show_alert: true });
+        }
+
+        if (!Array.isArray(player.inventory)) player.inventory = [];
+        player.inventory.push(item);
+        player.equipment[slot] = null;
+
+        recalculateStats(player);
+        await savePlayer(ctx.from.id, player);
+
+        await ctx.answerCbQuery(`✅ ${item.name} removido!`);
+        return renderInventory(ctx, slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'), 1);
+    }
+
+    console.error('[Desequipar] Formato inválido:', raw);
+    return ctx.answerCbQuery('Erro interno.', { show_alert: true });
+}
+
+async function handleInventoryPage(ctx) {
+    const match = ctx.callbackQuery.data.match(/^invpage:(weapons|armors|jewelry|boots):(\d+)$/);
+    if (!match) {
+        return ctx.answerCbQuery('Erro interno.', { show_alert: true });
+    }
+
+    const [, category, pageStr] = match;
+    return renderInventory(ctx, category, Number(pageStr));
+}
+
+async function handleInventoryCategory(ctx) {
+    const match = ctx.callbackQuery.data.match(/^invcat:(weapons|armors|jewelry|boots|consumables|skins|souls)$/);
+    if (!match) {
+        return ctx.answerCbQuery('Erro interno.', { show_alert: true });
+    }
+
+    const category = match[1];
+    await ctx.answerCbQuery();
+
+    if (category === 'consumables') return handleInvConsumables(ctx);
+    if (category === 'souls') return handleInvSouls(ctx);
+    if (category === 'skins') {
+        return ctx.editMessageText('🎨 *Skins*\n\nEm breve.', {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('◀️ Voltar', 'inventory')]
+            ])
+        });
+    }
+
+    return renderInventory(ctx, category, 1);
 }
 
 async function handleEquipSoul(ctx) {
     const soulId = ctx.match?.[1];
     const player = await getPlayer(ctx.from.id);
-    const soul = (player.soulsInventory || []).find(s => (s.instanceId || s.id) === soulId);
+    const souls = player.soulsInventory || [];
+    const soul = souls.find(s => String(s.instanceId || s.id) === String(soulId));
 
-    if (!soul) return ctx.answerCbQuery('Alma não encontrada.');
-    if ((player.soulsEquipped || []).some(s => s && (s.instanceId || s.id) === soulId)) {
+    if (!soul) return ctx.answerCbQuery('Alma não encontrada.', { show_alert: true });
+    if ((player.soulsEquipped || []).some(s => s && String(s.instanceId || s.id) === String(soulId))) {
         return ctx.answerCbQuery('⚠️ Já equipada.', { show_alert: true });
     }
 
-    const emptySlot = (player.soulsEquipped || [null, null]).findIndex(s => !s);
-    if (emptySlot === -1) return ctx.answerCbQuery('Slots de almas cheios.');
-
     if (!player.soulsEquipped) player.soulsEquipped = [null, null];
-    player.soulsEquipped[emptySlot] = soul;
+    const emptySlot = player.soulsEquipped.findIndex(s => !s);
+    if (emptySlot === -1) return ctx.answerCbQuery('Slots de almas cheios.', { show_alert: true });
 
+    player.soulsEquipped[emptySlot] = soul;
     recalculateStats(player);
     await savePlayer(ctx.from.id, player);
+
     await ctx.answerCbQuery(`💀 ${soul.name} equipada!`);
     return handleInvSouls(ctx);
 }
@@ -298,14 +524,15 @@ async function handleUnequipSoul(ctx) {
     const player = await getPlayer(ctx.from.id);
     const soul = player.soulsEquipped?.[slotIdx];
 
-    if (!soul) return ctx.answerCbQuery('Nada equipado.');
+    if (!soul) return ctx.answerCbQuery('Nada equipado.', { show_alert: true });
 
-    if (!player.soulsInventory) player.soulsInventory = [];
+    if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
     player.soulsInventory.push(soul);
     player.soulsEquipped[slotIdx] = null;
 
     recalculateStats(player);
     await savePlayer(ctx.from.id, player);
+
     await ctx.answerCbQuery(`💀 ${soul.name} removida e devolvida!`);
     return handleInvSouls(ctx);
 }
@@ -321,6 +548,8 @@ module.exports = {
     handleInvSouls,
     handleEquipItem,
     handleUnequipItem,
+    handleInventoryPage,
+    handleInventoryCategory,
     handleEquipSoul,
     handleUnequipSoul,
     handleUsePotionOutside
