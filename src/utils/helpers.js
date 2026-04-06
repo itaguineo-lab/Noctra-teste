@@ -23,12 +23,10 @@ const {
     formatTime
 } = require('./formatters');
 
-function getPlayerSafe(id, name = 'Viajante') {
-    const player = getPlayer(id, name);
-
+async function getPlayerSafe(id, name = 'Viajante') {
+    const player = await getPlayer(id, name);
     updateEnergy(player);
     recalculateStats(player);
-
     return player;
 }
 
@@ -85,39 +83,15 @@ function getBuildName(player) {
     return '⚪ Build padrão';
 }
 
-function getMainMenuText(player, username) {
+async function getMainMenuText(playerId, username) {
+    const player = await getPlayerSafe(playerId, username);
     const xpNeeded = getXpToNextLevel(player.level);
-
-    const vipStatus = player.vip
-        ? '✨ *VIP*'
-        : '👤 Comum';
-
+    const vipStatus = player.vip ? '✨ *VIP*' : '👤 Comum';
     const location = getPlayerLocation(player);
-
-    const nextEnergyTime =
-        getTimeToNextEnergy(player);
-
-    const energyTimeStr =
-        nextEnergyTime > 0
-            ? ` (${formatTime(nextEnergyTime)})`
-            : ' (cheia)';
-
-    const hpBar = progressBar(
-        player.hp,
-        player.maxHp,
-        8,
-        '🟥',
-        '⬜'
-    );
-
-    const xpBar = progressBar(
-        player.xp,
-        xpNeeded,
-        8,
-        '🟨',
-        '⬜'
-    );
-
+    const nextEnergyTime = getTimeToNextEnergy(player);
+    const energyTimeStr = nextEnergyTime > 0 ? ` (${formatTime(nextEnergyTime)})` : ' (cheia)';
+    const hpBar = progressBar(player.hp, player.maxHp, 8, '🟥', '⬜');
+    const xpBar = progressBar(player.xp, xpNeeded, 8, '🟨', '⬜');
     const buildName = getBuildName(player);
 
     let text = `╔══════════════════════════════════╗\n`;
