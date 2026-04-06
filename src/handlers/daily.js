@@ -8,7 +8,7 @@ function giveDailyChest(player) {
 
     const baseGold = 100 + player.level * 20;
     const keys = 1;
-    const noxChance = Math.random() < 0.03; // 3% de chance de ganhar Nox (opcional)
+    const noxChance = Math.random() < 0.03;
     const noxAmount = noxChance ? 5 : 0;
 
     player.gold = (player.gold || 0) + baseGold;
@@ -28,11 +28,11 @@ async function safeEdit(ctx, text, options = {}) {
 
 async function handleDaily(ctx) {
     try {
-        const player = getPlayer(ctx.from.id, ctx.from.first_name);
+        const player = await getPlayer(ctx.from.id, ctx.from.first_name);
         const reward = giveDailyChest(player);
         if (!reward) return ctx.answerCbQuery('🎁 Você já pegou seu baú hoje! Volte amanhã.', true);
 
-        savePlayer(ctx.from.id, player);
+        await savePlayer(ctx.from.id, player);
 
         let msg = `╔══════════════════════════════════╗
 ║            🎁 *BAÚ DIÁRIO*            ║
