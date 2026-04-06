@@ -20,16 +20,16 @@ function inventoryMainMenu(player = {}) {
 
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback(`⚔️ Armas (${weapons})`, 'inv_weapon'),
-            Markup.button.callback(`🛡️ Armaduras (${armors})`, 'inv_armor')
+            Markup.button.callback(`⚔️ Armas (${weapons})`, 'inv_weapons'),
+            Markup.button.callback(`🛡️ Armaduras (${armors})`, 'inv_armors')
         ],
         [
             Markup.button.callback(`💍 Jóias (${jewelry})`, 'inv_jewelry'),
             Markup.button.callback(`🎨 Skins (${skins})`, 'inv_skin')
         ],
         [
-            Markup.button.callback(`🧪 Consumíveis (${consumables})`, 'inv_consumable'),
-            Markup.button.callback(`💀 Almas (${souls})`, 'inv_soul')
+            Markup.button.callback(`🧪 Consumíveis (${consumables})`, 'inv_consumables'),
+            Markup.button.callback(`💀 Almas (${souls})`, 'inv_souls')
         ],
         [
             Markup.button.callback('✨ Auto equipar', 'auto_equip')
