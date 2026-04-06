@@ -65,9 +65,17 @@ const playerSchema = new mongoose.Schema({
     renamed: { type: Boolean, default: false },
     classChanged: { type: Boolean, default: false },
     
+    // Masmorra
+    dungeonProgress: { type: Object, default: null },
+    lastDungeonRun: { type: Number, default: 0 },
+    soulPityCounter: { type: Number, default: 0 },
+    cosmetics: { type: Array, default: [] },
+    
+    // Baú diário
+    lastDailyChest: { type: String, default: null },
+    
     // Datas
     lastActive: { type: Date, default: Date.now },
-    lastDailyChest: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
