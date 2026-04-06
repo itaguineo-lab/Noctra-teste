@@ -196,7 +196,7 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
         player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
         await savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
-        let msg = `╔════════════════════════╗\n║     🏃 *FUGIU*         ║\n╠════════════════════════╣\n║ Você escapou com vida!\n║ 👹 ${fight.enemy.name} ficou para trás.\n╠════════════════════════╣\n║ ❤️ HP: ${player.hp}/${player.maxHp}\n║ ⚡ Energia: ${player.energy}/${player.maxEnergy}\n╚════════════════════════╝`;
+        let msg = `╔════════════════════════╗\n║     🏃 *FUGIU*         ║\n╠════════════════════════╣\n║ Você escapou com vida!\n║ 👹 ${fight.enemy.name} ficou para trás.\n╠════════════════════════╣\n║ ❤️ HP: ${player.hp || 0}/${player.maxHp || 0}\n║ ⚡ Energia: ${player.energy || 0}/${player.maxEnergy || 0}\n╚════════════════════════╝`;
         return editMessage(ctx, msg, { parse_mode: 'Markdown', ...postCombatMenu() });
     }
 }
