@@ -60,7 +60,7 @@ function getCurrentEnemy(player) {
 
 async function handleDungeon(ctx) {
     await ctx.answerCbQuery?.();
-    const player = getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
     const cooldownRemaining = getDungeonCooldown(player);
     if (cooldownRemaining > 0) {
         return ctx.reply(`⏳ *Masmorra em recarga*\n\nTempo restante: ${formatCooldown(cooldownRemaining)}`, { parse_mode: 'Markdown' });
@@ -70,7 +70,7 @@ async function handleDungeon(ctx) {
     }
     player.keys -= 1;
     player.dungeonProgress = { stage: 0, enemy: createEnemy(0) };
-    savePlayer(ctx.from.id, player);
+    await savePlayer(ctx.from.id, player);
     return renderDungeonBattle(ctx, player);
 }
 
@@ -97,16 +97,15 @@ async function renderDungeonBattle(ctx, player) {
 
 async function handleDungeonAttack(ctx) {
     await ctx.answerCbQuery();
-    const player = getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
     if (!player.dungeonProgress) return ctx.reply('❌ Nenhuma masmorra ativa.');
     const enemy = getCurrentEnemy(player);
     if (!enemy) {
         player.dungeonProgress = null;
-        savePlayer(ctx.from.id, player);
+        await savePlayer(ctx.from.id, player);
         return ctx.reply('❌ Erro interno na masmorra.');
     }
 
-    // Usa o sistema de dano padronizado
     const attackResult = calculateDamage(
         { atk: player.atk, crit: player.crit },
         { def: enemy.def || 0 },
@@ -131,10 +130,10 @@ async function handleDungeonAttack(ctx) {
         if (player.hp <= 0) {
             player.hp = player.maxHp;
             player.dungeonProgress = null;
-            savePlayer(ctx.from.id, player);
+            await savePlayer(ctx.from.id, player);
             return ctx.reply(`💀 *DERROTA*\n\nVocê foi derrotado na masmorra e retornou à vila.`, { parse_mode: 'Markdown' });
         }
-        savePlayer(ctx.from.id, player);
+        await savePlayer(ctx.from.id, player);
         return ctx.reply(
             combatText + `\n❤️ HP Inimigo: ${enemy.hp}\n🧍 Seu HP: ${player.hp}/${player.maxHp}`,
             { parse_mode: 'Markdown', ...Markup.inlineKeyboard([ [Markup.button.callback('⚔️ Continuar', 'dungeon_attack')] ]) }
@@ -152,10 +151,10 @@ async function handleEnemyDefeat(ctx, player, enemy) {
         player.lastDungeonRun = Date.now();
         player.dungeonProgress = null;
         recalculateStats(player);
-        savePlayer(ctx.from.id, player);
+        await savePlayer(ctx.from.id, player);
         return ctx.reply(`🏆 *MASMORRA CONCLUÍDA*\n\n${rewardText}\n👑 Boss derrotado com sucesso!`, { parse_mode: 'Markdown' });
     }
-    savePlayer(ctx.from.id, player);
+    await savePlayer(ctx.from.id, player);
     return ctx.reply(
         rewardText + `\n➡️ Avançar para a próxima sala?`,
         { parse_mode: 'Markdown', ...Markup.inlineKeyboard([ [Markup.button.callback('➡️ Próxima Sala', 'dungeon_next_room')] ]) }
@@ -164,19 +163,19 @@ async function handleEnemyDefeat(ctx, player, enemy) {
 
 async function handleDungeonNextRoom(ctx) {
     await ctx.answerCbQuery();
-    const player = getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
     if (!player.dungeonProgress) return ctx.reply('❌ Nenhuma masmorra ativa.');
     const stage = player.dungeonProgress.stage;
     player.dungeonProgress.enemy = createEnemy(stage);
-    savePlayer(ctx.from.id, player);
+    await savePlayer(ctx.from.id, player);
     return renderDungeonBattle(ctx, player);
 }
 
 async function handleDungeonFlee(ctx) {
     await ctx.answerCbQuery();
-    const player = getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
     player.dungeonProgress = null;
-    savePlayer(ctx.from.id, player);
+    await savePlayer(ctx.from.id, player);
     return ctx.reply('🏃 Você fugiu da masmorra.');
 }
 
