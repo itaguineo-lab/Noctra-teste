@@ -56,14 +56,13 @@ const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Remove webhook FORÇADAMENTE e garante que não haja conflito
+// Remove webhook FORÇADAMENTE com drop_pending_updates
 (async () => {
     try {
-        // Tenta remover qualquer webhook existente
-        await bot.telegram.deleteWebhook();
-        console.log('✅ Webhook removido.');
-        // Aguarda um pouco para garantir que o Telegram processe
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+        console.log('✅ Webhook removido com drop_pending_updates.');
+        // Aguarda 2 segundos para garantir que o Telegram processe
+        await new Promise(resolve => setTimeout(resolve, 2000));
     } catch (err) {
         console.error('❌ Erro ao remover webhook:', err.message);
     }
