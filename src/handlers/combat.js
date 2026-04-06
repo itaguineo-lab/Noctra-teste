@@ -94,7 +94,6 @@ function renderFightText(fight, player) {
     text += `👹 *${fight.enemy.name}* [Lv ${fight.enemy.level}]\n`;
     text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}\n`;
     text += `[${enemyBar}]\n\n`;
-    text += `🎁 *Recompensas*\n✨ ${fight.enemy.xp} XP\n💰 ${fight.enemy.gold} ouro\n\n`;
     text += `📜 *Últimas ações*\n${fight.logs.slice(-4).join('\n')}`;
 
     return text;
@@ -143,11 +142,13 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
         };
 
         const rewards = processVictory(player, fight.enemy);
+        // NÃO CURA AUTOMATICAMENTE – mantém o HP que restou na luta
         player.hp = Math.min(fight.player.hp, player.maxHp);
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
         player.buffs = Array.isArray(fight.player.buffs) ? fight.player.buffs.map(buff => ({ ...buff })) : [];
 
         recalculateStats(player);
+        // Garante que o HP não ultrapasse o máximo
         player.hp = Math.min(player.hp, player.maxHp);
         player.energy = Math.min(player.energy, player.maxEnergy);
 
@@ -177,6 +178,7 @@ async function finishFight(ctx, fight, turnCount, damageDealt, damageReceived) {
     }
 
     if (fight.status === 'loss') {
+        // Penalidade: perde 1 energia e HP cai para 25% do máximo (sem cura extra)
         const penaltyHp = Math.max(1, Math.floor(player.maxHp * 0.25));
         const penaltyEnergy = Math.max(0, (player.energy || 0) - 1);
         player.hp = penaltyHp;
