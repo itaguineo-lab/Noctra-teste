@@ -5,7 +5,7 @@ async function handleOnline(ctx) {
         const now = Date.now();
         const activeThreshold = now - 20 * 60 * 1000; // últimos 20 minutos
 
-        const players = getAllPlayers();
+        const players = await getAllPlayers();
         let onlineCount = 0;
         let playersByMap = {};
 
