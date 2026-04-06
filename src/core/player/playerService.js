@@ -3,7 +3,24 @@ const mongoose = require('mongoose');
 
 let isConnected = false;
 
-// Garante que todos os campos necessários existam no objeto do jogador
+// Corrige os slots dos itens antigos (ex: 'necklace_item_123' -> 'necklace')
+function migrateItemSlot(item) {
+    if (!item || typeof item !== 'object') return item;
+    const originalSlot = item.slot;
+    if (!originalSlot) return item;
+    
+    // Verifica se o slot está no formato antigo (contém underscore e prefixo de slot)
+    const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
+    for (const validSlot of validSlots) {
+        if (originalSlot.startsWith(validSlot) && originalSlot !== validSlot) {
+            item.slot = validSlot;
+            console.log(`[Migração] Slot corrigido: ${originalSlot} -> ${validSlot}`);
+            break;
+        }
+    }
+    return item;
+}
+
 function ensurePlayerState(player) {
     if (!player) return {};
     
@@ -25,6 +42,9 @@ function ensurePlayerState(player) {
 
     // Inventário
     player.inventory ??= [];
+    // Migração: corrige slots de todos os itens no inventário
+    player.inventory = player.inventory.map(migrateItemSlot);
+    
     player.bonusInventory ??= 0;
     player.maxInventory = 20 + (player.bonusInventory || 0);
     player.consumables ??= { potionHp: 0, potionEnergy: 0, tonicStrength: 0, tonicDefense: 0 };
@@ -37,6 +57,10 @@ function ensurePlayerState(player) {
     const EQUIPMENT_SLOTS = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
     EQUIPMENT_SLOTS.forEach(slot => {
         if (!(slot in player.equipment)) player.equipment[slot] = null;
+        // Migração: corrige slot do item equipado, se existir
+        if (player.equipment[slot]) {
+            player.equipment[slot] = migrateItemSlot(player.equipment[slot]);
+        }
     });
 
     // Almas
@@ -104,7 +128,6 @@ async function getPlayer(id, name = 'Viajante') {
         player = new Player({ id, name });
         await player.save();
     }
-    // Converte para objeto plano e aplica ensurePlayerState
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
     playerObj.lastActive = new Date();
@@ -116,7 +139,6 @@ async function savePlayer(id, playerData) {
     await connectToMongo();
     const { _id, ...updateData } = playerData;
     updateData.updatedAt = new Date();
-    // Garante que os campos estejam presentes antes de salvar
     ensurePlayerState(updateData);
     const result = await Player.findOneAndUpdate(
         { id },
