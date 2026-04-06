@@ -3,6 +3,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const http = require('http');
 const { connectToMongo } = require('./src/core/player/playerService');
+const { getMainMenuText } = require('./src/utils/helpers');
 
 const { mainMenu } = require('./src/menus/mainMenu');
 const { handleProfile } = require('./src/handlers/profile');
@@ -40,6 +41,8 @@ const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
 const { handleVip } = require('./src/handlers/vip');
 const { handleDaily } = require('./src/handlers/daily');
 const { handleOnline } = require('./src/handlers/online');
+const { handleRanking } = require('./src/handlers/ranking');
+const { handleDungeon, handleDungeonAttack, handleDungeonNextRoom, handleDungeonFlee } = require('./src/handlers/dungeon');
 const {
     handleShop,
     handleShopVillage,
@@ -71,13 +74,8 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // Comandos de texto
 bot.start(async (ctx) => {
-    const welcomeMsg = `╔══════════════════════════════════╗
-║         🌙 *NOCTRA RPG*          ║
-║    Bem-vindo, aventureiro        ║
-╠══════════════════════════════════╣
-║   Escolha sua ação:              ║
-╚══════════════════════════════════╝`;
-    await ctx.reply(welcomeMsg, { parse_mode: 'Markdown', ...mainMenu() });
+    const menuText = await getMainMenuText(ctx.from.id, ctx.from.first_name);
+    await ctx.reply(menuText, { parse_mode: 'Markdown', ...mainMenu() });
 });
 
 bot.command('energy', handleEnergy);
@@ -92,6 +90,7 @@ bot.command('vip', handleVip);
 bot.command('online', handleOnline);
 bot.command('equip', handleEquip);
 bot.command('equipsoul', handleEquipSoulCommand);
+bot.command('ranking', handleRanking);
 
 // Ações de menu
 bot.action('hunt', handleHunt);
@@ -103,6 +102,8 @@ bot.action('travel', handleTravel);
 bot.action('vip', handleVip);
 bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
+bot.action('ranking', handleRanking);
+bot.action('dungeon', handleDungeon);
 
 // Combate
 bot.action('combat_attack', handleAttack);
@@ -155,15 +156,16 @@ bot.action(/buy_(.+)/, handleBuy);
 bot.action(/travel_to_(.+)/, handleTravelTo);
 bot.action('travel_locked', handleTravelLocked);
 
+// Masmorra
+bot.action('dungeon_attack', handleDungeonAttack);
+bot.action('dungeon_next_room', handleDungeonNextRoom);
+bot.action('dungeon_flee', handleDungeonFlee);
+
 // Menu
 bot.action('menu', async (ctx) => {
     await ctx.answerCbQuery();
-    const menuMsg = `╔══════════════════════════════════╗
-║         🌙 *NOCTRA RPG*          ║
-╠══════════════════════════════════╣
-║   Escolha sua ação:              ║
-╚══════════════════════════════════╝`;
-    await ctx.editMessageText(menuMsg, { parse_mode: 'Markdown', ...mainMenu() });
+    const menuText = await getMainMenuText(ctx.from.id, ctx.from.first_name);
+    await ctx.editMessageText(menuText, { parse_mode: 'Markdown', ...mainMenu() });
 });
 
 // Ajuda
