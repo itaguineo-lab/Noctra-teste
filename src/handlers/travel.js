@@ -34,10 +34,10 @@ async function safeEdit(ctx, text, keyboard) {
 }
 
 async function handleTravel(ctx) {
-    const player = getPlayer(ctx.from.id, ctx.from.first_name);
+    const player = await getPlayer(ctx.from.id, ctx.from.first_name);
     if (!player.currentMap) {
         player.currentMap = maps[0].id;
-        savePlayer(ctx.from.id, player);
+        await savePlayer(ctx.from.id, player);
     }
     return safeEdit(ctx, renderTravelText(player), buildTravelMenu(player));
 }
@@ -49,12 +49,12 @@ async function handleTravelTo(ctx) {
         if (!mapId) return ctx.answerCbQuery('❌ Destino inválido', { show_alert: true });
         const map = getMapById(mapId);
         if (!map) return ctx.answerCbQuery('❌ Mapa não encontrado', { show_alert: true });
-        const player = getPlayer(ctx.from.id, ctx.from.first_name);
+        const player = await getPlayer(ctx.from.id, ctx.from.first_name);
         if (!canPlayerEnter(player, map.id)) {
             return ctx.answerCbQuery(`🔒 Requer nível ${map.levelReq}`, { show_alert: true });
         }
         player.currentMap = map.id;
-        savePlayer(ctx.from.id, player);
+        await savePlayer(ctx.from.id, player);
         return safeEdit(ctx, `🗺️ *VIAGEM CONCLUÍDA*\n\nVocê chegou em *${map.emoji} ${map.name}*\n\n${map.description}`, buildTravelMenu(player));
     } catch (error) {
         console.error('Erro ao viajar:', error);
@@ -66,7 +66,6 @@ async function handleTravelLocked(ctx) {
     return ctx.answerCbQuery('🔒 Este mapa ainda está bloqueado.', { show_alert: true });
 }
 
-// Placeholder para masmorra (ainda não implementada)
 async function handleDungeon(ctx) {
     await ctx.answerCbQuery();
     await ctx.reply('🏰 *MASMORRA*\n\nEm breve você poderá enfrentar desafios em grupo aqui! Por enquanto, aproveite para caçar e evoluir.', { parse_mode: 'Markdown' });
