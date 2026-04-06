@@ -51,12 +51,15 @@ function generateItem(playerLevel, forcedType = null, options = {}) {
     const rarityName = isBoss ? getBossRarity(currentMap, isDungeonBoss) : getMapRarity(currentMap);
     const mult = getRarityMult(rarityName);
     const levelBonus = Math.max(1, Math.floor(playerLevel * 0.8));
-    const itemLevel = playerLevel; // nível do item = nível do jogador no momento do drop
+    const itemLevel = playerLevel;
+
+    // GARANTE que o slot seja apenas o nome do slot (ex: 'necklace', não 'necklace_item_...')
+    const correctSlot = type.slot;
 
     return {
         id: `item_${Date.now()}_${Math.floor(Math.random() * 999999)}`,
         name: `${type.namePrefix} ${rarityName}`,
-        slot: type.slot,
+        slot: correctSlot,
         rarity: rarityName,
         level: itemLevel,
         atk: Math.floor((type.atkBase + levelBonus) * mult),
