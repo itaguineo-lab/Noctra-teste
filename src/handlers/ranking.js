@@ -2,7 +2,7 @@ const { getAllPlayers } = require('../core/player/playerService');
 const { Markup } = require('telegraf');
 
 async function handleRanking(ctx) {
-    const players = getAllPlayers();
+    const players = await getAllPlayers();
     const list = Object.values(players)
         .filter(p => p && p.id)
         .map(p => ({
