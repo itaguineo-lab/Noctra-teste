@@ -9,17 +9,14 @@ const { mainMenu } = require('./src/menus/mainMenu');
 
 const { handleProfile } = require('./src/handlers/profile');
 
+const inventoryHandlers = require('./src/handlers/inventory');
+
 const {
     renderInventory,
     handleInventory,
-    handleInvWeapons,
-    handleInvArmors,
-    handleInvJewelry,
-    handleInvBoots,
     handleEquipItem,
-    handleUnequipItem,
-    handlePage
-} = require('./src/handlers/inventory');
+    handleUnequipItem
+} = inventoryHandlers;
 
 const {
     handleHunt,
@@ -70,11 +67,11 @@ const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-let isLaunching = false;
+let started = false;
 
 async function startBot() {
-    if (isLaunching) return;
-    isLaunching = true;
+    if (started) return;
+    started = true;
 
     try {
         await connectToMongo();
@@ -90,11 +87,17 @@ async function startBot() {
             dropPendingUpdates: true
         });
 
-        console.log('✅ NOCTRA ONLINE (Render)');
+        console.log('✅ NOCTRA ONLINE');
     } catch (error) {
-        console.error('❌ Erro ao iniciar bot:', error);
+        console.error('❌ Erro ao iniciar:', error);
     }
 }
+
+/*
+=================================
+COMANDOS
+=================================
+*/
 
 bot.start(async (ctx) => {
     const menuText = await getMainMenuText(
@@ -122,6 +125,12 @@ bot.command('class', handleClass);
 bot.command('equip', handleEquip);
 bot.command('equipsoul', handleEquipSoulCommand);
 
+/*
+=================================
+MENU
+=================================
+*/
+
 bot.action('menu', async (ctx) => {
     await ctx.answerCbQuery();
 
@@ -137,27 +146,69 @@ bot.action('menu', async (ctx) => {
 });
 
 bot.action('profile', handleProfile);
+
+/*
+=================================
+INVENTÁRIO
+=================================
+*/
+
 bot.action('inventory', handleInventory);
 
-bot.action(/^inv_weapons_(\d+)$/, (ctx) =>
-    renderInventory(ctx, 'weapons', Number(ctx.match[1]))
+bot.action(/^inv_weapons_(\d+)$/, (ctx) => {
+    return renderInventory(
+        ctx,
+        'weapons',
+        Number(ctx.match[1])
+    );
+});
+
+bot.action(/^inv_armors_(\d+)$/, (ctx) => {
+    return renderInventory(
+        ctx,
+        'armors',
+        Number(ctx.match[1])
+    );
+});
+
+bot.action(/^inv_jewelry_(\d+)$/, (ctx) => {
+    return renderInventory(
+        ctx,
+        'jewelry',
+        Number(ctx.match[1])
+    );
+});
+
+bot.action(/^inv_boots_(\d+)$/, (ctx) => {
+    return renderInventory(
+        ctx,
+        'boots',
+        Number(ctx.match[1])
+    );
+});
+
+bot.action(
+    /^equip_(.+)_(.+)_(.+)_(\d+)$/,
+    handleEquipItem
 );
 
-bot.action(/^inv_armors_(\d+)$/, (ctx) =>
-    renderInventory(ctx, 'armors', Number(ctx.match[1]))
+bot.action(
+    /^unequip_(.+)_(.+)_(\d+)$/,
+    handleUnequipItem
 );
 
-bot.action(/^inv_jewelry_(\d+)$/, (ctx) =>
-    renderInventory(ctx, 'jewelry', Number(ctx.match[1]))
-);
+bot.action(/^page_(.+)_(\d+)$/, (ctx) => {
+    const category = ctx.match[1];
+    const page = Number(ctx.match[2]);
 
-bot.action(/^inv_boots_(\d+)$/, (ctx) =>
-    renderInventory(ctx, 'boots', Number(ctx.match[1]))
-);
+    return renderInventory(ctx, category, page);
+});
 
-bot.action(/^equip_(.+)_(.+)_(.+)_(\d+)$/, handleEquipItem);
-bot.action(/^unequip_(.+)_(.+)_(\d+)$/, handleUnequipItem);
-bot.action(/^page_(.+)_(\d+)$/, handlePage);
+/*
+=================================
+COMBATE
+=================================
+*/
 
 bot.action('hunt', handleHunt);
 bot.action('combat_attack', handleAttack);
@@ -167,6 +218,12 @@ bot.action(/combat_soul_([01])/, handleSoul);
 bot.action('combat_consumables', handleConsumables);
 bot.action('combat_flee', handleFlee);
 bot.action('combat_back', handleCombatBack);
+
+/*
+=================================
+CONSUMÍVEIS
+=================================
+*/
 
 bot.action('use_potion_hp', (ctx) =>
     useConsumable(ctx, 'potion_hp')
@@ -184,6 +241,12 @@ bot.action('use_tonic_defense', (ctx) =>
     useConsumable(ctx, 'tonic_defense')
 );
 
+/*
+=================================
+OUTROS MENUS
+=================================
+*/
+
 bot.action('travel', handleTravel);
 bot.action(/travel_to_(.+)/, handleTravelTo);
 bot.action('travel_locked', handleTravelLocked);
@@ -196,16 +259,34 @@ bot.action('daily', handleDaily);
 bot.action('online', handleOnline);
 bot.action('ranking', handleRanking);
 
+/*
+=================================
+LOJA
+=================================
+*/
+
 bot.action('shop', handleShop);
 bot.action('shop_village', handleShopVillage);
 bot.action('shop_castle', handleShopCastle);
 bot.action('shop_arena', handleShopArena);
 bot.action(/buy_(.+)/, handleBuy);
 
+/*
+=================================
+DUNGEON
+=================================
+*/
+
 bot.action('dungeon', handleDungeon);
 bot.action('dungeon_attack', handleDungeonAttack);
 bot.action('dungeon_next_room', handleDungeonNextRoom);
 bot.action('dungeon_flee', handleDungeonFlee);
+
+/*
+=================================
+ERRO GLOBAL
+=================================
+*/
 
 bot.catch((err, ctx) => {
     console.error('❌ ERRO GLOBAL:', err);
@@ -214,6 +295,12 @@ bot.catch((err, ctx) => {
         ctx.answerCbQuery('❌ Erro interno').catch(() => {});
     }
 });
+
+/*
+=================================
+RENDER SERVER
+=================================
+*/
 
 const PORT = process.env.PORT || 3000;
 
@@ -224,7 +311,7 @@ http.createServer((req, res) => {
 
     res.end('NOCTRA ONLINE');
 }).listen(PORT, () => {
-    console.log(`🌐 Render port ${PORT}`);
+    console.log(`🌐 Porta ${PORT}`);
 });
 
 startBot();
