@@ -24,14 +24,14 @@ function getShopItemsByTab(tab) {
 }
 
 async function renderTab(ctx, tab, title) {
-    const player = getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
     const items = getShopItemsByTab(tab);
     const { text, keyboard } = renderShop(`${title}\n\n${getWalletText(player)}`, items, player);
     return safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
 }
 
 async function handleShop(ctx) {
-    const player = getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
     const msg = `🛒 *LOJAS DE NOCTRA*\n\n${getWalletText(player)}\n\nEscolha uma loja:`;
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopTabsMenu() });
 }
@@ -53,12 +53,12 @@ async function handleBuy(ctx) {
     try {
         const itemId = ctx.match?.[1];
         if (!itemId) return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
-        const player = getPlayer(ctx.from.id);
+        const player = await getPlayer(ctx.from.id);
         const item = shopItems.find(i => i.id === itemId);
         if (!item) return ctx.answerCbQuery('❌ Item não encontrado.', { show_alert: true });
         const result = processPurchase(player, item);
         if (!result?.success) return ctx.answerCbQuery(result?.message || '❌ Compra falhou.', { show_alert: true });
-        savePlayer(ctx.from.id, player);
+        await savePlayer(ctx.from.id, player);
         await ctx.answerCbQuery(result.message || '✅ Compra realizada!', { show_alert: true });
         return redirectAfterPurchase(ctx, item.shop);
     } catch (error) {
