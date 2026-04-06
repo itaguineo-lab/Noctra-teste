@@ -53,7 +53,7 @@ function generateItem(playerLevel, forcedType = null, options = {}) {
     const levelBonus = Math.max(1, Math.floor(playerLevel * 0.8));
     const itemLevel = playerLevel;
 
-    // GARANTE que o slot seja apenas o nome do slot (ex: 'necklace', não 'necklace_item_...')
+    // GARANTE que o slot seja apenas o nome do slot (ex: 'necklace')
     const correctSlot = type.slot;
 
     return {
