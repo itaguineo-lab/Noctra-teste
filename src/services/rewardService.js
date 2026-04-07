@@ -1,6 +1,6 @@
 const { addXp } = require('../core/player/progression');
 const { dropSoul } = require('../core/player/souls');
-const { generateItem } = require('../data/items');
+const { generateDrop } = require('../data/items');
 
 function getSoulDropChance(enemy, pityMultiplier = 1) {
     if (!enemy?.isBoss) return 0;
@@ -11,6 +11,16 @@ function getSoulDropChance(enemy, pityMultiplier = 1) {
 function getKeyDropChance(enemy) {
     if (!enemy?.isBoss) return 0;
     return enemy.isDungeonBoss ? 0.15 : 0.05;
+}
+
+function getMapNumber(mapName) {
+    const maps = {
+        clareira_sombria: 1,
+        cripta_em_ruinas: 2,
+        pantano_corrompido: 3
+    };
+
+    return maps[mapName] || 1;
 }
 
 function processVictory(player, enemy) {
@@ -25,6 +35,7 @@ function processVictory(player, enemy) {
     const baseXp = enemy.xp || 0;
     const baseGold = enemy.gold || 0;
     const vipMultiplier = player.vip ? 1.5 : 1;
+
     const xpGained = Math.floor(baseXp * vipMultiplier);
     const goldGained = Math.floor(baseGold * vipMultiplier);
 
@@ -36,35 +47,41 @@ function processVictory(player, enemy) {
     let droppedKey = null;
     const loot = [];
 
-    // Equipamento drop
     const equipmentChance = enemy.isBoss ? 1 : 0.20;
+
     if (Math.random() < equipmentChance) {
-        droppedItem = generateItem(player.level, null, {
-            currentMap: player.currentMap,
-            isBoss: enemy.isBoss,
-            isDungeonBoss: enemy.isDungeonBoss || false
-        });
+        const mapNumber = getMapNumber(player.currentMap);
+
+        droppedItem = generateDrop(mapNumber);
+
         const maxInventory = player.maxInventory || 20;
+
         if (player.inventory.length >= maxInventory) {
             loot.push(`❌ Inventário cheio! ${droppedItem.name} foi perdido.`);
             droppedItem = null;
         } else {
             player.inventory.push(droppedItem);
-            loot.push(`${droppedItem.emoji} ${droppedItem.name}`);
+
+            loot.push(
+                `🎁 ${droppedItem.name} Lv${droppedItem.level}\n` +
+                `⚔️ ATK ${droppedItem.atk} | 🛡️ DEF ${droppedItem.def} | ❤️ HP ${droppedItem.hp} | 💥 ${droppedItem.crit}%`
+            );
         }
     }
 
-    // Pity system para almas
     let pityMultiplier = 1;
+
     if (player.soulPityCounter >= 10) {
         pityMultiplier = 2;
-        player.soulPityCounter = 0; // reset após aplicar bônus
+        player.soulPityCounter = 0;
     }
 
     const soulChance = getSoulDropChance(enemy, pityMultiplier);
     let dropped = false;
+
     if (Math.random() < soulChance) {
         droppedSoul = dropSoul(player.level, enemy.id);
+
         if (droppedSoul) {
             player.soulsInventory.push(droppedSoul);
             loot.push(`💀 Alma: ${droppedSoul.name}`);
@@ -72,7 +89,6 @@ function processVictory(player, enemy) {
         }
     }
 
-    // Atualiza contador de pity
     if (enemy.isBoss) {
         if (dropped) {
             player.soulPityCounter = 0;
@@ -81,24 +97,12 @@ function processVictory(player, enemy) {
         }
     }
 
-    // Chave drop
     const keyChance = getKeyDropChance(enemy);
+
     if (Math.random() < keyChance) {
         player.keys += 1;
         droppedKey = true;
         loot.push('🗝️ Chave da Masmorra');
-    }
-
-    // Achievements
-    if (player.totalKills === 10 && !player.achievements.kill10) {
-        player.achievements.kill10 = true;
-        player.glorias = (player.glorias || 0) + 5;
-        loot.push('🏆 10 mortes! +5 Glórias');
-    }
-    if (player.totalKills === 100 && !player.achievements.kill100) {
-        player.achievements.kill100 = true;
-        player.glorias = (player.glorias || 0) + 20;
-        loot.push('🏆 100 mortes! +20 Glórias');
     }
 
     return {
