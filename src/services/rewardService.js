@@ -1,8 +1,24 @@
-const { addXp } = require('../core/player/progression');
-const { dropSoul } = require('../core/player/souls');
-const { generateDrop } = require('../data/items');
+const {
+    addXp
+} = require('../core/player/progression');
 
-function getMapNumber(mapName) {
+const {
+    dropSoul
+} = require('../core/player/souls');
+
+const {
+    generateDrop
+} = require('../data/items');
+
+/*
+=================================
+MAPA
+=================================
+*/
+
+function getMapNumber(
+    mapName
+) {
     const maps = {
         clareira_sombria: 1,
         cripta_em_ruinas: 2,
@@ -13,40 +29,162 @@ function getMapNumber(mapName) {
     return maps[mapName] || 1;
 }
 
-function processVictory(player, enemy) {
-    if (!player.inventory) player.inventory = [];
-    if (!player.soulsInventory) player.soulsInventory = [];
+/*
+=================================
+REWARD
+=================================
+*/
 
-    const xp = enemy.xp || 0;
-    const gold = enemy.gold || 0;
+function processVictory(
+    player,
+    enemy
+) {
+    player.inventory ??= [];
+    player.soulsInventory ??= [];
 
-    player.gold = (player.gold || 0) + gold;
+    /*
+    BASE
+    */
+
+    const xp =
+        enemy.xp || 0;
+
+    const gold =
+        enemy.gold || 0;
+
+    /*
+    BÔNUS RANDOM
+    */
+
+    const bonusGold =
+        Math.random() < 0.15
+            ? Math.floor(
+                  gold * 0.5
+              )
+            : 0;
+
+    const finalGold =
+        gold + bonusGold;
+
+    player.gold =
+        (player.gold || 0) +
+        finalGold;
+
+    const previousLevel =
+        player.level;
+
     addXp(player, xp);
 
+    const leveledUp =
+        player.level >
+        previousLevel;
+
+    /*
+    LOOT
+    */
+
     const loot = [];
+
     let droppedItem = null;
+    let droppedSoul = null;
 
-    const equipmentChance = enemy.isBoss ? 1 : 0.25;
+    const mapNumber =
+        getMapNumber(
+            player.currentMap
+        );
 
-    if (Math.random() < equipmentChance) {
-        const mapNumber = getMapNumber(player.currentMap);
-        droppedItem = generateDrop(mapNumber);
+    /*
+    EQUIP
+    */
 
-        if (player.inventory.length < (player.maxInventory || 20)) {
-            player.inventory.push(droppedItem);
+    const equipmentChance =
+        enemy.isBoss
+            ? 1
+            : 0.25;
+
+    if (
+        Math.random() <
+        equipmentChance
+    ) {
+        droppedItem =
+            generateDrop(
+                mapNumber
+            );
+
+        if (
+            player.inventory
+                .length <
+            (player.maxInventory ||
+                20)
+        ) {
+            player.inventory.push(
+                droppedItem
+            );
+
             loot.push(
-                `🎁 ${droppedItem.name} [Lv${droppedItem.level}]\n` +
-                `⚔️ ${droppedItem.atk} | 🛡️ ${droppedItem.def} | ❤️ ${droppedItem.hp} | 💥 ${droppedItem.crit}%`
+                `🎁 ${droppedItem.name} [Lv${droppedItem.level}]`
             );
         }
     }
 
+    /*
+    SOUL DROP
+    */
+
+    const soulChance =
+        enemy.isBoss
+            ? 0.25
+            : 0.05;
+
+    if (
+        Math.random() <
+        soulChance
+    ) {
+        droppedSoul =
+            dropSoul(
+                mapNumber
+            );
+
+        if (droppedSoul) {
+            player.soulsInventory.push(
+                droppedSoul
+            );
+
+            loot.push(
+                `💀 Alma: ${droppedSoul.name}`
+            );
+        }
+    }
+
+    /*
+    BONUS KEY
+    */
+
+    const keyDropped =
+        Math.random() < 0.1;
+
+    if (keyDropped) {
+        player.keys =
+            (player.keys || 0) +
+            1;
+
+        loot.push(
+            `🗝️ Chave Sombria`
+        );
+    }
+
     return {
         xp,
-        gold,
+        gold: finalGold,
+        bonusGold,
         loot,
-        droppedItem
+        droppedItem,
+        droppedSoul,
+        keyDropped,
+        leveledUp
     };
 }
 
-module.exports = { processVictory };
+module.exports = {
+    processVictory
+};
