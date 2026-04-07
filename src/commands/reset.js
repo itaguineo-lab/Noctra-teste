@@ -3,9 +3,14 @@ const { getPlayerCollection } = require('../core/player/playerService');
 async function handleReset(ctx) {
     try {
         const collection = await getPlayerCollection();
+        const telegramId = String(ctx.from.id);
 
-        await collection.deleteOne({
-            telegramId: String(ctx.from.id)
+        await collection.deleteMany({
+            $or: [
+                { id: ctx.from.id },
+                { id: telegramId },
+                { telegramId }
+            ]
         });
 
         await ctx.reply(
@@ -13,7 +18,6 @@ async function handleReset(ctx) {
         );
     } catch (error) {
         console.error('Erro reset:', error);
-
         await ctx.reply('❌ Erro ao resetar personagem.');
     }
 }
