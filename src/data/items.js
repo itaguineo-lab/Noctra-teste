@@ -1,222 +1,280 @@
-const { RARITIES, getRarityMult } = require('./constants');
+const ITEM_POOL = {
+    level1: {
+        warrior: {
+            weapons: [
+                "Espada do Vigia",
+                "Lâmina Ferrugem",
+                "Espada de Bronze Sombrio",
+                "Machado Brutal",
+                "Machado do Executor"
+            ],
+            shields: [
+                "Escudo de Ferro",
+                "Broquel Sombrio"
+            ],
+            armors: [
+                "Armadura do Soldado",
+                "Peitoral de Ferro"
+            ]
+        },
 
-const itemTypes = [
-    {
-        slot: 'weapon',
-        namePrefix: 'Espada',
-        atkBase: 5,
-        defBase: 0,
-        critBase: 2,
-        hpBase: 0,
-        variance: 0.18
+        archer: {
+            weapons: [
+                "Arco do Caçador",
+                "Arco de Carvalho",
+                "Lança do Batedor",
+                "Lança de Bronze"
+            ],
+            shields: [
+                "Escudo Leve",
+                "Escudo do Rastreador"
+            ],
+            armors: [
+                "Armadura de Couro",
+                "Manto do Explorador"
+            ]
+        },
+
+        mage: {
+            weapons: [
+                "Varinha Arcana",
+                "Cajado de Cristal"
+            ],
+            books: [
+                "Grimório Antigo",
+                "Livro do Aprendiz"
+            ],
+            orbs: [
+                "Orbe Azul",
+                "Orbe Vital"
+            ],
+            armors: [
+                "Manto Arcano",
+                "Vestes do Iniciado"
+            ]
+        }
     },
-    {
-        slot: 'armor',
-        namePrefix: 'Armadura',
-        atkBase: 0,
-        defBase: 5,
-        critBase: 0,
-        hpBase: 10,
-        variance: 0.15
+
+    level8: {
+        warrior: {
+            weapons: [
+                "Espada Tumular",
+                "Lâmina do Guardião",
+                "Espada Profanada",
+                "Machado Carniceiro",
+                "Machado do Abismo"
+            ],
+            shields: [
+                "Escudo do Corvo",
+                "Muralha Profana"
+            ],
+            armors: [
+                "Armadura do Cavaleiro Negro",
+                "Peitoral Tumular"
+            ]
+        },
+
+        archer: {
+            weapons: [
+                "Arco dos Ossos",
+                "Arco Élfico Sombrio",
+                "Arco do Corvo",
+                "Lança Élfica",
+                "Lança do Caçador"
+            ],
+            shields: [
+                "Escudo Silencioso",
+                "Escudo Lunar"
+            ],
+            armors: [
+                "Armadura do Caçador Sombrio",
+                "Manto do Corvo"
+            ]
+        },
+
+        mage: {
+            weapons: [
+                "Cajado Tumular",
+                "Varinha Profana",
+                "Cetro Sombrio"
+            ],
+            books: [
+                "Grimório das Almas",
+                "Livro do Eclipse"
+            ],
+            orbs: [
+                "Orbe do Vazio",
+                "Orbe da Cura"
+            ],
+            armors: [
+                "Vestes Profanas",
+                "Manto das Sombras"
+            ]
+        }
     },
-    {
-        slot: 'necklace',
-        namePrefix: 'Amuleto',
-        atkBase: 2,
-        defBase: 1,
-        critBase: 3,
-        hpBase: 5,
-        variance: 0.16
-    },
-    {
-        slot: 'ring',
-        namePrefix: 'Anel',
-        atkBase: 3,
-        defBase: 0,
-        critBase: 4,
-        hpBase: 3,
-        variance: 0.17
-    },
-    {
-        slot: 'boots',
-        namePrefix: 'Bota',
-        atkBase: 0,
-        defBase: 3,
-        critBase: 1,
-        hpBase: 4,
-        variance: 0.14
+
+    level15: {
+        warrior: {
+            weapons: [
+                "Espada do Rei Morto",
+                "Lâmina de Noctra",
+                "Espada do Eclipse",
+                "Machado do Colosso",
+                "Machado do Caos"
+            ],
+            shields: [
+                "Escudo do Abismo",
+                "Bastião de Noctra"
+            ],
+            armors: [
+                "Armadura do Senhor Sombrio",
+                "Armadura do Eclipse"
+            ]
+        },
+
+        archer: {
+            weapons: [
+                "Arco do Eclipse",
+                "Arco da Lua Negra",
+                "Arco de Noctra",
+                "Lança Lunar",
+                "Lança do Eclipse"
+            ],
+            shields: [
+                "Escudo da Névoa",
+                "Escudo do Vazio"
+            ],
+            armors: [
+                "Manto Fantasma",
+                "Armadura do Eclipse"
+            ]
+        },
+
+        mage: {
+            weapons: [
+                "Cajado de Noctra",
+                "Cetro do Abismo"
+            ],
+            books: [
+                "Grimório de Noctra",
+                "Livro do Caos"
+            ],
+            orbs: [
+                "Orbe do Eclipse",
+                "Orbe da Eternidade"
+            ],
+            armors: [
+                "Manto do Arcanista Supremo",
+                "Vestes do Eclipse"
+            ]
+        }
     }
+};
+
+const RARITIES = [
+    { name: "Comum", multiplier: 1 },
+    { name: "Incomum", multiplier: 1.2 },
+    { name: "Raro", multiplier: 1.5 },
+    { name: "Épico", multiplier: 1.9 },
+    { name: "Lendário", multiplier: 2.4 }
 ];
 
-const mapRarityRules = {
-    clareira_sombria: ['Comum', 'Incomum'],
-    cripta_em_ruinas: ['Incomum', 'Raro'],
-    pantano_corrompido: ['Raro', 'Épico'],
-    deserto_incandescente: ['Épico', 'Lendário']
-};
-
-const rarityPowerBonus = {
-    Comum: 1.0,
-    Incomum: 1.15,
-    Raro: 1.35,
-    Épico: 1.6,
-    Lendário: 2.0,
-    Mítico: 2.5
-};
-
-function weightedChoice(list) {
-    const pool = [];
-
-    list.forEach(rarity => {
-        const weight = Math.floor(RARITIES[rarity].weight);
-
-        for (let i = 0; i < weight; i++) {
-            pool.push(rarity);
-        }
-    });
-
-    return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function getMapRarity(currentMap = 'clareira_sombria') {
-    const allowed = mapRarityRules[currentMap] || ['Comum'];
-    return weightedChoice(allowed);
-}
-
-function getBossRarity(currentMap, isDungeonBoss = false) {
-    const roll = Math.random() * 100;
-
-    if (isDungeonBoss) {
-        if (roll <= 3) return 'Mítico';
-        if (roll <= 25) return 'Lendário';
-        return 'Épico';
-    }
-
-    switch (currentMap) {
-        case 'clareira_sombria':
-            return roll <= 20 ? 'Raro' : 'Incomum';
-
-        case 'cripta_em_ruinas':
-            return roll <= 10 ? 'Lendário' : 'Épico';
-
-        case 'pantano_corrompido':
-            return roll <= 15 ? 'Lendário' : 'Épico';
-
-        case 'deserto_incandescente':
-            return roll <= 25 ? 'Lendário' : 'Épico';
-
-        default:
-            return 'Comum';
-    }
-}
-
-function randomBetween(min, max) {
+function rand(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function rollStat(base, mult, variance) {
-    const low = Math.floor(base * mult * (1 - variance));
-    const high = Math.ceil(base * mult * (1 + variance));
-
-    return Math.max(0, randomBetween(low, high));
+function randomFrom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function calculatePower(item) {
-    const atk = item.atk || 0;
-    const def = item.def || 0;
-    const hp = item.hp || 0;
-    const crit = item.crit || 0;
-
-    return Math.max(
-        1,
-        Math.round(
-            atk * 2.2 +
-            def * 1.8 +
-            hp * 0.45 +
-            crit * 3.2
-        )
-    );
+function getMapLevelTier(mapId) {
+    if (mapId === 1) return "level1";
+    if (mapId === 2) return "level8";
+    return "level15";
 }
 
-function buildPowerTier(power) {
-    if (power <= 20) return 'Fraco';
-    if (power <= 40) return 'Bom';
-    if (power <= 70) return 'Forte';
-    if (power <= 100) return 'Elite';
-    return 'Lendário';
+function getLevelValue(tier) {
+    if (tier === "level1") return 1;
+    if (tier === "level8") return 8;
+    return 15;
 }
 
-function generateItem(playerLevel, forcedType = null, options = {}) {
-    const {
-        currentMap = 'clareira_sombria',
-        isBoss = false,
-        isDungeonBoss = false
-    } = options;
+function buildBaseStats(tier) {
+    if (tier === "level1") {
+        return {
+            atk: rand(3, 6),
+            def: rand(1, 4),
+            hp: rand(5, 12),
+            crit: rand(1, 4)
+        };
+    }
 
-    const type = forcedType
-        ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0]
-        : itemTypes[Math.floor(Math.random() * itemTypes.length)];
+    if (tier === "level8") {
+        return {
+            atk: rand(6, 10),
+            def: rand(3, 6),
+            hp: rand(10, 18),
+            crit: rand(3, 6)
+        };
+    }
 
-    const rarityName = isBoss
-        ? getBossRarity(currentMap, isDungeonBoss)
-        : getMapRarity(currentMap);
+    return {
+        atk: rand(10, 16),
+        def: rand(5, 9),
+        hp: rand(16, 26),
+        crit: rand(5, 9)
+    };
+}
 
-    const rarityMult = getRarityMult(rarityName);
-    const powerBonus = rarityPowerBonus[rarityName] || 1;
+function rollRarity() {
+    const roll = Math.random();
 
-    const levelScaling = Math.max(1, Math.floor(playerLevel * 0.85));
+    if (roll < 0.45) return RARITIES[0];
+    if (roll < 0.75) return RARITIES[1];
+    if (roll < 0.90) return RARITIES[2];
+    if (roll < 0.98) return RARITIES[3];
+    return RARITIES[4];
+}
 
-    const atk = rollStat(
-        type.atkBase + levelScaling,
-        rarityMult * powerBonus,
-        type.variance
-    );
+function generateDrop(mapId = 1) {
+    const tier = getMapLevelTier(mapId);
+    const classes = Object.keys(ITEM_POOL[tier]);
 
-    const def = rollStat(
-        type.defBase + levelScaling,
-        rarityMult * powerBonus,
-        type.variance
-    );
+    const chosenClass = randomFrom(classes);
+    const classPool = ITEM_POOL[tier][chosenClass];
 
-    const crit = rollStat(
-        type.critBase + Math.floor(levelScaling / 2),
-        rarityMult * powerBonus,
-        type.variance
-    );
+    const categories = Object.keys(classPool);
+    const chosenCategory = randomFrom(categories);
 
-    const hp = rollStat(
-        type.hpBase + levelScaling * 2,
-        rarityMult * powerBonus,
-        type.variance
-    );
+    const itemName = randomFrom(classPool[chosenCategory]);
+    const rarity = rollRarity();
+    const base = buildBaseStats(tier);
 
-    const item = {
-        id: `item_${Date.now()}_${Math.floor(Math.random() * 999999)}`,
-        name: `${type.namePrefix} ${rarityName}`,
-        slot: type.slot,
-        rarity: rarityName,
-        level: playerLevel,
+    const atk = Math.round(base.atk * rarity.multiplier);
+    const def = Math.round(base.def * rarity.multiplier);
+    const hp = Math.round(base.hp * rarity.multiplier);
+    const crit = Math.round(base.crit * rarity.multiplier);
+
+    return {
+        id: Date.now() + rand(1000, 9999),
+        name: itemName,
+        classType: chosenClass,
+        rarity: rarity.name,
+        level: getLevelValue(tier),
         atk,
         def,
-        crit,
         hp,
-        emoji: RARITIES[rarityName].emoji
+        crit,
+        power: atk * 2 + def + Math.floor(hp / 2) + crit * 3,
+        slot: chosenCategory === "armors"
+            ? "armor"
+            : chosenCategory === "shields"
+            ? "ring"
+            : "weapon"
     };
-
-    item.power = calculatePower(item);
-    item.powerTier = buildPowerTier(item.power);
-
-    item.price = Math.floor(
-        (100 + item.power * 3) * rarityMult
-    );
-
-    return item;
 }
 
 module.exports = {
-    itemTypes,
-    generateItem,
-    getMapRarity,
-    getBossRarity,
-    calculatePower
+    ITEM_POOL,
+    generateDrop
 };
