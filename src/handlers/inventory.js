@@ -98,6 +98,12 @@ function getPowerBadge(power) {
     return '👑';
 }
 
+function getPowerBar(power, width = 10) {
+    const normalized = Math.max(0, Math.min(120, power));
+    const filled = Math.max(1, Math.min(width, Math.round((normalized / 120) * width)));
+    return `█`.repeat(filled) + `░`.repeat(width - filled);
+}
+
 function getRealSlot(item) {
     if (!item?.slot) return 'unknown';
 
@@ -136,18 +142,20 @@ function formatDelta(delta) {
     return delta > 0 ? `▲ +${delta}` : `▼ ${Math.abs(delta)}`;
 }
 
-function formatItemBlock(item, equipped = false, player = null) {
+function formatItemBlock(item, player = null) {
+    const equipped = Boolean(item.__equipped);
     const star = equipped ? '⭐ ' : '';
     const rarityBadge = RARITY_BADGES[item.rarity] || '⚪';
     const level = item.level ? ` [Lv${item.level}]` : '';
     const power = calcItemPower(item);
     const tier = item.powerTier || getPowerTier(power);
+    const bar = getPowerBar(power);
     const slot = getRealSlot(item);
     const delta = player ? getComparisonDelta(item, player, slot) : null;
     const deltaText = equipped ? 'EQUIPADO' : formatDelta(delta);
 
     const line1 = `${star}${rarityBadge} ${item.name}${level}`;
-    const line2 = `PODER ${power} (${tier})${deltaText ? ` | ${deltaText}` : ''}`;
+    const line2 = `PODER ${power} ${bar} (${tier})${deltaText ? ` | ${deltaText}` : ''}`;
     const line3 = `ATK ${safeNumber(item.atk)} | DEF ${safeNumber(item.def)} | HP ${safeNumber(item.hp)} | CRIT ${safeNumber(item.crit)}%`;
 
     return [line1, line2, line3];
@@ -223,7 +231,7 @@ async function renderInventory(ctx, category = null, page = 1) {
         pageItems.forEach((item, index) => {
             const realSlot = getRealSlot(item);
             const isEquipped = Boolean(item.__equipped);
-            const [l1, l2, l3] = formatItemBlock(item, isEquipped, player);
+            const [l1, l2, l3] = formatItemBlock(item, player);
 
             text += `║ ${l1}\n`;
             text += `║ ${l2}\n`;
@@ -370,10 +378,6 @@ async function handleUsePotionOutside(ctx, type) {
         await ctx.answerCbQuery(`🧪 Você usou uma poção e recuperou ${heal} HP!`, { show_alert: true });
         return handleInvConsumables(ctx);
     }
-}
-
-function sameItem(a, b) {
-    return getItemKey(a) === getItemKey(b);
 }
 
 async function equipByCurrentList(ctx, category, page, index) {
