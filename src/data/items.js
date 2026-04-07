@@ -31,30 +31,67 @@ function getMapRarity(currentMap = 'clareira_sombria') {
 
 function getBossRarity(currentMap, isDungeonBoss = false) {
     const roll = Math.random() * 100;
+
     if (isDungeonBoss) {
         if (roll <= 3) return 'Mítico';
         if (roll <= 25) return 'Lendário';
         return 'Épico';
     }
+
     switch (currentMap) {
-        case 'clareira_sombria': return roll <= 20 ? 'Raro' : 'Incomum';
-        case 'cripta_em_ruinas': return roll <= 10 ? 'Lendário' : 'Épico';
-        case 'pantano_corrompido': return roll <= 15 ? 'Lendário' : 'Épico';
-        case 'deserto_incandescente': return roll <= 25 ? 'Lendário' : 'Épico';
-        default: return 'Comum';
+        case 'clareira_sombria':
+            return roll <= 20 ? 'Raro' : 'Incomum';
+        case 'cripta_em_ruinas':
+            return roll <= 10 ? 'Lendário' : 'Épico';
+        case 'pantano_corrompido':
+            return roll <= 15 ? 'Lendário' : 'Épico';
+        case 'deserto_incandescente':
+            return roll <= 25 ? 'Lendário' : 'Épico';
+        default:
+            return 'Comum';
     }
+}
+
+function randomFactor(variance = 0.08) {
+    const min = 1 - variance;
+    const max = 1 + variance;
+    return min + Math.random() * (max - min);
+}
+
+function rollStat(baseValue, mult, variance = 0.08) {
+    const rolled = baseValue * mult * randomFactor(variance);
+    return Math.max(0, Math.round(rolled));
+}
+
+function calcPower(item) {
+    const atk = Number(item.atk) || 0;
+    const def = Number(item.def) || 0;
+    const hp = Number(item.hp) || 0;
+    const crit = Number(item.crit) || 0;
+
+    return Math.max(1, Math.round((atk * 2) + (def * 1.5) + (hp * 0.5) + (crit * 3)));
 }
 
 function generateItem(playerLevel, forcedType = null, options = {}) {
     const { currentMap = 'clareira_sombria', isBoss = false, isDungeonBoss = false } = options;
-    const type = forcedType ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0] : itemTypes[Math.floor(Math.random() * itemTypes.length)];
-    const rarityName = isBoss ? getBossRarity(currentMap, isDungeonBoss) : getMapRarity(currentMap);
+
+    const type = forcedType
+        ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0]
+        : itemTypes[Math.floor(Math.random() * itemTypes.length)];
+
+    const rarityName = isBoss
+        ? getBossRarity(currentMap, isDungeonBoss)
+        : getMapRarity(currentMap);
+
     const mult = getRarityMult(rarityName);
     const levelBonus = Math.max(1, Math.floor(playerLevel * 0.8));
     const itemLevel = playerLevel;
-
-    // GARANTE que o slot seja o nome limpo (ex: 'armor', 'necklace')
     const correctSlot = type.slot;
+
+    const atk = rollStat(type.atkBase + levelBonus, mult, 0.08);
+    const def = rollStat(type.defBase + levelBonus, mult, 0.08);
+    const crit = rollStat(type.critBase + levelBonus / 2, mult, 0.08);
+    const hp = rollStat(type.hpBase + levelBonus * 2, mult, 0.08);
 
     return {
         id: `item_${Date.now()}_${Math.floor(Math.random() * 999999)}`,
@@ -62,13 +99,19 @@ function generateItem(playerLevel, forcedType = null, options = {}) {
         slot: correctSlot,
         rarity: rarityName,
         level: itemLevel,
-        atk: Math.floor((type.atkBase + levelBonus) * mult),
-        def: Math.floor((type.defBase + levelBonus) * mult),
-        crit: Math.floor((type.critBase + levelBonus / 2) * mult),
-        hp: Math.floor((type.hpBase + levelBonus * 2) * mult),
+        atk,
+        def,
+        crit,
+        hp,
+        power: calcPower({ atk, def, hp, crit }),
         price: Math.floor(100 * mult * playerLevel),
         emoji: RARITIES[rarityName].emoji
     };
 }
 
-module.exports = { itemTypes, generateItem, getMapRarity, getBossRarity };
+module.exports = {
+    itemTypes,
+    generateItem,
+    getMapRarity,
+    getBossRarity
+};
