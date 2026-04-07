@@ -53,11 +53,27 @@ function renderInventoryHeader(player) {
 ╚══════════════════════════════════╝`;
 }
 
+function calcItemPower(item) {
+    if (!item || typeof item !== 'object') return 0;
+
+    if (Number.isFinite(Number(item.power))) {
+        return Number(item.power);
+    }
+
+    const atk = Number(item.atk) || 0;
+    const def = Number(item.def) || 0;
+    const hp = Number(item.hp) || 0;
+    const crit = Number(item.crit) || 0;
+
+    return Math.max(1, Math.round((atk * 2) + (def * 1.5) + (hp * 0.5) + (crit * 3)));
+}
+
 function formatItemLine(item, equipped = false) {
     const star = equipped ? '⭐ ' : '';
     const level = item.level ? ` [Lv${item.level}]` : '';
 
     const stats = [];
+    stats.push(`PODER ${calcItemPower(item)}`);
     if (item.atk) stats.push(`ATK+${item.atk}`);
     if (item.def) stats.push(`DEF+${item.def}`);
     if (item.hp) stats.push(`HP+${item.hp}`);
@@ -108,7 +124,8 @@ function getCategoryItems(player = {}, category = 'weapons') {
     const inventoryItems = inventory
         .filter(item => config.slots.includes(getRealSlot(item)))
         .filter(item => !equippedKeys.has(getItemKey(item)))
-        .map(item => ({ ...item, __equipped: false }));
+        .map(item => ({ ...item, __equipped: false }))
+        .sort((a, b) => calcItemPower(b) - calcItemPower(a));
 
     return [...equippedItems, ...inventoryItems];
 }
@@ -117,6 +134,7 @@ function getPageItems(items, page) {
     const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
     const safePage = Math.min(Math.max(1, page), totalPages);
     const start = (safePage - 1) * PAGE_SIZE;
+
     return {
         totalPages,
         page: safePage,
@@ -125,37 +143,14 @@ function getPageItems(items, page) {
     };
 }
 
-function renderCategoryButtons(page) {
-    return [
-        [
-            Markup.button.callback('⚔️ Armas', `invcat:weapons`),
-            Markup.button.callback('🛡️ Armaduras', `invcat:armors`)
-        ],
-        [
-            Markup.button.callback('💎 Joias', `invcat:jewelry`),
-            Markup.button.callback('👢 Botas', `invcat:boots`)
-        ],
-        [
-            Markup.button.callback('🧪 Consumíveis', 'invcat:consumables'),
-            Markup.button.callback('💀 Almas', 'invcat:souls')
-        ],
-        [
-            Markup.button.callback('🏠 Menu', 'menu')
-        ]
-    ];
-}
-
 async function renderInventory(ctx, category = null, page = 1) {
     const player = await getPlayer(ctx.from.id);
 
     if (!category) {
-        return ctx.editMessageText(
-            renderInventoryHeader(player),
-            {
-                parse_mode: 'Markdown',
-                ...inventoryMainMenu(player)
-            }
-        );
+        return ctx.editMessageText(renderInventoryHeader(player), {
+            parse_mode: 'Markdown',
+            ...inventoryMainMenu(player)
+        });
     }
 
     if (!CATEGORY_CONFIG[category]) {
@@ -422,7 +417,11 @@ async function handleEquipItem(ctx) {
         await savePlayer(ctx.from.id, player);
 
         await ctx.answerCbQuery(`✅ ${item.name} equipado!`);
-        return renderInventory(ctx, slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'), 1);
+        return renderInventory(
+            ctx,
+            slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'),
+            1
+        );
     }
 
     console.error('[Equipar] Formato inválido:', raw);
@@ -456,7 +455,11 @@ async function handleUnequipItem(ctx) {
         await savePlayer(ctx.from.id, player);
 
         await ctx.answerCbQuery(`✅ ${item.name} removido!`);
-        return renderInventory(ctx, slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'), 1);
+        return renderInventory(
+            ctx,
+            slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'),
+            1
+        );
     }
 
     console.error('[Desequipar] Formato inválido:', raw);
