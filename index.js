@@ -7,63 +7,30 @@ const { connectToMongo } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
 
 const { mainMenu } = require('./src/menus/mainMenu');
-const { handleProfile } = require('./src/handlers/profile');
 
-const {
-    handleInventory,
-    handleInvWeapons,
-    handleInvArmors,
-    handleInvJewelry,
-    handleInvBoots,
-    handleInvConsumables,
-    handleInvSouls,
-    handleEquipItem,
-    handleUnequipItem,
-    handleInventoryPage,
-    handleInventoryCategory,
-    handleEquipSoul,
-    handleUnequipSoul,
-    handleUsePotionOutside
-} = require('./src/handlers/inventory');
+/*
+=================================
+IMPORTS HANDLERS
+=================================
+*/
 
-const {
-    handleHunt,
-    handleAttack,
-    handleDefend,
-    handleSoulMenu,
-    handleSoul,
-    handleConsumables,
-    handleFlee,
-    handleCombatBack,
-    useConsumable
-} = require('./src/handlers/combat');
+const profile = require('./src/handlers/profile');
+const inventory = require('./src/handlers/inventory');
+const combat = require('./src/handlers/combat');
+const travel = require('./src/handlers/travel');
+const energy = require('./src/handlers/energy');
+const vip = require('./src/handlers/vip');
+const daily = require('./src/handlers/daily');
+const online = require('./src/handlers/online');
+const ranking = require('./src/handlers/ranking');
+const dungeon = require('./src/handlers/dungeon');
+const shop = require('./src/handlers/shop');
 
-const {
-    handleTravel,
-    handleTravelTo,
-    handleTravelLocked
-} = require('./src/handlers/travel');
-
-const { handleEnergy, handleRestEnergy } = require('./src/handlers/energy');
-const { handleVip } = require('./src/handlers/vip');
-const { handleDaily } = require('./src/handlers/daily');
-const { handleOnline } = require('./src/handlers/online');
-const { handleRanking } = require('./src/handlers/ranking');
-
-const {
-    handleDungeon,
-    handleDungeonAttack,
-    handleDungeonNextRoom,
-    handleDungeonFlee
-} = require('./src/handlers/dungeon');
-
-const {
-    handleShop,
-    handleShopVillage,
-    handleShopCastle,
-    handleShopArena,
-    handleBuy
-} = require('./src/handlers/shop');
+/*
+=================================
+IMPORTS COMMANDS
+=================================
+*/
 
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
@@ -74,23 +41,52 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 let launched = false;
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) =>
+    new Promise(resolve => setTimeout(resolve, ms));
+
+/*
+=================================
+ERROR HANDLER GLOBAL
+=================================
+*/
+
+bot.catch((err, ctx) => {
+    console.error('❌ ERRO GLOBAL:', err);
+
+    if (ctx?.reply) {
+        ctx.reply('⚠️ Algo deu errado no mundo de Noctra.');
+    }
+});
+
+/*
+=================================
+HELPERS
+=================================
+*/
 
 function bindCommand(name, handler) {
-    if (typeof handler === 'function') {
-        bot.command(name, handler);
-    } else {
+    if (typeof handler !== 'function') {
         console.log(`⚠️ Handler ausente para /${name}`);
+        return;
     }
+
+    bot.command(name, handler);
 }
 
 function bindAction(pattern, handler) {
-    if (typeof handler === 'function') {
-        bot.action(pattern, handler);
-    } else {
-        console.log(`⚠️ Handler ausente para action: ${String(pattern)}`);
+    if (typeof handler !== 'function') {
+        console.log(`⚠️ Handler ausente para action: ${pattern}`);
+        return;
     }
+
+    bot.action(pattern, handler);
 }
+
+/*
+=================================
+BOT STARTUP
+=================================
+*/
 
 async function startBot() {
     if (launched) return;
@@ -106,36 +102,15 @@ async function startBot() {
         await sleep(3000);
 
         await connectToMongo();
-        console.log('✅ Banco de dados MongoDB conectado');
+        console.log('✅ MongoDB conectado');
 
-        for (let attempt = 1; attempt <= 4; attempt++) {
-            try {
-                await bot.launch({
-                    dropPendingUpdates: true
-                });
+        await bot.launch({
+            dropPendingUpdates: true
+        });
 
-                console.log('✅ NOCTRA ONLINE (polling mode)');
-                return;
-            } catch (error) {
-                if (error?.response?.error_code === 409 && attempt < 4) {
-                    console.log(
-                        `⚠️ 409 Conflict no launch. Tentativa ${attempt}/4. Aguardando a instância anterior encerrar...`
-                    );
-
-                    await sleep(5000);
-                    continue;
-                }
-
-                if (error?.response?.error_code === 409) {
-                    console.log('⚠️ Instância antiga ainda encerrando no Render');
-                    return;
-                }
-
-                throw error;
-            }
-        }
+        console.log('🌑 NOCTRA ONLINE');
     } catch (err) {
-        console.error('❌ Erro ao iniciar:', err);
+        console.error('❌ Erro ao iniciar bot:', err);
     }
 }
 
@@ -159,190 +134,91 @@ bot.start(async (ctx) => {
 
 /*
 =================================
-COMANDOS
+COMMANDS
 =================================
 */
 
-bindCommand('energy', handleEnergy);
+bindCommand('profile', profile.handleProfile);
+bindCommand('inventory', inventory.handleInventory);
+bindCommand('energy', energy.handleEnergy);
+bindCommand('travel', travel.handleTravel);
+bindCommand('shop', shop.handleShop);
+bindCommand('daily', daily.handleDaily);
+bindCommand('vip', vip.handleVip);
+bindCommand('online', online.handleOnline);
+bindCommand('ranking', ranking.handleRanking);
+
 bindCommand('rename', handleRename);
 bindCommand('class', handleClass);
-bindCommand('profile', handleProfile);
-bindCommand('inventory', handleInventory);
-bindCommand('travel', handleTravel);
-bindCommand('shop', handleShop);
-bindCommand('daily', handleDaily);
-bindCommand('vip', handleVip);
-bindCommand('online', handleOnline);
 bindCommand('equip', handleEquip);
 bindCommand('equipsoul', handleEquipSoulCommand);
-bindCommand('ranking', handleRanking);
 bindCommand('reset', handleReset);
 
 /*
 =================================
-AÇÕES MENU
+MAIN MENU
 =================================
 */
 
-bindAction('hunt', handleHunt);
-bindAction('profile', handleProfile);
-bindAction('energy', handleEnergy);
-bindAction('inventory', handleInventory);
-bindAction('shop', handleShop);
-bindAction('travel', handleTravel);
-bindAction('vip', handleVip);
-bindAction('daily', handleDaily);
-bindAction('online', handleOnline);
-bindAction('ranking', handleRanking);
-bindAction('dungeon', handleDungeon);
+bindAction('profile', profile.handleProfile);
+bindAction('inventory', inventory.handleInventory);
+bindAction('energy', energy.handleEnergy);
+bindAction('travel', travel.handleTravel);
+bindAction('shop', shop.handleShop);
+bindAction('daily', daily.handleDaily);
+bindAction('vip', vip.handleVip);
+bindAction('online', online.handleOnline);
+bindAction('ranking', ranking.handleRanking);
+bindAction('hunt', combat.handleHunt);
+bindAction('dungeon', dungeon.handleDungeon);
 
 /*
 =================================
-COMBATE
+COMBAT
 =================================
 */
 
-bindAction('combat_attack', handleAttack);
-bindAction('combat_defend', handleDefend);
-bindAction('combat_soul_menu', handleSoulMenu);
-bindAction(/combat_soul_([01])/, handleSoul);
-bindAction('combat_consumables', handleConsumables);
-bindAction('combat_flee', handleFlee);
-bindAction('combat_back', handleCombatBack);
+bindAction('combat_attack', combat.handleAttack);
+bindAction('combat_defend', combat.handleDefend);
+bindAction('combat_soul_menu', combat.handleSoulMenu);
+bindAction(/combat_soul_([01])/, combat.handleSoul);
+bindAction('combat_consumables', combat.handleConsumables);
+bindAction('combat_flee', combat.handleFlee);
+bindAction('combat_back', combat.handleCombatBack);
 
 /*
 =================================
-CONSUMÍVEIS
+INVENTORY
 =================================
 */
 
-bindAction('use_potion_hp', (ctx) =>
-    useConsumable(ctx, 'potion_hp')
-);
+bindAction(/^invcat:(.+)$/, inventory.handleInventoryCategory);
+bindAction(/^invpage:(.+):(\d+)$/, inventory.handleInventoryPage);
+bindAction(/^eq:(.+):(\d+):(\d+)$/, inventory.handleEquipItem);
+bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
 
-bindAction('use_potion_energy', (ctx) =>
-    useConsumable(ctx, 'potion_energy')
-);
-
-bindAction('use_tonic_strength', (ctx) =>
-    useConsumable(ctx, 'tonic_strength')
-);
-
-bindAction('use_tonic_defense', (ctx) =>
-    useConsumable(ctx, 'tonic_defense')
-);
-
-bindAction('noop', async (ctx) => {
-    await ctx.answerCbQuery();
-    await handleConsumables(ctx);
-});
-
-bindAction('use_potion_outside_hp', (ctx) =>
-    handleUsePotionOutside(ctx, 'hp')
-);
-
-bindAction('rest_energy', handleRestEnergy);
+bindAction(/^equip_soul_(.+)$/, inventory.handleEquipSoul);
+bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
 
 /*
 =================================
-INVENTÁRIO NOVO
+SHOP
 =================================
 */
 
-bindAction('inventory', handleInventory);
-
-bindAction('invcat:weapons', handleInventoryCategory);
-bindAction('invcat:armors', handleInventoryCategory);
-bindAction('invcat:jewelry', handleInventoryCategory);
-bindAction('invcat:boots', handleInventoryCategory);
-bindAction('invcat:consumables', handleInventoryCategory);
-bindAction('invcat:skins', handleInventoryCategory);
-bindAction('invcat:souls', handleInventoryCategory);
-
-bindAction(
-    /^invpage:(weapons|armors|jewelry|boots):(\d+)$/,
-    handleInventoryPage
-);
-
-bindAction(
-    /^eq:(weapons|armors|jewelry|boots):(\d+):(\d+)$/,
-    handleEquipItem
-);
-
-bindAction(
-    /^uneq:(weapon|armor|necklace|ring|boots):(weapons|armors|jewelry|boots):(\d+)$/,
-    handleUnequipItem
-);
-
-bindAction(/^equip_soul_(.+)$/, handleEquipSoul);
-bindAction(/^unequip_soul_(\d+)$/, handleUnequipSoul);
+bindAction('shop_village', shop.handleShopVillage);
+bindAction('shop_castle', shop.handleShopCastle);
+bindAction('shop_arena', shop.handleShopArena);
+bindAction(/buy_(.+)/, shop.handleBuy);
 
 /*
 =================================
-ALIASES LEGADOS
+TRAVEL
 =================================
 */
 
-bindAction('inv_weapons', handleInvWeapons);
-bindAction('inv_armors', handleInvArmors);
-bindAction('inv_jewelry', handleInvJewelry);
-bindAction('inv_boots', handleInvBoots);
-bindAction('inv_consumables', handleInvConsumables);
-bindAction('inv_souls', handleInvSouls);
-
-bindAction('inv_weapon', handleInvWeapons);
-bindAction('inv_armor', handleInvArmors);
-
-bindAction('inv_skin', async (ctx) => {
-    await ctx.answerCbQuery('🎨 Skins em breve.', {
-        show_alert: true
-    });
-});
-
-bindAction('auto_equip', async (ctx) => {
-    await ctx.answerCbQuery('✨ Auto equip em ajuste.', {
-        show_alert: true
-    });
-});
-
-bindAction('inv_consumable', handleInvConsumables);
-bindAction('inv_soul', handleInvSouls);
-
-/*
-=================================
-COMPATIBILIDADE LEGADA EQUIP
-=================================
-*/
-
-bindAction(
-    /^equip_(weapon|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/,
-    handleEquipItem
-);
-
-bindAction(
-    /^unequip_(weapon|armor|necklace|ring|boots)$/,
-    handleUnequipItem
-);
-
-/*
-=================================
-LOJA
-=================================
-*/
-
-bindAction('shop_village', handleShopVillage);
-bindAction('shop_castle', handleShopCastle);
-bindAction('shop_arena', handleShopArena);
-bindAction(/buy_(.+)/, handleBuy);
-
-/*
-=================================
-VIAGEM
-=================================
-*/
-
-bindAction(/travel_to_(.+)/, handleTravelTo);
-bindAction('travel_locked', handleTravelLocked);
+bindAction(/travel_to_(.+)/, travel.handleTravelTo);
+bindAction('travel_locked', travel.handleTravelLocked);
 
 /*
 =================================
@@ -350,9 +226,17 @@ DUNGEON
 =================================
 */
 
-bindAction('dungeon_attack', handleDungeonAttack);
-bindAction('dungeon_next_room', handleDungeonNextRoom);
-bindAction('dungeon_flee', handleDungeonFlee);
+bindAction('dungeon_attack', dungeon.handleDungeonAttack);
+bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
+bindAction('dungeon_flee', dungeon.handleDungeonFlee);
+
+/*
+=================================
+ENERGY
+=================================
+*/
+
+bindAction('rest_energy', energy.handleRestEnergy);
 
 /*
 =================================
@@ -360,7 +244,7 @@ MENU
 =================================
 */
 
-bot.action('menu', async (ctx) => {
+bindAction('menu', async (ctx) => {
     await ctx.answerCbQuery();
 
     const menuText = await getMainMenuText(
@@ -376,7 +260,7 @@ bot.action('menu', async (ctx) => {
 
 /*
 =================================
-HTTP SERVER RENDER
+HTTP SERVER
 =================================
 */
 
@@ -392,7 +276,13 @@ http.createServer((req, res) => {
     console.log(`🌐 Porta ${PORT}`);
 });
 
-startBot().catch(console.error);
+/*
+=================================
+START
+=================================
+*/
+
+startBot();
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
