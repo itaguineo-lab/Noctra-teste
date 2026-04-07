@@ -1,36 +1,76 @@
-function calculateDamage(attacker, defender, options = {}) {
+function calculateDamage(
+    attacker,
+    defender,
+    options = {}
+) {
     const {
         multiplier = 1,
         critBonus = 1.6,
-        minDamage = 1
+        minDamage = 1,
+        penetration = 0
     } = options;
 
-    let atk = attacker.atk || 1;
-    let def = defender.def || 0;
-    const critChance = attacker.crit || 5;
+    const atk = Math.max(
+        1,
+        attacker.atk || 1
+    );
 
-    const variance = 0.92 + Math.random() * 0.16;
+    let def = Math.max(
+        0,
+        defender.def || 0
+    );
 
-    let rawDamage = atk * variance * multiplier;
+    const critChance =
+        Math.min(
+            75,
+            attacker.crit || 5
+        );
+
+    const variance =
+        0.9 + Math.random() * 0.2;
+
+    def = Math.max(
+        0,
+        def - penetration
+    );
+
+    let rawDamage =
+        atk *
+        variance *
+        multiplier;
 
     const isCrit =
-        Math.random() * 100 <= critChance;
+        Math.random() * 100 <=
+        critChance;
 
     if (isCrit) {
         rawDamage *= critBonus;
     }
 
-    const mitigation = def / (def + 45);
+    /*
+    CURVA MELHOR
+    */
 
-    const finalDamage = Math.max(
-        minDamage,
-        Math.floor(rawDamage * (1 - mitigation))
-    );
+    const mitigation =
+        Math.min(
+            0.75,
+            def / (def + 60)
+        );
+
+    const finalDamage =
+        Math.max(
+            minDamage,
+            Math.floor(
+                rawDamage *
+                    (1 - mitigation)
+            )
+        );
 
     return {
         damage: finalDamage,
         isCrit,
-        rawDamage: Math.floor(rawDamage),
+        rawDamage:
+            Math.floor(rawDamage),
         mitigation: Number(
             mitigation.toFixed(2)
         )
