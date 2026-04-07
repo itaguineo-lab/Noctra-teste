@@ -1,69 +1,50 @@
-const { RARITIES } = require('./constants');
-
-/*
-====================================================
-BALANCEAMENTO CENTRAL DO LOOT
-====================================================
-*/
-
-const RARITY_MULTIPLIERS = {
-    Comum: 1,
-    Incomum: 1.2,
-    Raro: 1.45,
-    Épico: 1.8,
-    Lendário: 2.2,
-    Mítico: 2.8
-};
-
-const RARITY_POWER_BONUS = {
-    Comum: 0,
-    Incomum: 3,
-    Raro: 7,
-    Épico: 14,
-    Lendário: 24,
-    Mítico: 40
-};
+const { RARITIES, getRarityMult } = require('./constants');
 
 const itemTypes = [
     {
         slot: 'weapon',
         namePrefix: 'Espada',
-        atkBase: 6,
+        atkBase: 5,
         defBase: 0,
         critBase: 2,
-        hpBase: 0
+        hpBase: 0,
+        variance: 0.18
     },
     {
         slot: 'armor',
         namePrefix: 'Armadura',
         atkBase: 0,
-        defBase: 6,
+        defBase: 5,
         critBase: 0,
-        hpBase: 12
+        hpBase: 10,
+        variance: 0.15
     },
     {
         slot: 'necklace',
         namePrefix: 'Amuleto',
-        atkBase: 3,
-        defBase: 2,
+        atkBase: 2,
+        defBase: 1,
         critBase: 3,
-        hpBase: 6
+        hpBase: 5,
+        variance: 0.16
     },
     {
         slot: 'ring',
         namePrefix: 'Anel',
-        atkBase: 4,
-        defBase: 1,
+        atkBase: 3,
+        defBase: 0,
         critBase: 4,
-        hpBase: 4
+        hpBase: 3,
+        variance: 0.17
     },
     {
         slot: 'boots',
         namePrefix: 'Bota',
         atkBase: 0,
-        defBase: 4,
-        critBase: 2,
-        hpBase: 5
+        defBase: 3,
+        critBase: 1,
+        hpBase: 4,
+        variance: 0.14
     }
 ];
 
@@ -74,30 +55,20 @@ const mapRarityRules = {
     deserto_incandescente: ['Épico', 'Lendário']
 };
 
-/*
-====================================================
-UTILS
-====================================================
-*/
-
-function randomBetween(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+const rarityPowerBonus = {
+    Comum: 1.0,
+    Incomum: 1.15,
+    Raro: 1.35,
+    Épico: 1.6,
+    Lendário: 2.0,
+    Mítico: 2.5
+};
 
 function weightedChoice(list) {
-    const weights = {
-        Comum: 40,
-        Incomum: 30,
-        Raro: 18,
-        Épico: 8,
-        Lendário: 3,
-        Mítico: 1
-    };
-
     const pool = [];
 
     list.forEach(rarity => {
-        const weight = weights[rarity] || 1;
+        const weight = Math.floor(RARITIES[rarity].weight);
 
         for (let i = 0; i < weight; i++) {
             pool.push(rarity);
@@ -117,7 +88,7 @@ function getBossRarity(currentMap, isDungeonBoss = false) {
 
     if (isDungeonBoss) {
         if (roll <= 3) return 'Mítico';
-        if (roll <= 20) return 'Lendário';
+        if (roll <= 25) return 'Lendário';
         return 'Épico';
     }
 
@@ -126,10 +97,10 @@ function getBossRarity(currentMap, isDungeonBoss = false) {
             return roll <= 20 ? 'Raro' : 'Incomum';
 
         case 'cripta_em_ruinas':
-            return roll <= 15 ? 'Lendário' : 'Épico';
+            return roll <= 10 ? 'Lendário' : 'Épico';
 
         case 'pantano_corrompido':
-            return roll <= 20 ? 'Lendário' : 'Épico';
+            return roll <= 15 ? 'Lendário' : 'Épico';
 
         case 'deserto_incandescente':
             return roll <= 25 ? 'Lendário' : 'Épico';
@@ -139,20 +110,15 @@ function getBossRarity(currentMap, isDungeonBoss = false) {
     }
 }
 
-/*
-====================================================
-ROLL DE STATS
-====================================================
-*/
+function randomBetween(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
-function rollStat(base, rarity, varianceMin = 0.92, varianceMax = 1.08) {
-    const multiplier = RARITY_MULTIPLIERS[rarity] || 1;
-    const variance = randomBetween(
-        Math.floor(varianceMin * 100),
-        Math.floor(varianceMax * 100)
-    ) / 100;
+function rollStat(base, mult, variance) {
+    const low = Math.floor(base * mult * (1 - variance));
+    const high = Math.ceil(base * mult * (1 + variance));
 
-    return Math.max(0, Math.round(base * multiplier * variance));
+    return Math.max(0, randomBetween(low, high));
 }
 
 function calculatePower(item) {
@@ -161,22 +127,24 @@ function calculatePower(item) {
     const hp = item.hp || 0;
     const crit = item.crit || 0;
 
-    const rarityBonus = RARITY_POWER_BONUS[item.rarity] || 0;
-
-    return Math.round(
-        atk * 2.4 +
-        def * 1.8 +
-        hp * 0.6 +
-        crit * 3 +
-        rarityBonus
+    return Math.max(
+        1,
+        Math.round(
+            atk * 2.2 +
+            def * 1.8 +
+            hp * 0.45 +
+            crit * 3.2
+        )
     );
 }
 
-/*
-====================================================
-GERADOR PRINCIPAL
-====================================================
-*/
+function buildPowerTier(power) {
+    if (power <= 20) return 'Fraco';
+    if (power <= 40) return 'Bom';
+    if (power <= 70) return 'Forte';
+    if (power <= 100) return 'Elite';
+    return 'Lendário';
+}
 
 function generateItem(playerLevel, forcedType = null, options = {}) {
     const {
@@ -189,33 +157,58 @@ function generateItem(playerLevel, forcedType = null, options = {}) {
         ? itemTypes.find(t => t.slot === forcedType) || itemTypes[0]
         : itemTypes[Math.floor(Math.random() * itemTypes.length)];
 
-    const rarity = isBoss
+    const rarityName = isBoss
         ? getBossRarity(currentMap, isDungeonBoss)
         : getMapRarity(currentMap);
 
-    const levelScaling = Math.max(1, Math.floor(playerLevel * 0.9));
+    const rarityMult = getRarityMult(rarityName);
+    const powerBonus = rarityPowerBonus[rarityName] || 1;
 
-    const atk = rollStat(type.atkBase + levelScaling, rarity);
-    const def = rollStat(type.defBase + levelScaling, rarity);
-    const crit = rollStat(type.critBase + Math.floor(levelScaling / 2), rarity);
-    const hp = rollStat(type.hpBase + levelScaling * 2, rarity);
+    const levelScaling = Math.max(1, Math.floor(playerLevel * 0.85));
+
+    const atk = rollStat(
+        type.atkBase + levelScaling,
+        rarityMult * powerBonus,
+        type.variance
+    );
+
+    const def = rollStat(
+        type.defBase + levelScaling,
+        rarityMult * powerBonus,
+        type.variance
+    );
+
+    const crit = rollStat(
+        type.critBase + Math.floor(levelScaling / 2),
+        rarityMult * powerBonus,
+        type.variance
+    );
+
+    const hp = rollStat(
+        type.hpBase + levelScaling * 2,
+        rarityMult * powerBonus,
+        type.variance
+    );
 
     const item = {
         id: `item_${Date.now()}_${Math.floor(Math.random() * 999999)}`,
-        name: `${type.namePrefix} ${rarity}`,
+        name: `${type.namePrefix} ${rarityName}`,
         slot: type.slot,
-        rarity,
+        rarity: rarityName,
         level: playerLevel,
         atk,
         def,
         crit,
         hp,
-        emoji: RARITIES[rarity]?.emoji || '⚪'
+        emoji: RARITIES[rarityName].emoji
     };
 
     item.power = calculatePower(item);
+    item.powerTier = buildPowerTier(item.power);
 
-    item.price = Math.floor(item.power * 8);
+    item.price = Math.floor(
+        (100 + item.power * 3) * rarityMult
+    );
 
     return item;
 }
@@ -224,5 +217,6 @@ module.exports = {
     itemTypes,
     generateItem,
     getMapRarity,
-    getBossRarity
+    getBossRarity,
+    calculatePower
 };
