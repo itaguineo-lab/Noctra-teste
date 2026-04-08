@@ -313,5 +313,6 @@ module.exports = {
     recalculateStats,
     updateBuffs,
     connectToMongo,
-    ensurePlayerState
+    ensurePlayerState,
+    getPlayerCollection
 };
