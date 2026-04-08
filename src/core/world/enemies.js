@@ -1,6 +1,6 @@
 /*
 =================================
-NOCTRA — ENEMY SYSTEM
+NOCTRA — ENEMY SYSTEM PREMIUM
 Sistema completo de inimigos
 =================================
 */
@@ -18,8 +18,12 @@ const enemyPools = {
                 xp: 30,
                 gold: 18,
                 rarity: 'common',
+                tier: 1,
                 type: 'beast',
-                dropBias: 'weapon'
+                element: 'dark',
+                dropBias: 'weapon',
+                dropChance: 0.20,
+                skill: 'bleed'
             },
             {
                 id: 'giant_rat',
@@ -31,21 +35,11 @@ const enemyPools = {
                 xp: 25,
                 gold: 12,
                 rarity: 'common',
+                tier: 1,
                 type: 'beast',
-                dropBias: 'consumable'
-            },
-            {
-                id: 'dark_boar',
-                name: 'Javali Negro',
-                hp: 55,
-                atk: 8,
-                def: 5,
-                crit: 3,
-                xp: 28,
-                gold: 16,
-                rarity: 'common',
-                type: 'beast',
-                dropBias: 'armor'
+                element: 'earth',
+                dropBias: 'consumable',
+                dropChance: 0.30
             },
             {
                 id: 'forest_spider',
@@ -57,21 +51,12 @@ const enemyPools = {
                 xp: 26,
                 gold: 15,
                 rarity: 'common',
+                tier: 1,
                 type: 'poison',
-                dropBias: 'jewelry'
-            },
-            {
-                id: 'night_bat',
-                name: 'Morcego Noturno',
-                hp: 35,
-                atk: 11,
-                def: 2,
-                crit: 8,
-                xp: 24,
-                gold: 14,
-                rarity: 'common',
-                type: 'flying',
-                dropBias: 'ring'
+                element: 'poison',
+                dropBias: 'jewelry',
+                dropChance: 0.25,
+                skill: 'poison'
             }
         ],
 
@@ -86,9 +71,35 @@ const enemyPools = {
                 xp: 60,
                 gold: 35,
                 rarity: 'elite',
+                tier: 2,
                 type: 'beast',
+                element: 'dark',
                 isElite: true,
-                dropBias: 'weapon'
+                dropBias: 'weapon',
+                dropChance: 0.45,
+                rewardMultiplier: 1.5,
+                skill: 'bleed'
+            }
+        ],
+
+        miniboss: [
+            {
+                id: 'dark_stag',
+                name: 'Cervo Sombrio',
+                hp: 130,
+                atk: 18,
+                def: 9,
+                crit: 10,
+                xp: 90,
+                gold: 60,
+                rarity: 'miniboss',
+                tier: 3,
+                type: 'beast',
+                element: 'dark',
+                isMiniBoss: true,
+                dropBias: 'armor',
+                dropChance: 0.65,
+                rewardMultiplier: 2
             }
         ],
 
@@ -96,16 +107,21 @@ const enemyPools = {
             {
                 id: 'forest_guardian',
                 name: 'Guardião da Clareira',
-                hp: 160,
-                atk: 20,
-                def: 10,
+                hp: 180,
+                atk: 22,
+                def: 12,
                 crit: 12,
-                xp: 120,
-                gold: 80,
+                xp: 140,
+                gold: 90,
                 rarity: 'boss',
+                tier: 4,
                 type: 'boss',
+                element: 'nature',
                 isBoss: true,
-                dropBias: 'armor'
+                dropBias: 'armor',
+                dropChance: 0.85,
+                rewardMultiplier: 3,
+                soulDropChance: 0.15
             }
         ]
     },
@@ -122,31 +138,9 @@ const enemyPools = {
                 xp: 45,
                 gold: 28,
                 rarity: 'common',
-                type: 'undead'
-            },
-            {
-                id: 'skeleton_mage',
-                name: 'Mago Esqueleto',
-                hp: 90,
-                atk: 18,
-                def: 6,
-                crit: 8,
-                xp: 50,
-                gold: 32,
-                rarity: 'common',
-                type: 'undead'
-            },
-            {
-                id: 'grave_hound',
-                name: 'Cão da Cripta',
-                hp: 95,
-                atk: 16,
-                def: 7,
-                crit: 6,
-                xp: 44,
-                gold: 29,
-                rarity: 'common',
-                type: 'undead'
+                tier: 2,
+                type: 'undead',
+                element: 'dark'
             },
             {
                 id: 'bone_archer',
@@ -158,19 +152,10 @@ const enemyPools = {
                 xp: 46,
                 gold: 30,
                 rarity: 'common',
-                type: 'undead'
-            },
-            {
-                id: 'crypt_guard',
-                name: 'Guardião da Cripta',
-                hp: 110,
-                atk: 15,
-                def: 9,
-                crit: 5,
-                xp: 48,
-                gold: 31,
-                rarity: 'common',
-                type: 'undead'
+                tier: 2,
+                type: 'undead',
+                element: 'dark',
+                skill: 'pierce'
             }
         ],
 
@@ -185,8 +170,27 @@ const enemyPools = {
                 xp: 90,
                 gold: 60,
                 rarity: 'elite',
+                tier: 3,
                 type: 'undead',
+                element: 'dark',
                 isElite: true
+            }
+        ],
+
+        miniboss: [
+            {
+                id: 'crypt_reaper',
+                name: 'Ceifador da Cripta',
+                hp: 230,
+                atk: 28,
+                def: 16,
+                crit: 12,
+                xp: 120,
+                gold: 80,
+                rarity: 'miniboss',
+                tier: 4,
+                isMiniBoss: true,
+                element: 'dark'
             }
         ],
 
@@ -194,33 +198,23 @@ const enemyPools = {
             {
                 id: 'lord_of_crypt',
                 name: 'Lorde da Cripta',
-                hp: 260,
-                atk: 30,
-                def: 18,
+                hp: 280,
+                atk: 34,
+                def: 20,
                 crit: 14,
-                xp: 180,
-                gold: 120,
+                xp: 190,
+                gold: 130,
                 rarity: 'boss',
-                type: 'boss',
-                isBoss: true
+                tier: 5,
+                isBoss: true,
+                element: 'dark',
+                soulDropChance: 0.20
             }
         ]
     },
 
     pantano_corrompido: {
         common: [
-            {
-                id: 'corrupted_frog',
-                name: 'Sapo Corrompido',
-                hp: 130,
-                atk: 20,
-                def: 8,
-                crit: 6,
-                xp: 70,
-                gold: 45,
-                rarity: 'common',
-                type: 'poison'
-            },
             {
                 id: 'venom_serpent',
                 name: 'Serpente Venenosa',
@@ -231,43 +225,10 @@ const enemyPools = {
                 xp: 75,
                 gold: 50,
                 rarity: 'common',
-                type: 'poison'
-            },
-            {
-                id: 'swamp_zombie',
-                name: 'Zumbi do Lodo',
-                hp: 140,
-                atk: 19,
-                def: 10,
-                crit: 4,
-                xp: 72,
-                gold: 47,
-                rarity: 'common',
-                type: 'undead'
-            },
-            {
-                id: 'mud_golem',
-                name: 'Golem de Lama',
-                hp: 150,
-                atk: 18,
-                def: 12,
-                crit: 3,
-                xp: 78,
-                gold: 52,
-                rarity: 'common',
-                type: 'tank'
-            },
-            {
-                id: 'toxic_crow',
-                name: 'Corvo Tóxico',
-                hp: 110,
-                atk: 25,
-                def: 6,
-                crit: 11,
-                xp: 73,
-                gold: 49,
-                rarity: 'common',
-                type: 'flying'
+                tier: 3,
+                type: 'poison',
+                element: 'poison',
+                skill: 'poison'
             }
         ],
 
@@ -282,7 +243,9 @@ const enemyPools = {
                 xp: 130,
                 gold: 90,
                 rarity: 'elite',
-                isElite: true
+                tier: 4,
+                isElite: true,
+                element: 'poison'
             }
         ],
 
@@ -290,14 +253,17 @@ const enemyPools = {
             {
                 id: 'lord_of_decay',
                 name: 'Lorde da Putrefação',
-                hp: 380,
-                atk: 42,
-                def: 22,
+                hp: 400,
+                atk: 46,
+                def: 24,
                 crit: 15,
-                xp: 250,
-                gold: 160,
+                xp: 260,
+                gold: 180,
                 rarity: 'boss',
-                isBoss: true
+                tier: 5,
+                isBoss: true,
+                element: 'poison',
+                soulDropChance: 0.25
             }
         ]
     }
@@ -316,7 +282,7 @@ function getPool(mapId) {
     );
 }
 
-function getRandomFromArray(array) {
+function randomFrom(array) {
     return array[
         Math.floor(Math.random() * array.length)
     ];
@@ -324,7 +290,7 @@ function getRandomFromArray(array) {
 
 /*
 =================================
-SPAWN
+SMART SPAWN
 =================================
 */
 
@@ -333,26 +299,54 @@ function getRandomEnemy(mapId) {
 
     const roll = Math.random();
 
-    if (roll <= 0.05 && pool.boss?.length) {
+    if (roll <= 0.03 && pool.boss?.length) {
         return {
-            ...getRandomFromArray(pool.boss),
+            ...randomFrom(pool.boss),
             isBoss: true
         };
     }
 
-    if (roll <= 0.20 && pool.elite?.length) {
+    if (roll <= 0.10 && pool.miniboss?.length) {
         return {
-            ...getRandomFromArray(pool.elite),
-            isElite: true,
-            isBoss: false
+            ...randomFrom(pool.miniboss),
+            isMiniBoss: true
+        };
+    }
+
+    if (roll <= 0.25 && pool.elite?.length) {
+        return {
+            ...randomFrom(pool.elite),
+            isElite: true
         };
     }
 
     return {
-        ...getRandomFromArray(pool.common),
-        isElite: false,
-        isBoss: false
+        ...randomFrom(pool.common)
     };
+}
+
+/*
+=================================
+BY TIER
+=================================
+*/
+
+function getEnemyByTier(mapId, tier) {
+    const pool = getPool(mapId);
+
+    if (tier >= 5 && pool.boss?.length) {
+        return randomFrom(pool.boss);
+    }
+
+    if (tier >= 4 && pool.miniboss?.length) {
+        return randomFrom(pool.miniboss);
+    }
+
+    if (tier >= 3 && pool.elite?.length) {
+        return randomFrom(pool.elite);
+    }
+
+    return randomFrom(pool.common);
 }
 
 /*
@@ -380,5 +374,6 @@ function getEnemyById(enemyId) {
 module.exports = {
     enemyPools,
     getRandomEnemy,
-    getEnemyById
+    getEnemyById,
+    getEnemyByTier
 };
