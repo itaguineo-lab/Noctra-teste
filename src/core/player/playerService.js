@@ -202,11 +202,6 @@ function ensurePlayerState(player) {
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
 
-    /*
-    MUITO IMPORTANTE:
-    NÃO recalcula aqui
-    */
-
     return player;
 }
 
@@ -269,10 +264,6 @@ async function savePlayer(id, playerData) {
     const { _id, ...updateData } = playerData;
 
     ensurePlayerState(updateData);
-
-    /*
-    recalcula UMA vez só
-    */
     recalculateStats(updateData);
 
     updateData.updatedAt = new Date();
@@ -305,6 +296,17 @@ function updateBuffs(player) {
     });
 
     return player;
+}
+
+/*
+=================================
+COLLECTION
+=================================
+*/
+
+async function getPlayerCollection() {
+    await connectToMongo();
+    return Player.collection;
 }
 
 module.exports = {
