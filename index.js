@@ -158,6 +158,23 @@ bindCommand('reset', handleReset);
 
 /*
 =================================
+PROFILE HELP
+=================================
+*/
+
+bindAction('rename_help', async (ctx) => {
+    await ctx.answerCbQuery('Use /rename novo_nome', { show_alert: true });
+});
+
+bindAction('class_help', async (ctx) => {
+    await ctx.answerCbQuery(
+        'Use /class guerreiro | arqueiro | mago',
+        { show_alert: true }
+    );
+});
+
+/*
+=================================
 MAIN MENU
 =================================
 */
