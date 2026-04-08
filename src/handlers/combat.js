@@ -193,9 +193,16 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
 
-        player.hp = Math.min(
-            fight.player.hp,
-            player.maxHp
+        /*
+        MUITO IMPORTANTE:
+        mantém HP atual da luta
+        */
+        player.hp = Math.max(
+            1,
+            Math.min(
+                fight.player.hp,
+                player.maxHp
+            )
         );
 
         player.energy = Math.min(
@@ -213,6 +220,18 @@ async function finishFight(ctx, fight) {
 
         activeFights.delete(ctx.from.id);
 
+        const xpToNext =
+            player.xpToNextLevel ||
+            player.level * 100;
+
+        const xpBar = progressBar(
+            player.xp,
+            xpToNext,
+            10,
+            '🟨',
+            '⬛'
+        );
+
         let msg = '';
 
         msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -225,7 +244,12 @@ async function finishFight(ctx, fight) {
         msg += `🛡️ Dano recebido: ${fight.totalDamageReceived}\n\n`;
 
         msg += `✨ +${rewards.xp} XP\n`;
-        msg += `💰 +${rewards.gold} Ouro\n`;
+        msg += `💰 +${rewards.gold} Ouro\n\n`;
+
+        msg += `📈 XP: ${player.xp}/${xpToNext}\n`;
+        msg += `[${xpBar}]\n\n`;
+
+        msg += `❤️ HP restante: ${player.hp}/${player.maxHp}\n`;
 
         if (rewards.bonusGold > 0) {
             msg += `🎲 Bônus: +${rewards.bonusGold}\n`;
@@ -269,7 +293,7 @@ async function finishFight(ctx, fight) {
 
         return editMessage(
             ctx,
-            `💀 *DERROTA*\n\n👹 ${fight.enemy.name}`,
+            `💀 *DERROTA*\n\n👹 ${fight.enemy.name}\n❤️ HP restante: ${player.hp}/${player.maxHp}`,
             {
                 parse_mode: 'Markdown',
                 ...postCombatMenu()
@@ -278,7 +302,11 @@ async function finishFight(ctx, fight) {
     }
 
     if (fight.status === 'fled') {
-        player.hp = fight.player.hp;
+        player.hp = Math.max(
+            1,
+            fight.player.hp
+        );
+
         player.energy = fight.player.energy;
 
         await savePlayer(ctx.from.id, player);
@@ -287,7 +315,7 @@ async function finishFight(ctx, fight) {
 
         return editMessage(
             ctx,
-            `🏃 *Você fugiu com sucesso!*`,
+            `🏃 *Você fugiu com sucesso!*\n❤️ HP restante: ${player.hp}/${player.maxHp}`,
             {
                 parse_mode: 'Markdown',
                 ...postCombatMenu()
