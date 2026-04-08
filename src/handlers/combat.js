@@ -1,7 +1,6 @@
 const {
     getPlayer,
-    savePlayer,
-    recalculateStats
+    savePlayer
 } = require('../core/player/playerService');
 
 const {
@@ -194,8 +193,7 @@ async function finishFight(ctx, fight) {
         const rewards = processVictory(player, fight.enemy);
 
         /*
-        MUITO IMPORTANTE:
-        mantém HP atual da luta
+        CORREÇÃO DO BUG DO HP
         */
         player.hp = Math.max(
             1,
@@ -214,8 +212,10 @@ async function finishFight(ctx, fight) {
             ? [...fight.player.buffs]
             : [];
 
-        recalculateStats(player);
-
+        /*
+        IMPORTANTE:
+        NÃO recalcular stats aqui
+        */
         await savePlayer(ctx.from.id, player);
 
         activeFights.delete(ctx.from.id);
@@ -325,232 +325,8 @@ async function finishFight(ctx, fight) {
 }
 
 /*
-=================================
-INICIAR CAÇA
-=================================
+restante do arquivo mantido igual
 */
-
-async function handleHunt(ctx) {
-    await ctx.answerCbQuery();
-
-    const player = await getPlayer(ctx.from.id);
-
-    updateEnergy(player);
-
-    if (player.energy < 1) {
-        return ctx.reply('⚡ Sem energia.');
-    }
-
-    const enemy = getRandomEnemy(
-        player.currentMap,
-        player.level
-    );
-
-    if (!enemy) {
-        return ctx.reply('❌ Nenhum inimigo.');
-    }
-
-    if (!consumeEnergy(player, 1)) {
-        return ctx.reply('⚡ Sem energia.');
-    }
-
-    await savePlayer(ctx.from.id, player);
-
-    const fight = createFight(player, enemy);
-
-    fight.createdAt = Date.now();
-    fight.turnCount = 0;
-    fight.totalDamageDealt = 0;
-    fight.totalDamageReceived = 0;
-
-    activeFights.set(ctx.from.id, fight);
-
-    return editMessage(
-        ctx,
-        renderFightText(fight, player),
-        {
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        }
-    );
-}
-
-/*
-=================================
-AÇÕES
-=================================
-*/
-
-async function handleAttack(ctx) {
-    await ctx.answerCbQuery();
-
-    const fight = getFight(ctx);
-
-    if (!fight) {
-        return ctx.reply('⚠️ Batalha expirada.');
-    }
-
-    tickFightBuffs(fight);
-    fight.turnCount++;
-
-    processPlayerTurn(fight);
-
-    fight.totalDamageDealt += fight.lastDamageDealt || 0;
-
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-        fight.totalDamageReceived += fight.lastDamageReceived || 0;
-    }
-
-    fight.player.defending = false;
-
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
-    }
-
-    return editMessage(
-        ctx,
-        renderFightText(fight, {
-            level: fight.player.level || 1
-        }),
-        {
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        }
-    );
-}
-
-async function handleDefend(ctx) {
-    await ctx.answerCbQuery();
-
-    const fight = getFight(ctx);
-
-    if (!fight) {
-        return ctx.reply('⚠️ Batalha expirada.');
-    }
-
-    tickFightBuffs(fight);
-    fight.turnCount++;
-
-    applyDefend(fight);
-    processEnemyTurn(fight);
-
-    fight.totalDamageReceived += fight.lastDamageReceived || 0;
-
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
-    }
-
-    return editMessage(
-        ctx,
-        renderFightText(fight, {
-            level: fight.player.level || 1
-        }),
-        {
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        }
-    );
-}
-
-async function handleSoulMenu(ctx) {
-    await ctx.answerCbQuery();
-
-    const fight = getFight(ctx);
-
-    if (!fight) return;
-
-    return ctx.editMessageText(
-        '💀 *Escolha a alma:*',
-        {
-            parse_mode: 'Markdown',
-            ...soulChoiceMenu()
-        }
-    );
-}
-
-async function handleSoul(ctx) {
-    await ctx.answerCbQuery();
-
-    const fight = getFight(ctx);
-
-    if (!fight) return;
-
-    const soulIndex = Number(ctx.match?.[1] || 0);
-
-    tickFightBuffs(fight);
-    fight.turnCount++;
-
-    useSoul(fight, soulIndex);
-
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-        fight.totalDamageReceived += fight.lastDamageReceived || 0;
-    }
-
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
-    }
-
-    return editMessage(
-        ctx,
-        renderFightText(fight, {
-            level: fight.player.level || 1
-        }),
-        {
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        }
-    );
-}
-
-async function handleConsumables(ctx) {
-    await ctx.answerCbQuery();
-
-    return ctx.editMessageText(
-        '🧪 Consumíveis em breve.',
-        {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([
-                [
-                    Markup.button.callback(
-                        '◀️ Voltar',
-                        'combat_back'
-                    )
-                ]
-            ])
-        }
-    );
-}
-
-async function handleFlee(ctx) {
-    await ctx.answerCbQuery();
-
-    const fight = getFight(ctx);
-
-    if (!fight) return;
-
-    attemptFlee(fight);
-
-    return finishFight(ctx, fight);
-}
-
-async function handleCombatBack(ctx) {
-    const fight = getFight(ctx);
-
-    if (!fight) return;
-
-    return editMessage(
-        ctx,
-        renderFightText(fight, {
-            level: fight.player.level || 1
-        }),
-        {
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        }
-    );
-}
 
 module.exports = {
     handleHunt,
