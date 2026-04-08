@@ -1,4 +1,15 @@
-const { getRarityEmoji } = require('../data/constants');
+const RARITY_EMOJIS = {
+    Comum: '⚪',
+    Incomum: '🟢',
+    Raro: '🔵',
+    Épico: '🟣',
+    Lendário: '🟡',
+    Mítico: '🔴'
+};
+
+function getRarityEmoji(rarity) {
+    return RARITY_EMOJIS[rarity] || '⚪';
+}
 
 function progressBar(
     current,
@@ -8,7 +19,7 @@ function progressBar(
     emptyChar = '⬜'
 ) {
     const safeCurrent = Number(current) || 0;
-    const safeMax = max > 0 ? max : 1;
+    const safeMax = Number(max) > 0 ? Number(max) : 1;
 
     const percentage = Math.min(
         Math.max(safeCurrent / safeMax, 0),
@@ -16,7 +27,7 @@ function progressBar(
     );
 
     const filledSize = Math.round(size * percentage);
-    const emptySize = size - filledSize;
+    const emptySize = Math.max(0, size - filledSize);
 
     return (
         fullChar.repeat(filledSize) +
@@ -27,15 +38,23 @@ function progressBar(
 function formatNumber(n) {
     const value = Number(n) || 0;
 
-    return new Intl.NumberFormat('pt-BR')
-        .format(value);
+    return new Intl.NumberFormat('pt-BR').format(
+        Math.trunc(value)
+    );
 }
 
 function formatTime(ms) {
-    if (ms <= 0) return '0s';
+    const safeMs = Math.max(0, Number(ms) || 0);
 
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
+    if (safeMs <= 0) return '0s';
+
+    const hours = Math.floor(safeMs / 3600000);
+    const minutes = Math.floor((safeMs % 3600000) / 60000);
+    const seconds = Math.floor((safeMs % 60000) / 1000);
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    }
 
     if (minutes > 0) {
         return `${minutes}m ${seconds}s`;
@@ -45,35 +64,48 @@ function formatTime(ms) {
 }
 
 function formatDuration(ms) {
-    if (ms <= 0) return '0s';
+    const safeMs = Math.max(0, Number(ms) || 0);
 
-    const hours = Math.floor(ms / 3600000);
-    const minutes = Math.floor((ms % 3600000) / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
+    if (safeMs <= 0) return '0s';
+
+    const hours = Math.floor(safeMs / 3600000);
+    const minutes = Math.floor((safeMs % 3600000) / 60000);
+    const seconds = Math.floor((safeMs % 60000) / 1000);
 
     const parts = [];
 
     if (hours > 0) parts.push(`${hours}h`);
     if (minutes > 0) parts.push(`${minutes}m`);
-    if (seconds > 0) parts.push(`${seconds}s`);
+    if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
 
     return parts.join(' ');
+}
+
+function formatPercent(value, decimals = 0) {
+    const safeValue = Number(value) || 0;
+    return `${safeValue.toFixed(decimals)}%`;
+}
+
+function formatCurrency(value, symbol = '💰') {
+    return `${symbol} ${formatNumber(value)}`;
 }
 
 function formatItemName(item) {
     if (!item) return '❓ Vazio';
 
     const emoji = getRarityEmoji(item.rarity);
+    const level = item.level ? ` [Lv${item.level}]` : '';
 
-    return `${emoji} *${item.name}*`;
+    return `${emoji} ${item.name}${level}`;
 }
 
 function formatSoulName(soul) {
     if (!soul) return '🌑 Slot Vazio';
 
     const emoji = getRarityEmoji(soul.rarity);
+    const level = soul.level ? ` [Lv${soul.level}]` : '';
 
-    return `${emoji} *${soul.name}*`;
+    return `${emoji} ${soul.name}${level}`;
 }
 
 function formatItemStats(item) {
@@ -91,6 +123,13 @@ function formatItemStats(item) {
         : '';
 }
 
+function formatDelta(value) {
+    const delta = Number(value) || 0;
+
+    if (delta === 0) return 'EQUIPADO';
+    return delta > 0 ? `+${delta}` : `${delta}`;
+}
+
 module.exports = {
     progressBar,
     formatNumber,
@@ -98,5 +137,9 @@ module.exports = {
     formatSoulName,
     formatTime,
     formatItemStats,
-    formatDuration
+    formatDuration,
+    formatPercent,
+    formatCurrency,
+    formatDelta,
+    getRarityEmoji
 };
