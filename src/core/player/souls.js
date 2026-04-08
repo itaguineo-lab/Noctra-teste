@@ -2,7 +2,7 @@ const { randomUUID } = require('crypto');
 
 /*
 =================================
-SOUL DATABASE
+SOUL DATABASE PREMIUM
 =================================
 */
 
@@ -12,8 +12,10 @@ const soulsList = [
         bossId: 'alpha_shadow_wolf',
         name: 'Alma do Lobo Sombrio',
         rarity: 'Raro',
+        tier: 1,
         emoji: '🐺',
         minLevel: 1,
+        shardValue: 5,
         effect: {
             type: 'damage',
             multiplier: 1.35
@@ -25,8 +27,10 @@ const soulsList = [
         bossId: 'forest_guardian',
         name: 'Alma Curadora',
         rarity: 'Raro',
+        tier: 1,
         emoji: '💚',
         minLevel: 5,
+        shardValue: 5,
         effect: {
             type: 'heal',
             multiplier: 0.35
@@ -38,8 +42,10 @@ const soulsList = [
         bossId: 'lord_of_crypt',
         name: 'Alma Gélida',
         rarity: 'Épico',
+        tier: 2,
         emoji: '❄️',
         minLevel: 8,
+        shardValue: 10,
         effect: {
             type: 'damage',
             multiplier: 1.5,
@@ -52,8 +58,10 @@ const soulsList = [
         bossId: 'swamp_abomination',
         name: 'Alma Guardiã',
         rarity: 'Épico',
+        tier: 2,
         emoji: '🛡️',
         minLevel: 12,
+        shardValue: 10,
         effect: {
             type: 'passive',
             defBonus: 10,
@@ -66,8 +74,10 @@ const soulsList = [
         bossId: 'lord_of_decay',
         name: 'Alma Vampírica',
         rarity: 'Lendário',
+        tier: 3,
         emoji: '🩸',
         minLevel: 15,
+        shardValue: 20,
         effect: {
             type: 'lifesteal',
             multiplier: 1.65,
@@ -76,26 +86,14 @@ const soulsList = [
     },
 
     {
-        id: 'soul_thunder',
-        bossId: 'storm_titan',
-        name: 'Alma Trovejante',
-        rarity: 'Lendário',
-        emoji: '⚡',
-        minLevel: 20,
-        effect: {
-            type: 'damage',
-            multiplier: 1.8,
-            critBonus: 10
-        }
-    },
-
-    {
         id: 'soul_dragon',
         bossId: 'dragon_of_void',
         name: 'Alma Dracônica',
         rarity: 'Mítico',
+        tier: 4,
         emoji: '🐉',
         minLevel: 24,
+        shardValue: 40,
         effect: {
             type: 'passive',
             atkBonus: 18,
@@ -119,6 +117,18 @@ const rarityWeights = {
 
 /*
 =================================
+PITY SYSTEM
+=================================
+*/
+
+const pityLimits = {
+    Épico: 8,
+    Lendário: 15,
+    Mítico: 25
+};
+
+/*
+=================================
 HELPERS
 =================================
 */
@@ -128,6 +138,8 @@ function createSoulInstance(soul) {
         ...soul,
         level: 1,
         exp: 0,
+        shards: 0,
+        awakenLevel: 0,
         instanceId: randomUUID()
     };
 }
@@ -142,8 +154,6 @@ function getSoulById(id) {
 
 function getRarityEmoji(rarity) {
     const map = {
-        Comum: '⚪',
-        Incomum: '🟢',
         Raro: '🔵',
         Épico: '🟣',
         Lendário: '🟡',
@@ -154,7 +164,7 @@ function getRarityEmoji(rarity) {
 }
 
 function weightedRandom(list) {
-    const totalWeight = list.reduce(
+    const total = list.reduce(
         (sum, soul) =>
             sum +
             (rarityWeights[soul.rarity] || 1),
@@ -162,7 +172,7 @@ function weightedRandom(list) {
     );
 
     let roll =
-        Math.random() * totalWeight;
+        Math.random() * total;
 
     for (const soul of list) {
         roll -=
@@ -178,13 +188,19 @@ function weightedRandom(list) {
 
 /*
 =================================
-DROP SYSTEM
+DROP WITH PITY
 =================================
 */
 
-function dropSoul(playerLevel, bossId = null) {
+function dropSoul(
+    playerLevel,
+    bossId = null,
+    pityCounter = 0
+) {
     const available = soulsList.filter(
-        soul => soul.minLevel <= playerLevel
+        soul =>
+            soul.minLevel <=
+            playerLevel
     );
 
     if (!available.length) {
@@ -192,15 +208,21 @@ function dropSoul(playerLevel, bossId = null) {
     }
 
     /*
-    boss guaranteed soul bias
+    guaranteed boss soul
     */
 
     if (bossId) {
-        const bossSoul = available.find(
-            soul => soul.bossId === bossId
-        );
+        const bossSoul =
+            available.find(
+                soul =>
+                    soul.bossId ===
+                    bossId
+            );
 
-        if (bossSoul) {
+        if (
+            bossSoul &&
+            Math.random() <= 0.20
+        ) {
             return createSoulInstance(
                 bossSoul
             );
@@ -208,14 +230,110 @@ function dropSoul(playerLevel, bossId = null) {
     }
 
     /*
-    weighted random
+    pity
     */
 
+    if (
+        pityCounter >=
+        pityLimits.Mítico
+    ) {
+        const mythic =
+            available.filter(
+                s =>
+                    s.rarity ===
+                    'Mítico'
+            );
+
+        if (mythic.length) {
+            return createSoulInstance(
+                weightedRandom(
+                    mythic
+                )
+            );
+        }
+    }
+
     const selected =
-        weightedRandom(available);
+        weightedRandom(
+            available
+        );
 
     return createSoulInstance(
         selected
+    );
+}
+
+/*
+=================================
+FUSION
+=================================
+*/
+
+function fuseSouls(
+    soulA,
+    soulB
+) {
+    if (
+        !soulA ||
+        !soulB
+    ) {
+        return null;
+    }
+
+    if (
+        soulA.id !== soulB.id
+    ) {
+        return null;
+    }
+
+    const newSoul = {
+        ...soulA
+    };
+
+    newSoul.awakenLevel =
+        (soulA.awakenLevel || 0) + 1;
+
+    newSoul.level =
+        Math.max(
+            soulA.level,
+            soulB.level
+        );
+
+    if (
+        newSoul.effect
+            .multiplier
+    ) {
+        newSoul.effect.multiplier =
+            Number(
+                (
+                    newSoul.effect
+                        .multiplier +
+                    0.10
+                ).toFixed(2)
+            );
+    }
+
+    if (
+        newSoul.effect
+            .atkBonus
+    ) {
+        newSoul.effect.atkBonus += 5;
+    }
+
+    return newSoul;
+}
+
+/*
+=================================
+SHARDS
+=================================
+*/
+
+function dismantleSoul(
+    soul
+) {
+    return (
+        soul.shardValue || 5
     );
 }
 
@@ -225,56 +343,75 @@ ACTIVATION
 =================================
 */
 
-function activateSoul(soul, state) {
-    if (!soul || !state) {
+function activateSoul(
+    soul,
+    state
+) {
+    if (
+        !soul ||
+        !state
+    ) {
         return {
-            message: '❌ Alma inválida.'
+            message:
+                '❌ Alma inválida.'
         };
     }
 
     const effect =
         soul.effect || {};
 
-    switch (effect.type) {
+    switch (
+        effect.type
+    ) {
         case 'damage': {
-            const damage = Math.floor(
-                (state.player.atk || 1) *
-                    (effect.multiplier || 1)
-            );
+            const damage =
+                Math.floor(
+                    (state.player
+                        .atk ||
+                        1) *
+                        (effect.multiplier ||
+                            1)
+                );
 
-            state.enemy.hp = Math.max(
-                0,
-                state.enemy.hp - damage
-            );
-
-            /*
-            freeze chance
-            */
+            state.enemy.hp =
+                Math.max(
+                    0,
+                    state.enemy.hp -
+                        damage
+                );
 
             if (
                 effect.freezeChance &&
                 Math.random() <
                     effect.freezeChance
             ) {
-                state.enemy.frozen = true;
+                state.enemy.frozen =
+                    true;
             }
 
             return {
                 damage,
-                message: `${soul.emoji} ${soul.name} causou ${damage} de dano!`
+                message: `${soul.emoji} ${soul.name} causou ${damage} dano!`
             };
         }
 
         case 'heal': {
-            const heal = Math.floor(
-                (state.player.maxHp || 1) *
-                    (effect.multiplier || 1)
-            );
+            const heal =
+                Math.floor(
+                    (state.player
+                        .maxHp ||
+                        1) *
+                        (effect.multiplier ||
+                            1)
+                );
 
-            state.player.hp = Math.min(
-                state.player.maxHp,
-                state.player.hp + heal
-            );
+            state.player.hp =
+                Math.min(
+                    state.player
+                        .maxHp,
+                    state.player.hp +
+                        heal
+                );
 
             return {
                 heal,
@@ -283,37 +420,43 @@ function activateSoul(soul, state) {
         }
 
         case 'lifesteal': {
-            const damage = Math.floor(
-                (state.player.atk || 1) *
-                    (effect.multiplier || 1)
-            );
+            const damage =
+                Math.floor(
+                    (state.player
+                        .atk ||
+                        1) *
+                        (effect.multiplier ||
+                            1)
+                );
 
-            const heal = Math.floor(
-                damage *
-                    (effect.healPercent || 0.2)
-            );
+            const heal =
+                Math.floor(
+                    damage *
+                        (effect.healPercent ||
+                            0.2)
+                );
 
-            state.enemy.hp = Math.max(
-                0,
-                state.enemy.hp - damage
-            );
+            state.enemy.hp =
+                Math.max(
+                    0,
+                    state.enemy.hp -
+                        damage
+                );
 
-            state.player.hp = Math.min(
-                state.player.maxHp,
-                state.player.hp + heal
-            );
+            state.player.hp =
+                Math.min(
+                    state.player
+                        .maxHp,
+                    state.player.hp +
+                        heal
+                );
 
             return {
                 damage,
                 heal,
-                message: `${soul.emoji} ${soul.name} drenou ${damage} e curou ${heal} HP!`
+                message: `${soul.emoji} drenou ${damage} e curou ${heal}!`
             };
         }
-
-        case 'passive':
-            return {
-                message: `${soul.emoji} ${soul.name} ativou seu poder passivo!`
-            };
 
         default:
             return {
@@ -324,35 +467,44 @@ function activateSoul(soul, state) {
 
 /*
 =================================
-SOUL UPGRADE
+UPGRADE
 =================================
 */
 
-function levelUpSoul(soul, expGain = 1) {
+function levelUpSoul(
+    soul,
+    expGain = 1
+) {
     soul.exp =
-        (soul.exp || 0) + expGain;
+        (soul.exp || 0) +
+        expGain;
 
     const needed =
         soul.level * 3;
 
-    if (soul.exp >= needed) {
+    if (
+        soul.exp >= needed
+    ) {
         soul.exp -= needed;
         soul.level++;
 
         if (
-            soul.effect.multiplier
+            soul.effect
+                .multiplier
         ) {
             soul.effect.multiplier =
                 Number(
                     (
                         soul.effect
-                            .multiplier + 0.05
+                            .multiplier +
+                        0.05
                     ).toFixed(2)
                 );
         }
 
         if (
-            soul.effect.atkBonus
+            soul.effect
+                .atkBonus
         ) {
             soul.effect.atkBonus += 2;
         }
@@ -365,6 +517,8 @@ module.exports = {
     soulsList,
     getSoulById,
     dropSoul,
+    fuseSouls,
+    dismantleSoul,
     activateSoul,
     getRarityEmoji,
     levelUpSoul
