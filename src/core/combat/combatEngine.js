@@ -12,31 +12,45 @@ HELPERS
 =================================
 */
 
-function trimLogs(
-    logs,
-    max = 8
-) {
+function trimLogs(logs, max = 8) {
     return logs.slice(-max);
 }
 
 function setVictory(fight) {
-    if (
-        fight.status === 'win'
-    ) return;
+    if (fight.status === 'win') return;
 
     fight.status = 'win';
 
     fight.rewards = {
-        xp:
-            fight.enemy.xp || 0,
-        gold:
-            fight.enemy.gold ||
-            0
+        xp: fight.enemy.xp || 0,
+        gold: fight.enemy.gold || 0
     };
 
     fight.logs.push(
-        `💀 ${fight.enemy.name} foi derrotado!`
+        `💀 ${fight.enemy.name} tombou nas sombras!`
     );
+}
+
+function getPlayerAttackText(enemyName, damage, isCrit) {
+    let text =
+        `⚔️ Você golpeia ${enemyName} e causa *${damage}* de dano!`;
+
+    if (isCrit) {
+        text += `\n💥 *CRÍTICO!*`;
+    }
+
+    return text;
+}
+
+function getEnemyAttackText(enemyName, damage, isCrit) {
+    let text =
+        `👹 ${enemyName} ataca e causa *${damage}* de dano!`;
+
+    if (isCrit) {
+        text += `\n💀 *Golpe crítico!*`;
+    }
+
+    return text;
 }
 
 /*
@@ -45,58 +59,39 @@ CREATE
 =================================
 */
 
-function createFight(
-    player,
-    enemy
-) {
+function createFight(player, enemy) {
     return {
         player: {
             id: player.id,
             name: player.name,
-            className:
-                player.class,
+            className: player.class,
             hp: player.hp,
-            maxHp:
-                player.maxHp,
+            maxHp: player.maxHp,
             atk: player.atk,
             def: player.def,
-            crit:
-                player.crit || 5,
-            souls:
-                Array.isArray(
-                    player.soulsEquipped
-                )
-                    ? player.soulsEquipped
-                    : [null, null],
+            crit: player.crit || 5,
+            souls: Array.isArray(player.soulsEquipped)
+                ? player.soulsEquipped
+                : [null, null],
             shield: 0,
-            energy:
-                player.energy,
-            maxEnergy:
-                player.maxEnergy,
+            energy: player.energy,
+            maxEnergy: player.maxEnergy,
             buffs: [],
             defending: false
         },
 
         enemy: {
-            id:
-                enemy.id ||
-                enemy.name,
+            id: enemy.id || enemy.name,
             name: enemy.name,
             hp: enemy.hp,
-            maxHp:
-                enemy.hp,
+            maxHp: enemy.hp,
             atk: enemy.atk,
             def: enemy.def,
-            crit:
-                enemy.crit || 5,
-            level:
-                enemy.level || 1,
-            xp:
-                enemy.xp || 0,
-            gold:
-                enemy.gold || 0,
-            isBoss:
-                !!enemy.isBoss,
+            crit: enemy.crit || 5,
+            level: enemy.level || 1,
+            xp: enemy.xp || 0,
+            gold: enemy.gold || 0,
+            isBoss: !!enemy.isBoss,
             frozen: false,
             bleedTurns: 0,
             poisonTurns: 0,
@@ -107,7 +102,7 @@ function createFight(
         status: 'ongoing',
         rewards: null,
         logs: [
-            `⚔️ Um ${enemy.name} surgiu das sombras!`
+            `🌑 Um *${enemy.name}* surgiu das sombras!`
         ],
         lastDamageDealt: 0,
         lastDamageReceived: 0
@@ -116,135 +111,40 @@ function createFight(
 
 /*
 =================================
-STATUS EFFECTS
-=================================
-*/
-
-function applyTurnEffects(
-    fight
-) {
-    if (
-        fight.status !==
-        'ongoing'
-    ) {
-        return false;
-    }
-
-    if (
-        fight.enemy
-            .bleedTurns > 0
-    ) {
-        const damage =
-            Math.max(
-                1,
-                Math.floor(
-                    fight.enemy
-                        .maxHp * 0.05
-                )
-            );
-
-        fight.enemy.hp =
-            Math.max(
-                0,
-                fight.enemy.hp -
-                    damage
-            );
-
-        fight.logs.push(
-            `🩸 Sangramento: ${damage}`
-        );
-
-        fight.enemy
-            .bleedTurns--;
-    }
-
-    if (
-        fight.enemy
-            .poisonTurns > 0
-    ) {
-        const damage =
-            Math.max(
-                1,
-                Math.floor(
-                    fight.enemy
-                        .maxHp * 0.04
-                )
-            );
-
-        fight.enemy.hp =
-            Math.max(
-                0,
-                fight.enemy.hp -
-                    damage
-            );
-
-        fight.logs.push(
-            `☠️ Veneno: ${damage}`
-        );
-
-        fight.enemy
-            .poisonTurns--;
-    }
-
-    if (
-        fight.enemy.hp <= 0
-    ) {
-        setVictory(fight);
-        return true;
-    }
-
-    return false;
-}
-
-/*
-=================================
 PLAYER TURN
 =================================
 */
 
-function processPlayerTurn(
-    fight
-) {
-    if (
-        fight.status !==
-        'ongoing'
-    ) {
+function processPlayerTurn(fight) {
+    if (fight.status !== 'ongoing') {
         return null;
     }
 
-    const result =
-        calculateDamage(
-            fight.player,
-            fight.enemy
-        );
-
-    fight.enemy.hp =
-        Math.max(
-            0,
-            fight.enemy.hp -
-                result.damage
-        );
-
-    fight.lastDamageDealt =
-        result.damage;
-
-    fight.logs.push(
-        result.isCrit
-            ? `💥 CRÍTICO ${result.damage}`
-            : `🗡️ ${result.damage}`
+    const result = calculateDamage(
+        fight.player,
+        fight.enemy
     );
 
-    applyTurnEffects(fight);
+    fight.enemy.hp = Math.max(
+        0,
+        fight.enemy.hp - result.damage
+    );
 
-    if (
-        fight.enemy.hp <= 0
-    ) {
+    fight.lastDamageDealt = result.damage;
+
+    fight.logs.push(
+        getPlayerAttackText(
+            fight.enemy.name,
+            result.damage,
+            result.isCrit
+        )
+    );
+
+    if (fight.enemy.hp <= 0) {
         setVictory(fight);
     }
 
-    fight.logs = trimLogs(
-        fight.logs
-    );
+    fight.logs = trimLogs(fight.logs);
 
     return result;
 }
@@ -255,26 +155,17 @@ ENEMY TURN
 =================================
 */
 
-function processEnemyTurn(
-    fight
-) {
-    if (
-        fight.status !==
-        'ongoing'
-    ) {
+function processEnemyTurn(fight) {
+    if (fight.status !== 'ongoing') {
         return null;
     }
 
-    if (
-        fight.enemy.frozen
-    ) {
+    if (fight.enemy.frozen) {
         fight.logs.push(
-            `❄️ ${fight.enemy.name} perdeu o turno`
+            `❄️ ${fight.enemy.name} perdeu o turno!`
         );
 
-        fight.enemy.frozen =
-            false;
-
+        fight.enemy.frozen = false;
         fight.turn++;
 
         return null;
@@ -282,54 +173,41 @@ function processEnemyTurn(
 
     let multiplier = 1;
 
-    if (
-        fight.player
-            .defending
-    ) {
+    if (fight.player.defending) {
         multiplier = 0.5;
     }
 
-    const result =
-        calculateDamage(
-            fight.enemy,
-            fight.player,
-            {
-                multiplier
-            }
-        );
-
-    fight.player.hp =
-        Math.max(
-            0,
-            fight.player.hp -
-                result.damage
-        );
-
-    fight.lastDamageReceived =
-        result.damage;
-
-    fight.logs.push(
-        result.isCrit
-            ? `💥 ${fight.enemy.name} CRÍTICO ${result.damage}`
-            : `👹 ${fight.enemy.name} ${result.damage}`
+    const result = calculateDamage(
+        fight.enemy,
+        fight.player,
+        { multiplier }
     );
 
-    if (
-        fight.player.hp <= 0
-    ) {
-        fight.status =
-            'loss';
+    fight.player.hp = Math.max(
+        0,
+        fight.player.hp - result.damage
+    );
+
+    fight.lastDamageReceived = result.damage;
+
+    fight.logs.push(
+        getEnemyAttackText(
+            fight.enemy.name,
+            result.damage,
+            result.isCrit
+        )
+    );
+
+    if (fight.player.hp <= 0) {
+        fight.status = 'loss';
 
         fight.logs.push(
-            `☠️ Você foi derrotado`
+            `☠️ Você foi derrotado...`
         );
     }
 
     fight.turn++;
-
-    fight.logs = trimLogs(
-        fight.logs
-    );
+    fight.logs = trimLogs(fight.logs);
 
     return result;
 }
@@ -340,95 +218,48 @@ SOUL
 =================================
 */
 
-function useSoul(
-    fight,
-    soulIndex
-) {
-    const soul =
-        fight.player.souls[
-            soulIndex
-        ];
+function useSoul(fight, soulIndex) {
+    const soul = fight.player.souls[soulIndex];
 
     if (!soul) {
-        fight.logs.push(
-            '❌ Alma vazia'
-        );
-
+        fight.logs.push('❌ Alma vazia');
         return null;
     }
 
-    const result =
-        activateSoul(
-            soul,
-            fight
-        );
+    const result = activateSoul(soul, fight);
 
     if (result?.message) {
-        fight.logs.push(
-            result.message
-        );
+        fight.logs.push(result.message);
     }
 
-    applyTurnEffects(fight);
-
-    if (
-        fight.enemy.hp <= 0
-    ) {
+    if (fight.enemy.hp <= 0) {
         setVictory(fight);
     }
 
-    fight.logs = trimLogs(
-        fight.logs
-    );
+    fight.logs = trimLogs(fight.logs);
 
     return result;
 }
 
-/*
-=================================
-DEFEND
-=================================
-*/
-
-function applyDefend(
-    fight
-) {
-    fight.player.defending =
-        true;
+function applyDefend(fight) {
+    fight.player.defending = true;
+    fight.logs.push(
+        '🛡️ Você assume postura defensiva.'
+    );
 }
 
-/*
-=================================
-FLEE
-=================================
-*/
-
-function attemptFlee(
-    fight
-) {
-    const success =
-        Math.random() <= 0.6;
+function attemptFlee(fight) {
+    const success = Math.random() <= 0.6;
 
     if (success) {
-        fight.status =
-            'fled';
-
-        fight.logs.push(
-            '🏃 Fugiu'
-        );
+        fight.status = 'fled';
+        fight.logs.push('🏃 Você fugiu.');
     } else {
-        fight.logs.push(
-            '🚫 Falhou'
-        );
-
-        processEnemyTurn(
-            fight
-        );
+        fight.logs.push('🚫 Falha na fuga!');
+        processEnemyTurn(fight);
     }
 
-    fight.logs = trimLogs(
-        fight.logs
-    );
+    fight.logs = trimLogs(fight.logs);
 
     return success;
 }
