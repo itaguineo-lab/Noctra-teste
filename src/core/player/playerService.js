@@ -69,6 +69,23 @@ function recalculateStats(player) {
         }
     };
 
+    /*
+    GUARDA HP ANTERIOR
+    */
+
+    const previousMaxHp = player.maxHp || 0;
+    const previousHp =
+        player.hp === undefined ||
+        player.hp === null
+            ? null
+            : Number(player.hp);
+
+    const hpRatio =
+        previousHp !== null &&
+        previousMaxHp > 0
+            ? previousHp / previousMaxHp
+            : null;
+
     const base =
         BASE_STATS[player.class] ||
         BASE_STATS.guerreiro;
@@ -166,12 +183,24 @@ function recalculateStats(player) {
         crit
     );
 
-    if (
-        !player.hp ||
-        player.hp > player.maxHp
-    ) {
-        player.hp =
-            player.maxHp;
+    /*
+    CORREÇÃO PRINCIPAL
+    NÃO CURA FULL
+    */
+
+    if (hpRatio === null) {
+        player.hp = player.maxHp;
+    } else {
+        player.hp = Math.max(
+            1,
+            Math.min(
+                Math.round(
+                    player.maxHp *
+                        hpRatio
+                ),
+                player.maxHp
+            )
+        );
     }
 
     return player;
@@ -193,7 +222,8 @@ function ensurePlayerState(player) {
     }
 
     player.name ??= 'Viajante';
-    player.class ??= 'guerreiro';
+    player.class ??=
+        'guerreiro';
 
     player.level ??= 1;
     player.xp ??= 0;
@@ -205,7 +235,8 @@ function ensurePlayerState(player) {
     player.keys ??= 0;
 
     player.vip ??= false;
-    player.vipExpires ??= null;
+    player.vipExpires ??=
+        null;
 
     player.maxEnergy ??=
         player.vip ? 40 : 20;
@@ -222,7 +253,9 @@ function ensurePlayerState(player) {
             migrateItemSlot
         );
 
-    player.bonusInventory ??= 0;
+    player.bonusInventory ??=
+        0;
+
     player.maxInventory =
         20 +
         (player.bonusInventory ||
@@ -236,8 +269,8 @@ function ensurePlayerState(player) {
     };
 
     player.buffs ??= [];
-
-    player.equipment ??= {};
+    player.equipment ??=
+        {};
 
     const slots = [
         'weapon',
@@ -261,11 +294,13 @@ function ensurePlayerState(player) {
         ) {
             player.equipment[
                 slot
-            ] = migrateItemSlot(
-                player.equipment[
-                    slot
-                ]
-            );
+            ] =
+                migrateItemSlot(
+                    player
+                        .equipment[
+                        slot
+                    ]
+                );
         }
     });
 
@@ -285,16 +320,20 @@ function ensurePlayerState(player) {
     player.dungeonProgress ??=
         null;
 
-    player.lastDungeonRun ??= 0;
+    player.lastDungeonRun ??=
+        0;
 
-    player.soulPityCounter ??= 0;
+    player.soulPityCounter ??=
+        0;
 
     player.cosmetics ??= [];
 
     player.lastDailyChest ??=
         null;
 
-    player.renamed ??= false;
+    player.renamed ??=
+        false;
+
     player.classChanged ??=
         false;
 
@@ -327,28 +366,19 @@ async function connectToMongo() {
         );
     }
 
-    try {
-        await mongoose.connect(
-            mongoUri,
-            {
-                serverSelectionTimeoutMS: 30000,
-                socketTimeoutMS: 45000
-            }
-        );
+    await mongoose.connect(
+        mongoUri,
+        {
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 45000
+        }
+    );
 
-        isConnected = true;
+    isConnected = true;
 
-        console.log(
-            '✅ Mongo conectado'
-        );
-    } catch (error) {
-        console.error(
-            '❌ Mongo erro:',
-            error.message
-        );
-
-        throw error;
-    }
+    console.log(
+        '✅ Mongo conectado'
+    );
 }
 
 /*
