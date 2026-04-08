@@ -65,8 +65,13 @@ const attackMessages = {
 };
 
 function getRandomMessage(type) {
-    const list = attackMessages[type] || attackMessages.player;
-    return list[Math.floor(Math.random() * list.length)];
+    const list =
+        attackMessages[type] ||
+        attackMessages.player;
+
+    return list[
+        Math.floor(Math.random() * list.length)
+    ];
 }
 
 /*
@@ -75,8 +80,17 @@ HELPERS
 =================================
 */
 
+function getEnemyBadge(enemy) {
+    if (enemy?.isBoss) return '👑 BOSS';
+    if (enemy?.isMiniBoss) return '💀 MINI BOSS';
+    if (enemy?.isElite) return '🔥 ELITE';
+    return '👹 INIMIGO';
+}
+
 function getFight(ctx) {
-    const fight = activeFights.get(ctx.from.id);
+    const fight = activeFights.get(
+        ctx.from.id
+    );
 
     if (!fight) return null;
 
@@ -91,15 +105,28 @@ function getFight(ctx) {
     return fight;
 }
 
-async function editMessage(ctx, text, options = {}) {
+async function editMessage(
+    ctx,
+    text,
+    options = {}
+) {
     try {
         if (ctx.callbackQuery) {
-            return await ctx.editMessageText(text, options);
+            return await ctx.editMessageText(
+                text,
+                options
+            );
         }
 
-        return await ctx.reply(text, options);
+        return await ctx.reply(
+            text,
+            options
+        );
     } catch {
-        return await ctx.reply(text, options);
+        return await ctx.reply(
+            text,
+            options
+        );
     }
 }
 
@@ -109,7 +136,10 @@ function renderBuffs(buffs = []) {
     let text = '';
 
     buffs.forEach(buff => {
-        const turns = Math.max(0, Number(buff.remainingTurns) || 0);
+        const turns = Math.max(
+            0,
+            Number(buff.remainingTurns) || 0
+        );
 
         if (buff.type === 'atk') {
             text += `💪 ATK +${buff.value} (${turns}) `;
@@ -150,30 +180,37 @@ function renderFightText(fight, player) {
     const playerBar = progressBar(
         fight.player.hp,
         fight.player.maxHp,
-        8,
-        '🟥',
-        '⬜'
+        10,
+        '🟩',
+        '⬛'
     );
 
     const enemyBar = progressBar(
         fight.enemy.hp,
         fight.enemy.maxHp,
-        8,
+        10,
         '🟥',
-        '⬜'
+        '⬛'
     );
 
-    const buffsText = renderBuffs(fight.player.buffs);
+    const buffsText = renderBuffs(
+        fight.player.buffs
+    );
 
-    let text = `⚔️ *BATALHA*\n\n`;
+    const enemyBadge =
+        getEnemyBadge(fight.enemy);
+
+    let text = '';
+
+    text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `⚔️ *BATALHA*\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
     text += `👤 *${fight.player.name}* [Lv ${player.level}]\n`;
     text += `❤️ ${fight.player.hp}/${fight.player.maxHp}\n`;
     text += `[${playerBar}]\n`;
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
-    text += `⚔️ ATK ${fight.player.atk}\n`;
-    text += `🛡️ DEF ${fight.player.def}\n`;
-    text += `🎯 CRIT ${fight.player.crit}%\n`;
+    text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def} • 🎯 ${fight.player.crit}%\n`;
 
     if (fight.player.defending) {
         text += `🛡️ *Defendendo*\n`;
@@ -184,14 +221,15 @@ function renderFightText(fight, player) {
     }
 
     const soul1 =
-        fight.player.souls[0]?.name || 'vazio';
+        fight.player.souls?.[0]?.name || 'vazio';
 
     const soul2 =
-        fight.player.souls[1]?.name || 'vazio';
+        fight.player.souls?.[1]?.name || 'vazio';
 
     text += `💀 [${soul1}] | [${soul2}]\n\n`;
 
-    text += `👹 *${fight.enemy.name}* [Lv ${fight.enemy.level}]\n`;
+    text += `${enemyBadge}\n`;
+    text += `👹 *${fight.enemy.name}* [Lv ${fight.enemy.level || 1}]\n`;
     text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}\n`;
     text += `[${enemyBar}]\n\n`;
 
@@ -228,18 +266,27 @@ async function finishFight(ctx, fight) {
             player.maxEnergy
         );
 
-        player.buffs =
-            Array.isArray(fight.player.buffs)
-                ? [...fight.player.buffs]
-                : [];
+        player.buffs = Array.isArray(
+            fight.player.buffs
+        )
+            ? [...fight.player.buffs]
+            : [];
 
         recalculateStats(player);
 
-        await savePlayer(ctx.from.id, player);
+        await savePlayer(
+            ctx.from.id,
+            player
+        );
 
-        activeFights.delete(ctx.from.id);
+        activeFights.delete(
+            ctx.from.id
+        );
 
-        let msg = `🏆 *VITÓRIA!*\n\n`;
+        let msg = '';
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `🏆 *VITÓRIA!*\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         msg += `👹 ${fight.enemy.name}\n`;
         msg += `⚔️ Turnos: ${fight.turnCount}\n`;
         msg += `💥 Dano: ${fight.totalDamageDealt}\n`;
@@ -248,6 +295,7 @@ async function finishFight(ctx, fight) {
         msg += `💰 +${rewards.gold} Ouro`;
 
         if (rewards.loot?.length) {
+            msg += `\n\n🎁 *LOOT*`;
             msg += `\n🎁 ${rewards.loot.join('\n🎁 ')}`;
         }
 
@@ -268,9 +316,14 @@ async function finishFight(ctx, fight) {
             player.energy - 1
         );
 
-        await savePlayer(ctx.from.id, player);
+        await savePlayer(
+            ctx.from.id,
+            player
+        );
 
-        activeFights.delete(ctx.from.id);
+        activeFights.delete(
+            ctx.from.id
+        );
 
         return editMessage(
             ctx,
@@ -286,9 +339,14 @@ async function finishFight(ctx, fight) {
         player.hp = fight.player.hp;
         player.energy = fight.player.energy;
 
-        await savePlayer(ctx.from.id, player);
+        await savePlayer(
+            ctx.from.id,
+            player
+        );
 
-        activeFights.delete(ctx.from.id);
+        activeFights.delete(
+            ctx.from.id
+        );
 
         return editMessage(
             ctx,
@@ -354,7 +412,7 @@ async function handleHunt(ctx) {
 
 /*
 =================================
-ATAQUE
+AÇÕES
 =================================
 */
 
@@ -368,7 +426,6 @@ async function handleAttack(ctx) {
     }
 
     tickFightBuffs(fight);
-
     fight.turnCount++;
 
     processPlayerTurn(fight);
@@ -401,12 +458,6 @@ async function handleAttack(ctx) {
     );
 }
 
-/*
-=================================
-DEFESA
-=================================
-*/
-
 async function handleDefend(ctx) {
     await ctx.answerCbQuery();
 
@@ -417,11 +468,9 @@ async function handleDefend(ctx) {
     }
 
     tickFightBuffs(fight);
-
     fight.turnCount++;
 
     applyDefend(fight);
-
     processEnemyTurn(fight);
 
     fight.totalDamageReceived +=
@@ -442,12 +491,6 @@ async function handleDefend(ctx) {
         }
     );
 }
-
-/*
-=================================
-ALMAS
-=================================
-*/
 
 async function handleSoulMenu(ctx) {
     await ctx.answerCbQuery();
@@ -472,10 +515,11 @@ async function handleSoul(ctx) {
 
     if (!fight) return;
 
-    const soulIndex = Number(ctx.match?.[1] || 0);
+    const soulIndex = Number(
+        ctx.match?.[1] || 0
+    );
 
     tickFightBuffs(fight);
-
     fight.turnCount++;
 
     useSoul(fight, soulIndex);
@@ -503,12 +547,6 @@ async function handleSoul(ctx) {
     );
 }
 
-/*
-=================================
-CONSUMÍVEIS
-=================================
-*/
-
 async function handleConsumables(ctx) {
     await ctx.answerCbQuery();
 
@@ -528,12 +566,6 @@ async function handleConsumables(ctx) {
     );
 }
 
-/*
-=================================
-FUGA
-=================================
-*/
-
 async function handleFlee(ctx) {
     await ctx.answerCbQuery();
 
@@ -545,12 +577,6 @@ async function handleFlee(ctx) {
 
     return finishFight(ctx, fight);
 }
-
-/*
-=================================
-VOLTAR
-=================================
-*/
 
 async function handleCombatBack(ctx) {
     const fight = getFight(ctx);
