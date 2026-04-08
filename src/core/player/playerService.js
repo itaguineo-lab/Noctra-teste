@@ -29,11 +29,6 @@ function migrateItemSlot(item) {
             originalSlot !== validSlot
         ) {
             item.slot = validSlot;
-
-            console.log(
-                `[Migração] ${originalSlot} -> ${validSlot} | ${item.name}`
-            );
-
             break;
         }
     }
@@ -49,40 +44,19 @@ STATS
 
 function recalculateStats(player) {
     const BASE_STATS = {
-        guerreiro: {
-            atk: 12,
-            def: 10,
-            hp: 120,
-            crit: 5
-        },
-        mago: {
-            atk: 18,
-            def: 4,
-            hp: 80,
-            crit: 8
-        },
-        arqueiro: {
-            atk: 15,
-            def: 6,
-            hp: 100,
-            crit: 10
-        }
+        guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 },
+        mago: { atk: 18, def: 4, hp: 80, crit: 8 },
+        arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
     };
 
-    /*
-    GUARDA HP ANTERIOR
-    */
-
-    const previousMaxHp = player.maxHp || 0;
+    const previousMaxHp = Number(player.maxHp) || 0;
     const previousHp =
-        player.hp === undefined ||
-        player.hp === null
+        player.hp === undefined || player.hp === null
             ? null
             : Number(player.hp);
 
     const hpRatio =
-        previousHp !== null &&
-        previousMaxHp > 0
+        previousHp !== null && previousMaxHp > 0
             ? previousHp / previousMaxHp
             : null;
 
@@ -90,28 +64,13 @@ function recalculateStats(player) {
         BASE_STATS[player.class] ||
         BASE_STATS.guerreiro;
 
-    let atk =
-        base.atk +
-        (player.level - 1) * 3;
-
-    let def =
-        base.def +
-        (player.level - 1) * 2;
-
-    let maxHp =
-        base.hp +
-        (player.level - 1) * 20;
-
+    let atk = base.atk + ((player.level || 1) - 1) * 3;
+    let def = base.def + ((player.level || 1) - 1) * 2;
+    let maxHp = base.hp + ((player.level || 1) - 1) * 20;
     let crit = base.crit;
 
-    /*
-    EQUIPAMENTOS
-    */
-
     if (player.equipment) {
-        Object.values(
-            player.equipment
-        ).forEach(item => {
+        Object.values(player.equipment).forEach(item => {
             if (!item) return;
 
             atk += item.atk || 0;
@@ -121,48 +80,18 @@ function recalculateStats(player) {
         });
     }
 
-    /*
-    ALMAS
-    */
+    if (Array.isArray(player.soulsEquipped)) {
+        player.soulsEquipped.forEach(soul => {
+            if (!soul?.effect) return;
 
-    if (
-        Array.isArray(
-            player.soulsEquipped
-        )
-    ) {
-        player.soulsEquipped.forEach(
-            soul => {
-                if (
-                    !soul ||
-                    !soul.effect
-                ) return;
-
-                atk +=
-                    soul.effect
-                        .atkBonus || 0;
-
-                def +=
-                    soul.effect
-                        .defBonus || 0;
-
-                maxHp +=
-                    soul.effect
-                        .hpBonus || 0;
-
-                crit +=
-                    soul.effect
-                        .critBonus || 0;
-            }
-        );
+            atk += soul.effect.atkBonus || 0;
+            def += soul.effect.defBonus || 0;
+            maxHp += soul.effect.hpBonus || 0;
+            crit += soul.effect.critBonus || 0;
+        });
     }
 
-    /*
-    BUFFS
-    */
-
-    if (
-        Array.isArray(player.buffs)
-    ) {
+    if (Array.isArray(player.buffs)) {
         player.buffs.forEach(buff => {
             atk += buff.atk || 0;
             def += buff.def || 0;
@@ -173,20 +102,8 @@ function recalculateStats(player) {
 
     player.atk = Math.max(1, atk);
     player.def = Math.max(0, def);
-    player.maxHp = Math.max(
-        10,
-        maxHp
-    );
-
-    player.crit = Math.min(
-        75,
-        crit
-    );
-
-    /*
-    CORREÇÃO PRINCIPAL
-    NÃO CURA FULL
-    */
+    player.maxHp = Math.max(10, maxHp);
+    player.crit = Math.min(75, crit);
 
     if (hpRatio === null) {
         player.hp = player.maxHp;
@@ -194,10 +111,7 @@ function recalculateStats(player) {
         player.hp = Math.max(
             1,
             Math.min(
-                Math.round(
-                    player.maxHp *
-                        hpRatio
-                ),
+                Math.round(player.maxHp * hpRatio),
                 player.maxHp
             )
         );
@@ -216,14 +130,11 @@ function ensurePlayerState(player) {
     if (!player) return {};
 
     if (!player.id) {
-        throw new Error(
-            'Player sem ID'
-        );
+        throw new Error('Player sem ID');
     }
 
     player.name ??= 'Viajante';
-    player.class ??=
-        'guerreiro';
+    player.class ??= 'guerreiro';
 
     player.level ??= 1;
     player.xp ??= 0;
@@ -235,31 +146,17 @@ function ensurePlayerState(player) {
     player.keys ??= 0;
 
     player.vip ??= false;
-    player.vipExpires ??=
-        null;
+    player.vipExpires ??= null;
 
-    player.maxEnergy ??=
-        player.vip ? 40 : 20;
-
-    player.energy ??=
-        player.maxEnergy;
-
-    player.lastEnergyUpdate ??=
-        Date.now();
+    player.maxEnergy ??= player.vip ? 40 : 20;
+    player.energy ??= player.maxEnergy;
+    player.lastEnergyUpdate ??= Date.now();
 
     player.inventory ??= [];
-    player.inventory =
-        player.inventory.map(
-            migrateItemSlot
-        );
+    player.inventory = player.inventory.map(migrateItemSlot);
 
-    player.bonusInventory ??=
-        0;
-
-    player.maxInventory =
-        20 +
-        (player.bonusInventory ||
-            0);
+    player.bonusInventory ??= 0;
+    player.maxInventory = 20 + (player.bonusInventory || 0);
 
     player.consumables ??= {
         potionHp: 0,
@@ -269,81 +166,46 @@ function ensurePlayerState(player) {
     };
 
     player.buffs ??= [];
-    player.equipment ??=
-        {};
+    player.equipment ??= {};
 
-    const slots = [
-        'weapon',
-        'armor',
-        'necklace',
-        'ring',
-        'boots'
-    ];
+    const slots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
 
     slots.forEach(slot => {
-        if (
-            !(slot in player.equipment)
-        ) {
-            player.equipment[
-                slot
-            ] = null;
+        if (!(slot in player.equipment)) {
+            player.equipment[slot] = null;
         }
 
-        if (
-            player.equipment[slot]
-        ) {
-            player.equipment[
-                slot
-            ] =
-                migrateItemSlot(
-                    player
-                        .equipment[
-                        slot
-                    ]
-                );
+        if (player.equipment[slot]) {
+            player.equipment[slot] = migrateItemSlot(
+                player.equipment[slot]
+            );
         }
     });
 
-    player.soulsInventory ??=
-        [];
-
-    player.soulsEquipped ??=
-        [null, null];
+    player.soulsInventory ??= [];
+    player.soulsEquipped ??= [null, null];
 
     player.totalKills ??= 0;
-    player.achievements ??=
-        {};
+    player.achievements ??= {};
 
-    player.currentMap ??=
-        'clareira_sombria';
-
-    player.dungeonProgress ??=
-        null;
-
-    player.lastDungeonRun ??=
-        0;
-
-    player.soulPityCounter ??=
-        0;
+    player.currentMap ??= 'clareira_sombria';
+    player.dungeonProgress ??= null;
+    player.lastDungeonRun ??= 0;
+    player.soulPityCounter ??= 0;
 
     player.cosmetics ??= [];
+    player.lastDailyChest ??= null;
 
-    player.lastDailyChest ??=
-        null;
+    player.renamed ??= false;
+    player.classChanged ??= false;
 
-    player.renamed ??=
-        false;
+    player.createdAt ??= Date.now();
+    player.updatedAt ??= Date.now();
 
-    player.classChanged ??=
-        false;
-
-    player.createdAt ??=
-        Date.now();
-
-    player.updatedAt ??=
-        Date.now();
-
-    recalculateStats(player);
+    /*
+    MUITO IMPORTANTE:
+    NÃO recalcula aqui
+    */
 
     return player;
 }
@@ -357,28 +219,18 @@ MONGO
 async function connectToMongo() {
     if (isConnected) return;
 
-    const mongoUri =
-        process.env.MONGODB_URI;
+    const mongoUri = process.env.MONGODB_URI;
 
     if (!mongoUri) {
-        throw new Error(
-            'MONGODB_URI não definida'
-        );
+        throw new Error('MONGODB_URI não definida');
     }
 
-    await mongoose.connect(
-        mongoUri,
-        {
-            serverSelectionTimeoutMS: 30000,
-            socketTimeoutMS: 45000
-        }
-    );
+    await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 30000,
+        socketTimeoutMS: 45000
+    });
 
     isConnected = true;
-
-    console.log(
-        '✅ Mongo conectado'
-    );
 }
 
 /*
@@ -387,32 +239,20 @@ GET PLAYER
 =================================
 */
 
-async function getPlayer(
-    id,
-    name = 'Viajante'
-) {
+async function getPlayer(id, name = 'Viajante') {
     await connectToMongo();
 
-    let player =
-        await Player.findOne({
-            id
-        });
+    let player = await Player.findOne({ id });
 
     if (!player) {
-        player = new Player({
-            id,
-            name
-        });
-
+        player = new Player({ id, name });
         await player.save();
     }
 
-    const playerObj =
-        player.toObject();
+    const playerObj = player.toObject();
 
-    ensurePlayerState(
-        playerObj
-    );
+    ensurePlayerState(playerObj);
+    recalculateStats(playerObj);
 
     return playerObj;
 }
@@ -423,77 +263,31 @@ SAVE PLAYER
 =================================
 */
 
-async function savePlayer(
-    id,
-    playerData
-) {
+async function savePlayer(id, playerData) {
     await connectToMongo();
 
-    const { _id, ...updateData } =
-        playerData;
+    const { _id, ...updateData } = playerData;
 
-    ensurePlayerState(
-        updateData
+    ensurePlayerState(updateData);
+
+    /*
+    recalcula UMA vez só
+    */
+    recalculateStats(updateData);
+
+    updateData.updatedAt = new Date();
+
+    const result = await Player.findOneAndUpdate(
+        { id },
+        { $set: updateData },
+        { new: true, upsert: true }
     );
 
-    recalculateStats(
-        updateData
-    );
-
-    updateData.updatedAt =
-        new Date();
-
-    const result =
-        await Player.findOneAndUpdate(
-            { id },
-            {
-                $set: updateData
-            },
-            {
-                new: true,
-                upsert: true
-            }
-        );
-
-    const saved =
-        result.toObject();
+    const saved = result.toObject();
 
     ensurePlayerState(saved);
 
     return saved;
-}
-
-/*
-=================================
-PLAYERS
-=================================
-*/
-
-async function getAllPlayers() {
-    await connectToMongo();
-
-    const players =
-        await Player.find({});
-
-    const cache = {};
-
-    players.forEach(p => {
-        const obj =
-            p.toObject();
-
-        ensurePlayerState(
-            obj
-        );
-
-        cache[obj.id] = obj;
-    });
-
-    return cache;
-}
-
-async function getPlayerCollection() {
-    await connectToMongo();
-    return Player.collection;
 }
 
 /*
@@ -505,17 +299,10 @@ BUFFS
 function updateBuffs(player) {
     player.buffs ??= [];
 
-    player.buffs =
-        player.buffs.filter(
-            buff => {
-                buff.remainingTurns--;
-
-                return (
-                    buff.remainingTurns >
-                    0
-                );
-            }
-        );
+    player.buffs = player.buffs.filter(buff => {
+        buff.remainingTurns--;
+        return buff.remainingTurns > 0;
+    });
 
     return player;
 }
@@ -525,8 +312,6 @@ module.exports = {
     savePlayer,
     recalculateStats,
     updateBuffs,
-    getAllPlayers,
     connectToMongo,
-    ensurePlayerState,
-    getPlayerCollection
+    ensurePlayerState
 };
