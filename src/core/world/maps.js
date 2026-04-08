@@ -1,6 +1,6 @@
 /**
- * Configuração dos mapas do jogo.
- * Use sempre `id` como referência interna.
+ * WORLD MAPS — NOCTRA
+ * Progressão macro do mundo
  */
 
 const maps = [
@@ -8,29 +8,55 @@ const maps = [
         id: 'clareira_sombria',
         name: 'Clareira Sombria',
         levelReq: 1,
-        description: 'Um local denso onde a luz raramente toca o chão.',
-        emoji: '🌲'
+        description: 'Uma floresta densa onde a luz quase não alcança o solo.',
+        emoji: '🌲',
+        dungeonName: 'Bosque Profano',
+        recommendedPower: 10
     },
     {
         id: 'cripta_em_ruinas',
         name: 'Cripta em Ruínas',
-        levelReq: 8,
-        description: 'Onde os mortos não descansam em paz.',
-        emoji: '⚰️'
+        levelReq: 6,
+        description: 'Os mortos caminham novamente entre pedras antigas.',
+        emoji: '⚰️',
+        dungeonName: 'Catacumbas Perdidas',
+        recommendedPower: 30
     },
     {
         id: 'pantano_corrompido',
         name: 'Pântano Corrompido',
-        levelReq: 15,
-        description: 'Águas paradas que escondem criaturas venenosas.',
-        emoji: '🍄'
+        levelReq: 12,
+        description: 'Névoa tóxica e criaturas venenosas dominam a região.',
+        emoji: '🍄',
+        dungeonName: 'Covil da Putrefação',
+        recommendedPower: 60
     },
     {
         id: 'deserto_incandescente',
         name: 'Deserto Incandescente',
-        levelReq: 24,
-        description: 'O calor é tão mortal quanto os escorpiões.',
-        emoji: '🏜️'
+        levelReq: 18,
+        description: 'Calor mortal e bestas de areia.',
+        emoji: '🏜️',
+        dungeonName: 'Templo Escarlate',
+        recommendedPower: 100
+    },
+    {
+        id: 'citadela_lunar',
+        name: 'Citadela Lunar',
+        levelReq: 25,
+        description: 'Uma fortaleza fria banhada pela lua eterna.',
+        emoji: '🌙',
+        dungeonName: 'Torre do Eclipse',
+        recommendedPower: 160
+    },
+    {
+        id: 'abismo_noctra',
+        name: 'Abismo de Noctra',
+        levelReq: 35,
+        description: 'O coração sombrio do mundo.',
+        emoji: '🌑',
+        dungeonName: 'Trono do Vazio',
+        recommendedPower: 240
     }
 ];
 
@@ -48,13 +74,24 @@ function getStartingMap() {
 
 function canPlayerEnter(player, mapId) {
     const map = getMapById(mapId);
-    if (!map || !player) return false;
+
+    if (!map || !player) {
+        return false;
+    }
 
     return (player.level || 1) >= map.levelReq;
 }
 
 function getAvailableMaps(playerLevel = 1) {
-    return maps.filter(map => playerLevel >= map.levelReq);
+    return maps.filter(
+        map => playerLevel >= map.levelReq
+    );
+}
+
+function getNextLockedMap(playerLevel = 1) {
+    return maps.find(
+        map => playerLevel < map.levelReq
+    ) || null;
 }
 
 module.exports = {
@@ -63,5 +100,6 @@ module.exports = {
     getMapByName,
     getStartingMap,
     canPlayerEnter,
-    getAvailableMaps
+    getAvailableMaps,
+    getNextLockedMap
 };
