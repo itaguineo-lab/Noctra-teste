@@ -5,7 +5,6 @@ const http = require('http');
 
 const { connectToMongo } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
-
 const { mainMenu } = require('./src/menus/mainMenu');
 
 /*
@@ -25,6 +24,8 @@ const online = require('./src/handlers/online');
 const ranking = require('./src/handlers/ranking');
 const dungeon = require('./src/handlers/dungeon');
 const shop = require('./src/handlers/shop');
+const arena = require('./src/handlers/arena');
+const arenaShop = require('./src/handlers/arenaShop');
 
 /*
 =================================
@@ -147,6 +148,7 @@ bindCommand('daily', daily.handleDaily);
 bindCommand('vip', vip.handleVip);
 bindCommand('online', online.handleOnline);
 bindCommand('ranking', ranking.handleRanking);
+bindCommand('arena', arena.handleArena);
 
 bindCommand('rename', handleRename);
 bindCommand('class', handleClass);
@@ -171,6 +173,24 @@ bindAction('online', online.handleOnline);
 bindAction('ranking', ranking.handleRanking);
 bindAction('hunt', combat.handleHunt);
 bindAction('dungeon', dungeon.handleDungeon);
+bindAction('arena', arena.handleArena);
+
+/*
+=================================
+ARENA
+=================================
+*/
+
+bindAction('arena_fight', arena.handleArenaFight);
+bindAction('arena_attack', arena.handleArenaAttack);
+bindAction('arena_defend', arena.handleArenaDefend);
+bindAction('arena_flee', arena.handleArenaFlee);
+bindAction('arena_chests', arena.handleArenaChests);
+bindAction(/^arena_open_chest:(.+)$/, arena.handleArenaOpenChest);
+bindAction('arena_ranking', arena.handleArenaRanking);
+
+bindAction('arena_shop', arenaShop.handleArenaShop);
+bindAction(/^arena_shop_buy:(.+)$/, arenaShop.handleArenaShopBuy);
 
 /*
 =================================
