@@ -1,56 +1,272 @@
-const { getPlayer, savePlayer } = require('../core/player/playerService');
-const { mainMenu } = require('../menus/mainMenu');
+const {
+    getPlayer,
+    savePlayer
+} = require('../core/player/playerService');
 
-function giveDailyChest(player) {
-    const today = new Date().toDateString();
-    if (player.lastDailyChest === today) return null;
-    player.lastDailyChest = today;
+const {
+    mainMenu
+} = require('../menus/mainMenu');
 
-    const baseGold = 100 + player.level * 20;
-    const keys = 1;
-    const noxChance = Math.random() < 0.03;
-    const noxAmount = noxChance ? 5 : 0;
+/*
+=================================
+HELPERS
+=================================
+*/
 
-    player.gold = (player.gold || 0) + baseGold;
-    player.keys = (player.keys || 0) + keys;
-    if (noxAmount > 0) player.nox = (player.nox || 0) + noxAmount;
+function getTodayKey() {
+    const now = new Date();
 
-    return { gold: baseGold, keys, nox: noxAmount };
+    const year = now.getFullYear();
+    const month = String(
+        now.getMonth() + 1
+    ).padStart(2, '0');
+
+    const day = String(
+        now.getDate()
+    ).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
 }
 
-async function safeEdit(ctx, text, options = {}) {
+function getYesterdayKey() {
+    const yesterday = new Date();
+    yesterday.setDate(
+        yesterday.getDate() - 1
+    );
+
+    const year =
+        yesterday.getFullYear();
+
+    const month = String(
+        yesterday.getMonth() + 1
+    ).padStart(2, '0');
+
+    const day = String(
+        yesterday.getDate()
+    ).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+async function safeEdit(
+    ctx,
+    text,
+    options = {}
+) {
     try {
-        await ctx.editMessageText(text, options);
+        if (ctx.callbackQuery) {
+            return await ctx.editMessageText(
+                text,
+                options
+            );
+        }
+
+        return await ctx.reply(
+            text,
+            options
+        );
     } catch {
-        await ctx.reply(text, options);
+        return await ctx.reply(
+            text,
+            options
+        );
     }
 }
 
+/*
+=================================
+REWARD ENGINE
+=================================
+*/
+
+function giveDailyChest(player) {
+    const today = getTodayKey();
+    const yesterday = getYesterdayKey();
+
+    if (
+        player.lastDailyChest ===
+        today
+    ) {
+        return null;
+    }
+
+    /*
+    streak
+    */
+
+    if (
+        player.lastDailyChest ===
+        yesterday
+    ) {
+        player.dailyStreak =
+            (player.dailyStreak || 0) + 1;
+    } else {
+        player.dailyStreak = 1;
+    }
+
+    player.lastDailyChest =
+        today;
+
+    const streak =
+        player.dailyStreak;
+
+    /*
+    reward scaling
+    */
+
+    let gold =
+        100 +
+        player.level * 20;
+
+    let keys = 1;
+    let glorias = 0;
+
+    /*
+    streak milestones
+    */
+
+    if (streak >= 3) {
+        gold += 50;
+    }
+
+    if (streak >= 5) {
+        keys += 1;
+    }
+
+    if (streak >= 7) {
+        glorias = 1;
+    }
+
+    if (streak >= 14) {
+        keys += 1;
+        gold += 100;
+    }
+
+    /*
+    apply
+    */
+
+    player.gold =
+        (player.gold || 0) +
+        gold;
+
+    player.keys =
+        (player.keys || 0) +
+        keys;
+
+    player.glorias =
+        (player.glorias || 0) +
+        glorias;
+
+    return {
+        gold,
+        keys,
+        glorias,
+        streak
+    };
+}
+
+/*
+=================================
+HANDLER
+=================================
+*/
+
 async function handleDaily(ctx) {
     try {
-        const player = await getPlayer(ctx.from.id, ctx.from.first_name);
-        const reward = giveDailyChest(player);
-        if (!reward) return ctx.answerCbQuery('🎁 Você já pegou seu baú hoje! Volte amanhã.', true);
+        const player =
+            await getPlayer(
+                ctx.from.id,
+                ctx.from.first_name
+            );
 
-        await savePlayer(ctx.from.id, player);
+        const reward =
+            giveDailyChest(player);
+
+        if (!reward) {
+            return ctx.answerCbQuery(
+                '🎁 Você já abriu o baú hoje. Volte amanhã.',
+                {
+                    show_alert: true
+                }
+            );
+        }
+
+        await savePlayer(
+            ctx.from.id,
+            player
+        );
 
         let msg = `╔══════════════════════════════════╗
 ║            🎁 *BAÚ DIÁRIO*            ║
 ╠══════════════════════════════════╣
-║  📦 Você abriu o baú e encontrou:
+║ 📦 Recompensas
 ║
-║  💰 +${reward.gold} ouro
-║  🗝️ +${reward.keys} chave`;
-        if (reward.nox > 0) msg += `\n║  💎 +${reward.nox} Nox (sorte!)`;
+║ 💰 +${reward.gold} ouro
+║ 🗝️ +${reward.keys} chave(s)`;
+
+        if (
+            reward.glorias > 0
+        ) {
+            msg += `\n║ 🏆 +${reward.glorias} glória`;
+        }
+
+        msg += `\n║
+║ 🔥 Streak: ${reward.streak} dia(s)`;
+
+        if (
+            reward.streak === 3
+        ) {
+            msg += `\n║ ⭐ Bônus 3 dias!`;
+        }
+
+        if (
+            reward.streak === 7
+        ) {
+            msg += `\n║ 👑 Bônus semanal!`;
+        }
+
+        if (
+            reward.streak === 14
+        ) {
+            msg += `\n║ 🌑 Bônus lendário!`;
+        }
+
         msg += `\n╠══════════════════════════════════╣
-║  Volte amanhã para mais!
+║ Volte amanhã para manter o streak
 ╚══════════════════════════════════╝`;
 
-        await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
+        return safeEdit(
+            ctx,
+            msg,
+            {
+                parse_mode:
+                    'Markdown',
+                ...mainMenu()
+            }
+        );
     } catch (error) {
-        console.error('Erro daily:', error);
-        await ctx.answerCbQuery('Erro ao abrir baú.');
+        console.error(
+            'Erro daily:',
+            error
+        );
+
+        try {
+            return ctx.answerCbQuery(
+                'Erro ao abrir baú.',
+                {
+                    show_alert: true
+                }
+            );
+        } catch {
+            return ctx.reply(
+                'Erro ao abrir baú.'
+            );
+        }
     }
 }
 
-module.exports = { handleDaily };
+module.exports = {
+    handleDaily,
+    giveDailyChest
+};
