@@ -13,7 +13,9 @@ function countItemsBySlots(player = {}, slots = []) {
 function inventoryMainMenu(player = {}) {
     const weapons = countItemsBySlots(player, ['weapon']);
     const armors = countItemsBySlots(player, ['armor']);
-    const jewelry = countItemsBySlots(player, ['ring', 'necklace']);
+    const necklaces = countItemsBySlots(player, ['necklace']);
+    const rings = countItemsBySlots(player, ['ring']);
+    const boots = countItemsBySlots(player, ['boots']);
     const skins = (player.cosmetics || []).length;
     const consumables = sumConsumables(player);
     const souls = (player.soulsInventory || []).length;
@@ -24,7 +26,11 @@ function inventoryMainMenu(player = {}) {
             Markup.button.callback(`🛡️ Armaduras (${armors})`, 'invcat:armors')
         ],
         [
-            Markup.button.callback(`💎 Joias (${jewelry})`, 'invcat:jewelry'),
+            Markup.button.callback(`📿 Amuletos (${necklaces})`, 'invcat:necklaces'),
+            Markup.button.callback(`💍 Anéis (${rings})`, 'invcat:rings')
+        ],
+        [
+            Markup.button.callback(`👢 Botas (${boots})`, 'invcat:boots'),
             Markup.button.callback(`🧪 Consumíveis (${consumables})`, 'invcat:consumables')
         ],
         [
