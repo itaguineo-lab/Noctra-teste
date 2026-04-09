@@ -1,7 +1,7 @@
 /*
 =================================
 NOCTRA — ENEMY SYSTEM PREMIUM
-Sistema completo de inimigos
+SPAWN POR NÍVEL + MAPA
 =================================
 */
 
@@ -18,12 +18,7 @@ const enemyPools = {
                 xp: 30,
                 gold: 18,
                 rarity: 'common',
-                tier: 1,
-                type: 'beast',
-                element: 'dark',
-                dropBias: 'weapon',
-                dropChance: 0.20,
-                skill: 'bleed'
+                tier: 1
             },
             {
                 id: 'giant_rat',
@@ -35,11 +30,7 @@ const enemyPools = {
                 xp: 25,
                 gold: 12,
                 rarity: 'common',
-                tier: 1,
-                type: 'beast',
-                element: 'earth',
-                dropBias: 'consumable',
-                dropChance: 0.30
+                tier: 1
             },
             {
                 id: 'forest_spider',
@@ -51,12 +42,7 @@ const enemyPools = {
                 xp: 26,
                 gold: 15,
                 rarity: 'common',
-                tier: 1,
-                type: 'poison',
-                element: 'poison',
-                dropBias: 'jewelry',
-                dropChance: 0.25,
-                skill: 'poison'
+                tier: 1
             }
         ],
 
@@ -72,13 +58,7 @@ const enemyPools = {
                 gold: 35,
                 rarity: 'elite',
                 tier: 2,
-                type: 'beast',
-                element: 'dark',
-                isElite: true,
-                dropBias: 'weapon',
-                dropChance: 0.45,
-                rewardMultiplier: 1.5,
-                skill: 'bleed'
+                isElite: true
             }
         ],
 
@@ -94,12 +74,7 @@ const enemyPools = {
                 gold: 60,
                 rarity: 'miniboss',
                 tier: 3,
-                type: 'beast',
-                element: 'dark',
-                isMiniBoss: true,
-                dropBias: 'armor',
-                dropChance: 0.65,
-                rewardMultiplier: 2
+                isMiniBoss: true
             }
         ],
 
@@ -115,13 +90,7 @@ const enemyPools = {
                 gold: 90,
                 rarity: 'boss',
                 tier: 4,
-                type: 'boss',
-                element: 'nature',
-                isBoss: true,
-                dropBias: 'armor',
-                dropChance: 0.85,
-                rewardMultiplier: 3,
-                soulDropChance: 0.15
+                isBoss: true
             }
         ]
     },
@@ -138,24 +107,7 @@ const enemyPools = {
                 xp: 45,
                 gold: 28,
                 rarity: 'common',
-                tier: 2,
-                type: 'undead',
-                element: 'dark'
-            },
-            {
-                id: 'bone_archer',
-                name: 'Arqueiro Ósseo',
-                hp: 85,
-                atk: 17,
-                def: 5,
-                crit: 9,
-                xp: 46,
-                gold: 30,
-                rarity: 'common',
-                tier: 2,
-                type: 'undead',
-                element: 'dark',
-                skill: 'pierce'
+                tier: 2
             }
         ],
 
@@ -171,8 +123,6 @@ const enemyPools = {
                 gold: 60,
                 rarity: 'elite',
                 tier: 3,
-                type: 'undead',
-                element: 'dark',
                 isElite: true
             }
         ],
@@ -189,8 +139,7 @@ const enemyPools = {
                 gold: 80,
                 rarity: 'miniboss',
                 tier: 4,
-                isMiniBoss: true,
-                element: 'dark'
+                isMiniBoss: true
             }
         ],
 
@@ -206,99 +155,76 @@ const enemyPools = {
                 gold: 130,
                 rarity: 'boss',
                 tier: 5,
-                isBoss: true,
-                element: 'dark',
-                soulDropChance: 0.20
-            }
-        ]
-    },
-
-    pantano_corrompido: {
-        common: [
-            {
-                id: 'venom_serpent',
-                name: 'Serpente Venenosa',
-                hp: 120,
-                atk: 24,
-                def: 7,
-                crit: 10,
-                xp: 75,
-                gold: 50,
-                rarity: 'common',
-                tier: 3,
-                type: 'poison',
-                element: 'poison',
-                skill: 'poison'
-            }
-        ],
-
-        elite: [
-            {
-                id: 'swamp_abomination',
-                name: 'Abominação do Pântano',
-                hp: 260,
-                atk: 34,
-                def: 16,
-                crit: 10,
-                xp: 130,
-                gold: 90,
-                rarity: 'elite',
-                tier: 4,
-                isElite: true,
-                element: 'poison'
-            }
-        ],
-
-        boss: [
-            {
-                id: 'lord_of_decay',
-                name: 'Lorde da Putrefação',
-                hp: 400,
-                atk: 46,
-                def: 24,
-                crit: 15,
-                xp: 260,
-                gold: 180,
-                rarity: 'boss',
-                tier: 5,
-                isBoss: true,
-                element: 'poison',
-                soulDropChance: 0.25
+                isBoss: true
             }
         ]
     }
 };
 
-/*
-=================================
-HELPERS
-=================================
-*/
-
 function getPool(mapId) {
-    return (
-        enemyPools[mapId] ||
-        enemyPools.clareira_sombria
-    );
+    return enemyPools[mapId] || enemyPools.clareira_sombria;
 }
 
 function randomFrom(array) {
-    return array[
-        Math.floor(Math.random() * array.length)
-    ];
+    return array[Math.floor(Math.random() * array.length)];
 }
 
 /*
 =================================
-SMART SPAWN
+SPAWN INTELIGENTE POR NÍVEL
 =================================
 */
 
-function getRandomEnemy(mapId) {
+function getRandomEnemy(mapId, playerLevel = 1) {
     const pool = getPool(mapId);
-
+    const level = Number(playerLevel) || 1;
     const roll = Math.random();
 
+    /*
+    LV 1–4 = SOMENTE COMUNS
+    */
+    if (level <= 4) {
+        return { ...randomFrom(pool.common) };
+    }
+
+    /*
+    LV 5–9 = chance pequena elite
+    */
+    if (level <= 9) {
+        if (roll <= 0.12 && pool.elite?.length) {
+            return {
+                ...randomFrom(pool.elite),
+                isElite: true
+            };
+        }
+
+        return { ...randomFrom(pool.common) };
+    }
+
+    /*
+    LV 10–14 = elite + miniboss raro
+    */
+    if (level <= 14) {
+        if (roll <= 0.05 && pool.miniboss?.length) {
+            return {
+                ...randomFrom(pool.miniboss),
+                isMiniBoss: true
+            };
+        }
+
+        if (roll <= 0.22 && pool.elite?.length) {
+            return {
+                ...randomFrom(pool.elite),
+                isElite: true
+            };
+        }
+
+        return { ...randomFrom(pool.common) };
+    }
+
+    /*
+    LV 15+ = progressão completa
+    */
     if (roll <= 0.03 && pool.boss?.length) {
         return {
             ...randomFrom(pool.boss),
@@ -320,47 +246,13 @@ function getRandomEnemy(mapId) {
         };
     }
 
-    return {
-        ...randomFrom(pool.common)
-    };
+    return { ...randomFrom(pool.common) };
 }
-
-/*
-=================================
-BY TIER
-=================================
-*/
-
-function getEnemyByTier(mapId, tier) {
-    const pool = getPool(mapId);
-
-    if (tier >= 5 && pool.boss?.length) {
-        return randomFrom(pool.boss);
-    }
-
-    if (tier >= 4 && pool.miniboss?.length) {
-        return randomFrom(pool.miniboss);
-    }
-
-    if (tier >= 3 && pool.elite?.length) {
-        return randomFrom(pool.elite);
-    }
-
-    return randomFrom(pool.common);
-}
-
-/*
-=================================
-LOOKUP
-=================================
-*/
 
 function getEnemyById(enemyId) {
     for (const map of Object.values(enemyPools)) {
         for (const tier of Object.values(map)) {
-            const enemy = tier.find(
-                e => e.id === enemyId
-            );
+            const enemy = tier.find(e => e.id === enemyId);
 
             if (enemy) {
                 return { ...enemy };
@@ -374,6 +266,5 @@ function getEnemyById(enemyId) {
 module.exports = {
     enemyPools,
     getRandomEnemy,
-    getEnemyById,
-    getEnemyByTier
+    getEnemyById
 };
