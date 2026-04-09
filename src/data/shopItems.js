@@ -1,7 +1,7 @@
 const shopItems = [
     /*
     =================================
-    VILLAGE — SOFT + PREMIUM UTILITY
+    VILA — APENAS CONSUMÍVEIS BÁSICOS (OURO)
     =================================
     */
 
@@ -15,18 +15,6 @@ const shopItems = [
         currency: 'gold',
         price: 50,
         description: 'Restaura 40% do HP máximo.'
-    },
-
-    {
-        id: 'energy_potion',
-        name: 'Poção de Energia',
-        shop: 'village',
-        type: 'consumable',
-        effect: 'potionEnergy',
-        value: 1,
-        currency: 'gold',
-        price: 80,
-        description: 'Recupera energia.'
     },
 
     {
@@ -53,35 +41,47 @@ const shopItems = [
         description: '+10 DEF por 3 combates.'
     },
 
+    /*
+    =================================
+    CASTELO — PREMIUM (NOX)
+    =================================
+    */
+
+    {
+        id: 'energy_potion',
+        name: 'Poção de Energia',
+        shop: 'castle',
+        type: 'consumable',
+        effect: 'potionEnergy',
+        value: 1,
+        currency: 'nox',
+        price: 3,
+        description: 'Recupera 1 energia instantaneamente.'
+    },
+
     {
         id: 'dungeon_key',
         name: 'Chave de Masmorra',
-        shop: 'village',
+        shop: 'castle',
         type: 'consumable',
         effect: 'keys',
         value: 1,
         currency: 'nox',
-        price: 3,
+        price: 5,
         description: 'Entrada instantânea na masmorra.'
     },
 
     {
         id: 'energy_refill_10',
         name: 'Recarga de Energia (+10)',
-        shop: 'village',
+        shop: 'castle',
         type: 'consumable',
         effect: 'energyRefill',
         value: 10,
         currency: 'nox',
-        price: 5,
-        description: 'Recupera energia instantaneamente.'
+        price: 8,
+        description: 'Recupera 10 de energia.'
     },
-
-    /*
-    =================================
-    CASTLE — PREMIUM CORE
-    =================================
-    */
 
     {
         id: 'vip_7d',
@@ -91,7 +91,7 @@ const shopItems = [
         days: 7,
         currency: 'nox',
         price: 25,
-        description: '⚡ Energia 40 | 🎒 +10 slots | 🎁 bônus de recompensa'
+        description: '⚡ Energia 40 | 🎒 +10 slots | 💰 +50% XP/Ouro'
     },
 
     {
@@ -127,7 +127,7 @@ const shopItems = [
 
     /*
     =================================
-    ARENA — ENDGAME
+    ARENA — GLÓRIAS
     =================================
     */
 
@@ -141,48 +141,6 @@ const shopItems = [
         currency: 'glorias',
         price: 2,
         description: 'Pacote competitivo.'
-    },
-
-    /*
-    =================================
-    PREMIUM STORE
-    =================================
-    */
-
-    {
-        id: 'nox_pack_small',
-        name: 'Pacote NOX 50',
-        shop: 'premium',
-        type: 'nox_pack',
-        value: 50,
-        bonus: 0,
-        currency: 'money',
-        price: 0,
-        description: 'Compra externa real.'
-    },
-
-    {
-        id: 'nox_pack_medium',
-        name: 'Pacote NOX 120 (+10)',
-        shop: 'premium',
-        type: 'nox_pack',
-        value: 120,
-        bonus: 10,
-        currency: 'money',
-        price: 0,
-        description: 'Melhor custo.'
-    },
-
-    {
-        id: 'nox_pack_large',
-        name: 'Pacote NOX 300 (+40)',
-        shop: 'premium',
-        type: 'nox_pack',
-        value: 300,
-        bonus: 40,
-        currency: 'money',
-        price: 0,
-        description: 'Pacote lendário.'
     }
 ];
 
