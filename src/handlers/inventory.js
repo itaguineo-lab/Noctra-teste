@@ -8,6 +8,7 @@ const { inventoryMainMenu } = require('../menus/inventoryMenu');
 
 const PAGE_SIZE = 5;
 
+// NOVA CONFIGURAÇÃO: categorias separadas para anéis e amuletos
 const CATEGORY_CONFIG = {
     weapons: {
         title: '⚔️ Armas',
@@ -17,9 +18,13 @@ const CATEGORY_CONFIG = {
         title: '🛡️ Armaduras',
         slots: ['armor']
     },
-    jewelry: {
-        title: '💎 Joias',
-        slots: ['necklace', 'ring']
+    necklaces: {
+        title: '📿 Amuletos',
+        slots: ['necklace']
+    },
+    rings: {
+        title: '💍 Anéis',
+        slots: ['ring']
     },
     boots: {
         title: '👢 Botas',
@@ -182,7 +187,7 @@ function renderInventoryHeader(player) {
 ╠══════════════════════════════════╣
 ║ 🗡️ Arma: ${weapon}
 ║ 🛡️ Armadura: ${armor}
-║ 💎 Amuleto: ${necklace}
+║ 📿 Amuleto: ${necklace}
 ║ 💍 Anel: ${ring}
 ║ 👢 Botas: ${boots}
 ╚══════════════════════════════════╝`;
@@ -331,9 +336,14 @@ async function handleInvArmors(ctx) {
     return renderInventory(ctx, 'armors', 1);
 }
 
-async function handleInvJewelry(ctx) {
+async function handleInvNecklaces(ctx) {
     await safeAnswer(ctx);
-    return renderInventory(ctx, 'jewelry', 1);
+    return renderInventory(ctx, 'necklaces', 1);
+}
+
+async function handleInvRings(ctx) {
+    await safeAnswer(ctx);
+    return renderInventory(ctx, 'rings', 1);
 }
 
 async function handleInvBoots(ctx) {
@@ -503,7 +513,7 @@ async function unequipBySlot(ctx, slot, category, page) {
 async function handleEquipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
 
-    const match = raw.match(/^eq:(weapons|armors|jewelry|boots):(\d+):(\d+)$/);
+    const match = raw.match(/^eq:(weapons|armors|necklaces|rings|boots):(\d+):(\d+)$/);
     if (match) {
         const [, category, pageStr, indexStr] = match;
         return equipByCurrentList(ctx, category, Number(pageStr), Number(indexStr));
@@ -540,11 +550,13 @@ async function handleEquipItem(ctx) {
 
         await safeAnswer(ctx, `✅ ${item.name} equipado!`);
 
-        return renderInventory(
-            ctx,
-            slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'),
-            1
-        );
+        let redirectCategory = 'weapons';
+        if (slot === 'armor') redirectCategory = 'armors';
+        else if (slot === 'necklace') redirectCategory = 'necklaces';
+        else if (slot === 'ring') redirectCategory = 'rings';
+        else if (slot === 'boots') redirectCategory = 'boots';
+
+        return renderInventory(ctx, redirectCategory, 1);
     }
 
     console.error('[Equipar] Formato inválido:', raw);
@@ -554,7 +566,7 @@ async function handleEquipItem(ctx) {
 async function handleUnequipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
 
-    const match = raw.match(/^uneq:(weapon|armor|necklace|ring|boots):(weapons|armors|jewelry|boots):(\d+)$/);
+    const match = raw.match(/^uneq:(weapon|armor|necklace|ring|boots):(weapons|armors|necklaces|rings|boots):(\d+)$/);
     if (match) {
         const [, slot, category, pageStr] = match;
         return unequipBySlot(ctx, slot, category, Number(pageStr));
@@ -577,11 +589,14 @@ async function handleUnequipItem(ctx) {
         await savePlayer(ctx.from.id, player);
 
         await safeAnswer(ctx, `✅ ${item.name} removido!`);
-        return renderInventory(
-            ctx,
-            slot === 'weapon' ? 'weapons' : slot === 'armor' ? 'armors' : (slot === 'boots' ? 'boots' : 'jewelry'),
-            1
-        );
+
+        let redirectCategory = 'weapons';
+        if (slot === 'armor') redirectCategory = 'armors';
+        else if (slot === 'necklace') redirectCategory = 'necklaces';
+        else if (slot === 'ring') redirectCategory = 'rings';
+        else if (slot === 'boots') redirectCategory = 'boots';
+
+        return renderInventory(ctx, redirectCategory, 1);
     }
 
     console.error('[Desequipar] Formato inválido:', raw);
@@ -589,7 +604,7 @@ async function handleUnequipItem(ctx) {
 }
 
 async function handleInventoryPage(ctx) {
-    const match = ctx.callbackQuery?.data?.match(/^invpage:(weapons|armors|jewelry|boots):(\d+)$/);
+    const match = ctx.callbackQuery?.data?.match(/^invpage:(weapons|armors|necklaces|rings|boots):(\d+)$/);
     if (!match) {
         return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
     }
@@ -600,7 +615,7 @@ async function handleInventoryPage(ctx) {
 }
 
 async function handleInventoryCategory(ctx) {
-    const match = ctx.callbackQuery?.data?.match(/^invcat:(weapons|armors|jewelry|boots|consumables|skins|souls)$/);
+    const match = ctx.callbackQuery?.data?.match(/^invcat:(weapons|armors|necklaces|rings|boots|consumables|skins|souls)$/);
     if (!match) {
         return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
     }
@@ -686,7 +701,8 @@ module.exports = {
     handleInventory,
     handleInvWeapons,
     handleInvArmors,
-    handleInvJewelry,
+    handleInvNecklaces,
+    handleInvRings,
     handleInvBoots,
     handleInvConsumables,
     handleInvSouls,
