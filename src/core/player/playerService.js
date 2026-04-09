@@ -15,19 +15,9 @@ function migrateItemSlot(item) {
     const originalSlot = item.slot;
     if (!originalSlot) return item;
 
-    const validSlots = [
-        'weapon',
-        'armor',
-        'necklace',
-        'ring',
-        'boots'
-    ];
-
+    const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
     for (const validSlot of validSlots) {
-        if (
-            String(originalSlot).startsWith(validSlot) &&
-            originalSlot !== validSlot
-        ) {
+        if (String(originalSlot).startsWith(validSlot) && originalSlot !== validSlot) {
             item.slot = validSlot;
             break;
         }
@@ -38,7 +28,7 @@ function migrateItemSlot(item) {
 
 /*
 =================================
-STATS
+RECALCULAR ESTATÍSTICAS
 =================================
 */
 
@@ -50,19 +40,10 @@ function recalculateStats(player) {
     };
 
     const previousMaxHp = Number(player.maxHp) || 0;
-    const previousHp =
-        player.hp === undefined || player.hp === null
-            ? null
-            : Number(player.hp);
+    const previousHp = player.hp === undefined || player.hp === null ? null : Number(player.hp);
+    const hpRatio = previousHp !== null && previousMaxHp > 0 ? previousHp / previousMaxHp : null;
 
-    const hpRatio =
-        previousHp !== null && previousMaxHp > 0
-            ? previousHp / previousMaxHp
-            : null;
-
-    const base =
-        BASE_STATS[player.class] ||
-        BASE_STATS.guerreiro;
+    const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
 
     let atk = base.atk + ((player.level || 1) - 1) * 3;
     let def = base.def + ((player.level || 1) - 1) * 2;
@@ -72,7 +53,6 @@ function recalculateStats(player) {
     if (player.equipment) {
         Object.values(player.equipment).forEach(item => {
             if (!item) return;
-
             atk += item.atk || 0;
             def += item.def || 0;
             maxHp += item.hp || 0;
@@ -83,7 +63,6 @@ function recalculateStats(player) {
     if (Array.isArray(player.soulsEquipped)) {
         player.soulsEquipped.forEach(soul => {
             if (!soul?.effect) return;
-
             atk += soul.effect.atkBonus || 0;
             def += soul.effect.defBonus || 0;
             maxHp += soul.effect.hpBonus || 0;
@@ -108,13 +87,7 @@ function recalculateStats(player) {
     if (hpRatio === null) {
         player.hp = player.maxHp;
     } else {
-        player.hp = Math.max(
-            1,
-            Math.min(
-                Math.round(player.maxHp * hpRatio),
-                player.maxHp
-            )
-        );
+        player.hp = Math.max(1, Math.min(Math.round(player.maxHp * hpRatio), player.maxHp));
     }
 
     return player;
@@ -128,10 +101,7 @@ ESTADO PADRÃO
 
 function ensurePlayerState(player) {
     if (!player) return {};
-
-    if (!player.id) {
-        throw new Error('Player sem ID');
-    }
+    if (!player.id) throw new Error('Player sem ID');
 
     player.name ??= 'Viajante';
     player.class ??= 'guerreiro';
@@ -142,7 +112,6 @@ function ensurePlayerState(player) {
     player.gold ??= 100;
     player.nox ??= 0;
     player.glorias ??= 0;
-
     player.keys ??= 0;
 
     player.vip ??= false;
@@ -169,16 +138,10 @@ function ensurePlayerState(player) {
     player.equipment ??= {};
 
     const slots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
-
     slots.forEach(slot => {
-        if (!(slot in player.equipment)) {
-            player.equipment[slot] = null;
-        }
-
+        if (!(slot in player.equipment)) player.equipment[slot] = null;
         if (player.equipment[slot]) {
-            player.equipment[slot] = migrateItemSlot(
-                player.equipment[slot]
-            );
+            player.equipment[slot] = migrateItemSlot(player.equipment[slot]);
         }
     });
 
@@ -191,7 +154,7 @@ function ensurePlayerState(player) {
     player.currentMap ??= 'clareira_sombria';
     player.dungeonProgress ??= null;
     player.lastDungeonRun ??= 0;
-    player.soulPityCounter ??= 0;
+    player.soulPityCounter ??= 0;   // <-- GARANTIDO
 
     player.cosmetics ??= [];
     player.lastDailyChest ??= null;
@@ -215,10 +178,7 @@ async function connectToMongo() {
     if (isConnected) return;
 
     const mongoUri = process.env.MONGODB_URI;
-
-    if (!mongoUri) {
-        throw new Error('MONGODB_URI não definida');
-    }
+    if (!mongoUri) throw new Error('MONGODB_URI não definida');
 
     await mongoose.connect(mongoUri, {
         serverSelectionTimeoutMS: 30000,
@@ -238,14 +198,12 @@ async function getPlayer(id, name = 'Viajante') {
     await connectToMongo();
 
     let player = await Player.findOne({ id });
-
     if (!player) {
         player = new Player({ id, name });
         await player.save();
     }
 
     const playerObj = player.toObject();
-
     ensurePlayerState(playerObj);
     recalculateStats(playerObj);
 
@@ -262,7 +220,6 @@ async function savePlayer(id, playerData) {
     await connectToMongo();
 
     const { _id, ...updateData } = playerData;
-
     ensurePlayerState(updateData);
     recalculateStats(updateData);
 
@@ -275,7 +232,6 @@ async function savePlayer(id, playerData) {
     );
 
     const saved = result.toObject();
-
     ensurePlayerState(saved);
 
     return saved;
@@ -289,12 +245,10 @@ BUFFS
 
 function updateBuffs(player) {
     player.buffs ??= [];
-
     player.buffs = player.buffs.filter(buff => {
         buff.remainingTurns--;
         return buff.remainingTurns > 0;
     });
-
     return player;
 }
 
