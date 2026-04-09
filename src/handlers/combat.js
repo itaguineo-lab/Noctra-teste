@@ -14,7 +14,7 @@ const { combatMenu, soulChoiceMenu, postCombatMenu } = require('../menus/combatM
 const { progressBar } = require('../utils/formatters');
 const { getRandomEnemy } = require('../core/world/enemies');
 
-// Cache de lutas ativas (mesmo mapa usado no hunt)
+// Cache de lutas ativas
 const activeFights = new Map();
 const FIGHT_TIMEOUT = 10 * 60 * 1000; // 10 minutos
 
@@ -39,17 +39,43 @@ function getFight(ctx) {
     return fight;
 }
 
-async function editMessage(ctx, text, options = {}) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery();
-            return await ctx.editMessageText(text, options);
+/**
+ * Wrapper para editar mensagens com tratamento de rate limit (429).
+ * Se receber 429, aguarda o tempo especificado e tenta novamente.
+ */
+async function safeEditMessage(ctx, text, options = {}) {
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+        try {
+            if (ctx.callbackQuery) {
+                await ctx.answerCbQuery().catch(() => {});
+                return await ctx.editMessageText(text, options);
+            } else {
+                return await ctx.reply(text, options);
+            }
+        } catch (error) {
+            // Se for rate limit, aguarda e tenta de novo
+            if (error.response?.error_code === 429) {
+                const retryAfter = error.response.parameters?.retry_after || 5;
+                console.log(`⏳ Rate limit atingido. Aguardando ${retryAfter}s...`);
+                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                attempt++;
+                continue;
+            }
+            // Outros erros: loga e envia nova mensagem
+            console.error('Erro ao editar mensagem de combate:', error);
+            try {
+                return await ctx.reply(text, options);
+            } catch (replyError) {
+                console.error('Falha também ao enviar nova mensagem:', replyError);
+                return null;
+            }
         }
-        return await ctx.reply(text, options);
-    } catch (error) {
-        console.error('Erro ao editar mensagem de combate:', error);
-        return await ctx.reply(text, options);
     }
+    // Se esgotou as tentativas, envia uma nova mensagem
+    return ctx.reply(text, options).catch(() => null);
 }
 
 function renderFightText(fight, player) {
@@ -84,6 +110,7 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
 
+        // Mantém o HP exato do final da luta (já está em fight.player.hp)
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
         await savePlayer(ctx.from.id, player);
@@ -98,7 +125,7 @@ async function finishFight(ctx, fight) {
             msg += `\n🎁 *Loot:*\n${rewards.loot.join('\n')}`;
         }
 
-        return editMessage(ctx, msg, {
+        return safeEditMessage(ctx, msg, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -109,7 +136,7 @@ async function finishFight(ctx, fight) {
         await savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
-        return editMessage(ctx, `💀 *DERROTA*\n❤️ ${player.hp}/${player.maxHp}`, {
+        return safeEditMessage(ctx, `💀 *DERROTA*\n❤️ ${player.hp}/${player.maxHp}`, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -120,7 +147,7 @@ async function finishFight(ctx, fight) {
         await savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
-        return editMessage(ctx, `🏃 *FUGA*\n❤️ ${player.hp}/${player.maxHp}`, {
+        return safeEditMessage(ctx, `🏃 *FUGA*\n❤️ ${player.hp}/${player.maxHp}`, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -132,7 +159,7 @@ async function finishFight(ctx, fight) {
 // ================================================
 
 async function handleHunt(ctx) {
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery().catch(() => {});
 
     let player = await getPlayer(ctx.from.id);
     updateEnergy(player);
@@ -145,8 +172,10 @@ async function handleHunt(ctx) {
         return ctx.reply('⚡ Sem energia.');
     }
 
+    // Salva antes de criar luta para garantir persistência da energia
     await savePlayer(ctx.from.id, player);
-    player = await getPlayer(ctx.from.id); // recarrega stats atualizados
+    // Recarrega para obter stats atualizados (incluindo HP correto)
+    player = await getPlayer(ctx.from.id);
 
     const enemy = getRandomEnemy(player.currentMap, player.level);
     if (!enemy) {
@@ -161,7 +190,7 @@ async function handleHunt(ctx) {
 
     activeFights.set(ctx.from.id, fight);
 
-    return editMessage(ctx, renderFightText(fight, player), {
+    return safeEditMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
@@ -174,7 +203,7 @@ async function handleHunt(ctx) {
 async function handleAttack(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
-        await ctx.answerCbQuery('Luta expirada. Inicie uma nova.');
+        await ctx.answerCbQuery('Luta expirada. Inicie uma nova.').catch(() => {});
         return handleHunt(ctx);
     }
 
@@ -182,23 +211,20 @@ async function handleAttack(ctx) {
         return finishFight(ctx, fight);
     }
 
-    // Processa turno do jogador
     processPlayerTurn(fight);
 
-    // Se o inimigo ainda estiver vivo, ele contra-ataca
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
     }
 
     const player = await getPlayer(ctx.from.id);
-    await savePlayer(ctx.from.id, player);
+    // Não salvamos o jogador aqui; apenas ao final da luta
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
     }
 
-    // Atualiza mensagem com o estado atual
-    return editMessage(ctx, renderFightText(fight, player), {
+    return safeEditMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
@@ -211,7 +237,7 @@ async function handleAttack(ctx) {
 async function handleDefend(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
-        await ctx.answerCbQuery('Luta expirada.');
+        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
@@ -219,19 +245,16 @@ async function handleDefend(ctx) {
         return finishFight(ctx, fight);
     }
 
-    // Aplica postura defensiva (reduz dano recebido neste turno)
     applyDefend(fight);
-    // Inimigo ataca (com dano reduzido)
     processEnemyTurn(fight);
 
     const player = await getPlayer(ctx.from.id);
-    await savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
     }
 
-    return editMessage(ctx, renderFightText(fight, player), {
+    return safeEditMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
@@ -244,7 +267,7 @@ async function handleDefend(ctx) {
 async function handleFlee(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
-        await ctx.answerCbQuery('Luta expirada.');
+        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
@@ -257,15 +280,13 @@ async function handleFlee(ctx) {
         fight.status = 'fled';
         return finishFight(ctx, fight);
     } else {
-        // Falha na fuga: inimigo ataca (já processado no attemptFlee)
         const player = await getPlayer(ctx.from.id);
-        await savePlayer(ctx.from.id, player);
 
         if (fight.status !== 'ongoing') {
             return finishFight(ctx, fight);
         }
 
-        return editMessage(ctx, renderFightText(fight, player), {
+        return safeEditMessage(ctx, renderFightText(fight, player), {
             parse_mode: 'Markdown',
             ...combatMenu()
         });
@@ -279,7 +300,7 @@ async function handleFlee(ctx) {
 async function handleSoulMenu(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
-        await ctx.answerCbQuery('Luta expirada.');
+        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
@@ -287,8 +308,7 @@ async function handleSoulMenu(ctx) {
         return finishFight(ctx, fight);
     }
 
-    // Mostra menu de escolha de alma
-    return editMessage(ctx, '💀 Escolha uma alma para usar:', {
+    return safeEditMessage(ctx, '💀 Escolha uma alma para usar:', {
         parse_mode: 'Markdown',
         ...soulChoiceMenu()
     });
@@ -301,7 +321,7 @@ async function handleSoulMenu(ctx) {
 async function handleSoul(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
-        await ctx.answerCbQuery('Luta expirada.');
+        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
@@ -314,23 +334,21 @@ async function handleSoul(ctx) {
 
     const result = useSoul(fight, soulIndex);
     if (!result) {
-        await ctx.answerCbQuery('❌ Alma inválida ou vazia.', { show_alert: true });
+        await ctx.answerCbQuery('❌ Alma inválida ou vazia.', { show_alert: true }).catch(() => {});
         return handleSoulMenu(ctx);
     }
 
-    // Após usar alma, inimigo contra-ataca
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
     }
 
     const player = await getPlayer(ctx.from.id);
-    await savePlayer(ctx.from.id, player);
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
     }
 
-    return editMessage(ctx, renderFightText(fight, player), {
+    return safeEditMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
@@ -341,8 +359,7 @@ async function handleSoul(ctx) {
 // ================================================
 
 async function handleConsumables(ctx) {
-    // Placeholder: por enquanto apenas exibe mensagem informativa
-    await ctx.answerCbQuery('🧪 Em breve: uso de poções durante o combate.', { show_alert: true });
+    await ctx.answerCbQuery('🧪 Em breve: uso de poções durante o combate.', { show_alert: true }).catch(() => {});
 }
 
 // ================================================
@@ -352,20 +369,16 @@ async function handleConsumables(ctx) {
 async function handleCombatBack(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
-        await ctx.answerCbQuery('Luta expirada.');
+        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
     const player = await getPlayer(ctx.from.id);
-    return editMessage(ctx, renderFightText(fight, player), {
+    return safeEditMessage(ctx, renderFightText(fight, player), {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
 }
-
-// ================================================
-// EXPORTAÇÕES
-// ================================================
 
 module.exports = {
     handleHunt,
