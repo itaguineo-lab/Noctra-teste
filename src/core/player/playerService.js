@@ -39,7 +39,7 @@ function recalculateStats(player) {
         arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
     };
 
-    // Guarda o HP atual antes de recalcular
+    // Guarda o HP atual ANTES de recalcular (importante para preservar dano)
     const previousMaxHp = Number(player.maxHp) || 0;
     const previousHp = player.hp !== undefined && player.hp !== null ? Number(player.hp) : null;
     const hpRatio = previousHp !== null && previousMaxHp > 0 ? previousHp / previousMaxHp : null;
@@ -85,15 +85,12 @@ function recalculateStats(player) {
     player.maxHp = Math.max(10, maxHp);
     player.crit = Math.min(75, crit);
 
-    // Atualiza o HP mantendo a proporção, se possível
-    if (hpRatio === null || previousMaxHp === 0) {
+    // Preserva o HP proporcional, ou seta cheio se for um jogador novo
+    if (previousHp === null || previousMaxHp === 0) {
         player.hp = player.maxHp;
     } else {
         player.hp = Math.max(1, Math.min(Math.round(player.maxHp * hpRatio), player.maxHp));
     }
-
-    // Garante que o HP nunca exceda o máximo
-    if (player.hp > player.maxHp) player.hp = player.maxHp;
 
     return player;
 }
@@ -170,6 +167,13 @@ function ensurePlayerState(player) {
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
 
+    // Garante que os campos de combate existam
+    player.hp ??= 120;
+    player.maxHp ??= 120;
+    player.atk ??= 12;
+    player.def ??= 10;
+    player.crit ??= 5;
+
     return player;
 }
 
@@ -210,7 +214,8 @@ async function getPlayer(id, name = 'Viajante') {
 
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
-    recalculateStats(playerObj);
+    // IMPORTANTE: NÃO chamar recalculateStats aqui para não resetar HP.
+    // Apenas garantir que os campos existam.
 
     return playerObj;
 }
@@ -226,7 +231,14 @@ async function savePlayer(id, playerData) {
 
     const { _id, ...updateData } = playerData;
     ensurePlayerState(updateData);
+    
+    // Recalcula stats para garantir que maxHp, atk, def estejam atualizados
+    // Mas preserva o hp atual!
+    const currentHp = updateData.hp;
     recalculateStats(updateData);
+    if (currentHp !== undefined && currentHp !== null) {
+        updateData.hp = Math.min(currentHp, updateData.maxHp);
+    }
 
     updateData.updatedAt = new Date();
 
