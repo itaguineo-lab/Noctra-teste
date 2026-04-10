@@ -39,10 +39,6 @@ function getFight(ctx) {
     return fight;
 }
 
-/**
- * Wrapper para editar mensagens com tratamento de rate limit (429).
- * Se receber 429, aguarda o tempo especificado e tenta novamente.
- */
 async function safeEditMessage(ctx, text, options = {}) {
     const maxRetries = 3;
     let attempt = 0;
@@ -56,7 +52,6 @@ async function safeEditMessage(ctx, text, options = {}) {
                 return await ctx.reply(text, options);
             }
         } catch (error) {
-            // Se for rate limit, aguarda e tenta de novo
             if (error.response?.error_code === 429) {
                 const retryAfter = error.response.parameters?.retry_after || 5;
                 console.log(`⏳ Rate limit atingido. Aguardando ${retryAfter}s...`);
@@ -64,7 +59,6 @@ async function safeEditMessage(ctx, text, options = {}) {
                 attempt++;
                 continue;
             }
-            // Outros erros: loga e envia nova mensagem
             console.error('Erro ao editar mensagem de combate:', error);
             try {
                 return await ctx.reply(text, options);
@@ -74,7 +68,6 @@ async function safeEditMessage(ctx, text, options = {}) {
             }
         }
     }
-    // Se esgotou as tentativas, envia uma nova mensagem
     return ctx.reply(text, options).catch(() => null);
 }
 
@@ -110,7 +103,6 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
 
-        // Mantém o HP exato do final da luta (já está em fight.player.hp)
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
         await savePlayer(ctx.from.id, player);
@@ -147,7 +139,16 @@ async function finishFight(ctx, fight) {
         await savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
-        return safeEditMessage(ctx, `🏃 *FUGA*\n❤️ ${player.hp}/${player.maxHp}`, {
+        // Tela de fuga melhorada
+        const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🏃 *FUGA BEM-SUCEDIDA*\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `Você escapou da batalha!\n\n` +
+                    `❤️ HP atual: ${player.hp}/${player.maxHp}\n` +
+                    `⚡ Energia restante: ${player.energy}/${player.maxEnergy}\n\n` +
+                    `🌑 A escuridão te poupou... por enquanto.`;
+
+        return safeEditMessage(ctx, msg, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -172,9 +173,7 @@ async function handleHunt(ctx) {
         return ctx.reply('⚡ Sem energia.');
     }
 
-    // Salva antes de criar luta para garantir persistência da energia
     await savePlayer(ctx.from.id, player);
-    // Recarrega para obter stats atualizados (incluindo HP correto)
     player = await getPlayer(ctx.from.id);
 
     const enemy = getRandomEnemy(player.currentMap, player.level);
@@ -218,7 +217,6 @@ async function handleAttack(ctx) {
     }
 
     const player = await getPlayer(ctx.from.id);
-    // Não salvamos o jogador aqui; apenas ao final da luta
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
