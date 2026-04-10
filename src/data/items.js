@@ -91,7 +91,7 @@ function weightedCategory() {
         roll -= weight;
         if (roll <= 0) return category;
     }
-    return 'weapon'; // fallback
+    return 'weapon';
 }
 
 function getTierByMap(mapId = 1) {
@@ -105,14 +105,7 @@ function getLevelFromTier(tier) {
 }
 
 function buildStatsBySlot(tier, slot, itemName = '') {
-    const isShield = itemName.toLowerCase().includes('escudo');
-
-    const scale =
-        tier === 'level1'
-            ? 1
-            : tier === 'level8'
-            ? 1.8
-            : 2.8;
+    const scale = tier === 'level1' ? 1 : tier === 'level8' ? 1.8 : 2.8;
 
     if (slot === 'weapon') {
         return {
@@ -123,7 +116,7 @@ function buildStatsBySlot(tier, slot, itemName = '') {
         };
     }
 
-    if (isShield) {
+    if (slot === 'shield') {
         return {
             atk: 0,
             def: rand(5, 8) * scale,
@@ -159,17 +152,11 @@ function buildStatsBySlot(tier, slot, itemName = '') {
         };
     }
 
-    return {
-        atk: 1,
-        def: 1,
-        hp: 1,
-        crit: 1
-    };
+    return { atk: 1, def: 1, hp: 1, crit: 1 };
 }
 
 function rollRarity() {
     const roll = Math.random();
-
     if (roll < 0.45) return RARITIES[0];      // Comum
     if (roll < 0.75) return RARITIES[1];      // Incomum
     if (roll < 0.90) return RARITIES[2];      // Raro
@@ -179,7 +166,6 @@ function rollRarity() {
 
 function generateDrop(mapId = 1) {
     const tier = getTierByMap(mapId);
-    // Usa peso para escolher categoria (joias mais raras)
     const category = weightedCategory();
     const name = randomFrom(ITEM_POOL[tier][category]);
     const rarity = rollRarity();
@@ -187,15 +173,27 @@ function generateDrop(mapId = 1) {
     let slot = 'weapon';
 
     if (category === 'armor') {
-        if (name.toLowerCase().includes('escudo')) {
-            slot = 'armor';
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes('escudo')) {
+            slot = 'shield';
+        } else if (lowerName.includes('bota')) {
+            slot = 'boots';
         } else {
-            slot = Math.random() < 0.35 ? 'boots' : 'armor';
+            slot = 'armor';
         }
     }
 
     if (category === 'jewelry') {
-        slot = Math.random() < 0.5 ? 'ring' : 'necklace';
+        // Define slot baseado no nome do item
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes('anel')) {
+            slot = 'ring';
+        } else if (lowerName.includes('amuleto')) {
+            slot = 'necklace';
+        } else {
+            // fallback aleatório (não deve ocorrer)
+            slot = Math.random() < 0.5 ? 'ring' : 'necklace';
+        }
     }
 
     const base = buildStatsBySlot(tier, slot, name);
