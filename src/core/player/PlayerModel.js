@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 // Schema para os equipamentos do jogador (subdocumento)
 const equipmentSchema = new mongoose.Schema({
     weapon: { type: Object, default: null },
+    shield: { type: Object, default: null },
     armor: { type: Object, default: null },
     necklace: { type: Object, default: null },
     ring: { type: Object, default: null },
@@ -19,6 +20,13 @@ const playerSchema = new mongoose.Schema({
     class: { type: String, enum: ['guerreiro', 'arqueiro', 'mago'], default: 'guerreiro' },
     level: { type: Number, default: 1 },
     xp: { type: Number, default: 0 },
+    
+    // Estatísticas de combate (PERSISTIDAS)
+    hp: { type: Number, default: 120 },
+    maxHp: { type: Number, default: 120 },
+    atk: { type: Number, default: 12 },
+    def: { type: Number, default: 10 },
+    crit: { type: Number, default: 5 },
     
     // Economia
     gold: { type: Number, default: 100 },
@@ -48,7 +56,7 @@ const playerSchema = new mongoose.Schema({
     // Buffs temporários
     buffs: { type: Array, default: [] },
     
-    // Estatísticas
+    // Estatísticas gerais
     totalKills: { type: Number, default: 0 },
     achievements: { type: Object, default: {} },
     
