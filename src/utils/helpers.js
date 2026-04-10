@@ -118,7 +118,7 @@ function premiumFrame(title, body) {
 
 /*
 =================================
-MENU TEXT (VERSÃO COMPACTA - ESTILO TELETOFUS)
+MENU TEXT (BARRAS COLORIDAS E COMPACTAS)
 =================================
 */
 
@@ -132,10 +132,10 @@ async function getMainMenuText(playerId, username) {
         ? ` • ${formatTime(nextEnergyTime)}`
         : ' • cheia';
 
-    // Barras de progresso de 6 caracteres
-    const hpBar = progressBar(player.hp, player.maxHp, 6, '█', '░');
-    const energyBar = progressBar(player.energy, player.maxEnergy, 6, '█', '░');
-    const xpBar = progressBar(player.xp, xpNeeded, 6, '█', '░');
+    // Barras coloridas de 6 caracteres
+    const hpBar = progressBar(player.hp, player.maxHp, 6, '🟩', '⬛');
+    const energyBar = progressBar(player.energy, player.maxEnergy, 6, '🟦', '⬛');
+    const xpBar = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
 
     const arenaPoints = player.arena?.points || 0;
     const arenaLeague = getLeagueName(player.arena?.leagueId || 'bronze');
