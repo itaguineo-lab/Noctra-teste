@@ -14,7 +14,7 @@ function getRarityEmoji(rarity) {
 function progressBar(
     current,
     max,
-    size = 6,        // Tamanho padrão reduzido para 6
+    size = 6,
     fullChar = '🟩',
     emptyChar = '⬛'
 ) {
