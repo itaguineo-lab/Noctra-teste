@@ -72,8 +72,9 @@ async function safeEditMessage(ctx, text, options = {}) {
 }
 
 function renderFightText(fight, player) {
-    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '█', '░');
-    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '█', '░');
+    // Barras coloridas: HP do jogador (🟩), HP do inimigo (🟥) - 8 caracteres
+    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟩', '⬛');
+    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬛');
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `⚔️ *BATALHA*\n`;
@@ -109,7 +110,8 @@ async function finishFight(ctx, fight) {
 
         const { getXpToNextLevel } = require('../core/player/progression');
         const xpNeeded = getXpToNextLevel(player.level);
-        const xpProgress = progressBar(player.xp, xpNeeded, 6, '█', '░');
+        // Barra de XP colorida (🟨) - 6 caracteres
+        const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
 
         let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `       🏆 *VITÓRIA ÉPICA* 🏆\n`;
