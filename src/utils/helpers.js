@@ -21,7 +21,6 @@ const {
     progressBar,
     formatNumber,
     formatTime,
-    formatItemName,
     formatSoulName
 } = require('./formatters');
 
@@ -98,24 +97,6 @@ function getLeagueName(leagueId) {
     return map[leagueId] || 'Bronze';
 }
 
-function getEquipmentSummary(player) {
-    const eq = player.equipment || {};
-
-    const weapon = eq.weapon ? eq.weapon.name : '—';
-    const armor = eq.armor ? eq.armor.name : '—';
-    const necklace = eq.necklace ? eq.necklace.name : '—';
-    const ring = eq.ring ? eq.ring.name : '—';
-    const boots = eq.boots ? eq.boots.name : '—';
-
-    return [
-        `🗡️ ${weapon}`,
-        `🛡️ ${armor}`,
-        `💎 ${necklace}`,
-        `💍 ${ring}`,
-        `👢 ${boots}`
-    ].join('  |  ');
-}
-
 function getSoulSummary(player) {
     const souls = Array.isArray(player.soulsEquipped)
         ? player.soulsEquipped
@@ -137,7 +118,7 @@ function premiumFrame(title, body) {
 
 /*
 =================================
-MENU TEXT
+MENU TEXT (VERSÃO OTIMIZADA)
 =================================
 */
 
@@ -151,10 +132,11 @@ async function getMainMenuText(playerId, username) {
         ? ` • ${formatTime(nextEnergyTime)}`
         : ' • cheia';
 
+    // Barras de progresso reduzidas para 8 caracteres
     const hpBar = progressBar(
         player.hp,
         player.maxHp,
-        12,
+        8,
         '🟩',
         '⬛'
     );
@@ -162,7 +144,7 @@ async function getMainMenuText(playerId, username) {
     const energyBar = progressBar(
         player.energy,
         player.maxEnergy,
-        12,
+        8,
         '🟦',
         '⬛'
     );
@@ -170,7 +152,7 @@ async function getMainMenuText(playerId, username) {
     const xpBar = progressBar(
         player.xp,
         xpNeeded,
-        12,
+        8,
         '🟨',
         '⬛'
     );
@@ -188,20 +170,13 @@ async function getMainMenuText(playerId, username) {
         `🎖️ Nível: ${player.level || 1}`,
         `⚔️ ATK ${formatNumber(player.atk)}  •  🛡️ DEF ${formatNumber(player.def)}  •  💥 CRIT ${formatNumber(player.crit)}%`,
         '',
-        `❤️ Vitalidade: ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}`,
-        `[${hpBar}]`,
+        `❤️ HP ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}  [${hpBar}]`,
+        `⚡ Energia ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}${energyTimeStr}  [${energyBar}]`,
+        `✨ XP ${formatNumber(player.xp)}/${formatNumber(xpNeeded)}  [${xpBar}]`,
         '',
-        `⚡ Energia: ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}${energyTimeStr}`,
-        `[${energyBar}]`,
-        '',
-        `✨ XP: ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}`,
-        `[${xpBar}]`,
-        '',
-        `💰 Ouro: ${formatNumber(player.gold)}`,
-        `💎 NOX: ${formatNumber(player.nox)}`,
+        `💰 Ouro: ${formatNumber(player.gold)}   💎 NOX: ${formatNumber(player.nox)}`,
         `🗺️ Local: ${location.emoji} ${location.name}`,
         `🏟️ Arena: ${formatNumber(arenaPoints)} pts • ${arenaLeague}`,
-        `🎒 Equip.: ${getEquipmentSummary(player)}`,
         `💀 Souls: ${getSoulSummary(player)}`,
         `☠️ Abates: ${formatNumber(player.totalKills || 0)}`
     ];
@@ -209,10 +184,10 @@ async function getMainMenuText(playerId, username) {
     return premiumFrame('🌑 NOCTRA RPG', lines.join('\n'));
 }
 
+// Exportações mantidas (getEquipmentSummary removida)
 module.exports = {
     getPlayerSafe,
     getPlayerLocation,
-    getEquipmentSummary,
     getBuildName,
     getLeagueName,
     getSoulSummary,
