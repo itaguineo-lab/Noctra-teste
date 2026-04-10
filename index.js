@@ -259,13 +259,16 @@ bindAction('travel_locked', travel.handleTravelLocked);
 
 /*
 =================================
-DUNGEON
+DUNGEON (NOVOS HANDLERS ADICIONADOS)
 =================================
 */
 
+bindAction('dungeon_start', dungeon.handleDungeonStart);
 bindAction('dungeon_attack', dungeon.handleDungeonAttack);
 bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
 bindAction('dungeon_flee', dungeon.handleDungeonFlee);
+bindAction('dungeon_soul_menu', dungeon.handleDungeonSoulMenu);
+bindAction('dungeon_consumables', dungeon.handleDungeonConsumables);
 
 /*
 =================================
