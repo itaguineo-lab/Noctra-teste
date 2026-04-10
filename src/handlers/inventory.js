@@ -44,6 +44,16 @@ const RARITY_BADGES = {
     Mítico: '🔴'
 };
 
+// Função auxiliar para obter nome da classe em português
+function getClassNamePortuguese(className) {
+    const map = {
+        guerreiro: 'Guerreiros',
+        arqueiro: 'Arqueiros',
+        mago: 'Magos'
+    };
+    return map[className] || className;
+}
+
 function escapeMarkdown(text = '') {
     return String(text).replace(/([_*[\]()])/g, '\\$1');
 }
@@ -483,10 +493,11 @@ async function equipByCurrentList(ctx, category, page, absoluteIndex) {
         return renderInventory(ctx, category, page);
     }
 
-    // ========== VERIFICAÇÃO DE RESTRIÇÃO DE CLASSE ==========
+    // ========== VERIFICAÇÃO DE RESTRIÇÃO DE CLASSE (CORRIGIDA) ==========
     if (item.classRestriction && item.classRestriction !== player.class) {
-        const className = player.class === 'guerreiro' ? 'Guerreiros' : player.class === 'arqueiro' ? 'Arqueiros' : 'Magos';
-        await safeAnswer(ctx, `❌ Apenas ${className} podem equipar ${item.name}.`, { show_alert: true });
+        // Obtém o nome da classe restrita (ex.: 'mago' -> 'Magos')
+        const restrictedClassName = getClassNamePortuguese(item.classRestriction);
+        await safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
         return renderInventory(ctx, category, page);
     }
 
@@ -552,10 +563,10 @@ async function handleEquipItem(ctx) {
             return safeAnswer(ctx, '❌ Item não encontrado no inventário.', { show_alert: true });
         }
 
-        // Verificação de classe também no modo legado
+        // ========== VERIFICAÇÃO DE CLASSE NO MODO LEGADO (CORRIGIDA) ==========
         if (item.classRestriction && item.classRestriction !== player.class) {
-            const className = player.class === 'guerreiro' ? 'Guerreiros' : player.class === 'arqueiro' ? 'Arqueiros' : 'Magos';
-            return safeAnswer(ctx, `❌ Apenas ${className} podem equipar ${item.name}.`, { show_alert: true });
+            const restrictedClassName = getClassNamePortuguese(item.classRestriction);
+            return safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
         }
 
         const currentEquipped = player.equipment[slot];
