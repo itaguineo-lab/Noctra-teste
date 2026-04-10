@@ -1,62 +1,62 @@
 const ITEM_POOL = {
     level1: {
         weapon: [
-            'Espada do Vigia',
-            'Machado Brutal',
-            'Arco do Caçador',
-            'Lança do Batedor',
-            'Varinha Arcana',
-            'Grimório Antigo',
-            'Orbe Azul'
+            { name: 'Espada do Vigia', class: 'guerreiro' },
+            { name: 'Machado Brutal', class: 'guerreiro' },
+            { name: 'Arco do Caçador', class: 'arqueiro' },
+            { name: 'Lança do Batedor', class: 'arqueiro' },
+            { name: 'Varinha Arcana', class: 'mago' },
+            { name: 'Grimório Antigo', class: 'mago' },
+            { name: 'Orbe Azul', class: 'mago' }
         ],
         armor: [
-            'Armadura do Soldado',
-            'Escudo de Ferro',
-            'Botas de Couro'
+            { name: 'Armadura do Soldado', class: null },
+            { name: 'Escudo de Ferro', class: null },
+            { name: 'Botas de Couro', class: null }
         ],
         jewelry: [
-            'Anel Comum',
-            'Amuleto Comum'
+            { name: 'Anel Comum', class: null },
+            { name: 'Amuleto Comum', class: null }
         ]
     },
     level8: {
         weapon: [
-            'Espada Tumular',
-            'Machado Carniceiro',
-            'Arco dos Ossos',
-            'Lança Élfica',
-            'Cajado Tumular',
-            'Grimório das Almas',
-            'Orbe do Vazio'
+            { name: 'Espada Tumular', class: 'guerreiro' },
+            { name: 'Machado Carniceiro', class: 'guerreiro' },
+            { name: 'Arco dos Ossos', class: 'arqueiro' },
+            { name: 'Lança Élfica', class: 'arqueiro' },
+            { name: 'Cajado Tumular', class: 'mago' },
+            { name: 'Grimório das Almas', class: 'mago' },
+            { name: 'Orbe do Vazio', class: 'mago' }
         ],
         armor: [
-            'Armadura do Cavaleiro Negro',
-            'Escudo do Corvo',
-            'Botas Sombrias'
+            { name: 'Armadura do Cavaleiro Negro', class: null },
+            { name: 'Escudo do Corvo', class: null },
+            { name: 'Botas Sombrias', class: null }
         ],
         jewelry: [
-            'Anel Incomum',
-            'Amuleto Incomum'
+            { name: 'Anel Incomum', class: null },
+            { name: 'Amuleto Incomum', class: null }
         ]
     },
     level15: {
         weapon: [
-            'Espada de Noctra',
-            'Machado do Caos',
-            'Arco do Eclipse',
-            'Lança Lunar',
-            'Cajado de Noctra',
-            'Grimório do Eclipse',
-            'Orbe da Eternidade'
+            { name: 'Espada de Noctra', class: 'guerreiro' },
+            { name: 'Machado do Caos', class: 'guerreiro' },
+            { name: 'Arco do Eclipse', class: 'arqueiro' },
+            { name: 'Lança Lunar', class: 'arqueiro' },
+            { name: 'Cajado de Noctra', class: 'mago' },
+            { name: 'Grimório do Eclipse', class: 'mago' },
+            { name: 'Orbe da Eternidade', class: 'mago' }
         ],
         armor: [
-            'Armadura do Eclipse',
-            'Escudo do Abismo',
-            'Botas do Vazio'
+            { name: 'Armadura do Eclipse', class: null },
+            { name: 'Escudo do Abismo', class: null },
+            { name: 'Botas do Vazio', class: null }
         ],
         jewelry: [
-            'Anel Épico',
-            'Amuleto Lendário'
+            { name: 'Anel Épico', class: null },
+            { name: 'Amuleto Lendário', class: null }
         ]
     }
 };
@@ -69,7 +69,6 @@ const RARITIES = [
     { name: 'Lendário', multiplier: 2.4 }
 ];
 
-// Pesos para categorias de equipamento (armas > armaduras > joias)
 const CATEGORY_WEIGHTS = {
     weapon: 45,
     armor: 35,
@@ -157,17 +156,19 @@ function buildStatsBySlot(tier, slot, itemName = '') {
 
 function rollRarity() {
     const roll = Math.random();
-    if (roll < 0.45) return RARITIES[0];      // Comum
-    if (roll < 0.75) return RARITIES[1];      // Incomum
-    if (roll < 0.90) return RARITIES[2];      // Raro
-    if (roll < 0.98) return RARITIES[3];      // Épico
-    return RARITIES[4];                        // Lendário
+    if (roll < 0.45) return RARITIES[0];
+    if (roll < 0.75) return RARITIES[1];
+    if (roll < 0.90) return RARITIES[2];
+    if (roll < 0.98) return RARITIES[3];
+    return RARITIES[4];
 }
 
 function generateDrop(mapId = 1) {
     const tier = getTierByMap(mapId);
     const category = weightedCategory();
-    const name = randomFrom(ITEM_POOL[tier][category]);
+    const itemData = randomFrom(ITEM_POOL[tier][category]);
+    const name = itemData.name;
+    const classRestriction = itemData.class || null;
     const rarity = rollRarity();
 
     let slot = 'weapon';
@@ -184,14 +185,12 @@ function generateDrop(mapId = 1) {
     }
 
     if (category === 'jewelry') {
-        // Define slot baseado no nome do item
         const lowerName = name.toLowerCase();
         if (lowerName.includes('anel')) {
             slot = 'ring';
         } else if (lowerName.includes('amuleto')) {
             slot = 'necklace';
         } else {
-            // fallback aleatório (não deve ocorrer)
             slot = Math.random() < 0.5 ? 'ring' : 'necklace';
         }
     }
@@ -214,7 +213,8 @@ function generateDrop(mapId = 1) {
         crit,
         power: atk * 2 + def * 2 + Math.floor(hp / 2) + crit * 3,
         slot,
-        category
+        category,
+        classRestriction
     };
 }
 
