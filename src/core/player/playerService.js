@@ -15,7 +15,7 @@ function migrateItemSlot(item) {
     const originalSlot = item.slot;
     if (!originalSlot) return item;
 
-    const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
     for (const validSlot of validSlots) {
         if (String(originalSlot).startsWith(validSlot) && originalSlot !== validSlot) {
             item.slot = validSlot;
@@ -137,7 +137,7 @@ function ensurePlayerState(player) {
     player.buffs ??= [];
     player.equipment ??= {};
 
-    const slots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
+    const slots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
     slots.forEach(slot => {
         if (!(slot in player.equipment)) player.equipment[slot] = null;
         if (player.equipment[slot]) {
@@ -154,7 +154,7 @@ function ensurePlayerState(player) {
     player.currentMap ??= 'clareira_sombria';
     player.dungeonProgress ??= null;
     player.lastDungeonRun ??= 0;
-    player.soulPityCounter ??= 0;   // <-- GARANTIDO
+    player.soulPityCounter ??= 0;
 
     player.cosmetics ??= [];
     player.lastDailyChest ??= null;
