@@ -39,8 +39,9 @@ function recalculateStats(player) {
         arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
     };
 
+    // Guarda o HP atual antes de recalcular
     const previousMaxHp = Number(player.maxHp) || 0;
-    const previousHp = player.hp === undefined || player.hp === null ? null : Number(player.hp);
+    const previousHp = player.hp !== undefined && player.hp !== null ? Number(player.hp) : null;
     const hpRatio = previousHp !== null && previousMaxHp > 0 ? previousHp / previousMaxHp : null;
 
     const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
@@ -84,11 +85,15 @@ function recalculateStats(player) {
     player.maxHp = Math.max(10, maxHp);
     player.crit = Math.min(75, crit);
 
-    if (hpRatio === null) {
+    // Atualiza o HP mantendo a proporção, se possível
+    if (hpRatio === null || previousMaxHp === 0) {
         player.hp = player.maxHp;
     } else {
         player.hp = Math.max(1, Math.min(Math.round(player.maxHp * hpRatio), player.maxHp));
     }
+
+    // Garante que o HP nunca exceda o máximo
+    if (player.hp > player.maxHp) player.hp = player.maxHp;
 
     return player;
 }
