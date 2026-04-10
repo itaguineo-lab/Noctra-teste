@@ -8,14 +8,17 @@ const { inventoryMainMenu } = require('../menus/inventoryMenu');
 
 const PAGE_SIZE = 5;
 
-// NOVA CONFIGURAÇÃO: categorias separadas para anéis e amuletos
 const CATEGORY_CONFIG = {
     weapons: {
         title: '⚔️ Armas',
         slots: ['weapon']
     },
+    shields: {
+        title: '🛡️ Escudos',
+        slots: ['shield']
+    },
     armors: {
-        title: '🛡️ Armaduras',
+        title: '🥋 Armaduras',
         slots: ['armor']
     },
     necklaces: {
@@ -130,12 +133,10 @@ function getPowerBar(power, width = 10) {
 
 function getRealSlot(item) {
     if (!item?.slot) return 'unknown';
-
-    const validSlots = ['weapon', 'armor', 'necklace', 'ring', 'boots'];
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
     for (const validSlot of validSlots) {
         if (String(item.slot).startsWith(validSlot)) return validSlot;
     }
-
     return item.slot;
 }
 
@@ -171,6 +172,7 @@ function renderInventoryHeader(player) {
     const maxInv = player.maxInventory || 20;
 
     const weapon = escapeMarkdown(player.equipment?.weapon?.name || '—');
+    const shield = escapeMarkdown(player.equipment?.shield?.name || '—');
     const armor = escapeMarkdown(player.equipment?.armor?.name || '—');
     const necklace = escapeMarkdown(player.equipment?.necklace?.name || '—');
     const ring = escapeMarkdown(player.equipment?.ring?.name || '—');
@@ -186,7 +188,8 @@ function renderInventoryHeader(player) {
 ║ 🗝️ Chaves: ${player.keys || 0}
 ╠══════════════════════════════════╣
 ║ 🗡️ Arma: ${weapon}
-║ 🛡️ Armadura: ${armor}
+║ 🛡️ Escudo: ${shield}
+║ 🥋 Armadura: ${armor}
 ║ 📿 Amuleto: ${necklace}
 ║ 💍 Anel: ${ring}
 ║ 👢 Botas: ${boots}
@@ -329,6 +332,11 @@ async function handleInventory(ctx) {
 async function handleInvWeapons(ctx) {
     await safeAnswer(ctx);
     return renderInventory(ctx, 'weapons', 1);
+}
+
+async function handleInvShields(ctx) {
+    await safeAnswer(ctx);
+    return renderInventory(ctx, 'shields', 1);
 }
 
 async function handleInvArmors(ctx) {
@@ -513,13 +521,13 @@ async function unequipBySlot(ctx, slot, category, page) {
 async function handleEquipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
 
-    const match = raw.match(/^eq:(weapons|armors|necklaces|rings|boots):(\d+):(\d+)$/);
+    const match = raw.match(/^eq:(weapons|shields|armors|necklaces|rings|boots):(\d+):(\d+)$/);
     if (match) {
         const [, category, pageStr, indexStr] = match;
         return equipByCurrentList(ctx, category, Number(pageStr), Number(indexStr));
     }
 
-    const legacy = raw.match(/^equip_(weapon|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/);
+    const legacy = raw.match(/^equip_(weapon|shield|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/);
     if (legacy) {
         const [, slot, itemIdRaw] = legacy;
         const player = normalizePlayerState(await getPlayer(ctx.from.id));
@@ -551,7 +559,8 @@ async function handleEquipItem(ctx) {
         await safeAnswer(ctx, `✅ ${item.name} equipado!`);
 
         let redirectCategory = 'weapons';
-        if (slot === 'armor') redirectCategory = 'armors';
+        if (slot === 'shield') redirectCategory = 'shields';
+        else if (slot === 'armor') redirectCategory = 'armors';
         else if (slot === 'necklace') redirectCategory = 'necklaces';
         else if (slot === 'ring') redirectCategory = 'rings';
         else if (slot === 'boots') redirectCategory = 'boots';
@@ -566,13 +575,13 @@ async function handleEquipItem(ctx) {
 async function handleUnequipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
 
-    const match = raw.match(/^uneq:(weapon|armor|necklace|ring|boots):(weapons|armors|necklaces|rings|boots):(\d+)$/);
+    const match = raw.match(/^uneq:(weapon|shield|armor|necklace|ring|boots):(weapons|shields|armors|necklaces|rings|boots):(\d+)$/);
     if (match) {
         const [, slot, category, pageStr] = match;
         return unequipBySlot(ctx, slot, category, Number(pageStr));
     }
 
-    const legacy = raw.match(/^unequip_(weapon|armor|necklace|ring|boots)$/);
+    const legacy = raw.match(/^unequip_(weapon|shield|armor|necklace|ring|boots)$/);
     if (legacy) {
         const slot = legacy[1];
         const player = normalizePlayerState(await getPlayer(ctx.from.id));
@@ -591,7 +600,8 @@ async function handleUnequipItem(ctx) {
         await safeAnswer(ctx, `✅ ${item.name} removido!`);
 
         let redirectCategory = 'weapons';
-        if (slot === 'armor') redirectCategory = 'armors';
+        if (slot === 'shield') redirectCategory = 'shields';
+        else if (slot === 'armor') redirectCategory = 'armors';
         else if (slot === 'necklace') redirectCategory = 'necklaces';
         else if (slot === 'ring') redirectCategory = 'rings';
         else if (slot === 'boots') redirectCategory = 'boots';
@@ -604,7 +614,7 @@ async function handleUnequipItem(ctx) {
 }
 
 async function handleInventoryPage(ctx) {
-    const match = ctx.callbackQuery?.data?.match(/^invpage:(weapons|armors|necklaces|rings|boots):(\d+)$/);
+    const match = ctx.callbackQuery?.data?.match(/^invpage:(weapons|shields|armors|necklaces|rings|boots):(\d+)$/);
     if (!match) {
         return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
     }
@@ -615,7 +625,7 @@ async function handleInventoryPage(ctx) {
 }
 
 async function handleInventoryCategory(ctx) {
-    const match = ctx.callbackQuery?.data?.match(/^invcat:(weapons|armors|necklaces|rings|boots|consumables|skins|souls)$/);
+    const match = ctx.callbackQuery?.data?.match(/^invcat:(weapons|shields|armors|necklaces|rings|boots|consumables|skins|souls)$/);
     if (!match) {
         return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
     }
@@ -700,6 +710,7 @@ module.exports = {
     renderInventory,
     handleInventory,
     handleInvWeapons,
+    handleInvShields,
     handleInvArmors,
     handleInvNecklaces,
     handleInvRings,
