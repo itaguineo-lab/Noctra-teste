@@ -20,7 +20,7 @@ function getMapNumber(mapName) {
 
 /*
 =================================
-TAXAS DE DROP (ALINHADAS AO PROMPT)
+TAXAS DE DROP (AJUSTADAS PARA MAIOR RARIDADE)
 =================================
 */
 
@@ -32,17 +32,18 @@ function getEquipmentChance(enemy) {
 }
 
 function getSoulChance(enemy) {
-    // Taxas ajustadas para raridade real
-    if (enemy.isBoss) return 0.03;       // 3% (Prompt: boss comum 3%)
-    if (enemy.isMiniBoss) return 0.015;  // 1.5%
-    if (enemy.isElite) return 0.008;     // 0.8%
-    return 0.001;                        // 0.1% comum
+    // Taxas reduzidas para maior raridade
+    if (enemy.isBoss) return 0.015;      // 1.5% (antes 3%)
+    if (enemy.isMiniBoss) return 0.008;  // 0.8%
+    if (enemy.isElite) return 0.004;     // 0.4%
+    return 0.0005;                       // 0.05% comum
 }
 
 function getKeyChance(enemy) {
-    if (enemy.isBoss) return 0.25;
-    if (enemy.isMiniBoss) return 0.15;
-    return 0.10;
+    // Chaves mais raras
+    if (enemy.isBoss) return 0.10;       // 10% (antes 25%)
+    if (enemy.isMiniBoss) return 0.06;   // 6%
+    return 0.03;                         // 3% elite/comum
 }
 
 function getVictoryTitle(enemy) {
@@ -172,7 +173,7 @@ function processVictory(player, enemy) {
 
     /*
     =================================
-    DROP DE CHAVE
+    DROP DE CHAVE (MAIS RARA)
     =================================
     */
 
