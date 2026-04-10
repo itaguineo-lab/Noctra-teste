@@ -72,21 +72,21 @@ async function safeEditMessage(ctx, text, options = {}) {
 }
 
 function renderFightText(fight, player) {
-    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 6, '🟩', '⬛');
-    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 6, '🟥', '⬛');
+    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '█', '░');
+    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '█', '░');
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `⚔️ *BATALHA*\n`;
     text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
     text += `👤 *${fight.player.name}* [Lv ${player.level}]\n`;
-    text += `❤️ ${fight.player.hp}/${fight.player.maxHp}  [${playerBar}]\n`;
+    text += `❤️ ${fight.player.hp}/${fight.player.maxHp}  ${playerBar}\n`;
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
     text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def}\n\n`;
 
     text += `${getEnemyBadge(fight.enemy)}\n`;
     text += `👹 *${fight.enemy.name}*\n`;
-    text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}  [${enemyBar}]\n\n`;
+    text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}  ${enemyBar}\n\n`;
 
     text += `📜 *Últimas ações*\n`;
     text += fight.logs.slice(-4).join('\n');
@@ -109,7 +109,7 @@ async function finishFight(ctx, fight) {
 
         const { getXpToNextLevel } = require('../core/player/progression');
         const xpNeeded = getXpToNextLevel(player.level);
-        const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
+        const xpProgress = progressBar(player.xp, xpNeeded, 6, '█', '░');
 
         let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `       🏆 *VITÓRIA ÉPICA* 🏆\n`;
@@ -119,7 +119,7 @@ async function finishFight(ctx, fight) {
 
         msg += `✨ *Experiência*\n`;
         msg += `   +${rewards.xp} XP\n`;
-        msg += `   ${player.xp}/${xpNeeded}  [${xpProgress}]\n\n`;
+        msg += `   ${player.xp}/${xpNeeded}  ${xpProgress}\n\n`;
 
         msg += `💰 *Ouro*\n`;
         msg += `   +${rewards.gold} Ouro  |  Total: ${player.gold}\n\n`;
