@@ -55,21 +55,18 @@ function getPlayerLocation(player) {
 function getBuildName(player) {
     if (player.class === 'mago') {
         if ((player.maxHp || 0) >= 140) {
-            return '💚 Curandeiro Arcano';
+            return '💚 Curandeiro';
         }
-
         if ((player.atk || 0) >= 35) {
-            return '🔥 Mago Ofensivo';
+            return '🔥 Ofensivo';
         }
-
-        return '✨ Mago Balanceado';
+        return '✨ Balanceado';
     }
 
     if (player.class === 'guerreiro') {
         if ((player.def || 0) >= 35) {
             return '🛡️ Guardião';
         }
-
         return '⚔️ Berserker';
     }
 
@@ -77,11 +74,10 @@ function getBuildName(player) {
         if ((player.crit || 0) >= 20) {
             return '🎯 Sniper';
         }
-
         return '🏹 Caçador';
     }
 
-    return '⚪ Build padrão';
+    return '⚪ Padrão';
 }
 
 function getLeagueName(leagueId) {
@@ -118,7 +114,7 @@ function premiumFrame(title, body) {
 
 /*
 =================================
-MENU TEXT (BARRAS COLORIDAS E COMPACTAS)
+MENU TEXT (VERSÃO FINAL COMPACTA)
 =================================
 */
 
@@ -128,9 +124,11 @@ async function getMainMenuText(playerId, username) {
     const xpNeeded = getXpToNextLevel(player.level || 1);
     const location = getPlayerLocation(player);
     const nextEnergyTime = getTimeToNextEnergy(player);
-    const energyTimeStr = nextEnergyTime > 0
-        ? ` • ${formatTime(nextEnergyTime)}`
-        : ' • cheia';
+    
+    // Remove "cheia" – se não houver tempo, não mostra nada extra
+    const energyTimeStr = nextEnergyTime > 0 
+        ? ` • ${formatTime(nextEnergyTime)}` 
+        : '';
 
     // Barras coloridas de 6 caracteres
     const hpBar = progressBar(player.hp, player.maxHp, 6, '🟩', '⬛');
@@ -143,10 +141,13 @@ async function getMainMenuText(playerId, username) {
     const vipStatus = player.vip ? '✨ VIP' : '👤 Comum';
     const buildName = getBuildName(player);
 
+    // Linha única e compacta para stats
+    const statsLine = `⚔️ ATK ${formatNumber(player.atk)}  •  🛡️ DEF ${formatNumber(player.def)}  •  💥 CRIT ${formatNumber(player.crit)}%`;
+
     const lines = [
         `🌙 ${player.name || username}  •  ${vipStatus}`,
         `🏹 ${player.class || 'Viajante'}  •  ${buildName}  •  Nível ${player.level || 1}`,
-        `⚔️ ATK ${formatNumber(player.atk)}  •  🛡️ DEF ${formatNumber(player.def)}  •  💥 CRIT ${formatNumber(player.crit)}%`,
+        statsLine,
         '',
         `❤️ HP ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}  ${hpBar}`,
         `⚡ Energia ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}${energyTimeStr}  ${energyBar}`,
