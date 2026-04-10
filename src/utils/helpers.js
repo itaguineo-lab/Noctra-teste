@@ -79,8 +79,8 @@ function getLeagueName(leagueId) {
 function getSoulSummary(player) {
     const souls = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [null, null];
     return souls
-        .map(soul => soul ? formatSoulName(soul) : '⬜')
-        .join(' ');
+        .map(soul => soul ? formatSoulName(soul) : '⬜ Vazio')
+        .join('  |  ');
 }
 
 function premiumFrame(title, body) {
@@ -94,7 +94,7 @@ function premiumFrame(title, body) {
 
 /*
 =================================
-MENU TEXT (ULTRACOMPACTO)
+MENU TEXT (VERSÃO FINAL COM SOULS)
 =================================
 */
 
@@ -106,6 +106,7 @@ async function getMainMenuText(playerId, username) {
     const nextEnergyTime = getTimeToNextEnergy(player);
     const energyTimeStr = nextEnergyTime > 0 ? ` ${formatTime(nextEnergyTime)}` : '';
 
+    // Barras coloridas de 6 caracteres
     const hpBar = progressBar(player.hp, player.maxHp, 6, '🟩', '⬛');
     const energyBar = progressBar(player.energy, player.maxEnergy, 6, '🟦', '⬛');
     const xpBar = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
@@ -116,7 +117,7 @@ async function getMainMenuText(playerId, username) {
     const vipIcon = player.vip ? '✨' : '👤';
     const buildName = getBuildName(player);
 
-    // Linha de stats ultracompacta: só ícones e números
+    // Linha de stats compacta
     const statsLine = `⚔️${formatNumber(player.atk)}  🛡️${formatNumber(player.def)}  💥${formatNumber(player.crit)}%`;
 
     const lines = [
@@ -130,7 +131,7 @@ async function getMainMenuText(playerId, username) {
         '',
         `💰 ${formatNumber(player.gold)}  💎 ${formatNumber(player.nox)}`,
         `🗺️ ${location.emoji} ${location.name}  🏟️ ${formatNumber(arenaPoints)} ${arenaLeague}`,
-        `💀 ${getSoulSummary(player)}`,
+        `💀 Souls: ${getSoulSummary(player)}`,
         `☠️ ${formatNumber(player.totalKills || 0)} abates`
     ];
 
