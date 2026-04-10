@@ -69,12 +69,29 @@ const RARITIES = [
     { name: 'Lendário', multiplier: 2.4 }
 ];
 
+// Pesos para categorias de equipamento (armas > armaduras > joias)
+const CATEGORY_WEIGHTS = {
+    weapon: 45,
+    armor: 35,
+    jewelry: 20
+};
+
 function rand(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function randomFrom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function weightedCategory() {
+    const total = Object.values(CATEGORY_WEIGHTS).reduce((sum, w) => sum + w, 0);
+    let roll = Math.random() * total;
+    for (const [category, weight] of Object.entries(CATEGORY_WEIGHTS)) {
+        roll -= weight;
+        if (roll <= 0) return category;
+    }
+    return 'weapon'; // fallback
 }
 
 function getTierByMap(mapId = 1) {
@@ -153,17 +170,17 @@ function buildStatsBySlot(tier, slot, itemName = '') {
 function rollRarity() {
     const roll = Math.random();
 
-    if (roll < 0.45) return RARITIES[0];
-    if (roll < 0.75) return RARITIES[1];
-    if (roll < 0.9) return RARITIES[2];
-    if (roll < 0.98) return RARITIES[3];
-
-    return RARITIES[4];
+    if (roll < 0.45) return RARITIES[0];      // Comum
+    if (roll < 0.75) return RARITIES[1];      // Incomum
+    if (roll < 0.90) return RARITIES[2];      // Raro
+    if (roll < 0.98) return RARITIES[3];      // Épico
+    return RARITIES[4];                        // Lendário
 }
 
 function generateDrop(mapId = 1) {
     const tier = getTierByMap(mapId);
-    const category = randomFrom(['weapon', 'armor', 'jewelry']);
+    // Usa peso para escolher categoria (joias mais raras)
+    const category = weightedCategory();
     const name = randomFrom(ITEM_POOL[tier][category]);
     const rarity = rollRarity();
 
@@ -197,11 +214,7 @@ function generateDrop(mapId = 1) {
         def,
         hp,
         crit,
-        power:
-            atk * 2 +
-            def * 2 +
-            Math.floor(hp / 2) +
-            crit * 3,
+        power: atk * 2 + def * 2 + Math.floor(hp / 2) + crit * 3,
         slot,
         category
     };
