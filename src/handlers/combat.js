@@ -72,23 +72,21 @@ async function safeEditMessage(ctx, text, options = {}) {
 }
 
 function renderFightText(fight, player) {
-    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 10, '🟩', '⬛');
-    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 10, '🟥', '⬛');
+    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 6, '🟩', '⬛');
+    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 6, '🟥', '⬛');
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `⚔️ *BATALHA*\n`;
     text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
     text += `👤 *${fight.player.name}* [Lv ${player.level}]\n`;
-    text += `❤️ ${fight.player.hp}/${fight.player.maxHp}\n`;
-    text += `[${playerBar}]\n`;
+    text += `❤️ ${fight.player.hp}/${fight.player.maxHp}  [${playerBar}]\n`;
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
     text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def}\n\n`;
 
     text += `${getEnemyBadge(fight.enemy)}\n`;
     text += `👹 *${fight.enemy.name}*\n`;
-    text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}\n`;
-    text += `[${enemyBar}]\n\n`;
+    text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}  [${enemyBar}]\n\n`;
 
     text += `📜 *Últimas ações*\n`;
     text += fight.logs.slice(-4).join('\n');
@@ -103,24 +101,21 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
 
-        // Preserva o HP exato da luta
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
         await savePlayer(ctx.from.id, player);
 
         activeFights.delete(ctx.from.id);
 
-        // Construção da tela de vitória estilizada
         const { getXpToNextLevel } = require('../core/player/progression');
         const xpNeeded = getXpToNextLevel(player.level);
-        const xpProgress = progressBar(player.xp, xpNeeded, 12, '🟨', '⬛');
-        const hpBar = progressBar(player.hp, player.maxHp, 12, '🟥', '⬛');
+        const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
 
-        let msg = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        msg += `         🏆 *VITÓRIA ÉPICA* 🏆\n`;
-        msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `       🏆 *VITÓRIA ÉPICA* 🏆\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         msg += `🎖️ *${player.name}*  •  Nível ${player.level}\n`;
-        msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
         msg += `✨ *Experiência*\n`;
         msg += `   +${rewards.xp} XP\n`;
@@ -130,7 +125,7 @@ async function finishFight(ctx, fight) {
         msg += `   +${rewards.gold} Ouro  |  Total: ${player.gold}\n\n`;
 
         msg += `❤️ *Vitalidade*\n`;
-        msg += `   ${player.hp}/${player.maxHp}  [${hpBar}]\n`;
+        msg += `   ${player.hp}/${player.maxHp}\n`;
         msg += `⚡ *Energia*: ${player.energy}/${player.maxEnergy}\n\n`;
 
         if (rewards.loot?.length) {
@@ -144,7 +139,7 @@ async function finishFight(ctx, fight) {
             msg += `   Agora você é nível ${player.level}!\n\n`;
         }
 
-        msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `🌑 A escuridão recua... por enquanto.`;
 
         return safeEditMessage(ctx, msg, {
@@ -158,13 +153,13 @@ async function finishFight(ctx, fight) {
         await savePlayer(ctx.from.id, player);
         activeFights.delete(ctx.from.id);
 
-        const msg = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `            💀 *DERROTA* 💀\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `          💀 *DERROTA* 💀\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
                     `Você foi derrotado...\n\n` +
                     `❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
                     `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `🌑 Reúna forças e tente novamente.`;
 
         return safeEditMessage(ctx, msg, {
@@ -179,7 +174,7 @@ async function finishFight(ctx, fight) {
         activeFights.delete(ctx.from.id);
 
         const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `🏃 *FUGA BEM-SUCEDIDA*\n` +
+                    `      🏃 *FUGA BEM-SUCEDIDA*\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
                     `Você escapou da batalha!\n\n` +
                     `❤️ HP atual: ${player.hp}/${player.maxHp}\n` +
@@ -211,10 +206,7 @@ async function handleHunt(ctx) {
         return ctx.reply('⚡ Sem energia.');
     }
 
-    // Salva o jogador com a energia consumida
     await savePlayer(ctx.from.id, player);
-
-    // Recarrega o jogador para garantir stats atualizados (incluindo HP correto)
     player = await getPlayer(ctx.from.id);
 
     const enemy = getRandomEnemy(player.currentMap, player.level);
