@@ -72,9 +72,15 @@ async function safeEditMessage(ctx, text, options = {}) {
 }
 
 function renderFightText(fight, player) {
-    // Barras coloridas: HP do jogador (🟩), HP do inimigo (🟥) - 8 caracteres
     const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟩', '⬛');
     const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬛');
+
+    // Ícones de status do inimigo
+    let enemyStatusIcons = '';
+    if (fight.enemy.poisonTurns > 0) enemyStatusIcons += '🧪';
+    if (fight.enemy.bleedTurns > 0) enemyStatusIcons += '🩸';
+    if (fight.enemy.shield > 0) enemyStatusIcons += `🛡️`;
+    if (fight.enemy.frozen) enemyStatusIcons += '❄️';
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `⚔️ *BATALHA*\n`;
@@ -83,11 +89,18 @@ function renderFightText(fight, player) {
     text += `👤 *${fight.player.name}* [Lv ${player.level}]\n`;
     text += `❤️ ${fight.player.hp}/${fight.player.maxHp}  ${playerBar}\n`;
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
-    text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def}\n\n`;
+    text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def}`;
+    if (fight.player.defending) text += ` 🛡️`;
+    if (fight.player.stunned) text += ` 💫`;
+    text += `\n\n`;
 
     text += `${getEnemyBadge(fight.enemy)}\n`;
-    text += `👹 *${fight.enemy.name}*\n`;
-    text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}  ${enemyBar}\n\n`;
+    text += `${fight.enemy.emoji || '👹'} *${fight.enemy.name}* [Lv ${fight.enemy.level}]`;
+    if (enemyStatusIcons) text += ` ${enemyStatusIcons}`;
+    text += `\n`;
+    text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}  ${enemyBar}\n`;
+    if (fight.enemy.shield > 0) text += `🛡️ Escudo: ${fight.enemy.shield}\n`;
+    text += `⚔️ ${fight.enemy.atk} • 🛡️ ${fight.enemy.def} • 💥 ${fight.enemy.crit}%\n\n`;
 
     text += `📜 *Últimas ações*\n`;
     text += fight.logs.slice(-4).join('\n');
@@ -110,7 +123,6 @@ async function finishFight(ctx, fight) {
 
         const { getXpToNextLevel } = require('../core/player/progression');
         const xpNeeded = getXpToNextLevel(player.level);
-        // Barra de XP colorida (🟨) - 6 caracteres
         const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
 
         let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
