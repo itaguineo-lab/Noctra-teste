@@ -14,7 +14,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 50,
-        description: 'Restaura 40% do HP máximo.'
+        description: 'Restaura 100% do HP máximo.'
     },
 
     {
@@ -26,7 +26,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 120,
-        description: '+10 ATK por 3 combates.'
+        description: '+10 ATK por 30 minutos.'
     },
 
     {
@@ -38,7 +38,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 120,
-        description: '+10 DEF por 3 combates.'
+        description: '+10 DEF por 30 minutos.'
     },
 
     /*
