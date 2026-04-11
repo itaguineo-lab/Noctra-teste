@@ -1,5 +1,6 @@
 const { calculateDamage } = require('./damageCalc');
 const { activateSoul } = require('../player/souls');
+const { ENEMY_ABILITIES } = require('../world/enemies');
 
 /*
 =================================
@@ -58,11 +59,13 @@ function createFight(player, enemy) {
             energy: player.energy,
             maxEnergy: player.maxEnergy,
             buffs: [],
-            defending: false
+            defending: false,
+            stunned: false
         },
         enemy: {
             id: enemy.id || enemy.name,
             name: enemy.name,
+            emoji: enemy.emoji || '👹',
             hp: enemy.hp,
             maxHp: enemy.hp,
             atk: enemy.atk,
@@ -72,9 +75,13 @@ function createFight(player, enemy) {
             xp: enemy.xp || 0,
             gold: enemy.gold || 0,
             isBoss: !!enemy.isBoss,
+            isElite: !!enemy.isElite,
+            isMiniBoss: !!enemy.isMiniBoss,
+            ability: enemy.ability || null,
             frozen: false,
-            bleedTurns: 0,
             poisonTurns: 0,
+            bleedTurns: 0,
+            shield: 0,
             buffs: []
         },
         turn: 1,
@@ -88,6 +95,38 @@ function createFight(player, enemy) {
 
 /*
 =================================
+PROCESSAMENTO DE EFEITOS DE STATUS
+=================================
+*/
+
+function processEnemyStatusEffects(fight) {
+    if (fight.status !== 'ongoing') return false;
+
+    let enemyDied = false;
+
+    // Veneno
+    if (fight.enemy.poisonTurns > 0) {
+        ENEMY_ABILITIES.POISON.tick(fight.enemy, fight);
+        if (fight.enemy.hp <= 0) {
+            setVictory(fight);
+            enemyDied = true;
+        }
+    }
+
+    // Sangramento
+    if (!enemyDied && fight.enemy.bleedTurns > 0) {
+        ENEMY_ABILITIES.BLEED.tick(fight.enemy, fight);
+        if (fight.enemy.hp <= 0) {
+            setVictory(fight);
+            enemyDied = true;
+        }
+    }
+
+    return enemyDied;
+}
+
+/*
+=================================
 PLAYER TURN
 =================================
 */
@@ -95,15 +134,36 @@ PLAYER TURN
 function processPlayerTurn(fight) {
     if (fight.status !== 'ongoing') return null;
 
+    // Verifica se jogador está atordoado
+    if (fight.player.stunned) {
+        fight.logs.push(`💫 Você está atordoado e perdeu o turno!`);
+        fight.player.stunned = false;
+        fight.turn++;
+        fight.logs = trimLogs(fight.logs);
+        return null;
+    }
+
     const result = calculateDamage(fight.player, fight.enemy);
-    fight.enemy.hp = Math.max(0, fight.enemy.hp - result.damage);
-    fight.lastDamageDealt = result.damage;
+    
+    // Reduz escudo primeiro
+    let actualDamage = result.damage;
+    if (fight.enemy.shield > 0) {
+        const absorbed = Math.min(fight.enemy.shield, actualDamage);
+        fight.enemy.shield -= absorbed;
+        actualDamage -= absorbed;
+        fight.logs.push(`🛡️ Escudo absorveu ${absorbed} de dano.`);
+    }
 
-    fight.logs.push(getPlayerAttackText(fight.enemy.name, result.damage, result.isCrit));
+    fight.enemy.hp = Math.max(0, fight.enemy.hp - actualDamage);
+    fight.lastDamageDealt = actualDamage;
 
-    if (fight.enemy.hp <= 0) setVictory(fight);
+    fight.logs.push(getPlayerAttackText(fight.enemy.name, actualDamage, result.isCrit));
+
+    if (fight.enemy.hp <= 0) {
+        setVictory(fight);
+    }
+
     fight.logs = trimLogs(fight.logs);
-
     return result;
 }
 
@@ -116,11 +176,37 @@ ENEMY TURN
 function processEnemyTurn(fight) {
     if (fight.status !== 'ongoing') return null;
 
+    // Processa efeitos de status do inimigo no início do turno
+    const enemyDied = processEnemyStatusEffects(fight);
+    if (enemyDied) {
+        fight.logs = trimLogs(fight.logs);
+        return null;
+    }
+
     if (fight.enemy.frozen) {
-        fight.logs.push(`❄️ ${fight.enemy.name} perdeu o turno!`);
+        fight.logs.push(`❄️ ${fight.enemy.name} está congelado e perdeu o turno!`);
         fight.enemy.frozen = false;
         fight.turn++;
+        fight.logs = trimLogs(fight.logs);
         return null;
+    }
+
+    // Chance de usar habilidade especial
+    if (fight.enemy.ability) {
+        const abilityDef = ENEMY_ABILITIES[fight.enemy.ability.type];
+        if (abilityDef && Math.random() < (fight.enemy.ability.chance || 0.3)) {
+            if (fight.enemy.ability.type === 'STUN') {
+                abilityDef.apply(fight.player, fight);
+            } else if (fight.enemy.ability.type === 'HEAL' || fight.enemy.ability.type === 'SHIELD') {
+                abilityDef.apply(fight.enemy, fight);
+                // Habilidades de suporte não causam dano neste turno
+                fight.turn++;
+                fight.logs = trimLogs(fight.logs);
+                return null;
+            } else {
+                abilityDef.apply(fight.enemy, fight);
+            }
+        }
     }
 
     let multiplier = fight.player.defending ? 0.5 : 1;
@@ -136,6 +222,7 @@ function processEnemyTurn(fight) {
         fight.logs.push(`☠️ Você foi derrotado...`);
     }
 
+    fight.player.defending = false; // Reset defesa após o turno
     fight.turn++;
     fight.logs = trimLogs(fight.logs);
     return result;
