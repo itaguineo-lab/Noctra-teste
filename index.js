@@ -237,9 +237,13 @@ bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
 bindAction(/^equip_soul_(.+)$/, inventory.handleEquipSoul);
 bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
 
+bindAction('use_potion_outside_hp', (ctx) => inventory.handleUsePotionOutside(ctx, 'hp'));
+bindAction('use_tonic_strength', inventory.handleUseStrengthTonic);
+bindAction('use_tonic_defense', inventory.handleUseDefenseTonic);
+
 /*
 =================================
-SHOP (ATUALIZADO COM COMPRA/VENDA)
+SHOP
 =================================
 */
 
@@ -263,7 +267,7 @@ bindAction('travel_locked', travel.handleTravelLocked);
 
 /*
 =================================
-DUNGEON (NOVOS HANDLERS ADICIONADOS)
+DUNGEON
 =================================
 */
 
