@@ -28,7 +28,26 @@ function migrateItemSlot(item) {
 
 /*
 =================================
-RECALCULAR ESTATÍSTICAS
+ATUALIZAR BUFFS (REMOVER EXPIRADOS)
+=================================
+*/
+
+function updateBuffs(player) {
+    if (!Array.isArray(player.buffs)) player.buffs = [];
+
+    const now = Date.now();
+    player.buffs = player.buffs.filter(buff => {
+        // Buffs sem expiresAt duram para sempre (ex.: equipamentos)
+        if (!buff.expiresAt) return true;
+        return buff.expiresAt > now;
+    });
+
+    return player;
+}
+
+/*
+=================================
+RECALCULAR ESTATÍSTICAS (COM BUFFS)
 =================================
 */
 
@@ -39,7 +58,9 @@ function recalculateStats(player) {
         arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
     };
 
-    // Guarda o HP atual ANTES de recalcular (importante para preservar dano)
+    // Atualiza buffs primeiro (remove expirados)
+    updateBuffs(player);
+
     const previousMaxHp = Number(player.maxHp) || 0;
     const previousHp = player.hp !== undefined && player.hp !== null ? Number(player.hp) : null;
     const hpRatio = previousHp !== null && previousMaxHp > 0 ? previousHp / previousMaxHp : null;
@@ -71,6 +92,7 @@ function recalculateStats(player) {
         });
     }
 
+    // Aplica buffs ativos
     if (Array.isArray(player.buffs)) {
         player.buffs.forEach(buff => {
             atk += buff.atk || 0;
@@ -85,7 +107,6 @@ function recalculateStats(player) {
     player.maxHp = Math.max(10, maxHp);
     player.crit = Math.min(75, crit);
 
-    // Preserva o HP proporcional, ou seta cheio se for um jogador novo
     if (previousHp === null || previousMaxHp === 0) {
         player.hp = player.maxHp;
     } else {
@@ -214,8 +235,7 @@ async function getPlayer(id, name = 'Viajante') {
 
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
-    // IMPORTANTE: NÃO chamar recalculateStats aqui para não resetar HP.
-    // Apenas garantir que os campos existam.
+    updateBuffs(playerObj); // Remove buffs expirados ao carregar
 
     return playerObj;
 }
@@ -232,8 +252,6 @@ async function savePlayer(id, playerData) {
     const { _id, ...updateData } = playerData;
     ensurePlayerState(updateData);
     
-    // Recalcula stats para garantir que maxHp, atk, def estejam atualizados
-    // Mas preserva o hp atual!
     const currentHp = updateData.hp;
     recalculateStats(updateData);
     if (currentHp !== undefined && currentHp !== null) {
@@ -256,7 +274,7 @@ async function savePlayer(id, playerData) {
 
 /*
 =================================
-GET ALL PLAYERS (NOVO)
+GET ALL PLAYERS
 =================================
 */
 
@@ -269,21 +287,6 @@ async function getAllPlayers() {
         playersMap[player.id] = player;
     }
     return playersMap;
-}
-
-/*
-=================================
-BUFFS
-=================================
-*/
-
-function updateBuffs(player) {
-    player.buffs ??= [];
-    player.buffs = player.buffs.filter(buff => {
-        buff.remainingTurns--;
-        return buff.remainingTurns > 0;
-    });
-    return player;
 }
 
 /*
@@ -305,5 +308,5 @@ module.exports = {
     connectToMongo,
     ensurePlayerState,
     getPlayerCollection,
-    getAllPlayers      // <-- ADICIONADO
+    getAllPlayers
 };
