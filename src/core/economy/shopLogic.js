@@ -1,7 +1,5 @@
 function ensurePlayerEconomy(player) {
-    if (!player) {
-        throw new Error('Player inválido.');
-    }
+    if (!player) throw new Error('Player inválido.');
 
     player.gold ??= 0;
     player.nox ??= 0;
@@ -16,30 +14,19 @@ function ensurePlayerEconomy(player) {
     };
 
     player.cosmetics ??= [];
-
     player.vip ??= false;
     player.vipExpires ??= null;
 
-    player.maxInventory = player.vip
-        ? 30
-        : 20;
-
+    player.maxInventory = player.vip ? 30 : 20;
     player.keys ??= 0;
     player.energy ??= 20;
-    player.maxEnergy ??= player.vip
-        ? 40
-        : 20;
+    player.maxEnergy ??= player.vip ? 40 : 20;
 
     return player;
 }
 
 function currencyLabel(currency) {
-    const map = {
-        gold: 'ouro',
-        nox: 'Nox',
-        glorias: 'glórias'
-    };
-
+    const map = { gold: 'ouro', nox: 'Nox', glorias: 'glórias' };
     return map[currency] || currency;
 }
 
@@ -52,60 +39,27 @@ function canPay(player, currency, price) {
 }
 
 function pay(player, currency, price) {
-    if (!canPay(player, currency, price)) {
-        return false;
-    }
-
+    if (!canPay(player, currency, price)) return false;
     player[currency] -= price;
-
     return true;
 }
-
-/*
-=================================
-VALIDAÇÃO ANTES DE COBRAR
-=================================
-*/
 
 function canProcessItem(player, item) {
     switch (item.type) {
         case 'equipment':
             return player.inventory.length < player.maxInventory;
-
         case 'cosmetic':
-            return !player.cosmetics.some(
-                cosmetic => cosmetic.id === item.id
-            );
-
+            return !player.cosmetics.some(c => c.id === item.id);
         default:
             return true;
     }
 }
 
-/*
-=================================
-AÇÕES
-=================================
-*/
-
 function addConsumable(player, item) {
     const key = item.effect;
-
-    if (!key) {
-        return {
-            success: false,
-            message: '❌ Consumível inválido.'
-        };
-    }
-
-    player.consumables[key] =
-        (player.consumables[key] || 0) +
-        (item.value || 1);
-
-    return {
-        success: true,
-        message: `✅ ${item.name} comprado!`
-    };
+    if (!key) return { success: false, message: '❌ Consumível inválido.' };
+    player.consumables[key] = (player.consumables[key] || 0) + (item.value || 1);
+    return { success: true, message: `✅ ${item.name} comprado!` };
 }
 
 function addEquipment(player, item) {
@@ -120,178 +74,127 @@ function addEquipment(player, item) {
         rarity: item.rarity || 'Raro',
         emoji: item.emoji || '⚔️'
     };
-
     player.inventory.push(equipment);
-
-    return {
-        success: true,
-        message: `✅ ${item.name} comprado!`
-    };
+    return { success: true, message: `✅ ${item.name} comprado!` };
 }
 
 function applyVip(player, item) {
     const now = Date.now();
-
-    const currentExpire =
-        player.vipExpires
-            ? new Date(player.vipExpires).getTime()
-            : now;
-
-    const baseTime = Math.max(
-        now,
-        currentExpire
-    );
-
-    const newExpire =
-        baseTime +
-        item.days *
-            24 *
-            60 *
-            60 *
-            1000;
-
+    const currentExpire = player.vipExpires ? new Date(player.vipExpires).getTime() : now;
+    const baseTime = Math.max(now, currentExpire);
+    const newExpire = baseTime + item.days * 24 * 60 * 60 * 1000;
     player.vip = true;
-    player.vipExpires =
-        new Date(newExpire).toISOString();
-
+    player.vipExpires = new Date(newExpire).toISOString();
     player.maxEnergy = 40;
     player.maxInventory = 30;
-
-    player.energy = Math.min(
-        player.maxEnergy,
-        player.energy || player.maxEnergy
-    );
-
-    return {
-        success: true,
-        message: `✨ VIP ativado por ${item.days} dias!`
-    };
+    player.energy = Math.min(player.maxEnergy, player.energy || player.maxEnergy);
+    return { success: true, message: `✨ VIP ativado por ${item.days} dias!` };
 }
 
 function addCosmetic(player, item) {
-    player.cosmetics.push({
-        id: item.id,
-        name: item.name
-    });
-
-    return {
-        success: true,
-        message: `✨ ${item.name} desbloqueado!`
-    };
+    player.cosmetics.push({ id: item.id, name: item.name });
+    return { success: true, message: `✨ ${item.name} desbloqueado!` };
 }
 
 function addEnergyRefill(player, item) {
     const amount = item.value || 10;
-
-    player.energy = Math.min(
-        player.maxEnergy,
-        player.energy + amount
-    );
-
-    return {
-        success: true,
-        message: `⚡ +${amount} energia`
-    };
+    player.energy = Math.min(player.maxEnergy, player.energy + amount);
+    return { success: true, message: `⚡ +${amount} energia` };
 }
 
 function addKey(player, item) {
     const amount = item.value || 1;
-
-    player.keys =
-        (player.keys || 0) + amount;
-
-    return {
-        success: true,
-        message: `🗝️ +${amount} chave(s)`
-    };
+    player.keys = (player.keys || 0) + amount;
+    return { success: true, message: `🗝️ +${amount} chave(s)` };
 }
-
-/*
-=================================
-COMPRA
-=================================
-*/
 
 function processPurchase(player, item) {
     ensurePlayerEconomy(player);
-
-    if (!item) {
-        return {
-            success: false,
-            message: '❌ Item inválido.'
-        };
+    if (!item) return { success: false, message: '❌ Item inválido.' };
+    if (!canPay(player, item.currency, item.price)) {
+        return { success: false, message: `❌ Saldo insuficiente em ${currencyLabel(item.currency)}.` };
     }
-
-    if (
-        !canPay(
-            player,
-            item.currency,
-            item.price
-        )
-    ) {
-        return {
-            success: false,
-            message: `❌ Saldo insuficiente em ${currencyLabel(item.currency)}.`
-        };
-    }
-
     if (!canProcessItem(player, item)) {
-        return {
-            success: false,
-            message:
-                item.type === 'equipment'
-                    ? '❌ Inventário cheio.'
-                    : '❌ Você já possui este item.'
-        };
+        return { success: false, message: item.type === 'equipment' ? '❌ Inventário cheio.' : '❌ Você já possui este item.' };
     }
 
     let result;
-
     switch (item.type) {
         case 'consumable':
-            if (item.effect === 'energyRefill') {
-                result = addEnergyRefill(player, item);
-            } else if (item.effect === 'keys') {
-                result = addKey(player, item);
-            } else {
-                result = addConsumable(player, item);
-            }
+            if (item.effect === 'energyRefill') result = addEnergyRefill(player, item);
+            else if (item.effect === 'keys') result = addKey(player, item);
+            else result = addConsumable(player, item);
             break;
-
-        case 'equipment':
-            result = addEquipment(player, item);
-            break;
-
-        case 'vip':
-            result = applyVip(player, item);
-            break;
-
-        case 'cosmetic':
-            result = addCosmetic(player, item);
-            break;
-
-        default:
-            return {
-                success: false,
-                message: '❌ Tipo inválido.'
-            };
+        case 'equipment': result = addEquipment(player, item); break;
+        case 'vip': result = applyVip(player, item); break;
+        case 'cosmetic': result = addCosmetic(player, item); break;
+        default: return { success: false, message: '❌ Tipo inválido.' };
     }
 
-    /*
-    COBRA APENAS SE DEU CERTO
-    */
-
-    if (result.success) {
-        pay(
-            player,
-            item.currency,
-            item.price
-        );
-    }
-
+    if (result.success) pay(player, item.currency, item.price);
     return result;
 }
 
+// ================================================
+// NOVA FUNÇÃO DE VENDA
+// ================================================
+
+/**
+ * Calcula o valor de venda de um item (50% do valor base)
+ */
+function calculateSellPrice(item) {
+    if (!item) return 0;
+
+    // Poder base do item
+    const atk = Number(item.atk) || 0;
+    const def = Number(item.def) || 0;
+    const hp = Number(item.hp) || 0;
+    const crit = Number(item.crit) || 0;
+    const power = atk * 2 + def * 2 + Math.floor(hp / 2) + crit * 3;
+
+    // Multiplicador de raridade
+    const rarityMult = {
+        Comum: 1, Incomum: 1.5, Raro: 2.5, Épico: 4, Lendário: 7, Mítico: 12
+    }[item.rarity] || 1;
+
+    // Multiplicador de nível
+    const level = Number(item.level) || 1;
+    const levelMult = 1 + (level - 1) * 0.2;
+
+    // Preço base = poder * raridade * nível * 2
+    const basePrice = Math.floor(power * rarityMult * levelMult * 2);
+
+    // Venda por 50% do valor base
+    return Math.max(1, Math.floor(basePrice * 0.5));
+}
+
+/**
+ * Vende um item do inventário do jogador
+ */
+function sellItem(player, itemIndex) {
+    ensurePlayerEconomy(player);
+
+    if (!Array.isArray(player.inventory) || itemIndex < 0 || itemIndex >= player.inventory.length) {
+        return { success: false, message: '❌ Item inválido.' };
+    }
+
+    const item = player.inventory[itemIndex];
+    const sellPrice = calculateSellPrice(item);
+
+    // Remove o item do inventário
+    player.inventory.splice(itemIndex, 1);
+    player.gold = (player.gold || 0) + sellPrice;
+
+    return {
+        success: true,
+        message: `✅ ${item.name} vendido por ${sellPrice} ouro!`,
+        sellPrice,
+        itemName: item.name
+    };
+}
+
 module.exports = {
-    processPurchase
+    processPurchase,
+    sellItem,
+    calculateSellPrice
 };
