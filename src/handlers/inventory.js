@@ -44,7 +44,6 @@ const RARITY_BADGES = {
     Mítico: '🔴'
 };
 
-// Função auxiliar para obter nome da classe em português
 function getClassNamePortuguese(className) {
     const map = {
         guerreiro: 'Guerreiros',
@@ -385,6 +384,8 @@ async function handleInvConsumables(ctx) {
 
     const buttons = [];
     if (c.potionHp > 0) buttons.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
+    if (c.tonicStrength > 0) buttons.push([Markup.button.callback('💪 Usar Tônico de Força', 'use_tonic_strength')]);
+    if (c.tonicDefense > 0) buttons.push([Markup.button.callback('🛡️ Usar Tônico de Defesa', 'use_tonic_defense')]);
     buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
 
     return sendScreen(ctx, text, {
@@ -465,16 +466,67 @@ async function handleUsePotionOutside(ctx, type) {
         }
 
         consumables.potionHp--;
-        const heal = Math.floor(player.maxHp * 0.4);
-        player.hp = Math.min(player.maxHp, player.hp + heal);
+        player.hp = player.maxHp; // Cura 100%
         player.consumables = consumables;
 
         await savePlayer(ctx.from.id, player);
-        await safeAnswer(ctx, `🧪 Você usou uma poção e recuperou ${heal} HP!`, { show_alert: true });
+        await safeAnswer(ctx, `🧪 Poção de Vida usada! HP restaurado para ${player.maxHp}.`, { show_alert: true });
+        return handleInvConsumables(ctx);
+    }
+
+    if (type === 'strength') {
+        if (!consumables.tonicStrength || consumables.tonicStrength <= 0) {
+            return safeAnswer(ctx, '❌ Você não tem Tônicos de Força.', { show_alert: true });
+        }
+
+        consumables.tonicStrength--;
+        player.consumables = consumables;
+
+        player.buffs = player.buffs || [];
+        player.buffs.push({
+            type: 'strength',
+            atk: 10,
+            expiresAt: Date.now() + 30 * 60 * 1000 // 30 minutos
+        });
+
+        recalculateStats(player);
+        await savePlayer(ctx.from.id, player);
+
+        await safeAnswer(ctx, `💪 Tônico de Força usado! +10 ATK por 30 minutos.`, { show_alert: true });
+        return handleInvConsumables(ctx);
+    }
+
+    if (type === 'defense') {
+        if (!consumables.tonicDefense || consumables.tonicDefense <= 0) {
+            return safeAnswer(ctx, '❌ Você não tem Tônicos de Defesa.', { show_alert: true });
+        }
+
+        consumables.tonicDefense--;
+        player.consumables = consumables;
+
+        player.buffs = player.buffs || [];
+        player.buffs.push({
+            type: 'defense',
+            def: 10,
+            expiresAt: Date.now() + 30 * 60 * 1000
+        });
+
+        recalculateStats(player);
+        await savePlayer(ctx.from.id, player);
+
+        await safeAnswer(ctx, `🛡️ Tônico de Defesa usado! +10 DEF por 30 minutos.`, { show_alert: true });
         return handleInvConsumables(ctx);
     }
 
     return safeAnswer(ctx, 'Item inválido.', { show_alert: true });
+}
+
+async function handleUseStrengthTonic(ctx) {
+    return handleUsePotionOutside(ctx, 'strength');
+}
+
+async function handleUseDefenseTonic(ctx) {
+    return handleUsePotionOutside(ctx, 'defense');
 }
 
 async function equipByCurrentList(ctx, category, page, absoluteIndex) {
@@ -493,9 +545,7 @@ async function equipByCurrentList(ctx, category, page, absoluteIndex) {
         return renderInventory(ctx, category, page);
     }
 
-    // ========== VERIFICAÇÃO DE RESTRIÇÃO DE CLASSE (CORRIGIDA) ==========
     if (item.classRestriction && item.classRestriction !== player.class) {
-        // Obtém o nome da classe restrita (ex.: 'mago' -> 'Magos')
         const restrictedClassName = getClassNamePortuguese(item.classRestriction);
         await safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
         return renderInventory(ctx, category, page);
@@ -563,7 +613,6 @@ async function handleEquipItem(ctx) {
             return safeAnswer(ctx, '❌ Item não encontrado no inventário.', { show_alert: true });
         }
 
-        // ========== VERIFICAÇÃO DE CLASSE NO MODO LEGADO (CORRIGIDA) ==========
         if (item.classRestriction && item.classRestriction !== player.class) {
             const restrictedClassName = getClassNamePortuguese(item.classRestriction);
             return safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
@@ -747,5 +796,7 @@ module.exports = {
     handleInventoryCategory,
     handleEquipSoul,
     handleUnequipSoul,
-    handleUsePotionOutside
+    handleUsePotionOutside,
+    handleUseStrengthTonic,
+    handleUseDefenseTonic
 };
