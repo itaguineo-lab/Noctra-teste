@@ -239,9 +239,13 @@ bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
 
 /*
 =================================
-SHOP
+SHOP (ATUALIZADO COM COMPRA/VENDA)
 =================================
 */
+
+bindAction('shop_buy_menu', shop.handleShopBuyMenu);
+bindAction('shop_sell', shop.handleShopSell);
+bindAction(/sell_confirm_(.+)/, shop.handleSellConfirm);
 
 bindAction('shop_village', shop.handleShopVillage);
 bindAction('shop_castle', shop.handleShopCastle);
