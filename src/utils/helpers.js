@@ -94,7 +94,44 @@ function premiumFrame(title, body) {
 
 /*
 =================================
-MENU TEXT (VERSÃO FINAL COM SOULS)
+RESUMO DE BUFFS ATIVOS
+=================================
+*/
+
+function getBuffsSummary(player) {
+    if (!Array.isArray(player.buffs) || player.buffs.length === 0) {
+        return null;
+    }
+
+    const activeBuffs = player.buffs.filter(buff => {
+        if (!buff.expiresAt) return true; // permanentes
+        return buff.expiresAt > Date.now();
+    });
+
+    if (activeBuffs.length === 0) return null;
+
+    const parts = [];
+    activeBuffs.forEach(buff => {
+        if (buff.atk) parts.push(`💪+${buff.atk}`);
+        if (buff.def) parts.push(`🛡️+${buff.def}`);
+        if (buff.hp) parts.push(`❤️+${buff.hp}`);
+        if (buff.crit) parts.push(`💥+${buff.crit}%`);
+
+        // Se tiver tempo restante, adiciona
+        if (buff.expiresAt) {
+            const remainingMs = Math.max(0, buff.expiresAt - Date.now());
+            if (remainingMs > 0) {
+                parts.push(`⏳${formatTime(remainingMs)}`);
+            }
+        }
+    });
+
+    return parts.join('  ');
+}
+
+/*
+=================================
+MENU TEXT (COM BUFFS)
 =================================
 */
 
@@ -106,7 +143,6 @@ async function getMainMenuText(playerId, username) {
     const nextEnergyTime = getTimeToNextEnergy(player);
     const energyTimeStr = nextEnergyTime > 0 ? ` ${formatTime(nextEnergyTime)}` : '';
 
-    // Barras coloridas de 6 caracteres
     const hpBar = progressBar(player.hp, player.maxHp, 6, '🟩', '⬛');
     const energyBar = progressBar(player.energy, player.maxEnergy, 6, '🟦', '⬛');
     const xpBar = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
@@ -117,7 +153,6 @@ async function getMainMenuText(playerId, username) {
     const vipIcon = player.vip ? '✨' : '👤';
     const buildName = getBuildName(player);
 
-    // Linha de stats compacta
     const statsLine = `⚔️${formatNumber(player.atk)}  🛡️${formatNumber(player.def)}  💥${formatNumber(player.crit)}%`;
 
     const lines = [
@@ -130,10 +165,17 @@ async function getMainMenuText(playerId, username) {
         `✨ ${formatNumber(player.xp)}/${formatNumber(xpNeeded)} ${xpBar}`,
         '',
         `💰 ${formatNumber(player.gold)}  💎 ${formatNumber(player.nox)}`,
-        `🗺️ ${location.emoji} ${location.name}  🏟️ ${formatNumber(arenaPoints)} ${arenaLeague}`,
-        `💀 Souls: ${getSoulSummary(player)}`,
-        `☠️ ${formatNumber(player.totalKills || 0)} abates`
+        `🗺️ ${location.emoji} ${location.name}  🏟️ ${formatNumber(arenaPoints)} ${arenaLeague}`
     ];
+
+    // Adiciona linha de buffs se existirem
+    const buffsSummary = getBuffsSummary(player);
+    if (buffsSummary) {
+        lines.push(`✨ Buffs: ${buffsSummary}`);
+    }
+
+    lines.push(`💀 Souls: ${getSoulSummary(player)}`);
+    lines.push(`☠️ ${formatNumber(player.totalKills || 0)} abates`);
 
     return premiumFrame('🌑 NOCTRA RPG', lines.join('\n'));
 }
