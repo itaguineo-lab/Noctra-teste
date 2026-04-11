@@ -7,12 +7,20 @@ function currencySymbol(currency) {
     return '💰';
 }
 
+function shopMainMenu() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback('🛒 Comprar', 'shop_buy_menu')],
+        [Markup.button.callback('💰 Vender', 'shop_sell')],
+        [Markup.button.callback('◀️ Voltar', 'menu')]
+    ]);
+}
+
 function shopTabsMenu() {
     return Markup.inlineKeyboard([
         [Markup.button.callback('🏠 Vila', 'shop_village')],
         [Markup.button.callback('🏰 Castelo VIP', 'shop_castle')],
         [Markup.button.callback('⚔️ Arena', 'shop_arena')],
-        [Markup.button.callback('◀️ Voltar', 'menu')]
+        [Markup.button.callback('◀️ Voltar', 'shop')]
     ]);
 }
 
@@ -51,7 +59,7 @@ function renderShop(title, items, player) {
     text += `╚════════════════════════╝`;
 
     keyboard.push([
-        Markup.button.callback('◀️ Voltar', 'shop')
+        Markup.button.callback('◀️ Voltar', 'shop_buy_menu')
     ]);
 
     return {
@@ -61,6 +69,7 @@ function renderShop(title, items, player) {
 }
 
 module.exports = {
+    shopMainMenu,
     shopTabsMenu,
     renderShop
 };
