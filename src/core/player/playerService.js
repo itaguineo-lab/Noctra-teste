@@ -256,6 +256,23 @@ async function savePlayer(id, playerData) {
 
 /*
 =================================
+GET ALL PLAYERS (NOVO)
+=================================
+*/
+
+async function getAllPlayers() {
+    await connectToMongo();
+    const players = await Player.find({}).lean();
+    const playersMap = {};
+    for (const player of players) {
+        ensurePlayerState(player);
+        playersMap[player.id] = player;
+    }
+    return playersMap;
+}
+
+/*
+=================================
 BUFFS
 =================================
 */
@@ -287,5 +304,6 @@ module.exports = {
     updateBuffs,
     connectToMongo,
     ensurePlayerState,
-    getPlayerCollection
+    getPlayerCollection,
+    getAllPlayers      // <-- ADICIONADO
 };
