@@ -30,7 +30,6 @@ function formatSection(title, list, formatter) {
 
     list.forEach((player, index) => {
         const medal = getMedal(index);
-
         text += `${medal} ${index + 1}. ${formatter(player)}\n`;
     });
 
@@ -41,20 +40,17 @@ async function safeSend(ctx, msg, keyboard) {
     try {
         if (ctx.callbackQuery) {
             await ctx.answerCbQuery();
-
             return await ctx.editMessageText(msg, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
         }
-
         return await ctx.reply(msg, {
             parse_mode: 'Markdown',
             ...keyboard
         });
     } catch (error) {
         console.error('Erro ranking UI:', error);
-
         return await ctx.reply(msg, {
             parse_mode: 'Markdown',
             ...keyboard
@@ -71,7 +67,6 @@ HANDLER
 async function handleRanking(ctx) {
     try {
         const playersMap = await getAllPlayers();
-
         const list = Object.values(playersMap || {})
             .filter(player => player && player.id)
             .map(player => ({
@@ -121,10 +116,7 @@ async function handleRanking(ctx) {
         return safeSend(ctx, msg, keyboard);
     } catch (error) {
         console.error('Erro ranking:', error);
-
-        return ctx.reply(
-            '❌ Erro ao carregar ranking.'
-        );
+        return ctx.reply('❌ Erro ao carregar ranking.');
     }
 }
 
