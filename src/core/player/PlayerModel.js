@@ -82,6 +82,9 @@ const playerSchema = new mongoose.Schema({
     // Baú diário
     lastDailyChest: { type: String, default: null },
     
+    // Admin / Moderação
+    banned: { type: Boolean, default: false },
+    
     // Datas
     lastActive: { type: Date, default: Date.now },
     createdAt: { type: Date, default: Date.now },
