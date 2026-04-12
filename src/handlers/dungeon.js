@@ -6,8 +6,9 @@ const { addXp } = require('../core/player/progression');
 const { generateDrop } = require('../data/items');
 const { getMapById, maps } = require('../core/world/maps');
 const { progressBar, formatNumber } = require('../utils/formatters');
+const { enemyPools } = require('../core/world/enemies');
 
-// Cache de combates na masmorra (similar ao combate normal)
+// Cache de combates na masmorra
 const dungeonFights = new Map();
 const FIGHT_TIMEOUT = 10 * 60 * 1000;
 
@@ -32,9 +33,58 @@ function getMapNumber(mapId) {
         clareira_sombria: 1,
         cripta_em_ruinas: 2,
         pantano_corrompido: 3,
-        deserto_incandescente: 4
+        deserto_incandescente: 4,
+        citadela_lunar: 5,
+        abismo_noctra: 6
     };
     return mapMap[mapId] || 1;
+}
+
+// ================================================
+// INIMIGOS TEMÁTICOS DA MASMORRA
+// ================================================
+
+function getDungeonEnemyPool(mapId) {
+    const pool = enemyPools[mapId] || enemyPools.clareira_sombria;
+    return {
+        common: pool.common || [],
+        elite: pool.elite || [],
+        boss: pool.boss || []
+    };
+}
+
+function getRandomDungeonEnemy(mapId, type, playerLevel, roomIndex) {
+    const pool = getDungeonEnemyPool(mapId);
+    const baseLevel = Math.max(1, playerLevel + roomIndex - 1);
+    const bonus = type === 'elite' ? 1 : (type === 'boss' ? 2 : 0);
+    const level = baseLevel + bonus;
+
+    let enemyTemplate;
+    if (type === 'boss') {
+        enemyTemplate = pool.boss.length ? pool.boss[Math.floor(Math.random() * pool.boss.length)] : { name: 'Guardião do Vazio', emoji: '👑' };
+    } else if (type === 'elite') {
+        enemyTemplate = pool.elite.length ? pool.elite[Math.floor(Math.random() * pool.elite.length)] : { name: 'Elite Sombria', emoji: '🔥' };
+    } else {
+        enemyTemplate = pool.common.length ? pool.common[Math.floor(Math.random() * pool.common.length)] : { name: 'Criatura Sombria', emoji: '👹' };
+    }
+
+    // Ajusta atributos baseados no nível
+    const hp = type === 'boss' ? 170 + level * 42 : (type === 'elite' ? 110 + level * 28 : 70 + level * 18);
+    const atk = type === 'boss' ? 14 + level * 4 : (type === 'elite' ? 10 + level * 3 : 7 + level * 2);
+    const def = type === 'boss' ? 10 + level * 3 : (type === 'elite' ? 8 + level * 2 : 5 + level);
+    const crit = type === 'boss' ? 12 : (type === 'elite' ? 10 : 6);
+    const xp = type === 'boss' ? 110 + level * 18 : (type === 'elite' ? 65 + level * 12 : 35 + level * 8);
+    const gold = type === 'boss' ? 110 + level * 20 : (type === 'elite' ? 60 + level * 12 : 25 + level * 8);
+
+    return {
+        id: `${type}_${roomIndex}_${Date.now()}`,
+        name: enemyTemplate.name,
+        emoji: enemyTemplate.emoji || '👹',
+        hp, maxHp: hp, atk, def, crit, level, xp, gold,
+        isElite: type === 'elite', isBoss: type === 'boss',
+        ability: enemyTemplate.ability || null,
+        frozen: false
+    };
 }
 
 // ================================================
@@ -62,11 +112,6 @@ function normalizeDungeonState(player) {
 function getCurrentRoom(player) {
     const d = normalizeDungeonState(player);
     return d.rooms[d.currentRoomIndex] || null;
-}
-
-function hasActiveDungeon(player) {
-    const d = normalizeDungeonState(player);
-    return d.active && !d.completed && !d.aborted;
 }
 
 // ================================================
@@ -103,28 +148,8 @@ function buildDungeonRoomTypes() {
     return types;
 }
 
-function createDungeonEnemy(player, roomIndex, type) {
-    const baseLevel = Math.max(1, (player.level || 1) + roomIndex - 1);
-    const bonus = type === 'elite' ? 1 : (type === 'boss' ? 2 : 0);
-    const level = baseLevel + bonus;
-
-    const hp = type === 'boss' ? 170 + level * 42 : (type === 'elite' ? 110 + level * 28 : 70 + level * 18);
-    const atk = type === 'boss' ? 14 + level * 4 : (type === 'elite' ? 10 + level * 3 : 7 + level * 2);
-    const def = type === 'boss' ? 10 + level * 3 : (type === 'elite' ? 8 + level * 2 : 5 + level);
-    const crit = type === 'boss' ? 12 : (type === 'elite' ? 10 : 6);
-    const xp = type === 'boss' ? 110 + level * 18 : (type === 'elite' ? 65 + level * 12 : 35 + level * 8);
-    const gold = type === 'boss' ? 110 + level * 20 : (type === 'elite' ? 60 + level * 12 : 25 + level * 8);
-
-    const names = { combat: 'Sombras Errantes', elite: 'Elite das Sombras', boss: 'Guardião do Vazio' };
-    return {
-        id: `${type}_${roomIndex}_${Date.now()}`,
-        name: names[type] || 'Criatura Sombria',
-        hp, maxHp: hp, atk, def, crit, level, xp, gold,
-        isElite: type === 'elite', isBoss: type === 'boss', frozen: false
-    };
-}
-
 function createDungeonRoom(player, index, type) {
+    const mapId = player.currentMap || 'clareira_sombria';
     const meta = {
         combat: { emoji: '⚔️', title: 'Sala de Conflito', desc: 'Câmara tomada por sombras.' },
         elite: { emoji: '🔥', title: 'Câmara de Elite', desc: 'Algo forte está à espreita.' },
@@ -139,7 +164,7 @@ function createDungeonRoom(player, index, type) {
         cleared: false, clearedAt: null, enemy: null, reward: null
     };
     if (type === 'combat' || type === 'elite' || type === 'boss') {
-        room.enemy = createDungeonEnemy(player, index, type);
+        room.enemy = getRandomDungeonEnemy(mapId, type, player.level || 1, index);
     }
     return room;
 }
@@ -227,11 +252,8 @@ function resolveCurseRoom(player, room) {
 
 function resolveCombatRoom(player, room) {
     const d = normalizeDungeonState(player);
-    if (!room.enemy) room.enemy = createDungeonEnemy(player, room.index, room.type);
+    if (!room.enemy) room.enemy = getRandomDungeonEnemy(d.mapId, room.type, player.level || 1, room.index);
 
-    // Esta função retorna um objeto de resultado, mas o combate real será gerenciado pelo sistema de batalha normal.
-    // Para simplificar, aqui apenas processamos um único turno (modo antigo) ou delegamos.
-    // Vamos manter o modo simplificado por enquanto, mas com a nova interface visual.
     const playerHit = calculateDamage({ atk: player.atk, crit: player.crit }, { def: room.enemy.def });
     room.enemy.hp = Math.max(0, room.enemy.hp - playerHit.damage);
 
@@ -255,7 +277,7 @@ function resolveCombatRoom(player, room) {
 
     const enemyHit = calculateDamage({ atk: room.enemy.atk, crit: room.enemy.crit }, { def: player.def });
     player.hp = Math.max(0, player.hp - enemyHit.damage);
-    result.message = `⚔️ Você causou ${playerHit.damage} dano. 👹 ${room.enemy.name} causou ${enemyHit.damage}.`;
+    result.message = `⚔️ Você causou ${playerHit.damage} dano. ${room.enemy.emoji || '👹'} ${room.enemy.name} causou ${enemyHit.damage}.`;
 
     if (player.hp <= 0) {
         d.active = false; d.aborted = true;
@@ -331,7 +353,7 @@ function renderDungeonText(player) {
         const e = room.enemy;
         const enemyBar = progressBar(e.hp, e.maxHp, 8, '🟥', '⬛');
         const badge = room.type === 'boss' ? '👑 BOSS' : (room.type === 'elite' ? '🔥 ELITE' : '👹 INIMIGO');
-        text += `${badge}: *${escapeMarkdown(e.name)}* Lv.${e.level}\n`;
+        text += `${badge}: ${e.emoji || '👹'} *${escapeMarkdown(e.name)}* Lv.${e.level}\n`;
         text += `❤️ ${e.hp}/${e.maxHp} ${enemyBar}\n`;
         text += `⚔️ ${e.atk} 🛡️ ${e.def} 💥 ${e.crit}%\n\n`;
     } else {
@@ -373,7 +395,7 @@ function buildDungeonKeyboard(player) {
 
     if (!d.active || d.completed || d.aborted) {
         return Markup.inlineKeyboard([
-            [Markup.button.callback('⚔️ Nova expedição', 'dungeon_start')],
+            [Markup.button.callback('⚔️ Nova expedição (1🗝️)', 'dungeon_start')],
             [Markup.button.callback('🏠 Menu', 'menu')]
         ]);
     }
@@ -392,8 +414,6 @@ function buildDungeonKeyboard(player) {
         ]);
     }
 
-    // Se for sala de combate, delegamos ao combatMenu normal, mas ainda precisamos de um botão para iniciar o combate.
-    // Vamos usar o mesmo layout do menu principal de combate, mas com um callback específico.
     if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
         return Markup.inlineKeyboard([
             [Markup.button.callback('⚔️ Atacar', 'dungeon_attack')],
@@ -450,8 +470,21 @@ async function handleDungeon(ctx) {
 async function handleDungeonStart(ctx) {
     await safeAnswer(ctx, '', false);
     const player = await getPlayer(ctx.from.id);
+
+    // VERIFICA SE TEM CHAVE
+    if (!player.keys || player.keys < 1) {
+        await safeAnswer(ctx, '❌ Você precisa de 1 Chave de Masmorra para entrar.', true);
+        return safeSend(ctx, renderDungeonSummary(player), {
+            parse_mode: 'Markdown',
+            ...buildDungeonKeyboard(player)
+        });
+    }
+
+    // Consome 1 chave
+    player.keys -= 1;
     startDungeonRun(player);
     await savePlayer(ctx.from.id, player);
+
     return safeSend(ctx, renderDungeonText(player), {
         parse_mode: 'Markdown',
         ...buildDungeonKeyboard(player)
@@ -543,9 +576,13 @@ async function handleDungeonFlee(ctx) {
     return safeSend(ctx, renderDungeonSummary(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
 }
 
-// Placeholders para ações de alma/itens (podem ser implementadas depois)
-async function handleDungeonSoulMenu(ctx) { await safeAnswer(ctx, '💀 Em breve: almas na masmorra.', true); }
-async function handleDungeonConsumables(ctx) { await safeAnswer(ctx, '🧪 Em breve: itens na masmorra.', true); }
+// Placeholders funcionais para alma/itens
+async function handleDungeonSoulMenu(ctx) {
+    await safeAnswer(ctx, '💀 Selecione uma alma para usar (em breve).', true);
+}
+async function handleDungeonConsumables(ctx) {
+    await safeAnswer(ctx, '🧪 Selecione um item para usar (em breve).', true);
+}
 
 module.exports = {
     handleDungeon,
