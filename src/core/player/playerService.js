@@ -68,7 +68,8 @@ function recalculateStats(player) {
     const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
 
     let atk = base.atk + ((player.level || 1) - 1) * 3;
-    let def = base.def + ((player.level || 1) - 1) * 2;
+    // BALANCEAMENTO: DEF reduzida de +2 para +1.5 por nível (evita tanques imortais)
+    let def = base.def + Math.floor(((player.level || 1) - 1) * 1.5);
     let maxHp = base.hp + ((player.level || 1) - 1) * 20;
     let crit = base.crit;
 
