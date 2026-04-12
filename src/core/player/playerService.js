@@ -301,6 +301,45 @@ async function getPlayerCollection() {
     return Player.collection;
 }
 
+/*
+=================================
+CRIAR NOVO JOGADOR (COM NOME E CLASSE)
+=================================
+*/
+
+async function createPlayer(id, name, className) {
+    await connectToMongo();
+
+    // Verifica se já existe
+    const existing = await Player.findOne({ id });
+    if (existing) {
+        throw new Error('Jogador já existe.');
+    }
+
+    // Valida classe
+    const allowedClasses = ['guerreiro', 'arqueiro', 'mago'];
+    if (!allowedClasses.includes(className)) {
+        className = 'guerreiro';
+    }
+
+    const player = new Player({
+        id,
+        name,
+        class: className
+    });
+
+    await player.save();
+
+    const playerObj = player.toObject();
+    ensurePlayerState(playerObj);
+    recalculateStats(playerObj); // Garante stats iniciais corretos
+    playerObj.hp = playerObj.maxHp; // HP cheio
+    playerObj.energy = playerObj.maxEnergy;
+
+    await savePlayer(id, playerObj);
+    return playerObj;
+}
+
 module.exports = {
     getPlayer,
     savePlayer,
@@ -309,5 +348,6 @@ module.exports = {
     connectToMongo,
     ensurePlayerState,
     getPlayerCollection,
-    getAllPlayers
+    getAllPlayers,
+    createPlayer
 };
