@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const http = require('http');
 
-const { connectToMongo } = require('./src/core/player/playerService');
+const { connectToMongo, getPlayer } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
 const { mainMenu } = require('./src/menus/mainMenu');
 
@@ -37,6 +37,7 @@ const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
 const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 const { handleReset } = require('./src/commands/reset');
+const adminCommands = require('./src/commands/admin');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -44,6 +45,26 @@ let launched = false;
 
 const sleep = (ms) =>
     new Promise(resolve => setTimeout(resolve, ms));
+
+/*
+=================================
+MIDDLEWARE ANTI-BAN
+=================================
+*/
+
+bot.use(async (ctx, next) => {
+    if (ctx.from) {
+        try {
+            const player = await getPlayer(ctx.from.id);
+            if (player?.banned) {
+                return ctx.reply('⛔ Você está banido do Noctra.');
+            }
+        } catch (err) {
+            // Se o jogador não existir, permite continuar (será criado no /start)
+        }
+    }
+    return next();
+});
 
 /*
 =================================
@@ -139,6 +160,7 @@ COMMANDS
 =================================
 */
 
+// Comandos de jogador
 bindCommand('profile', profile.handleProfile);
 bindCommand('inventory', inventory.handleInventory);
 bindCommand('energy', energy.handleEnergy);
@@ -155,6 +177,19 @@ bindCommand('class', handleClass);
 bindCommand('equip', handleEquip);
 bindCommand('equipsoul', handleEquipSoulCommand);
 bindCommand('reset', handleReset);
+
+// Comandos administrativos
+bindCommand('give', (ctx) => {
+    const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
+    if (subCommand === 'xp') return adminCommands.handleGiveXp(ctx);
+    if (subCommand === 'gold') return adminCommands.handleGiveGold(ctx);
+    if (subCommand === 'nox') return adminCommands.handleGiveNox(ctx);
+    if (subCommand === 'item') return adminCommands.handleGiveItem(ctx);
+    return ctx.reply('📝 Uso: /give [xp|gold|nox|item] @usuario <quantidade/nome>');
+});
+bindCommand('ban', adminCommands.handleBan);
+bindCommand('unban', adminCommands.handleUnban);
+bindCommand('reload', adminCommands.handleReload);
 
 /*
 =================================
