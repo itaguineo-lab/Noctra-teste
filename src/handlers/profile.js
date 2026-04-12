@@ -161,11 +161,12 @@ async function handleProfile(ctx) {
     profileMsg += `🗺️ ${map.emoji} ${map.name}\n\n`;
 
     profileMsg += `🎒 *Equipamentos*\n`;
-    profileMsg += `${formatEquipmentLine('⚔️ Arma', eq.weapon)}\n`;
-    profileMsg += `${formatEquipmentLine('🛡️ Armadura', eq.armor)}\n`;
-    profileMsg += `${formatEquipmentLine('💍 Anel', eq.ring)}\n`;
-    profileMsg += `${formatEquipmentLine('📿 Colar', eq.necklace)}\n`;
-    profileMsg += `${formatEquipmentLine('👢 Botas', eq.boots)}\n\n`;
+profileMsg += `${formatEquipmentLine('⚔️ Arma', eq.weapon)}\n`;
+profileMsg += `${formatEquipmentLine('🛡️ Escudo', eq.shield)}\n`;  // <-- ADICIONADO
+profileMsg += `${formatEquipmentLine('🥋 Armadura', eq.armor)}\n`;
+profileMsg += `${formatEquipmentLine('💍 Anel', eq.ring)}\n`;
+profileMsg += `${formatEquipmentLine('📿 Amuleto', eq.necklace)}\n`;
+profileMsg += `${formatEquipmentLine('👢 Botas', eq.boots)}\n\n`;
 
     profileMsg += `💀 *Almas*\n`;
     profileMsg += `${buildSoulsText(player)}\n\n`;
