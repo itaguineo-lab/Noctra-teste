@@ -1,9 +1,9 @@
 require('dotenv').config();
 
-const { Telegraf } = require('telegraf');
+const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
-const { connectToMongo, getPlayer } = require('./src/core/player/playerService');
+const { connectToMongo, getPlayer, createPlayer } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
 const { mainMenu } = require('./src/menus/mainMenu');
 
@@ -36,7 +36,7 @@ IMPORTS COMMANDS
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
 const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
-const resetCommands = require('./src/commands/reset');   // <-- import corrigido
+const resetCommands = require('./src/commands/reset');
 const adminCommands = require('./src/commands/admin');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -46,11 +46,85 @@ let launched = false;
 const sleep = (ms) =>
     new Promise(resolve => setTimeout(resolve, ms));
 
-/*
-=================================
-MIDDLEWARE ANTI-BAN
-=================================
-*/
+// ================================================
+// CENA DE CRIAÇÃO DE PERSONAGEM
+// ================================================
+
+// Armazena sessões de criação: userId -> { step: 'awaiting_name' | 'awaiting_class', name: string }
+const creationSessions = new Map();
+
+// Validação de nome
+function isValidName(name) {
+    const trimmed = name.trim();
+    return trimmed.length >= 3 && trimmed.length <= 20;
+}
+
+// Middleware para capturar mensagens de texto durante a criação
+bot.use(async (ctx, next) => {
+    if (!ctx.message || !ctx.message.text) return next();
+
+    const userId = String(ctx.from.id);
+    const session = creationSessions.get(userId);
+
+    if (!session) return next();
+
+    // Se estiver aguardando o nome
+    if (session.step === 'awaiting_name') {
+        const rawName = ctx.message.text.trim();
+        if (!isValidName(rawName)) {
+            return ctx.reply('❌ O nome deve ter entre *3 e 20 caracteres*. Tente novamente:', { parse_mode: 'Markdown' });
+        }
+
+        // Salva o nome e avança para escolha da classe
+        session.name = rawName;
+        session.step = 'awaiting_class';
+        creationSessions.set(userId, session);
+
+        const classKeyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('⚔️ Guerreiro', 'choose_class_guerreiro')],
+            [Markup.button.callback('🏹 Arqueiro', 'choose_class_arqueiro')],
+            [Markup.button.callback('🔮 Mago', 'choose_class_mago')]
+        ]);
+
+        return ctx.reply(`Ótimo, *${rawName}*! Agora escolha sua classe:`, {
+            parse_mode: 'Markdown',
+            ...classKeyboard
+        });
+    }
+
+    // Se estiver aguardando classe, mas enviou texto em vez de clicar no botão
+    if (session.step === 'awaiting_class') {
+        return ctx.reply('Por favor, escolha uma classe usando os botões acima.');
+    }
+
+    return next();
+});
+
+// Finaliza a criação e exibe o menu principal
+async function finalizeCharacterCreation(ctx, userId, name, className) {
+    try {
+        // Cria o jogador no banco
+        const player = await createPlayer(userId, name, className);
+        creationSessions.delete(userId);
+
+        await ctx.reply(`✨ Personagem criado com sucesso! Bem-vindo a Noctra, *${name}*!`);
+        
+        // Exibe o menu principal
+        const menuText = await getMainMenuText(userId, name);
+        await ctx.reply(menuText, {
+            parse_mode: 'Markdown',
+            ...mainMenu()
+        });
+    } catch (error) {
+        console.error('Erro ao criar personagem:', error);
+        await ctx.reply('❌ Ocorreu um erro ao criar seu personagem. Tente novamente com /start.');
+        creationSessions.delete(userId);
+    }
+}
+
+// ================================================
+// MIDDLEWARE ANTI-BAN
+// ================================================
 
 bot.use(async (ctx, next) => {
     if (ctx.from) {
@@ -60,7 +134,7 @@ bot.use(async (ctx, next) => {
                 return ctx.reply('⛔ Você está banido do Noctra.');
             }
         } catch (err) {
-            // Se o jogador não existir, permite continuar (será criado no /start)
+            // Se não existir, permite continuar (será tratado no /start)
         }
     }
     return next();
@@ -91,7 +165,6 @@ function bindCommand(name, handler) {
         console.log(`⚠️ Handler ausente para /${name}`);
         return;
     }
-
     bot.command(name, handler);
 }
 
@@ -100,7 +173,6 @@ function bindAction(pattern, handler) {
         console.log(`⚠️ Handler ausente para action: ${pattern}`);
         return;
     }
-
     bot.action(pattern, handler);
 }
 
@@ -115,21 +187,12 @@ async function startBot() {
     launched = true;
 
     try {
-        await bot.telegram.deleteWebhook({
-            drop_pending_updates: true
-        });
-
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
         console.log('✅ Webhook removido');
-
         await sleep(3000);
-
         await connectToMongo();
         console.log('✅ MongoDB conectado');
-
-        await bot.launch({
-            dropPendingUpdates: true
-        });
-
+        await bot.launch({ dropPendingUpdates: true });
         console.log('🌑 NOCTRA ONLINE');
     } catch (err) {
         console.error('❌ Erro ao iniciar bot:', err);
@@ -138,20 +201,58 @@ async function startBot() {
 
 /*
 =================================
-START
+START (COM CENA DE CRIAÇÃO)
 =================================
 */
 
 bot.start(async (ctx) => {
-    const menuText = await getMainMenuText(
-        ctx.from.id,
-        ctx.from.first_name
-    );
+    const userId = String(ctx.from.id);
+    const firstName = ctx.from.first_name;
 
-    await ctx.reply(menuText, {
-        parse_mode: 'Markdown',
-        ...mainMenu()
-    });
+    // Verifica se já existe
+    let player;
+    try {
+        player = await getPlayer(userId);
+    } catch (e) {
+        player = null;
+    }
+
+    if (player) {
+        // Jogador existente: menu normal
+        const menuText = await getMainMenuText(userId, firstName);
+        return ctx.reply(menuText, {
+            parse_mode: 'Markdown',
+            ...mainMenu()
+        });
+    }
+
+    // Jogador novo: inicia cena de criação
+    creationSessions.set(userId, { step: 'awaiting_name' });
+    await ctx.reply(
+        `🌑 *Bem-vindo a Noctra!*\n\n` +
+        `Você é um Caçador da Noite, destinado a enfrentar a escuridão.\n\n` +
+        `Para começar, diga-me: *qual é o seu nome?*`,
+        { parse_mode: 'Markdown' }
+    );
+});
+
+// Ação para escolha de classe (via botões inline)
+bindAction(/choose_class_(.+)/, async (ctx) => {
+    const userId = String(ctx.from.id);
+    const session = creationSessions.get(userId);
+
+    if (!session || session.step !== 'awaiting_class') {
+        return ctx.answerCbQuery('Sessão expirada. Use /start novamente.');
+    }
+
+    const className = ctx.match[1];
+    const allowed = ['guerreiro', 'arqueiro', 'mago'];
+    if (!allowed.includes(className)) {
+        return ctx.answerCbQuery('Classe inválida.');
+    }
+
+    await ctx.answerCbQuery();
+    await finalizeCharacterCreation(ctx, userId, session.name, className);
 });
 
 /*
@@ -176,7 +277,7 @@ bindCommand('rename', handleRename);
 bindCommand('class', handleClass);
 bindCommand('equip', handleEquip);
 bindCommand('equipsoul', handleEquipSoulCommand);
-bindCommand('reset', resetCommands.handleReset);   // <-- handler atualizado
+bindCommand('reset', resetCommands.handleReset);
 
 // Comandos administrativos
 bindCommand('give', (ctx) => {
@@ -202,10 +303,7 @@ bindAction('rename_help', async (ctx) => {
 });
 
 bindAction('class_help', async (ctx) => {
-    await ctx.answerCbQuery(
-        'Use /class guerreiro | arqueiro | mago',
-        { show_alert: true }
-    );
+    await ctx.answerCbQuery('Use /class guerreiro | arqueiro | mago', { show_alert: true });
 });
 
 /*
@@ -338,12 +436,7 @@ MENU
 
 bindAction('menu', async (ctx) => {
     await ctx.answerCbQuery();
-
-    const menuText = await getMainMenuText(
-        ctx.from.id,
-        ctx.from.first_name
-    );
-
+    const menuText = await getMainMenuText(ctx.from.id, ctx.from.first_name);
     await ctx.editMessageText(menuText, {
         parse_mode: 'Markdown',
         ...mainMenu()
@@ -359,10 +452,7 @@ HTTP SERVER
 const PORT = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
-    res.writeHead(200, {
-        'Content-Type': 'text/plain'
-    });
-
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Noctra online');
 }).listen(PORT, () => {
     console.log(`🌐 Porta ${PORT}`);
