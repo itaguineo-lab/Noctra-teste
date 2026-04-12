@@ -36,7 +36,7 @@ IMPORTS COMMANDS
 const { handleRename } = require('./src/commands/rename');
 const { handleClass } = require('./src/commands/class');
 const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
-const { handleReset } = require('./src/commands/reset');
+const resetCommands = require('./src/commands/reset');   // <-- import corrigido
 const adminCommands = require('./src/commands/admin');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -176,7 +176,7 @@ bindCommand('rename', handleRename);
 bindCommand('class', handleClass);
 bindCommand('equip', handleEquip);
 bindCommand('equipsoul', handleEquipSoulCommand);
-bindCommand('reset', handleReset);
+bindCommand('reset', resetCommands.handleReset);   // <-- handler atualizado
 
 // Comandos administrativos
 bindCommand('give', (ctx) => {
@@ -312,6 +312,15 @@ bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
 bindAction('dungeon_flee', dungeon.handleDungeonFlee);
 bindAction('dungeon_soul_menu', dungeon.handleDungeonSoulMenu);
 bindAction('dungeon_consumables', dungeon.handleDungeonConsumables);
+
+/*
+=================================
+RESET CONFIRMATION ACTIONS
+=================================
+*/
+
+bindAction('reset_confirm', resetCommands.handleResetConfirm);
+bindAction('reset_cancel', resetCommands.handleResetCancel);
 
 /*
 =================================
