@@ -37,7 +37,6 @@ function updateBuffs(player) {
 
     const now = Date.now();
     player.buffs = player.buffs.filter(buff => {
-        // Buffs sem expiresAt duram para sempre (ex.: equipamentos)
         if (!buff.expiresAt) return true;
         return buff.expiresAt > now;
     });
@@ -58,7 +57,6 @@ function recalculateStats(player) {
         arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
     };
 
-    // Atualiza buffs primeiro (remove expirados)
     updateBuffs(player);
 
     const previousMaxHp = Number(player.maxHp) || 0;
@@ -68,7 +66,6 @@ function recalculateStats(player) {
     const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
 
     let atk = base.atk + ((player.level || 1) - 1) * 3;
-    // BALANCEAMENTO: DEF reduzida de +2 para +1.5 por nível (evita tanques imortais)
     let def = base.def + Math.floor(((player.level || 1) - 1) * 1.5);
     let maxHp = base.hp + ((player.level || 1) - 1) * 20;
     let crit = base.crit;
@@ -93,7 +90,6 @@ function recalculateStats(player) {
         });
     }
 
-    // Aplica buffs ativos
     if (Array.isArray(player.buffs)) {
         player.buffs.forEach(buff => {
             atk += buff.atk || 0;
@@ -189,7 +185,6 @@ function ensurePlayerState(player) {
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
 
-    // Garante que os campos de combate existam
     player.hp ??= 120;
     player.maxHp ??= 120;
     player.atk ??= 12;
@@ -221,22 +216,21 @@ async function connectToMongo() {
 
 /*
 =================================
-GET PLAYER
+GET PLAYER (NÃO CRIA AUTOMATICAMENTE)
 =================================
 */
 
-async function getPlayer(id, name = 'Viajante') {
+async function getPlayer(id) {
     await connectToMongo();
 
-    let player = await Player.findOne({ id });
+    const player = await Player.findOne({ id });
     if (!player) {
-        player = new Player({ id, name });
-        await player.save();
+        return null;   // <-- NÃO CRIA MAIS AUTOMATICAMENTE
     }
 
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
-    updateBuffs(playerObj); // Remove buffs expirados ao carregar
+    updateBuffs(playerObj);
 
     return playerObj;
 }
@@ -310,13 +304,11 @@ CRIAR NOVO JOGADOR (COM NOME E CLASSE)
 async function createPlayer(id, name, className) {
     await connectToMongo();
 
-    // Verifica se já existe
     const existing = await Player.findOne({ id });
     if (existing) {
         throw new Error('Jogador já existe.');
     }
 
-    // Valida classe
     const allowedClasses = ['guerreiro', 'arqueiro', 'mago'];
     if (!allowedClasses.includes(className)) {
         className = 'guerreiro';
@@ -332,8 +324,8 @@ async function createPlayer(id, name, className) {
 
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
-    recalculateStats(playerObj); // Garante stats iniciais corretos
-    playerObj.hp = playerObj.maxHp; // HP cheio
+    recalculateStats(playerObj);
+    playerObj.hp = playerObj.maxHp;
     playerObj.energy = playerObj.maxEnergy;
 
     await savePlayer(id, playerObj);
