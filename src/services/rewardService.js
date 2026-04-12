@@ -13,37 +13,40 @@ function getMapNumber(mapName) {
         clareira_sombria: 1,
         cripta_em_ruinas: 2,
         pantano_corrompido: 3,
-        deserto_incandescente: 4
+        deserto_incandescente: 4,
+        citadela_lunar: 5,
+        abismo_noctra: 6
     };
     return maps[mapName] || 1;
 }
 
 /*
 =================================
-TAXAS DE DROP (AJUSTADAS PARA MAIOR RARIDADE)
+TAXAS DE DROP (REDUZIDAS PARA MAIOR RARIDADE)
 =================================
 */
 
 function getEquipmentChance(enemy) {
-    if (enemy.isBoss) return 1.0;       // 100% (boss sempre dropa equip)
-    if (enemy.isMiniBoss) return 0.6;    // 60%
-    if (enemy.isElite) return 0.4;       // 40%
-    return 0.25;                         // 25% comum
+    // BALANCEAMENTO: Equipamentos mais raros
+    if (enemy.isBoss) return 0.80;       // 80% (antes 100%)
+    if (enemy.isMiniBoss) return 0.40;    // 40% (antes 60%)
+    if (enemy.isElite) return 0.25;       // 25% (antes 40%)
+    return 0.15;                          // 15% comum (antes 25%)
 }
 
 function getSoulChance(enemy) {
-    // Taxas reduzidas para maior raridade
-    if (enemy.isBoss) return 0.015;      // 1.5% (antes 3%)
+    // Taxas mantidas (já são bem raras)
+    if (enemy.isBoss) return 0.015;      // 1.5%
     if (enemy.isMiniBoss) return 0.008;  // 0.8%
     if (enemy.isElite) return 0.004;     // 0.4%
     return 0.0005;                       // 0.05% comum
 }
 
 function getKeyChance(enemy) {
-    // Chaves mais raras
-    if (enemy.isBoss) return 0.10;       // 10% (antes 25%)
-    if (enemy.isMiniBoss) return 0.06;   // 6%
-    return 0.03;                         // 3% elite/comum
+    // BALANCEAMENTO: Chaves de masmorra extremamente raras
+    if (enemy.isBoss) return 0.04;       // 4% (antes 10%)
+    if (enemy.isMiniBoss) return 0.02;   // 2% (antes 6%)
+    return 0.01;                         // 1% elite/comum (antes 3%)
 }
 
 function getVictoryTitle(enemy) {
