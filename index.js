@@ -130,11 +130,11 @@ bot.use(async (ctx, next) => {
     if (ctx.from) {
         try {
             const player = await getPlayer(ctx.from.id);
-            if (player?.banned) {
+            if (player && player.banned) {
                 return ctx.reply('⛔ Você está banido do Noctra.');
             }
         } catch (err) {
-            // Se não existir, permite continuar (será tratado no /start)
+            // Se o jogador não existir, permite continuar (será criado no /start)
         }
     }
     return next();
@@ -209,7 +209,6 @@ bot.start(async (ctx) => {
     const userId = String(ctx.from.id);
     const firstName = ctx.from.first_name;
 
-    // Verifica se já existe
     let player;
     try {
         player = await getPlayer(userId);
