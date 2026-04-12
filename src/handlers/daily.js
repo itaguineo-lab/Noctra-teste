@@ -47,7 +47,7 @@ async function safeEdit(ctx, text, options = {}) {
 
 /*
 =================================
-REWARD ENGINE
+REWARD ENGINE (SEM CHAVES)
 =================================
 */
 
@@ -69,26 +69,20 @@ function giveDailyChest(player) {
     player.lastDailyChest = today;
     const streak = player.dailyStreak;
 
-    // reward scaling
+    // BALANCEAMENTO: Chaves removidas do baú diário
     let gold = 100 + player.level * 20;
-    let keys = 1;
     let glorias = 0;
 
-    // streak milestones
+    // streak milestones (apenas ouro e glórias)
     if (streak >= 3) gold += 50;
-    if (streak >= 5) keys += 1;
     if (streak >= 7) glorias = 1;
-    if (streak >= 14) {
-        keys += 1;
-        gold += 100;
-    }
+    if (streak >= 14) gold += 100;
 
     // apply
     player.gold = (player.gold || 0) + gold;
-    player.keys = (player.keys || 0) + keys;
     player.glorias = (player.glorias || 0) + glorias;
 
-    return { gold, keys, glorias, streak };
+    return { gold, glorias, streak };
 }
 
 /*
@@ -116,8 +110,7 @@ async function handleDaily(ctx) {
         msg += `╠════════════════════════╣\n`;
         msg += `║ 📦 Recompensas\n`;
         msg += `║\n`;
-        msg += `║ 💰 +${reward.gold} ouro\n`;
-        msg += `║ 🗝️ +${reward.keys} chave(s)`;
+        msg += `║ 💰 +${reward.gold} ouro`;
 
         if (reward.glorias > 0) {
             msg += `\n║ 🏅 +${reward.glorias} glória`;
