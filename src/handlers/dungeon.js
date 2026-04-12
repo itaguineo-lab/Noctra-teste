@@ -106,12 +106,19 @@ function normalizeDungeonState(player) {
     d.rooms ??= [];
     d.rewards ??= { xp: 0, gold: 0, keys: 0, glorias: 0, items: 0 };
     d.summary ??= null;
+    d.logs ??= []; // NOVO: logs de combate
     return d;
 }
 
 function getCurrentRoom(player) {
     const d = normalizeDungeonState(player);
     return d.rooms[d.currentRoomIndex] || null;
+}
+
+function addDungeonLog(player, message) {
+    const d = normalizeDungeonState(player);
+    d.logs.push(message);
+    if (d.logs.length > 4) d.logs.shift(); // Mantém apenas os últimos 4 logs
 }
 
 // ================================================
@@ -180,6 +187,7 @@ function startDungeonRun(player) {
     d.rooms = buildDungeonRoomTypes().map((type, i) => createDungeonRoom(player, i + 1, type));
     d.rewards = { xp: 0, gold: 0, keys: 0, glorias: 0, items: 0 };
     d.summary = null;
+    d.logs = [`🌑 Você adentrou a masmorra...`];
     return d;
 }
 
@@ -217,6 +225,7 @@ function resolveTreasureRoom(player, room) {
     }
     room.cleared = true;
     notes.forEach(n => addSummaryNote(player, n));
+    addDungeonLog(player, `🎁 Tesouro: +${gold} ouro`);
     return { success: true, message: `🎁 Você encontrou ${gold} ouro!`, notes };
 }
 
@@ -228,6 +237,7 @@ function resolveHealRoom(player, room) {
     player.energy = Math.min(player.maxEnergy, player.energy + 1);
     room.cleared = true;
     addSummaryNote(player, `❤️ +${player.hp - beforeHp} HP, ⚡ +1 energia`);
+    addDungeonLog(player, `❤️ Fonte restaurou ${player.hp - beforeHp} HP e 1 energia`);
     return { success: true, message: `❤️ Fonte restaurou ${player.hp - beforeHp} HP e 1 energia.` };
 }
 
@@ -247,6 +257,7 @@ function resolveCurseRoom(player, room) {
     }
     room.cleared = true;
     notes.forEach(n => addSummaryNote(player, n));
+    addDungeonLog(player, `💀 Maldição: -${hpLoss} HP, +${gold} ouro`);
     return { success: true, message: `💀 Maldição cobrou ${hpLoss} HP, mas ganhou ${gold} ouro.`, notes };
 }
 
@@ -256,6 +267,10 @@ function resolveCombatRoom(player, room) {
 
     const playerHit = calculateDamage({ atk: player.atk, crit: player.crit }, { def: room.enemy.def });
     room.enemy.hp = Math.max(0, room.enemy.hp - playerHit.damage);
+    
+    let playerLog = `⚔️ Você causou ${playerHit.damage} de dano`;
+    if (playerHit.isCrit) playerLog += ` (💥 CRÍTICO!)`;
+    addDungeonLog(player, playerLog);
 
     const result = { success: true, defeated: false, message: '', notes: [] };
     if (room.enemy.hp <= 0) {
@@ -272,11 +287,17 @@ function resolveCombatRoom(player, room) {
         result.rewards = rewards;
         if (room.type === 'boss') finalizeDungeonRun(player, 'complete');
         result.notes.forEach(n => addSummaryNote(player, n));
+        addDungeonLog(player, `🏆 ${room.enemy.name} foi derrotado!`);
         return result;
     }
 
     const enemyHit = calculateDamage({ atk: room.enemy.atk, crit: room.enemy.crit }, { def: player.def });
     player.hp = Math.max(0, player.hp - enemyHit.damage);
+    
+    let enemyLog = `👹 ${room.enemy.name} causou ${enemyHit.damage} de dano`;
+    if (enemyHit.isCrit) enemyLog += ` (💀 CRÍTICO!)`;
+    addDungeonLog(player, enemyLog);
+    
     result.message = `⚔️ Você causou ${playerHit.damage} dano. ${room.enemy.emoji || '👹'} ${room.enemy.name} causou ${enemyHit.damage}.`;
 
     if (player.hp <= 0) {
@@ -288,6 +309,7 @@ function resolveCombatRoom(player, room) {
         player.energy = Math.max(0, player.energy - 1);
         result.finished = true;
         result.playerDefeated = true;
+        addDungeonLog(player, `💀 Você foi derrotado...`);
     }
     return result;
 }
@@ -355,7 +377,14 @@ function renderDungeonText(player) {
         const badge = room.type === 'boss' ? '👑 BOSS' : (room.type === 'elite' ? '🔥 ELITE' : '👹 INIMIGO');
         text += `${badge}: ${e.emoji || '👹'} *${escapeMarkdown(e.name)}* Lv.${e.level}\n`;
         text += `❤️ ${e.hp}/${e.maxHp} ${enemyBar}\n`;
-        text += `⚔️ ${e.atk} 🛡️ ${e.def} 💥 ${e.crit}%\n\n`;
+        text += `⚔️ ${e.atk} 🛡️ ${e.def} 💥 ${e.crit}%\n`;
+        
+        // Exibe os logs de combate
+        if (d.logs && d.logs.length > 0) {
+            text += `\n📜 *Últimas ações*\n`;
+            text += d.logs.slice(-3).join('\n');
+        }
+        text += `\n`;
     } else {
         text += `Ação: ${room.type === 'treasure' ? 'Abrir tesouro' : (room.type === 'heal' ? 'Canalizar fonte' : 'Quebrar maldição')}\n\n`;
     }
@@ -551,6 +580,8 @@ async function handleDungeonNextRoom(ctx) {
     }
 
     d.currentRoomIndex++;
+    // Limpa logs ao mudar de sala
+    d.logs = [`🌑 Sala ${d.currentRoomIndex + 1}...`];
     await savePlayer(ctx.from.id, player);
     return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
 }
