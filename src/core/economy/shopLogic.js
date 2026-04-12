@@ -136,41 +136,39 @@ function processPurchase(player, item) {
 }
 
 // ================================================
-// NOVA FUNÇÃO DE VENDA
+// VENDA DE ITENS (MULTIPLICADORES AJUSTADOS)
 // ================================================
 
 /**
  * Calcula o valor de venda de um item (50% do valor base)
+ * BALANCEAMENTO: Multiplicadores de raridade alinhados com os de atributos
  */
 function calculateSellPrice(item) {
     if (!item) return 0;
 
-    // Poder base do item
     const atk = Number(item.atk) || 0;
     const def = Number(item.def) || 0;
     const hp = Number(item.hp) || 0;
     const crit = Number(item.crit) || 0;
     const power = atk * 2 + def * 2 + Math.floor(hp / 2) + crit * 3;
 
-    // Multiplicador de raridade
+    // Multiplicadores ajustados para refletir a raridade real
     const rarityMult = {
-        Comum: 1, Incomum: 1.5, Raro: 2.5, Épico: 4, Lendário: 7, Mítico: 12
-    }[item.rarity] || 1;
+        Comum: 1.0,
+        Incomum: 1.5,
+        Raro: 2.2,
+        Épico: 3.0,
+        Lendário: 4.5,
+        Mítico: 7.0
+    }[item.rarity] || 1.0;
 
-    // Multiplicador de nível
     const level = Number(item.level) || 1;
     const levelMult = 1 + (level - 1) * 0.2;
 
-    // Preço base = poder * raridade * nível * 2
     const basePrice = Math.floor(power * rarityMult * levelMult * 2);
-
-    // Venda por 50% do valor base
     return Math.max(1, Math.floor(basePrice * 0.5));
 }
 
-/**
- * Vende um item do inventário do jogador
- */
 function sellItem(player, itemIndex) {
     ensurePlayerEconomy(player);
 
@@ -181,7 +179,6 @@ function sellItem(player, itemIndex) {
     const item = player.inventory[itemIndex];
     const sellPrice = calculateSellPrice(item);
 
-    // Remove o item do inventário
     player.inventory.splice(itemIndex, 1);
     player.gold = (player.gold || 0) + sellPrice;
 
