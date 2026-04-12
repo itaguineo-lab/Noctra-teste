@@ -61,12 +61,13 @@ const ITEM_POOL = {
     }
 };
 
+// BALANCEAMENTO: Multiplicadores de raridade reduzidos para evitar picos de poder
 const RARITIES = [
-    { name: 'Comum', multiplier: 1 },
-    { name: 'Incomum', multiplier: 1.2 },
-    { name: 'Raro', multiplier: 1.5 },
-    { name: 'Épico', multiplier: 1.9 },
-    { name: 'Lendário', multiplier: 2.4 }
+    { name: 'Comum',    multiplier: 1.0 },
+    { name: 'Incomum',  multiplier: 1.2 },
+    { name: 'Raro',     multiplier: 1.4 }, // era 1.5
+    { name: 'Épico',    multiplier: 1.7 }, // era 1.9
+    { name: 'Lendário', multiplier: 2.0 }  // era 2.4
 ];
 
 const CATEGORY_WEIGHTS = {
