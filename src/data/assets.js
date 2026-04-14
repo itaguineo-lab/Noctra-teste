@@ -15,13 +15,13 @@ module.exports = {
     enemies: {
         // Clareira Sombria
         shadow_wolf: 'AgACAgEAAyEFAATr8H9gAAMCad2Ivmf-DI7QEV1uhVG6NO54_2gAAvULaxtRfvBGsYNuAYbkcDABAAMCAAN5AAM7BA',
-        giant_rat: '',
-        forest_spider: '',
-        dark_bat: '',
-        alpha_shadow_wolf: '',
-        webspinner: '',
-        dark_stag: '',
-        forest_guardian: '',
+        giant_rat: 'AgACAgEAAyEFAATr8H9gAAMDad2IviHeS6YUzQxy6YGb_DCTXGQAAvYLaxtRfvBGYS4gZrLtoQ0BAAMCAAN5AAM7BA',
+        forest_spider: 'AgACAgEAAyEFAATr8H9gAAMEad2Ivru_vULEJVVNacUG_mD-oJwAAvcLaxtRfvBGcoHxvSanHukBAAMCAAN5AAM7BA',
+        dark_bat: 'AgACAgEAAyEFAATr8H9gAAMGad2IvvDsdQjKSNl8eFuqg0ZTv3MAAvkLaxtRfvBGVedBnvVvBZ4BAAMCAAN5AAM7BA',
+        alpha_shadow_wolf: 'AgACAgEAAyEFAATr8H9gAAMHad2IvukGZgLxyeUuL0oj9Z1RVW0AAvoLaxtRfvBGC6b0pw-E7qkBAAMCAAN5AAM7BA',
+        webspinner: 'AgACAgEAAyEFAATr8H9gAAMIad2IvtVMuHI780MnoYB3ZYsSYqQAAvsLaxtRfvBG88utuV-FPaoBAAMCAAN5AAM7BA',
+        dark_stag: 'AgACAgEAAyEFAATr8H9gAAMJad2Ivh8WSZg1JYSP8stq1FD-0E8AAvwLaxtRfvBGjdVuhDLPEg0BAAMCAAN5AAM7BA',
+        forest_guardian: 'AgACAgEAAyEFAATr8H9gAAMFad2Ivs6OiU71aduNeUIDCG6AbKYAAvgLaxtRfvBG45gznCG5hdYBAAMCAAN5AAM7BA',
 
         // Cripta em Ruínas
         skeleton_warrior: '',
