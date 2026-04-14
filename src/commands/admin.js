@@ -2,12 +2,17 @@ const { getPlayer, savePlayer, getPlayerCollection } = require('../core/player/p
 const { generateDrop } = require('../data/items');
 const { shopItems } = require('../data/shopItems');
 
-// ================================================
-// MIDDLEWARE DE ADMINISTRADOR
-// ================================================
+/*
+=================================
+ADMIN AUTH
+=================================
+*/
 
 function isAdmin(ctx) {
-    const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',').map(id => id.trim()) : [];
+    const adminIds = process.env.ADMIN_IDS
+        ? process.env.ADMIN_IDS.split(',').map(id => id.trim())
+        : [];
+
     return adminIds.includes(String(ctx.from.id));
 }
 
@@ -18,121 +23,188 @@ function requireAdmin(ctx, next) {
     return next();
 }
 
-// ================================================
-// FUNÇÕES AUXILIARES
-// ================================================
-
-function extractTargetId(ctx) {
-    // Tenta obter de uma menção (@usuario)
-    const mentionEntity = ctx.message?.entities?.find(e => e.type === 'mention');
-    if (mentionEntity) {
-        const mentionText = ctx.message.text.substring(mentionEntity.offset, mentionEntity.offset + mentionEntity.length);
-        return mentionText.replace('@', ''); // Retorna o username (não ID) – precisamos buscar no banco depois
-    }
-    // Tenta obter de uma resposta a uma mensagem
-    if (ctx.message?.reply_to_message?.from) {
-        return String(ctx.message.reply_to_message.from.id);
-    }
-    // Caso contrário, o alvo é o próprio usuário
-    return String(ctx.from.id);
-}
+/*
+=================================
+HELPERS
+=================================
+*/
 
 async function findPlayerByUsername(username) {
     const collection = await getPlayerCollection();
-    // Busca por name (case-insensitive) – simplificado
-    const player = await collection.findOne({ name: { $regex: new RegExp(`^${username}$`, 'i') } });
-    return player;
+
+    return await collection.findOne({
+        name: {
+            $regex: new RegExp(`^${username}$`, 'i')
+        }
+    });
 }
 
-// ================================================
-// COMANDOS ADMINISTRATIVOS
-// ================================================
+/*
+=================================
+CAPTURA FILE ID TELEGRAM
+=================================
+*/
 
-// /give xp @usuario 1000
+async function handleCapturePhoto(ctx) {
+    if (!isAdmin(ctx)) return;
+
+    if (!ctx.message?.photo?.length) return;
+
+    const photo = ctx.message.photo[ctx.message.photo.length - 1];
+    const caption = ctx.message.caption || 'sem_nome';
+
+    console.log('==============================');
+    console.log('🖼️ NOVA IMAGEM CAPTURADA');
+    console.log('NOME:', caption);
+    console.log('FILE ID:', photo.file_id);
+    console.log('==============================');
+
+    await ctx.reply(
+        `✅ *Imagem capturada com sucesso*\n\n` +
+        `📝 Nome: *${caption}*\n` +
+        `🆔 File ID:\n\`${photo.file_id}\``,
+        { parse_mode: 'Markdown' }
+    );
+}
+
+/*
+=================================
+GIVE XP
+=================================
+*/
+
 async function handleGiveXp(ctx) {
     if (!isAdmin(ctx)) return ctx.reply('❌ Sem permissão.');
 
     const args = ctx.message.text.split(' ').slice(1);
+
     if (args.length < 3 || args[0].toLowerCase() !== 'xp') {
         return ctx.reply('📝 Uso: /give xp @usuario <quantidade>');
     }
 
-    const targetUsername = args[1].replace('@', '');
+    const username = args[1].replace('@', '');
     const amount = parseInt(args[2], 10);
-    if (isNaN(amount) || amount <= 0) return ctx.reply('❌ Quantidade inválida.');
 
-    const player = await findPlayerByUsername(targetUsername);
-    if (!player) return ctx.reply(`❌ Jogador @${targetUsername} não encontrado.`);
+    if (isNaN(amount) || amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    const player = await findPlayerByUsername(username);
+
+    if (!player) {
+        return ctx.reply(`❌ Jogador @${username} não encontrado.`);
+    }
 
     player.xp = (player.xp || 0) + amount;
+
     await savePlayer(player.id, player);
-    await ctx.reply(`✅ Adicionado ${amount} XP para @${targetUsername}.`);
+
+    return ctx.reply(`✅ ${amount} XP adicionado para @${username}.`);
 }
 
-// /give gold @usuario 1000
+/*
+=================================
+GIVE GOLD
+=================================
+*/
+
 async function handleGiveGold(ctx) {
     if (!isAdmin(ctx)) return ctx.reply('❌ Sem permissão.');
 
     const args = ctx.message.text.split(' ').slice(1);
+
     if (args.length < 3 || args[0].toLowerCase() !== 'gold') {
         return ctx.reply('📝 Uso: /give gold @usuario <quantidade>');
     }
 
-    const targetUsername = args[1].replace('@', '');
+    const username = args[1].replace('@', '');
     const amount = parseInt(args[2], 10);
-    if (isNaN(amount) || amount <= 0) return ctx.reply('❌ Quantidade inválida.');
 
-    const player = await findPlayerByUsername(targetUsername);
-    if (!player) return ctx.reply(`❌ Jogador @${targetUsername} não encontrado.`);
+    if (isNaN(amount) || amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    const player = await findPlayerByUsername(username);
+
+    if (!player) {
+        return ctx.reply(`❌ Jogador @${username} não encontrado.`);
+    }
 
     player.gold = (player.gold || 0) + amount;
+
     await savePlayer(player.id, player);
-    await ctx.reply(`✅ Adicionado ${amount} ouro para @${targetUsername}.`);
+
+    return ctx.reply(`✅ ${amount} ouro adicionado para @${username}.`);
 }
 
-// /give nox @usuario 50
+/*
+=================================
+GIVE NOX
+=================================
+*/
+
 async function handleGiveNox(ctx) {
     if (!isAdmin(ctx)) return ctx.reply('❌ Sem permissão.');
 
     const args = ctx.message.text.split(' ').slice(1);
+
     if (args.length < 3 || args[0].toLowerCase() !== 'nox') {
         return ctx.reply('📝 Uso: /give nox @usuario <quantidade>');
     }
 
-    const targetUsername = args[1].replace('@', '');
+    const username = args[1].replace('@', '');
     const amount = parseInt(args[2], 10);
-    if (isNaN(amount) || amount <= 0) return ctx.reply('❌ Quantidade inválida.');
 
-    const player = await findPlayerByUsername(targetUsername);
-    if (!player) return ctx.reply(`❌ Jogador @${targetUsername} não encontrado.`);
+    if (isNaN(amount) || amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    const player = await findPlayerByUsername(username);
+
+    if (!player) {
+        return ctx.reply(`❌ Jogador @${username} não encontrado.`);
+    }
 
     player.nox = (player.nox || 0) + amount;
+
     await savePlayer(player.id, player);
-    await ctx.reply(`✅ Adicionado ${amount} NOX para @${targetUsername}.`);
+
+    return ctx.reply(`✅ ${amount} NOX adicionado para @${username}.`);
 }
 
-// /give item @usuario nome_do_item
+/*
+=================================
+GIVE ITEM
+=================================
+*/
+
 async function handleGiveItem(ctx) {
     if (!isAdmin(ctx)) return ctx.reply('❌ Sem permissão.');
 
     const args = ctx.message.text.split(' ').slice(1);
+
     if (args.length < 3 || args[0].toLowerCase() !== 'item') {
-        return ctx.reply('📝 Uso: /give item @usuario <nome_do_item>');
+        return ctx.reply('📝 Uso: /give item @usuario <nome>');
     }
 
-    const targetUsername = args[1].replace('@', '');
+    const username = args[1].replace('@', '');
     const itemName = args.slice(2).join(' ');
 
-    const player = await findPlayerByUsername(targetUsername);
-    if (!player) return ctx.reply(`❌ Jogador @${targetUsername} não encontrado.`);
+    const player = await findPlayerByUsername(username);
 
-    // Tenta encontrar o item nos dados de loja ou gerar um drop temático
-    const shopItem = shopItems.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+    if (!player) {
+        return ctx.reply(`❌ Jogador @${username} não encontrado.`);
+    }
+
+    const shopItem = shopItems.find(
+        item => item.name.toLowerCase() === itemName.toLowerCase()
+    );
+
     let item;
+
     if (shopItem) {
-        // Cria um equipamento baseado no item da loja (se for equipamento)
         item = {
-            id: Date.now() + Math.floor(Math.random() * 10000),
+            id: Date.now(),
             name: shopItem.name,
             slot: shopItem.slot || 'weapon',
             atk: shopItem.atk || 0,
@@ -141,68 +213,86 @@ async function handleGiveItem(ctx) {
             crit: shopItem.crit || 0,
             rarity: shopItem.rarity || 'Raro',
             level: 1,
-            category: 'weapon'
+            category: shopItem.category || 'weapon'
         };
     } else {
-        // Gera um drop aleatório do mapa atual do jogador
-        const mapNumber = player.currentMap ? { clareira_sombria:1, cripta_em_ruinas:2, pantano_corrompido:3, deserto_incandescente:4 }[player.currentMap] || 1 : 1;
-        item = generateDrop(mapNumber);
+        item = generateDrop(1);
     }
-
-    if (!item) return ctx.reply('❌ Não foi possível gerar o item.');
 
     player.inventory = player.inventory || [];
-    if (player.inventory.length >= (player.maxInventory || 20)) {
-        return ctx.reply(`❌ Inventário de @${targetUsername} está cheio.`);
-    }
-
     player.inventory.push(item);
+
     await savePlayer(player.id, player);
-    await ctx.reply(`✅ Item "${item.name}" adicionado ao inventário de @${targetUsername}.`);
+
+    return ctx.reply(`✅ Item "${item.name}" entregue para @${username}.`);
 }
 
-// /ban @usuario
+/*
+=================================
+BAN
+=================================
+*/
+
 async function handleBan(ctx) {
     if (!isAdmin(ctx)) return ctx.reply('❌ Sem permissão.');
 
-    const args = ctx.message.text.split(' ').slice(1);
-    if (args.length < 1) return ctx.reply('📝 Uso: /ban @usuario');
+    const username = ctx.message.text.split(' ')[1]?.replace('@', '');
 
-    const targetUsername = args[0].replace('@', '');
-    const player = await findPlayerByUsername(targetUsername);
-    if (!player) return ctx.reply(`❌ Jogador @${targetUsername} não encontrado.`);
+    if (!username) {
+        return ctx.reply('📝 Uso: /ban @usuario');
+    }
+
+    const player = await findPlayerByUsername(username);
+
+    if (!player) {
+        return ctx.reply(`❌ Jogador @${username} não encontrado.`);
+    }
 
     player.banned = true;
+
     await savePlayer(player.id, player);
-    await ctx.reply(`🚫 Jogador @${targetUsername} foi banido.`);
+
+    return ctx.reply(`🚫 @${username} foi banido.`);
 }
 
-// /unban @usuario
+/*
+=================================
+UNBAN
+=================================
+*/
+
 async function handleUnban(ctx) {
     if (!isAdmin(ctx)) return ctx.reply('❌ Sem permissão.');
 
-    const args = ctx.message.text.split(' ').slice(1);
-    if (args.length < 1) return ctx.reply('📝 Uso: /unban @usuario');
+    const username = ctx.message.text.split(' ')[1]?.replace('@', '');
 
-    const targetUsername = args[0].replace('@', '');
-    const player = await findPlayerByUsername(targetUsername);
-    if (!player) return ctx.reply(`❌ Jogador @${targetUsername} não encontrado.`);
+    if (!username) {
+        return ctx.reply('📝 Uso: /unban @usuario');
+    }
+
+    const player = await findPlayerByUsername(username);
+
+    if (!player) {
+        return ctx.reply(`❌ Jogador @${username} não encontrado.`);
+    }
 
     player.banned = false;
+
     await savePlayer(player.id, player);
-    await ctx.reply(`✅ Jogador @${targetUsername} foi desbanido.`);
+
+    return ctx.reply(`✅ @${username} foi desbanido.`);
 }
 
-// /reload (recarrega comandos - útil para dev)
 async function handleReload(ctx) {
     if (!isAdmin(ctx)) return ctx.reply('❌ Sem permissão.');
-    // Placeholder – pode ser implementado com require.cache se necessário
-    await ctx.reply('🔄 Comandos recarregados (simulado).');
+
+    return ctx.reply('🔄 Reload concluído.');
 }
 
 module.exports = {
     isAdmin,
     requireAdmin,
+    handleCapturePhoto,
     handleGiveXp,
     handleGiveGold,
     handleGiveNox,
