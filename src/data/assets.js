@@ -85,9 +85,9 @@ module.exports = {
     // PERFIL (RETRATOS POR CLASSE)
     // ================================================
     profile: {
-        guerreiro: '',
-        arqueiro: '',
-        mago: ''
+        guerreiro: 'AgACAgEAAxkBAAID6WneW2_2UY09n4YsyiVtKquVCPQSAAKcDGsbKZDwRs_ek2d5-HbrAQADAgADeQADOwQ',
+        arqueiro: 'AgACAgEAAxkBAAID62neW6HA-gW7wpngcSmyyvjs7Y3IAAKdDGsbKZDwRsk3YzKJsVwGAQADAgADeQADOwQ',
+        mago: 'AgACAgEAAxkBAAID7WneW7y2UNHO0iBu5lG4AAGAxQSEpgACngxrGymQ8EYoKyMUj4v7iQEAAwIAA3kAAzsE'
     },
 
     // ================================================
