@@ -23,12 +23,6 @@ const assets = require('../data/assets');
 const activeFights = new Map();
 const FIGHT_TIMEOUT = 10 * 60 * 1000;
 
-/*
-=================================
-HELPERS
-=================================
-*/
-
 function getEnemyBadge(enemy) {
     if (enemy?.isBoss) return '👑 BOSS';
     if (enemy?.isMiniBoss) return '💀 MINI BOSS';
@@ -49,69 +43,9 @@ function getFight(ctx) {
     return fight;
 }
 
-async function safeEditMessage(ctx, text, options = {}) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery().catch(() => {});
-            return await ctx.editMessageText(text, options);
-        }
-
-        return await ctx.reply(text, options);
-    } catch (error) {
-        console.error('Erro ao editar combate:', error);
-
-        try {
-            return await ctx.reply(text, options);
-        } catch {
-            return null;
-        }
-    }
-}
-
-async function sendEnemyImage(ctx, enemy) {
-    const enemyImage = assets?.enemies?.[enemy.id];
-
-    if (!enemyImage) return null;
-
-    try {
-        return await ctx.replyWithPhoto(enemyImage, {
-            caption:
-                `${getEnemyBadge(enemy)}\n` +
-                `${enemy.emoji || '👹'} *${enemy.name}*\n\n` +
-                `❤️ HP: ${enemy.hp}\n` +
-                `⚔️ ATK: ${enemy.atk}\n` +
-                `🛡️ DEF: ${enemy.def}`,
-            parse_mode: 'Markdown'
-        });
-    } catch (error) {
-        console.error('Erro ao enviar imagem do inimigo:', error);
-        return null;
-    }
-}
-
 function renderFightText(fight, player) {
-    const playerBar = progressBar(
-        fight.player.hp,
-        fight.player.maxHp,
-        8,
-        '🟩',
-        '⬛'
-    );
-
-    const enemyBar = progressBar(
-        fight.enemy.hp,
-        fight.enemy.maxHp,
-        8,
-        '🟥',
-        '⬛'
-    );
-
-    let enemyStatusIcons = '';
-
-    if (fight.enemy.poisonTurns > 0) enemyStatusIcons += '🧪';
-    if (fight.enemy.bleedTurns > 0) enemyStatusIcons += '🩸';
-    if (fight.enemy.shield > 0) enemyStatusIcons += '🛡️';
-    if (fight.enemy.frozen) enemyStatusIcons += '❄️';
+    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟩', '⬛');
+    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬛');
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `⚔️ *BATALHA*\n`;
@@ -123,19 +57,8 @@ function renderFightText(fight, player) {
     text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def}\n\n`;
 
     text += `${getEnemyBadge(fight.enemy)}\n`;
-    text += `${fight.enemy.emoji || '👹'} *${fight.enemy.name}*`;
-
-    if (enemyStatusIcons) {
-        text += ` ${enemyStatusIcons}`;
-    }
-
-    text += `\n`;
+    text += `${fight.enemy.emoji || '👹'} *${fight.enemy.name}*\n`;
     text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp} ${enemyBar}\n`;
-
-    if (fight.enemy.shield > 0) {
-        text += `🛡️ Escudo: ${fight.enemy.shield}\n`;
-    }
-
     text += `⚔️ ${fight.enemy.atk} • 🛡️ ${fight.enemy.def}\n\n`;
 
     text += `📜 *Últimas ações*\n`;
@@ -144,73 +67,50 @@ function renderFightText(fight, player) {
     return text;
 }
 
-async function finishFight(ctx, fight) {
-    const player = await getPlayer(ctx.from.id);
+async function sendOrUpdateFightPanel(ctx, fight, player) {
+    const text = renderFightText(fight, player);
 
-    updateEnergy(player);
-
-    if (fight.status === 'win') {
-        const rewards = processVictory(player, fight.enemy);
-
-        player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
-        await savePlayer(ctx.from.id, player);
-
-        activeFights.delete(ctx.from.id);
-
-        let msg =
-            `🏆 *VITÓRIA* 🏆\n\n` +
-            `✨ XP: +${rewards.xp}\n` +
-            `💰 Ouro: +${rewards.gold}\n` +
-            `❤️ HP: ${player.hp}/${player.maxHp}\n`;
-
-        if (rewards.loot?.length) {
-            msg += `\n🎁 Loot:\n${rewards.loot.join('\n')}`;
+    if (fight.panelMessageId) {
+        try {
+            return await ctx.telegram.editMessageText(
+                ctx.chat.id,
+                fight.panelMessageId,
+                null,
+                text,
+                {
+                    parse_mode: 'Markdown',
+                    ...combatMenu()
+                }
+            );
+        } catch (error) {
+            console.log('Painel não pôde ser editado, recriando...');
         }
-
-        return safeEditMessage(ctx, msg, {
-            parse_mode: 'Markdown',
-            ...postCombatMenu()
-        });
     }
 
-    if (fight.status === 'loss') {
-        player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
-        await savePlayer(ctx.from.id, player);
+    const sent = await ctx.reply(text, {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
 
-        activeFights.delete(ctx.from.id);
-
-        return safeEditMessage(
-            ctx,
-            `💀 *DERROTA*\n\n❤️ HP restaurado: ${player.hp}/${player.maxHp}`,
-            {
-                parse_mode: 'Markdown',
-                ...postCombatMenu()
-            }
-        );
-    }
-
-    if (fight.status === 'fled') {
-        player.hp = Math.max(1, fight.player.hp);
-        await savePlayer(ctx.from.id, player);
-
-        activeFights.delete(ctx.from.id);
-
-        return safeEditMessage(
-            ctx,
-            `🏃 *Você fugiu da batalha*`,
-            {
-                parse_mode: 'Markdown',
-                ...postCombatMenu()
-            }
-        );
-    }
+    fight.panelMessageId = sent.message_id;
+    return sent;
 }
 
-/*
-=================================
-START FIGHT
-=================================
-*/
+async function sendEnemyImageOnce(ctx, fight) {
+    if (fight.enemyImageSent) return;
+
+    const enemyImage = assets?.enemies?.[fight.enemy.id];
+
+    if (!enemyImage) return;
+
+    await ctx.replyWithPhoto(enemyImage, {
+        caption:
+            `${fight.enemy.emoji || '👹'} *${fight.enemy.name}*`,
+        parse_mode: 'Markdown'
+    });
+
+    fight.enemyImageSent = true;
+}
 
 async function handleHunt(ctx) {
     await ctx.answerCbQuery().catch(() => {});
@@ -231,45 +131,24 @@ async function handleHunt(ctx) {
 
     player = await getPlayer(ctx.from.id);
 
-    const enemy = getRandomEnemy(
-        player.currentMap,
-        player.level
-    );
-
-    if (!enemy) {
-        return ctx.reply('❌ Nenhum inimigo neste mapa.');
-    }
+    const enemy = getRandomEnemy(player.currentMap, player.level);
 
     const fight = createFight(player, enemy);
 
     fight.createdAt = Date.now();
+    fight.enemyImageSent = false;
+    fight.panelMessageId = null;
 
     activeFights.set(ctx.from.id, fight);
 
-    await sendEnemyImage(ctx, enemy);
-
-    return safeEditMessage(
-        ctx,
-        renderFightText(fight, player),
-        {
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        }
-    );
+    await sendEnemyImageOnce(ctx, fight);
+    return sendOrUpdateFightPanel(ctx, fight, player);
 }
-
-/*
-=================================
-ATTACK
-=================================
-*/
 
 async function handleAttack(ctx) {
     const fight = getFight(ctx);
 
-    if (!fight) {
-        return handleHunt(ctx);
-    }
+    if (!fight) return handleHunt(ctx);
 
     processPlayerTurn(fight);
 
@@ -283,27 +162,15 @@ async function handleAttack(ctx) {
         return finishFight(ctx, fight);
     }
 
-    return safeEditMessage(ctx, renderFightText(fight, player), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
+    return sendOrUpdateFightPanel(ctx, fight, player);
 }
-
-/*
-=================================
-DEFEND
-=================================
-*/
 
 async function handleDefend(ctx) {
     const fight = getFight(ctx);
 
-    if (!fight) {
-        return handleHunt(ctx);
-    }
+    if (!fight) return handleHunt(ctx);
 
     applyDefend(fight);
-
     processEnemyTurn(fight);
 
     const player = await getPlayer(ctx.from.id);
@@ -312,24 +179,13 @@ async function handleDefend(ctx) {
         return finishFight(ctx, fight);
     }
 
-    return safeEditMessage(ctx, renderFightText(fight, player), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
+    return sendOrUpdateFightPanel(ctx, fight, player);
 }
-
-/*
-=================================
-FLEE
-=================================
-*/
 
 async function handleFlee(ctx) {
     const fight = getFight(ctx);
 
-    if (!fight) {
-        return handleHunt(ctx);
-    }
+    if (!fight) return handleHunt(ctx);
 
     const success = attemptFlee(fight);
 
@@ -339,22 +195,19 @@ async function handleFlee(ctx) {
     }
 
     const player = await getPlayer(ctx.from.id);
+    return sendOrUpdateFightPanel(ctx, fight, player);
+}
 
-    return safeEditMessage(ctx, renderFightText(fight, player), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
+async function finishFight(ctx, fight) {
+    activeFights.delete(ctx.from.id);
+
+    return ctx.reply('🏁 Combate encerrado.', {
+        ...postCombatMenu()
     });
 }
 
-/*
-=================================
-SOUL
-=================================
-*/
-
 async function handleSoulMenu(ctx) {
-    return safeEditMessage(ctx, '💀 Escolha uma alma:', {
-        parse_mode: 'Markdown',
+    return ctx.reply('💀 Escolha uma alma:', {
         ...soulChoiceMenu()
     });
 }
@@ -362,17 +215,11 @@ async function handleSoulMenu(ctx) {
 async function handleSoul(ctx) {
     const fight = getFight(ctx);
 
-    if (!fight) {
-        return handleHunt(ctx);
-    }
+    if (!fight) return handleHunt(ctx);
 
     const soulIndex = parseInt(ctx.match[1], 10);
 
-    const result = useSoul(fight, soulIndex);
-
-    if (!result) {
-        return ctx.answerCbQuery('❌ Alma inválida');
-    }
+    useSoul(fight, soulIndex);
 
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
@@ -380,10 +227,7 @@ async function handleSoul(ctx) {
 
     const player = await getPlayer(ctx.from.id);
 
-    return safeEditMessage(ctx, renderFightText(fight, player), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
+    return sendOrUpdateFightPanel(ctx, fight, player);
 }
 
 async function handleConsumables(ctx) {
@@ -393,16 +237,10 @@ async function handleConsumables(ctx) {
 async function handleCombatBack(ctx) {
     const fight = getFight(ctx);
 
-    if (!fight) {
-        return handleHunt(ctx);
-    }
+    if (!fight) return handleHunt(ctx);
 
     const player = await getPlayer(ctx.from.id);
-
-    return safeEditMessage(ctx, renderFightText(fight, player), {
-        parse_mode: 'Markdown',
-        ...combatMenu()
-    });
+    return sendOrUpdateFightPanel(ctx, fight, player);
 }
 
 module.exports = {
