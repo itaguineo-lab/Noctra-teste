@@ -76,7 +76,6 @@ function renderFightText(fight, player) {
     const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟩', '⬛');
     const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬛');
 
-    // Ícones de status do inimigo
     let enemyStatusIcons = '';
     if (fight.enemy.poisonTurns > 0) enemyStatusIcons += '🧪';
     if (fight.enemy.bleedTurns > 0) enemyStatusIcons += '🩸';
@@ -109,7 +108,6 @@ function renderFightText(fight, player) {
     return text;
 }
 
-// Envia a imagem do inimigo em segundo plano (não bloqueia)
 function sendEnemyImageInBackground(ctx, fight) {
     if (fight.enemyImageSent) return;
     fight.enemyImageSent = true;
@@ -129,13 +127,9 @@ function sendEnemyImageInBackground(ctx, fight) {
 
 async function cleanupFightMessages(ctx, fight) {
     const chatId = ctx.chat.id;
-    const idsToDelete = [];
-    if (fight.panelMessageId) idsToDelete.push(fight.panelMessageId);
-    if (fight.enemyImageMessageId) idsToDelete.push(fight.enemyImageMessageId);
-
-    for (const msgId of idsToDelete) {
+    if (fight.enemyImageMessageId) {
         try {
-            await ctx.telegram.deleteMessage(chatId, msgId);
+            await ctx.telegram.deleteMessage(chatId, fight.enemyImageMessageId);
         } catch (e) {
             // ignora
         }
@@ -146,16 +140,16 @@ async function finishFight(ctx, fight) {
     const player = await getPlayer(ctx.from.id);
     updateEnergy(player);
 
+    // Limpa a imagem do inimigo
+    await cleanupFightMessages(ctx, fight);
+    activeFights.delete(ctx.from.id);
+
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
 
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
         await savePlayer(ctx.from.id, player);
-
-        // Limpa as mensagens da batalha (em paralelo, não espera)
-        cleanupFightMessages(ctx, fight).catch(() => {});
-        activeFights.delete(ctx.from.id);
 
         const { getXpToNextLevel } = require('../core/player/progression');
         const xpNeeded = getXpToNextLevel(player.level);
@@ -192,7 +186,7 @@ async function finishFight(ctx, fight) {
         msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `🌑 A escuridão recua... por enquanto.`;
 
-        return ctx.reply(msg, {
+        return safeEditMessage(ctx, msg, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -201,9 +195,6 @@ async function finishFight(ctx, fight) {
     if (fight.status === 'loss') {
         player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
         await savePlayer(ctx.from.id, player);
-
-        cleanupFightMessages(ctx, fight).catch(() => {});
-        activeFights.delete(ctx.from.id);
 
         const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `          💀 *DERROTA* 💀\n` +
@@ -214,7 +205,7 @@ async function finishFight(ctx, fight) {
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `🌑 Reúna forças e tente novamente.`;
 
-        return ctx.reply(msg, {
+        return safeEditMessage(ctx, msg, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -224,9 +215,6 @@ async function finishFight(ctx, fight) {
         player.hp = Math.max(1, fight.player.hp);
         await savePlayer(ctx.from.id, player);
 
-        cleanupFightMessages(ctx, fight).catch(() => {});
-        activeFights.delete(ctx.from.id);
-
         const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `      🏃 *FUGA BEM-SUCEDIDA*\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -235,7 +223,7 @@ async function finishFight(ctx, fight) {
                     `⚡ Energia restante: ${player.energy}/${player.maxEnergy}\n\n` +
                     `🌑 A escuridão te poupou... por enquanto.`;
 
-        return ctx.reply(msg, {
+        return safeEditMessage(ctx, msg, {
             parse_mode: 'Markdown',
             ...postCombatMenu()
         });
@@ -243,11 +231,10 @@ async function finishFight(ctx, fight) {
 }
 
 // ================================================
-// HANDLER PRINCIPAL: /hunt (OTIMIZADO PARA VELOCIDADE)
+// HANDLER PRINCIPAL: /hunt (SINGLE PAGE APP)
 // ================================================
 
 async function handleHunt(ctx) {
-    // Responde imediatamente ao callback para evitar "loading" no botão
     await ctx.answerCbQuery().catch(() => {});
 
     let player = await getPlayer(ctx.from.id);
@@ -261,7 +248,6 @@ async function handleHunt(ctx) {
         return ctx.reply('⚡ Sem energia.');
     }
 
-    // Salva a energia consumida e recarrega o jogador (essencial)
     await savePlayer(ctx.from.id, player);
     player = await getPlayer(ctx.from.id);
 
@@ -277,15 +263,14 @@ async function handleHunt(ctx) {
 
     activeFights.set(ctx.from.id, fight);
 
-    // 🚀 ENVIA O PAINEL DE COMBATE IMEDIATAMENTE (ação bloqueante essencial)
+    // 🚀 EDITA A MENSAGEM DO MENU PARA O PAINEL DE COMBATE
     const text = renderFightText(fight, player);
-    const sent = await ctx.reply(text, {
+    await safeEditMessage(ctx, text, {
         parse_mode: 'Markdown',
         ...combatMenu()
     });
-    fight.panelMessageId = sent.message_id;
 
-    // 🖼️ ENVIA A IMAGEM EM SEGUNDO PLANO (não bloqueia a interação)
+    // 🖼️ ENVIA A IMAGEM EM SEGUNDO PLANO
     sendEnemyImageInBackground(ctx, fight);
 }
 
