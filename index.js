@@ -431,17 +431,38 @@ bindAction('rest_energy', energy.handleRestEnergy);
 
 /*
 =================================
-MENU
+MENU (CORRIGIDO PARA FOTOS)
 =================================
 */
 
 bindAction('menu', async (ctx) => {
     await ctx.answerCbQuery();
+
     const menuText = await getMainMenuText(ctx.from.id, ctx.from.first_name);
-    await ctx.editMessageText(menuText, {
-        parse_mode: 'Markdown',
-        ...mainMenu()
-    });
+    const chatId = ctx.chat.id;
+    const messageId = ctx.callbackQuery.message.message_id;
+
+    try {
+        // Tenta editar como legenda (se a mensagem atual for uma foto)
+        await ctx.telegram.editMessageCaption(chatId, messageId, null, menuText, {
+            parse_mode: 'Markdown',
+            ...mainMenu()
+        });
+    } catch (e) {
+        try {
+            // Se falhar, tenta editar como texto normal
+            await ctx.editMessageText(menuText, {
+                parse_mode: 'Markdown',
+                ...mainMenu()
+            });
+        } catch (secondError) {
+            // Se ambas falharem, envia uma nova mensagem
+            await ctx.reply(menuText, {
+                parse_mode: 'Markdown',
+                ...mainMenu()
+            });
+        }
+    }
 });
 
 /*
