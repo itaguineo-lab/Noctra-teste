@@ -12,6 +12,8 @@ const {
     getNextLockedMap
 } = require('../core/world/maps');
 
+const assets = require('../data/assets');
+
 /*
 =================================
 MENU
@@ -22,40 +24,22 @@ function buildTravelMenu(player) {
     const rows = [];
 
     maps.forEach(map => {
-        const unlocked = canPlayerEnter(
-            player,
-            map.id
-        );
-
-        const isCurrent =
-            player.currentMap === map.id;
+        const unlocked = canPlayerEnter(player, map.id);
+        const isCurrent = player.currentMap === map.id;
 
         let label = `${map.emoji} ${map.name} (Lv ${map.levelReq})`;
-
-        if (isCurrent) {
-            label = `📍 ${label}`;
-        }
-
-        if (!unlocked) {
-            label = `🔒 ${label}`;
-        }
+        if (isCurrent) label = `📍 ${label}`;
+        if (!unlocked) label = `🔒 ${label}`;
 
         rows.push([
             Markup.button.callback(
                 label,
-                unlocked
-                    ? `travel_to_${map.id}`
-                    : 'travel_locked'
+                unlocked ? `travel_to_${map.id}` : 'travel_locked'
             )
         ]);
     });
 
-    rows.push([
-        Markup.button.callback(
-            '🏠 Menu',
-            'menu'
-        )
-    ]);
+    rows.push([Markup.button.callback('🏠 Menu', 'menu')]);
 
     return Markup.inlineKeyboard(rows);
 }
@@ -66,15 +50,11 @@ TEXT
 =================================
 */
 
-function renderTravelText(player) {
-    const currentMap =
-        getMapById(player.currentMap) || maps[0];
-
-    const nextMap =
-        getNextLockedMap(player.level);
+function renderTravelCaption(player) {
+    const currentMap = getMapById(player.currentMap) || maps[0];
+    const nextMap = getNextLockedMap(player.level);
 
     let text = `🗺️ *VIAGEM*\n\n`;
-
     text += `📍 Atual: *${currentMap.emoji} ${currentMap.name}*\n`;
     text += `🎖️ Nível: ${player.level}\n`;
     text += `📖 ${currentMap.description}\n\n`;
@@ -85,36 +65,53 @@ function renderTravelText(player) {
     }
 
     text += `Escolha seu destino:`;
-
     return text;
 }
 
 /*
 =================================
-SAFE EDIT
+SAFE SEND/EDIT
 =================================
 */
 
-async function safeEdit(ctx, text, keyboard) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery();
+async function sendOrUpdateTravelMessage(ctx, player) {
+    const caption = renderTravelCaption(player);
+    const keyboard = buildTravelMenu(player);
+    const currentMap = player.currentMap || maps[0].id;
+    const mapImage = assets?.maps?.[currentMap];
 
-            return await ctx.editMessageText(
-                text,
-                {
+    const chatId = ctx.chat.id;
+    const messageId = ctx.callbackQuery?.message?.message_id;
+
+    try {
+        if (messageId) {
+            if (mapImage) {
+                await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
+                    parse_mode: 'Markdown',
+                    reply_markup: keyboard.reply_markup
+                });
+                return;
+            } else {
+                await ctx.editMessageText(caption, {
                     parse_mode: 'Markdown',
                     ...keyboard
-                }
-            );
+                });
+                return;
+            }
         }
+    } catch (e) {
+        // Edição falhou, envia nova
+    }
 
-        return await ctx.reply(text, {
+    // Envia nova mensagem
+    if (mapImage) {
+        await ctx.replyWithPhoto(mapImage, {
+            caption,
             parse_mode: 'Markdown',
             ...keyboard
         });
-    } catch {
-        return await ctx.reply(text, {
+    } else {
+        await ctx.reply(caption, {
             parse_mode: 'Markdown',
             ...keyboard
         });
@@ -128,26 +125,14 @@ TRAVEL MENU
 */
 
 async function handleTravel(ctx) {
-    const player =
-        await getPlayer(
-            ctx.from.id,
-            ctx.from.first_name
-        );
+    let player = await getPlayer(ctx.from.id, ctx.from.first_name);
 
     if (!player.currentMap) {
         player.currentMap = maps[0].id;
-
-        await savePlayer(
-            ctx.from.id,
-            player
-        );
+        await savePlayer(ctx.from.id, player);
     }
 
-    return safeEdit(
-        ctx,
-        renderTravelText(player),
-        buildTravelMenu(player)
-    );
+    return sendOrUpdateTravelMessage(ctx, player);
 }
 
 /*
@@ -160,73 +145,30 @@ async function handleTravelTo(ctx) {
     try {
         await ctx.answerCbQuery();
 
-        const mapId =
-            ctx.match?.[1];
-
+        const mapId = ctx.match?.[1];
         if (!mapId) {
-            return ctx.answerCbQuery(
-                '❌ Destino inválido',
-                {
-                    show_alert: true
-                }
-            );
+            return ctx.answerCbQuery('❌ Destino inválido', { show_alert: true });
         }
 
-        const map =
-            getMapById(mapId);
-
+        const map = getMapById(mapId);
         if (!map) {
-            return ctx.answerCbQuery(
-                '❌ Mapa não encontrado',
-                {
-                    show_alert: true
-                }
-            );
+            return ctx.answerCbQuery('❌ Mapa não encontrado', { show_alert: true });
         }
 
-        const player =
-            await getPlayer(
-                ctx.from.id,
-                ctx.from.first_name
-            );
+        const player = await getPlayer(ctx.from.id, ctx.from.first_name);
 
-        if (
-            !canPlayerEnter(
-                player,
-                map.id
-            )
-        ) {
-            return ctx.answerCbQuery(
-                `🔒 Requer nível ${map.levelReq}`,
-                {
-                    show_alert: true
-                }
-            );
+        if (!canPlayerEnter(player, map.id)) {
+            return ctx.answerCbQuery(`🔒 Requer nível ${map.levelReq}`, { show_alert: true });
         }
 
         player.currentMap = map.id;
+        await savePlayer(ctx.from.id, player);
 
-        await savePlayer(
-            ctx.from.id,
-            player
-        );
-
-        const text = `🗺️ *VIAGEM CONCLUÍDA*\n\n✨ Você chegou em *${map.emoji} ${map.name}*\n\n${map.description}\n\n🏰 Masmorra: *${map.dungeonName}*`;
-
-        return safeEdit(
-            ctx,
-            text,
-            buildTravelMenu(player)
-        );
+        // Atualiza a mensagem para mostrar o novo mapa
+        return sendOrUpdateTravelMessage(ctx, player);
     } catch (error) {
-        console.error(
-            'Erro ao viajar:',
-            error
-        );
-
-        return ctx.reply(
-            '❌ Erro ao viajar.'
-        );
+        console.error('Erro ao viajar:', error);
+        return ctx.reply('❌ Erro ao viajar.');
     }
 }
 
@@ -237,12 +179,7 @@ LOCKED
 */
 
 async function handleTravelLocked(ctx) {
-    return ctx.answerCbQuery(
-        '🔒 Este mapa ainda está bloqueado.',
-        {
-            show_alert: true
-        }
-    );
+    return ctx.answerCbQuery('🔒 Este mapa ainda está bloqueado.', { show_alert: true });
 }
 
 /*
@@ -254,17 +191,12 @@ DUNGEON
 async function handleDungeon(ctx) {
     await ctx.answerCbQuery();
 
-    const player =
-        await getPlayer(ctx.from.id);
-
-    const currentMap =
-        getMapById(player.currentMap);
+    const player = await getPlayer(ctx.from.id);
+    const currentMap = getMapById(player.currentMap);
 
     return ctx.reply(
         `🏰 *${currentMap?.dungeonName || 'Masmorra'}*\n\nPrepare-se para o desafio.`,
-        {
-            parse_mode: 'Markdown'
-        }
+        { parse_mode: 'Markdown' }
     );
 }
 
