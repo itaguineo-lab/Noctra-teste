@@ -40,9 +40,9 @@ function getFight(ctx) {
     return fight;
 }
 
-function renderFightCaption(fight, player) {
+function renderFightCaption(fight, player, extraLine = '') {
     const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟩', '⬛');
-    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬛');
+    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '�05', '⬛');
 
     let enemyStatusIcons = '';
     if (fight.enemy.poisonTurns > 0) enemyStatusIcons += '🧪';
@@ -73,25 +73,28 @@ function renderFightCaption(fight, player) {
     text += `📜 *Últimas ações*\n`;
     text += fight.logs.slice(-4).join('\n');
 
+    if (extraLine) {
+        text += `\n\n${extraLine}`;
+    }
+
     return text;
 }
 
-async function updateBattleMessage(ctx, fight, player, keyboard = null) {
-    const caption = renderFightCaption(fight, player);
+async function updateBattleMessage(ctx, fight, player, keyboard = null, extraLine = '') {
+    const caption = renderFightCaption(fight, player, extraLine);
     const messageId = fight.battleMessageId;
     const chatId = ctx.chat.id;
 
     if (!messageId) return;
 
     try {
-        // Atualiza a legenda
         await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
             parse_mode: 'Markdown',
             reply_markup: keyboard ? keyboard.reply_markup : undefined
         });
     } catch (error) {
         console.error('Erro ao editar legenda da batalha:', error);
-        // Se falhar, tenta recriar a mensagem
+        // Fallback: recria a mensagem (apenas se realmente necessário)
         const enemyImage = assets?.enemies?.[fight.enemy.id];
         if (enemyImage) {
             const sent = await ctx.replyWithPhoto(enemyImage, {
@@ -112,11 +115,15 @@ async function updateBattleMessage(ctx, fight, player, keyboard = null) {
 
 async function finishFight(ctx, fight) {
     const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        activeFights.delete(ctx.from.id);
+        return ctx.reply('❌ Sessão expirada.');
+    }
+
     updateEnergy(player);
     const chatId = ctx.chat.id;
     const messageId = fight.battleMessageId;
 
-    // Remove a luta do cache
     activeFights.delete(ctx.from.id);
 
     if (fight.status === 'win') {
@@ -161,7 +168,6 @@ async function finishFight(ctx, fight) {
         msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `🌑 A escuridão recua... por enquanto.`;
 
-        // Edita a mensagem da batalha para o resultado (sem foto, pois a foto fica)
         if (messageId) {
             try {
                 await ctx.telegram.editMessageCaption(chatId, messageId, null, msg, {
@@ -234,13 +240,15 @@ async function finishFight(ctx, fight) {
 }
 
 // ================================================
-// HANDLER PRINCIPAL: /hunt (MENSAGEM ÚNICA COM FOTO)
+// HANDLER PRINCIPAL: /hunt
 // ================================================
 
 async function handleHunt(ctx) {
     await ctx.answerCbQuery().catch(() => {});
 
     let player = await getPlayer(ctx.from.id);
+    if (!player) return ctx.reply('❌ Perfil não encontrado. Use /start.');
+
     updateEnergy(player);
 
     if (player.energy < 1) {
@@ -268,12 +276,13 @@ async function handleHunt(ctx) {
     const caption = renderFightCaption(fight, player);
     const enemyImage = assets?.enemies?.[enemy.id];
 
-    // Exclui a mensagem do menu (opcional, para limpar)
-    try {
-        await ctx.deleteMessage();
-    } catch (e) {
-        // ignora
-    }
+    // Deleta APENAS se o callback veio do menu principal (identificado por um parâmetro opcional)
+    // Como não temos isso ainda, comentamos a deleção para evitar comportamento indesejado.
+    // try {
+    //     await ctx.deleteMessage();
+    // } catch (e) {
+    //     // ignora
+    // }
 
     let sent;
     if (enemyImage) {
@@ -297,6 +306,7 @@ async function handleHunt(ctx) {
 // ================================================
 
 async function handleAttack(ctx) {
+    await ctx.answerCbQuery('⚔️ Atacando...').catch(() => {});
     const fight = getFight(ctx);
     if (!fight) {
         await ctx.answerCbQuery('Luta expirada. Inicie uma nova.').catch(() => {});
@@ -314,6 +324,7 @@ async function handleAttack(ctx) {
     }
 
     const player = await getPlayer(ctx.from.id);
+    if (!player) return ctx.reply('❌ Sessão expirada.');
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
@@ -327,6 +338,7 @@ async function handleAttack(ctx) {
 // ================================================
 
 async function handleDefend(ctx) {
+    await ctx.answerCbQuery('🛡️ Defendendo...').catch(() => {});
     const fight = getFight(ctx);
     if (!fight) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
@@ -341,6 +353,7 @@ async function handleDefend(ctx) {
     processEnemyTurn(fight);
 
     const player = await getPlayer(ctx.from.id);
+    if (!player) return ctx.reply('❌ Sessão expirada.');
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
@@ -354,6 +367,7 @@ async function handleDefend(ctx) {
 // ================================================
 
 async function handleFlee(ctx) {
+    await ctx.answerCbQuery('🏃 Tentando fugir...').catch(() => {});
     const fight = getFight(ctx);
     if (!fight) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
@@ -370,6 +384,7 @@ async function handleFlee(ctx) {
         return finishFight(ctx, fight);
     } else {
         const player = await getPlayer(ctx.from.id);
+        if (!player) return ctx.reply('❌ Sessão expirada.');
 
         if (fight.status !== 'ongoing') {
             return finishFight(ctx, fight);
@@ -384,6 +399,7 @@ async function handleFlee(ctx) {
 // ================================================
 
 async function handleSoulMenu(ctx) {
+    await ctx.answerCbQuery().catch(() => {});
     const fight = getFight(ctx);
     if (!fight) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
@@ -395,15 +411,17 @@ async function handleSoulMenu(ctx) {
     }
 
     const player = await getPlayer(ctx.from.id);
-    const souls = player.soulsEquipped || [null, null];
+    if (!player) return ctx.reply('❌ Sessão expirada.');
 
+    const souls = player.soulsEquipped || [null, null];
     if (!souls[0] && !souls[1]) {
         await ctx.answerCbQuery('❌ Nenhuma alma equipada.', { show_alert: true }).catch(() => {});
         return;
     }
 
+    // Atualiza a legenda com uma mensagem temporária e troca o teclado
     try {
-        await ctx.editMessageReplyMarkup(soulChoiceMenu().reply_markup);
+        await ctx.telegram.editMessageReplyMarkup(ctx.chat.id, fight.battleMessageId, null, soulChoiceMenu().reply_markup);
     } catch (e) {
         await ctx.reply('💀 Escolha uma alma:', soulChoiceMenu());
     }
@@ -414,6 +432,7 @@ async function handleSoulMenu(ctx) {
 // ================================================
 
 async function handleSoul(ctx) {
+    await ctx.answerCbQuery('💀 Usando alma...').catch(() => {});
     const fight = getFight(ctx);
     if (!fight) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
@@ -438,6 +457,7 @@ async function handleSoul(ctx) {
     }
 
     const player = await getPlayer(ctx.from.id);
+    if (!player) return ctx.reply('❌ Sessão expirada.');
 
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
@@ -459,6 +479,7 @@ async function handleConsumables(ctx) {
 // ================================================
 
 async function handleCombatBack(ctx) {
+    await ctx.answerCbQuery().catch(() => {});
     const fight = getFight(ctx);
     if (!fight) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
@@ -466,6 +487,8 @@ async function handleCombatBack(ctx) {
     }
 
     const player = await getPlayer(ctx.from.id);
+    if (!player) return ctx.reply('❌ Sessão expirada.');
+
     return updateBattleMessage(ctx, fight, player, combatMenu());
 }
 
