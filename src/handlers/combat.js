@@ -109,67 +109,35 @@ function renderFightText(fight, player) {
     return text;
 }
 
-async function sendOrUpdateFightPanel(ctx, fight, player) {
-    const text = renderFightText(fight, player);
-    const keyboard = fight.status === 'ongoing' ? combatMenu() : null;
-
-    if (fight.panelMessageId) {
-        try {
-            return await ctx.telegram.editMessageText(
-                ctx.chat.id,
-                fight.panelMessageId,
-                null,
-                text,
-                {
-                    parse_mode: 'Markdown',
-                    ...(keyboard ? keyboard : {})
-                }
-            );
-        } catch (error) {
-            console.error('Erro ao editar painel de combate:', error);
-            // Se falhar, tenta enviar uma nova mensagem
-        }
-    }
-
-    // Envia nova mensagem (apenas na primeira vez ou se edição falhar)
-    const sent = await ctx.reply(text, {
-        parse_mode: 'Markdown',
-        ...(keyboard ? keyboard : {})
-    });
-
-    fight.panelMessageId = sent.message_id;
-    return sent;
-}
-
-async function sendEnemyImageOnce(ctx, fight) {
+// Envia a imagem do inimigo em segundo plano (não bloqueia)
+function sendEnemyImageInBackground(ctx, fight) {
     if (fight.enemyImageSent) return;
+    fight.enemyImageSent = true;
 
     const enemyImage = assets?.enemies?.[fight.enemy.id];
     if (!enemyImage) return;
 
-    const sent = await ctx.replyWithPhoto(enemyImage, {
+    ctx.replyWithPhoto(enemyImage, {
         caption: `${fight.enemy.emoji || '👹'} *${fight.enemy.name}*`,
         parse_mode: 'Markdown'
+    }).then(sent => {
+        fight.enemyImageMessageId = sent.message_id;
+    }).catch(err => {
+        console.error('Erro ao enviar imagem do inimigo:', err);
     });
-
-    fight.enemyImageMessageId = sent.message_id;
-    fight.enemyImageSent = true;
 }
 
 async function cleanupFightMessages(ctx, fight) {
     const chatId = ctx.chat.id;
     const idsToDelete = [];
-
     if (fight.panelMessageId) idsToDelete.push(fight.panelMessageId);
     if (fight.enemyImageMessageId) idsToDelete.push(fight.enemyImageMessageId);
-    // Opcional: também deletar a mensagem do menu original, se armazenada
-    // if (fight.menuMessageId) idsToDelete.push(fight.menuMessageId);
 
     for (const msgId of idsToDelete) {
         try {
             await ctx.telegram.deleteMessage(chatId, msgId);
         } catch (e) {
-            // ignora (mensagem já deletada ou sem permissão)
+            // ignora
         }
     }
 }
@@ -185,8 +153,8 @@ async function finishFight(ctx, fight) {
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
         await savePlayer(ctx.from.id, player);
 
-        // Limpa as mensagens da batalha
-        await cleanupFightMessages(ctx, fight);
+        // Limpa as mensagens da batalha (em paralelo, não espera)
+        cleanupFightMessages(ctx, fight).catch(() => {});
         activeFights.delete(ctx.from.id);
 
         const { getXpToNextLevel } = require('../core/player/progression');
@@ -234,7 +202,7 @@ async function finishFight(ctx, fight) {
         player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
         await savePlayer(ctx.from.id, player);
 
-        await cleanupFightMessages(ctx, fight);
+        cleanupFightMessages(ctx, fight).catch(() => {});
         activeFights.delete(ctx.from.id);
 
         const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -256,7 +224,7 @@ async function finishFight(ctx, fight) {
         player.hp = Math.max(1, fight.player.hp);
         await savePlayer(ctx.from.id, player);
 
-        await cleanupFightMessages(ctx, fight);
+        cleanupFightMessages(ctx, fight).catch(() => {});
         activeFights.delete(ctx.from.id);
 
         const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -275,10 +243,11 @@ async function finishFight(ctx, fight) {
 }
 
 // ================================================
-// HANDLER PRINCIPAL: /hunt (iniciar combate)
+// HANDLER PRINCIPAL: /hunt (OTIMIZADO PARA VELOCIDADE)
 // ================================================
 
 async function handleHunt(ctx) {
+    // Responde imediatamente ao callback para evitar "loading" no botão
     await ctx.answerCbQuery().catch(() => {});
 
     let player = await getPlayer(ctx.from.id);
@@ -292,6 +261,7 @@ async function handleHunt(ctx) {
         return ctx.reply('⚡ Sem energia.');
     }
 
+    // Salva a energia consumida e recarrega o jogador (essencial)
     await savePlayer(ctx.from.id, player);
     player = await getPlayer(ctx.from.id);
 
@@ -302,24 +272,21 @@ async function handleHunt(ctx) {
 
     const fight = createFight(player, enemy);
     fight.createdAt = Date.now();
-    fight.turnCount = 0;
-    fight.totalDamageDealt = 0;
-    fight.totalDamageReceived = 0;
     fight.enemyImageSent = false;
     fight.panelMessageId = null;
-    fight.enemyImageMessageId = null;
 
     activeFights.set(ctx.from.id, fight);
 
-    // Opcional: deletar a mensagem do menu que continha o botão "Caçar"
-    try {
-        await ctx.deleteMessage();
-    } catch (e) {
-        // ignora
-    }
+    // 🚀 ENVIA O PAINEL DE COMBATE IMEDIATAMENTE (ação bloqueante essencial)
+    const text = renderFightText(fight, player);
+    const sent = await ctx.reply(text, {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
+    fight.panelMessageId = sent.message_id;
 
-    await sendEnemyImageOnce(ctx, fight);
-    return sendOrUpdateFightPanel(ctx, fight, player);
+    // 🖼️ ENVIA A IMAGEM EM SEGUNDO PLANO (não bloqueia a interação)
+    sendEnemyImageInBackground(ctx, fight);
 }
 
 // ================================================
@@ -349,7 +316,11 @@ async function handleAttack(ctx) {
         return finishFight(ctx, fight);
     }
 
-    return sendOrUpdateFightPanel(ctx, fight, player);
+    const text = renderFightText(fight, player);
+    return safeEditMessage(ctx, text, {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
 }
 
 // ================================================
@@ -376,7 +347,11 @@ async function handleDefend(ctx) {
         return finishFight(ctx, fight);
     }
 
-    return sendOrUpdateFightPanel(ctx, fight, player);
+    const text = renderFightText(fight, player);
+    return safeEditMessage(ctx, text, {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
 }
 
 // ================================================
@@ -405,7 +380,11 @@ async function handleFlee(ctx) {
             return finishFight(ctx, fight);
         }
 
-        return sendOrUpdateFightPanel(ctx, fight, player);
+        const text = renderFightText(fight, player);
+        return safeEditMessage(ctx, text, {
+            parse_mode: 'Markdown',
+            ...combatMenu()
+        });
     }
 }
 
@@ -432,14 +411,10 @@ async function handleSoulMenu(ctx) {
         return;
     }
 
-    // Envia um menu temporário (pode ser uma mensagem separada ou editar o painel)
-    // Por simplicidade, vamos apenas editar o painel com o menu de almas
-    const soulKeyboard = soulChoiceMenu();
     try {
-        await ctx.editMessageReplyMarkup(soulKeyboard.reply_markup);
+        await ctx.editMessageReplyMarkup(soulChoiceMenu().reply_markup);
     } catch (e) {
-        // se falhar, envia nova
-        await ctx.reply('💀 Escolha uma alma:', soulKeyboard);
+        await ctx.reply('💀 Escolha uma alma:', soulChoiceMenu());
     }
 }
 
@@ -477,7 +452,11 @@ async function handleSoul(ctx) {
         return finishFight(ctx, fight);
     }
 
-    return sendOrUpdateFightPanel(ctx, fight, player);
+    const text = renderFightText(fight, player);
+    return safeEditMessage(ctx, text, {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
 }
 
 // ================================================
@@ -500,7 +479,11 @@ async function handleCombatBack(ctx) {
     }
 
     const player = await getPlayer(ctx.from.id);
-    return sendOrUpdateFightPanel(ctx, fight, player);
+    const text = renderFightText(fight, player);
+    return safeEditMessage(ctx, text, {
+        parse_mode: 'Markdown',
+        ...combatMenu()
+    });
 }
 
 module.exports = {
