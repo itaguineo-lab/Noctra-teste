@@ -74,7 +74,7 @@ module.exports = {
     // ================================================
     maps: {
         clareira_sombria: 'AgACAgEAAxkBAAID3WneP8E9WbfhARZCs-dQLc8kfNeuAALvC2sbKZDwRv2_GgVYqrCEAQADAgADeQADOwQ',
-        cripta_em_ruinas: 'AgACAgEAAxkBAAID32neQD5v1JVKVDDXcin4VSn-op9eAALxC2sbKZDwRtpvXMizwi3zAQADAgADeQADOwQ de',
+        cripta_em_ruinas: 'AgACAgEAAxkBAAID32neQD5v1JVKVDDXcin4VSn-op9eAALxC2sbKZDwRtpvXMizwi3zAQADAgADeQADOwQ',
         pantano_corrompido: 'AgACAgEAAxkBAAID4WneQrMHmgWmQjtr_75Z1ytWsF--AAL3C2sbKZDwRryDbuApqgKGAQADAgADeQADOwQ',
         deserto_incandescente: 'AgACAgEAAxkBAAID42neRft8YIfF3lg9ly6U3Q4kTVoqAAL-C2sbKZDwRtpdmDk0ZOQuAQADAgADeQADOwQ',
         citadela_lunar: 'AgACAgEAAxkBAAID5WneSNlHS9ibGYg8nYsmxtaXESfmAAICDGsbKZDwRi-cXxNhxD6GAQADAgADeQADOwQ',
