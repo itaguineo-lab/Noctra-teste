@@ -73,7 +73,7 @@ module.exports = {
     // MAPAS (BACKGROUNDS)
     // ================================================
     maps: {
-        clareira_sombria: '',
+        clareira_sombria: 'AgACAgEAAxkBAAID3WneP8E9WbfhARZCs-dQLc8kfNeuAALvC2sbKZDwRv2_GgVYqrCEAQADAgADeQADOwQ',
         cripta_em_ruinas: '',
         pantano_corrompido: '',
         deserto_incandescente: '',
