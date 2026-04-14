@@ -41,6 +41,8 @@ const adminCommands = require('./src/commands/admin');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+bot.on('photo', adminCommands.handleCapturePhoto);
+
 let launched = false;
 
 const sleep = (ms) =>
