@@ -1,6 +1,6 @@
 module.exports = {
     enemies: {
-        shadow_wolf: '',
+        shadow_wolf: 'AgACAgEAAyEFAATr8H9gAAMCad2Ivmf-DI7QEV1uhVG6NO54_2gAAvULaxtRfvBGsYNuAYbkcDABAAMCAAN5AAM7BA',
         giant_rat: '',
         forest_spider: '',
         dark_bat: '',
