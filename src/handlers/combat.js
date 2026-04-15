@@ -127,6 +127,16 @@ async function finishFight(ctx, fight) {
     const chatId = ctx.chat.id;
     const messageId = fight.battleMessageId;
     const isPhoto = fight.isPhoto;
+    const sendPostCombatFallback = async (msg) => {
+        if (messageId) {
+            try {
+                await ctx.telegram.deleteMessage(chatId, messageId);
+            } catch {
+                // ignora falhas de remoção
+            }
+        }
+        await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
+    };
 
     // Remove a luta do cache
     activeFights.delete(ctx.from.id);
@@ -187,8 +197,7 @@ async function finishFight(ctx, fight) {
                     });
                 }
             } catch (e) {
-                // Se falhar, envia nova mensagem
-                await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
+                await sendPostCombatFallback(msg);
             }
         } else {
             await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
@@ -223,7 +232,7 @@ async function finishFight(ctx, fight) {
                     });
                 }
             } catch (e) {
-                await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
+                await sendPostCombatFallback(msg);
             }
         } else {
             await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
@@ -257,7 +266,7 @@ async function finishFight(ctx, fight) {
                     });
                 }
             } catch (e) {
-                await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
+                await sendPostCombatFallback(msg);
             }
         } else {
             await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
@@ -290,7 +299,6 @@ async function handleHunt(ctx) {
     }
 
     await savePlayer(ctx.from.id, player);
-    player = await getPlayer(ctx.from.id);
 
     const fight = createFight(player, enemy);
     fight.createdAt = Date.now();

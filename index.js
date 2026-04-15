@@ -370,6 +370,8 @@ bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
 
 bindAction(/^equip_soul_(.+)$/, inventory.handleEquipSoul);
 bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
+bindAction(/^invskin:equip:(.+)$/, inventory.handleEquipSkin);
+bindAction(/^invskin:unequip:(title|aura|badge)$/, inventory.handleUnequipSkin);
 
 bindAction('use_potion_outside_hp', (ctx) => inventory.handleUsePotionOutside(ctx, 'hp'));
 bindAction('use_tonic_strength', inventory.handleUseStrengthTonic);

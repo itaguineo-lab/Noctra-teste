@@ -12,6 +12,10 @@ const {
 const {
     arenaShopItems
 } = require('../data/arenaShopItems');
+const {
+    addCosmeticToPlayer,
+    ensureCosmeticsState
+} = require('../core/player/cosmetics');
 
 /*
 =================================
@@ -133,7 +137,7 @@ async function handleArenaShopBuy(ctx) {
 
     player.inventory ??= [];
     player.consumables ??= {};
-    player.cosmetics ??= [];
+    ensureCosmeticsState(player);
 
     switch (item.type) {
         case 'consumable':
@@ -154,10 +158,16 @@ async function handleArenaShopBuy(ctx) {
             break;
 
         case 'cosmetic':
-            player.cosmetics.push({
-                id: item.id,
-                name: item.value
-            });
+            {
+                const cosmeticResult = addCosmeticToPlayer(player, {
+                    id: item.id,
+                    name: item.value || item.name
+                });
+                if (!cosmeticResult.success) {
+                    player.arena.coins += item.price;
+                    return ctx.answerCbQuery(cosmeticResult.message, { show_alert: true });
+                }
+            }
             break;
     }
 
