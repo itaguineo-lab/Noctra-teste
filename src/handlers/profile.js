@@ -33,33 +33,38 @@ function formatClassName(className = 'guerreiro') {
     return map[className] || className;
 }
 
+/**
+ * BUILD 2.0 – Baseada em equipamentos (idêntica à do helpers.js)
+ */
 function detectBuild(player) {
-    const cls = player.class;
-    const souls = player.soulsEquipped || [];
+    const weapon = player.equipment?.weapon;
+    const shield = player.equipment?.shield;
+    const weaponName = weapon?.name?.toLowerCase() || '';
+    const hasShield = !!shield;
 
-    const totalAtk = player.atk || 0;
-    const totalDef = player.def || 0;
-    const totalHp = player.maxHp || 0;
-
-    const hasHealingSoul = souls.some(
-        soul => soul?.effect?.type === 'heal'
-    );
-
-    if (cls === 'mago') {
-        if (hasHealingSoul || totalHp >= 140) return '💚 Curandeiro Arcano';
-        if (totalAtk >= 35) return '🔥 Mago Ofensivo';
-        return '✨ Mago Balanceado';
+    // Guerreiro
+    if (player.class === 'guerreiro') {
+        if (weaponName.includes('machado') && !hasShield) return '⚔️ Berserker';
+        if (weaponName.includes('espada') && hasShield) return '🛡️ Guardião';
+        if ((player.def || 0) >= 35) return '🛡️ Guardião';
+        return '⚔️ Berserker';
     }
 
-    if (cls === 'guerreiro') {
-        if (totalDef >= 35 || totalHp >= 180) return '🛡️ Guardião';
-        if (totalAtk >= 40) return '⚔️ Berserker';
-        return '⚔️ Guerreiro Balanceado';
-    }
-
-    if (cls === 'arqueiro') {
+    // Arqueiro
+    if (player.class === 'arqueiro') {
+        if (weaponName.includes('arco')) return '🏹 Caçador';
+        if (weaponName.includes('lança') && hasShield) return '🛡️ Lanceiro';
         if ((player.crit || 0) >= 20) return '🎯 Sniper';
-        return '🏹 Caçador Sombrio';
+        return '🏹 Caçador';
+    }
+
+    // Mago
+    if (player.class === 'mago') {
+        if (weaponName.includes('cajado')) return '🔥 Ofensivo';
+        if (weaponName.includes('varinha') || weaponName.includes('orbe')) return '💚 Curandeiro';
+        if ((player.atk || 0) >= 35) return '🔥 Ofensivo';
+        if ((player.maxHp || 0) >= 140) return '💚 Curandeiro';
+        return '✨ Balanceado';
     }
 
     return '⚪ Build padrão';
@@ -153,20 +158,17 @@ async function handleProfile(ctx) {
     const profileImage = assets?.profile?.[player.class];
 
     try {
-        // Tenta editar a mensagem existente (pode ser texto ou foto)
         const chatId = ctx.chat.id;
         const messageId = ctx.callbackQuery?.message?.message_id;
 
         if (messageId) {
             if (profileImage) {
-                // Se temos imagem, edita a legenda (assumindo que a mensagem atual é uma foto)
                 await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
                     parse_mode: 'Markdown',
                     reply_markup: keyboard.reply_markup
                 });
                 return;
             } else {
-                // Sem imagem, edita como texto
                 await ctx.editMessageText(caption, {
                     parse_mode: 'Markdown',
                     ...keyboard
@@ -175,10 +177,9 @@ async function handleProfile(ctx) {
             }
         }
     } catch (e) {
-        // Se falhar, envia nova mensagem
+        // fallback para nova mensagem
     }
 
-    // Envia nova mensagem (fallback)
     if (profileImage) {
         await ctx.replyWithPhoto(profileImage, {
             caption,
