@@ -1,21 +1,466 @@
-applyDamage(player, amount)
-applyHeal(player, amount)
-restoreFullHp(player)
-consumeEnergy(player, amount)
-restoreEnergy(player, amount)
+const { addXp } = require('./progression');
+const { ensurePlayerState, recalculateStats, updateBuffs } = require('./playerService');
+const {
+    equipItem,
+    unequipItem,
+    sameItem,
+    getItemKey
+} = require('./equipmentService');
 
-applyEquipmentChange(player, slot, item)
-removeEquipment(player, slot)
+const VALID_EQUIPMENT_SLOTS = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
 
-applySoulEquip(player, soul)
-applySoulUnequip(player, slot)
+function toSafeNumber(value, fallback = 0) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
 
-applyGoldReward(player, amount)
-applyNoxReward(player, amount)
-applyKeyReward(player, amount)
-applyXpReward(player, amount)
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
 
-applyBuff(player, buff)
-cleanupExpiredBuffs(player)
+function ensureConsumables(player) {
+    player.consumables ??= {
+        potionHp: 0,
+        potionEnergy: 0,
+        tonicStrength: 0,
+        tonicDefense: 0
+    };
+    return player.consumables;
+}
 
-normalizePlayerForSave(player)
+function ensureSouls(player) {
+    if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
+    if (!Array.isArray(player.soulsEquipped)) player.soulsEquipped = [null, null];
+}
+
+function ensureInventory(player) {
+    if (!Array.isArray(player.inventory)) player.inventory = [];
+    if (!player.equipment || typeof player.equipment !== 'object') {
+        player.equipment = {};
+    }
+
+    for (const slot of VALID_EQUIPMENT_SLOTS) {
+        if (!(slot in player.equipment)) {
+            player.equipment[slot] = null;
+        }
+    }
+}
+
+function ensurePlayer(player) {
+    ensurePlayerState(player);
+    ensureInventory(player);
+    ensureSouls(player);
+    ensureConsumables(player);
+    return player;
+}
+
+function cleanupExpiredBuffs(player) {
+    ensurePlayer(player);
+    updateBuffs(player);
+    return player;
+}
+
+function applyDamage(player, amount) {
+    ensurePlayer(player);
+
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    if (value <= 0) return player;
+
+    player.hp = clamp((player.hp || 0) - value, 1, player.maxHp || 1);
+    return player;
+}
+
+function applyHeal(player, amount) {
+    ensurePlayer(player);
+
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    if (value <= 0) return player;
+
+    player.hp = clamp((player.hp || 0) + value, 1, player.maxHp || 1);
+    return player;
+}
+
+function restoreFullHp(player) {
+    ensurePlayer(player);
+    player.hp = Math.max(1, player.maxHp || 1);
+    return player;
+}
+
+function consumeEnergy(player, amount = 1) {
+    ensurePlayer(player);
+
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 1)));
+    if (value <= 0) return true;
+
+    if ((player.energy || 0) < value) {
+        return false;
+    }
+
+    player.energy = Math.max(0, (player.energy || 0) - value);
+    return true;
+}
+
+function restoreEnergy(player, amount = 1) {
+    ensurePlayer(player);
+
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 1)));
+    if (value <= 0) return player;
+
+    player.energy = clamp((player.energy || 0) + value, 0, player.maxEnergy || 0);
+    return player;
+}
+
+function restoreFullEnergy(player) {
+    ensurePlayer(player);
+    player.energy = Math.max(0, player.maxEnergy || 0);
+    return player;
+}
+
+function addInventoryItem(player, item) {
+    ensurePlayer(player);
+
+    if (!item || typeof item !== 'object') {
+        return { success: false, message: 'Item inválido.' };
+    }
+
+    const maxInventory = toSafeNumber(player.maxInventory, 20);
+    if ((player.inventory || []).length >= maxInventory) {
+        return { success: false, message: 'Inventário cheio.' };
+    }
+
+    const normalized = { ...item, __equipped: false };
+    player.inventory.push(normalized);
+
+    return { success: true, item: normalized };
+}
+
+function removeInventoryItem(player, itemOrIndex) {
+    ensurePlayer(player);
+
+    if (typeof itemOrIndex === 'number') {
+        if (itemOrIndex < 0 || itemOrIndex >= player.inventory.length) {
+            return { success: false, message: 'Índice inválido.' };
+        }
+
+        const [removed] = player.inventory.splice(itemOrIndex, 1);
+        return { success: true, item: removed || null };
+    }
+
+    const index = player.inventory.findIndex(invItem => sameItem(invItem, itemOrIndex));
+    if (index === -1) {
+        return { success: false, message: 'Item não encontrado.' };
+    }
+
+    const [removed] = player.inventory.splice(index, 1);
+    return { success: true, item: removed || null };
+}
+
+function applyEquipmentChange(player, slot, item) {
+    ensurePlayer(player);
+
+    if (!VALID_EQUIPMENT_SLOTS.includes(slot)) {
+        return { success: false, message: 'Slot inválido.' };
+    }
+
+    if (!item || typeof item !== 'object') {
+        return { success: false, message: 'Item inválido.' };
+    }
+
+    const itemSlot = String(item.slot || '');
+    if (!itemSlot.startsWith(slot)) {
+        return { success: false, message: 'Item incompatível com o slot.' };
+    }
+
+    if (item.classRestriction && item.classRestriction !== player.class) {
+        return { success: false, message: 'Classe incompatível com o item.' };
+    }
+
+    equipItem(player, slot, item);
+    normalizePlayerForSave(player);
+
+    return {
+        success: true,
+        equipped: player.equipment[slot]
+    };
+}
+
+function removeEquipment(player, slot) {
+    ensurePlayer(player);
+
+    if (!VALID_EQUIPMENT_SLOTS.includes(slot)) {
+        return { success: false, message: 'Slot inválido.' };
+    }
+
+    const current = player.equipment?.[slot];
+    if (!current) {
+        return { success: false, message: 'Nada equipado neste slot.' };
+    }
+
+    const maxInventory = toSafeNumber(player.maxInventory, 20);
+    if ((player.inventory || []).length >= maxInventory) {
+        return { success: false, message: 'Inventário cheio.' };
+    }
+
+    const removed = unequipItem(player, slot);
+    normalizePlayerForSave(player);
+
+    return {
+        success: true,
+        item: removed
+    };
+}
+
+function applySoulEquip(player, soul) {
+    ensurePlayer(player);
+
+    if (!soul || typeof soul !== 'object') {
+        return { success: false, message: 'Alma inválida.' };
+    }
+
+    const soulId = String(soul.instanceId || soul.id || '');
+    if (!soulId) {
+        return { success: false, message: 'Alma inválida.' };
+    }
+
+    const soulIndex = player.soulsInventory.findIndex(
+        s => String(s.instanceId || s.id) === soulId
+    );
+
+    if (soulIndex === -1) {
+        return { success: false, message: 'Alma não encontrada no inventário.' };
+    }
+
+    if (player.soulsEquipped.some(s => s && String(s.instanceId || s.id) === soulId)) {
+        return { success: false, message: 'Alma já equipada.' };
+    }
+
+    const emptySlot = player.soulsEquipped.findIndex(s => !s);
+    if (emptySlot === -1) {
+        return { success: false, message: 'Slots de almas cheios.' };
+    }
+
+    const [equippedSoul] = player.soulsInventory.splice(soulIndex, 1);
+    player.soulsEquipped[emptySlot] = equippedSoul;
+
+    normalizePlayerForSave(player);
+
+    return {
+        success: true,
+        slot: emptySlot,
+        soul: equippedSoul
+    };
+}
+
+function applySoulUnequip(player, slot) {
+    ensurePlayer(player);
+
+    const slotIndex = toSafeNumber(slot, -1);
+    if (slotIndex < 0 || slotIndex >= player.soulsEquipped.length) {
+        return { success: false, message: 'Slot de alma inválido.' };
+    }
+
+    const soul = player.soulsEquipped[slotIndex];
+    if (!soul) {
+        return { success: false, message: 'Nada equipado neste slot.' };
+    }
+
+    const alreadyInInventory = player.soulsInventory.some(
+        s => String(s.instanceId || s.id) === String(soul.instanceId || soul.id)
+    );
+
+    if (!alreadyInInventory) {
+        player.soulsInventory.push(soul);
+    }
+
+    player.soulsEquipped[slotIndex] = null;
+
+    normalizePlayerForSave(player);
+
+    return {
+        success: true,
+        soul
+    };
+}
+
+function addGold(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.gold = Math.max(0, (player.gold || 0) + value);
+    return player;
+}
+
+function removeGold(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.gold = Math.max(0, (player.gold || 0) - value);
+    return player;
+}
+
+function addNox(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.nox = Math.max(0, (player.nox || 0) + value);
+    return player;
+}
+
+function removeNox(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.nox = Math.max(0, (player.nox || 0) - value);
+    return player;
+}
+
+function addKeys(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.keys = Math.max(0, (player.keys || 0) + value);
+    return player;
+}
+
+function removeKeys(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.keys = Math.max(0, (player.keys || 0) - value);
+    return player;
+}
+
+function addGlorias(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.glorias = Math.max(0, (player.glorias || 0) + value);
+    return player;
+}
+
+function removeGlorias(player, amount) {
+    ensurePlayer(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
+    player.glorias = Math.max(0, (player.glorias || 0) - value);
+    return player;
+}
+
+function applyGoldReward(player, amount) {
+    return addGold(player, amount);
+}
+
+function applyNoxReward(player, amount) {
+    return addNox(player, amount);
+}
+
+function applyKeyReward(player, amount) {
+    return addKeys(player, amount);
+}
+
+function applyGloriaReward(player, amount) {
+    return addGlorias(player, amount);
+}
+
+function applyXpReward(player, amount) {
+    ensurePlayer(player);
+    addXp(player, amount);
+    normalizePlayerForSave(player);
+    return player;
+}
+
+function applyBuff(player, buff) {
+    ensurePlayer(player);
+
+    if (!buff || typeof buff !== 'object') {
+        return { success: false, message: 'Buff inválido.' };
+    }
+
+    player.buffs.push({
+        type: buff.type || 'generic',
+        atk: toSafeNumber(buff.atk, 0),
+        def: toSafeNumber(buff.def, 0),
+        hp: toSafeNumber(buff.hp, 0),
+        crit: toSafeNumber(buff.crit, 0),
+        expiresAt: buff.expiresAt || null
+    });
+
+    normalizePlayerForSave(player);
+
+    return { success: true };
+}
+
+function consumeConsumable(player, key, amount = 1) {
+    ensurePlayer(player);
+
+    const consumables = ensureConsumables(player);
+    const value = Math.max(0, Math.floor(toSafeNumber(amount, 1)));
+
+    if (!consumables[key] || consumables[key] < value) {
+        return { success: false, message: 'Consumível indisponível.' };
+    }
+
+    consumables[key] -= value;
+    player.consumables = consumables;
+
+    return { success: true, remaining: consumables[key] };
+}
+
+function normalizePlayerForSave(player) {
+    ensurePlayer(player);
+    cleanupExpiredBuffs(player);
+    recalculateStats(player);
+
+    player.hp = clamp(toSafeNumber(player.hp, player.maxHp || 1), 1, player.maxHp || 1);
+    player.energy = clamp(toSafeNumber(player.energy, player.maxEnergy || 0), 0, player.maxEnergy || 0);
+    player.gold = Math.max(0, toSafeNumber(player.gold, 0));
+    player.nox = Math.max(0, toSafeNumber(player.nox, 0));
+    player.glorias = Math.max(0, toSafeNumber(player.glorias, 0));
+    player.keys = Math.max(0, toSafeNumber(player.keys, 0));
+
+    if (!Array.isArray(player.soulsEquipped)) {
+        player.soulsEquipped = [null, null];
+    } else if (player.soulsEquipped.length < 2) {
+        while (player.soulsEquipped.length < 2) {
+            player.soulsEquipped.push(null);
+        }
+    } else if (player.soulsEquipped.length > 2) {
+        player.soulsEquipped = player.soulsEquipped.slice(0, 2);
+    }
+
+    return player;
+}
+
+module.exports = {
+    applyDamage,
+    applyHeal,
+    restoreFullHp,
+    consumeEnergy,
+    restoreEnergy,
+    restoreFullEnergy,
+
+    addInventoryItem,
+    removeInventoryItem,
+
+    applyEquipmentChange,
+    removeEquipment,
+
+    applySoulEquip,
+    applySoulUnequip,
+
+    addGold,
+    removeGold,
+    addNox,
+    removeNox,
+    addKeys,
+    removeKeys,
+    addGlorias,
+    removeGlorias,
+
+    applyGoldReward,
+    applyNoxReward,
+    applyKeyReward,
+    applyGloriaReward,
+    applyXpReward,
+
+    applyBuff,
+    consumeConsumable,
+    cleanupExpiredBuffs,
+
+    normalizePlayerForSave,
+
+    sameItem,
+    getItemKey
+};
