@@ -267,7 +267,7 @@ async function finishFight(ctx, fight) {
 }
 
 // ================================================
-// HANDLER PRINCIPAL: /hunt (MENSAGEM ÚNICA COM FOTO)
+// HANDLER PRINCIPAL: /hunt (mensagem com foto quando disponível, com fallback para texto)
 // ================================================
 
 async function handleHunt(ctx) {
@@ -280,17 +280,17 @@ async function handleHunt(ctx) {
         return ctx.reply('⚡ Sem energia.');
     }
 
+    const enemy = getRandomEnemy(player.currentMap, player.level);
+    if (!enemy) {
+        return ctx.reply('❌ Nenhum inimigo neste mapa.');
+    }
+
     if (!consumeEnergy(player, 1)) {
         return ctx.reply('⚡ Sem energia.');
     }
 
     await savePlayer(ctx.from.id, player);
     player = await getPlayer(ctx.from.id);
-
-    const enemy = getRandomEnemy(player.currentMap, player.level);
-    if (!enemy) {
-        return ctx.reply('❌ Nenhum inimigo neste mapa.');
-    }
 
     const fight = createFight(player, enemy);
     fight.createdAt = Date.now();
