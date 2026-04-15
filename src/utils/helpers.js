@@ -47,20 +47,61 @@ function getPlayerLocation(player) {
     return getMapById(player.currentMap) || maps[0];
 }
 
+/**
+ * BUILD 2.0 – Baseada em equipamentos (fallback para atributos)
+ */
 function getBuildName(player) {
-    if (player.class === 'mago') {
-        if ((player.maxHp || 0) >= 140) return '💚 Curandeiro';
-        if ((player.atk || 0) >= 35) return '🔥 Ofensivo';
-        return '✨ Balanceado';
-    }
+    const weapon = player.equipment?.weapon;
+    const shield = player.equipment?.shield;
+    const weaponName = weapon?.name?.toLowerCase() || '';
+    const hasShield = !!shield;
+
+    // ========== GUERREIRO ==========
     if (player.class === 'guerreiro') {
+        // Machado sem escudo = Berserker
+        if (weaponName.includes('machado') && !hasShield) {
+            return '⚔️ Berserker';
+        }
+        // Espada com escudo = Guardião
+        if (weaponName.includes('espada') && hasShield) {
+            return '🛡️ Guardião';
+        }
+        // Fallback para atributos
         if ((player.def || 0) >= 35) return '🛡️ Guardião';
         return '⚔️ Berserker';
     }
+
+    // ========== ARQUEIRO ==========
     if (player.class === 'arqueiro') {
+        // Arco = Caçador
+        if (weaponName.includes('arco')) {
+            return '🏹 Caçador';
+        }
+        // Lança com escudo = Lanceiro
+        if (weaponName.includes('lança') && hasShield) {
+            return '🛡️ Lanceiro';
+        }
+        // Fallback para atributos
         if ((player.crit || 0) >= 20) return '🎯 Sniper';
         return '🏹 Caçador';
     }
+
+    // ========== MAGO ==========
+    if (player.class === 'mago') {
+        // Cajado = Ofensivo
+        if (weaponName.includes('cajado')) {
+            return '🔥 Ofensivo';
+        }
+        // Varinha ou Orbe = Curandeiro
+        if (weaponName.includes('varinha') || weaponName.includes('orbe')) {
+            return '💚 Curandeiro';
+        }
+        // Fallback para atributos
+        if ((player.atk || 0) >= 35) return '🔥 Ofensivo';
+        if ((player.maxHp || 0) >= 140) return '💚 Curandeiro';
+        return '✨ Balanceado';
+    }
+
     return '⚪ Padrão';
 }
 
@@ -104,7 +145,7 @@ function getBuffsSummary(player) {
     }
 
     const activeBuffs = player.buffs.filter(buff => {
-        if (!buff.expiresAt) return true; // permanentes
+        if (!buff.expiresAt) return true;
         return buff.expiresAt > Date.now();
     });
 
@@ -117,7 +158,6 @@ function getBuffsSummary(player) {
         if (buff.hp) parts.push(`❤️+${buff.hp}`);
         if (buff.crit) parts.push(`💥+${buff.crit}%`);
 
-        // Se tiver tempo restante, adiciona
         if (buff.expiresAt) {
             const remainingMs = Math.max(0, buff.expiresAt - Date.now());
             if (remainingMs > 0) {
@@ -168,7 +208,6 @@ async function getMainMenuText(playerId, username) {
         `🗺️ ${location.emoji} ${location.name}  🏟️ ${formatNumber(arenaPoints)} ${arenaLeague}`
     ];
 
-    // Adiciona linha de buffs se existirem
     const buffsSummary = getBuffsSummary(player);
     if (buffsSummary) {
         lines.push(`✨ Buffs: ${buffsSummary}`);
