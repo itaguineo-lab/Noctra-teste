@@ -86,8 +86,12 @@ async function sendOrUpdateTravelMessage(ctx, player) {
     try {
         if (messageId) {
             if (mapImage) {
-                await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
-                    parse_mode: 'Markdown',
+                await ctx.telegram.editMessageMedia(chatId, messageId, null, {
+                    type: 'photo',
+                    media: mapImage,
+                    caption,
+                    parse_mode: 'Markdown'
+                }, {
                     reply_markup: keyboard.reply_markup
                 });
                 return;
@@ -125,7 +129,11 @@ TRAVEL MENU
 */
 
 async function handleTravel(ctx) {
-    let player = await getPlayer(ctx.from.id, ctx.from.first_name);
+    let player = await getPlayer(ctx.from.id);
+
+    if (!player) {
+        return ctx.reply('🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
 
     if (!player.currentMap) {
         player.currentMap = maps[0].id;
@@ -155,7 +163,10 @@ async function handleTravelTo(ctx) {
             return ctx.answerCbQuery('❌ Mapa não encontrado', { show_alert: true });
         }
 
-        const player = await getPlayer(ctx.from.id, ctx.from.first_name);
+        const player = await getPlayer(ctx.from.id);
+        if (!player) {
+            return ctx.answerCbQuery('🧭 Use /start para criar seu personagem.', { show_alert: true });
+        }
 
         if (!canPlayerEnter(player, map.id)) {
             return ctx.answerCbQuery(`🔒 Requer nível ${map.levelReq}`, { show_alert: true });
@@ -192,6 +203,9 @@ async function handleDungeon(ctx) {
     await ctx.answerCbQuery();
 
     const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return ctx.reply('🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
     const currentMap = getMapById(player.currentMap);
 
     return ctx.reply(
