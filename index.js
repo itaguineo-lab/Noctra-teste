@@ -354,6 +354,7 @@ bindAction('combat_defend', combat.handleDefend);
 bindAction('combat_soul_menu', combat.handleSoulMenu);
 bindAction(/combat_soul_([01])/, combat.handleSoul);
 bindAction('combat_consumables', combat.handleConsumables);
+bindAction(/^combat_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, combat.handleUseConsumable);
 bindAction('combat_flee', combat.handleFlee);
 bindAction('combat_back', combat.handleCombatBack);
 
@@ -370,6 +371,8 @@ bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
 
 bindAction(/^equip_soul_(.+)$/, inventory.handleEquipSoul);
 bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
+bindAction(/^invskin:equip:(.+)$/, inventory.handleEquipSkin);
+bindAction(/^invskin:unequip:(title|aura|badge)$/, inventory.handleUnequipSkin);
 
 bindAction('use_potion_outside_hp', (ctx) => inventory.handleUsePotionOutside(ctx, 'hp'));
 bindAction('use_tonic_strength', inventory.handleUseStrengthTonic);
@@ -411,6 +414,7 @@ bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
 bindAction('dungeon_flee', dungeon.handleDungeonFlee);
 bindAction('dungeon_soul_menu', dungeon.handleDungeonSoulMenu);
 bindAction('dungeon_consumables', dungeon.handleDungeonConsumables);
+bindAction(/^dungeon_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, dungeon.handleDungeonUseConsumable);
 
 /*
 =================================

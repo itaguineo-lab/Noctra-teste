@@ -4,6 +4,12 @@ const {
     savePlayer,
     recalculateStats
 } = require('../core/player/playerService');
+const {
+    ensureCosmeticsState,
+    equipCosmetic,
+    unequipCosmetic,
+    getActiveCosmetic
+} = require('../core/player/cosmetics');
 const { inventoryMainMenu } = require('../menus/inventoryMenu');
 
 const PAGE_SIZE = 5;
@@ -68,7 +74,64 @@ function normalizePlayerState(player) {
     if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
     if (!Array.isArray(player.soulsEquipped)) player.soulsEquipped = [null, null];
     if (!player.consumables) player.consumables = {};
+    ensureCosmeticsState(player);
     return player;
+}
+
+function getCosmeticTypeLabel(type) {
+    if (type === 'title') return '🏷️ Título';
+    if (type === 'aura') return '✨ Aura';
+    return '🎖️ Emblema';
+}
+
+function renderSkinsText(player) {
+    const cosmetics = Array.isArray(player.cosmetics) ? player.cosmetics : [];
+    const activeTitle = getActiveCosmetic(player, 'title');
+    const activeAura = getActiveCosmetic(player, 'aura');
+    const activeBadge = getActiveCosmetic(player, 'badge');
+
+    let text = `🎨 *SKINS & COSMÉTICOS*\n\n`;
+    text += `Ativos:\n`;
+    text += `• 🏷️ Título: ${activeTitle ? activeTitle.name : 'Nenhum'}\n`;
+    text += `• ✨ Aura: ${activeAura ? activeAura.name : 'Nenhuma'}\n`;
+    text += `• 🎖️ Emblema: ${activeBadge ? activeBadge.name : 'Nenhum'}\n\n`;
+
+    if (!cosmetics.length) {
+        text += `Você não possui skins ainda.\nCompre na loja para desbloquear.`;
+        return text;
+    }
+
+    text += `Coleção (${cosmetics.length}):\n`;
+    cosmetics.forEach((skin, idx) => {
+        const equipped = player.activeCosmetics?.[skin.type] === skin.id ? ' ✅' : '';
+        text += `${idx + 1}. ${getCosmeticTypeLabel(skin.type)} — *${escapeMarkdown(skin.name)}*${equipped}\n`;
+    });
+
+    return text;
+}
+
+function buildSkinsKeyboard(player) {
+    const rows = [];
+    const cosmetics = Array.isArray(player.cosmetics) ? player.cosmetics : [];
+
+    cosmetics.forEach(cosmetic => {
+        const equipped = player.activeCosmetics?.[cosmetic.type] === cosmetic.id;
+        const prefix = equipped ? '✅' : '🎨';
+        rows.push([
+            Markup.button.callback(
+                `${prefix} ${cosmetic.name}`,
+                equipped ? `invskin:unequip:${cosmetic.type}` : `invskin:equip:${cosmetic.id}`
+            )
+        ]);
+    });
+
+    rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    return Markup.inlineKeyboard(rows);
+}
+
+async function handleInvSkins(ctx) {
+    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    return sendScreen(ctx, renderSkinsText(player), safeReplyMarkup(buildSkinsKeyboard(player)));
 }
 
 function safeReplyMarkup(markupFactoryResult) {
@@ -710,11 +773,7 @@ async function handleInventoryCategory(ctx) {
     if (category === 'souls') return handleInvSouls(ctx);
 
     if (category === 'skins') {
-        return sendScreen(ctx, '🎨 *Skins*\n\nEm breve.', {
-            ...Markup.inlineKeyboard([
-                [Markup.button.callback('◀️ Voltar', 'inventory')]
-            ])
-        });
+        return handleInvSkins(ctx);
     }
 
     return renderInventory(ctx, category, 1);
@@ -779,6 +838,38 @@ async function handleUnequipSoul(ctx) {
     return handleInvSouls(ctx);
 }
 
+async function handleEquipSkin(ctx) {
+    const skinId = ctx.match?.[1];
+    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const result = equipCosmetic(player, skinId);
+
+    if (!result.success) {
+        return safeAnswer(ctx, result.message, { show_alert: true });
+    }
+
+    await savePlayer(ctx.from.id, player);
+    await safeAnswer(ctx, `✅ ${result.cosmetic.name} equipado(a)!`);
+    return handleInvSkins(ctx);
+}
+
+async function handleUnequipSkin(ctx) {
+    const slot = ctx.match?.[1];
+    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const current = getActiveCosmetic(player, slot);
+    const result = unequipCosmetic(player, slot);
+
+    if (!result.success) {
+        return safeAnswer(ctx, result.message, { show_alert: true });
+    }
+
+    await savePlayer(ctx.from.id, player);
+    await safeAnswer(
+        ctx,
+        current ? `✅ ${current.name} removido(a).` : '✅ Slot cosmético limpo.'
+    );
+    return handleInvSkins(ctx);
+}
+
 module.exports = {
     renderInventory,
     handleInventory,
@@ -790,12 +881,15 @@ module.exports = {
     handleInvBoots,
     handleInvConsumables,
     handleInvSouls,
+    handleInvSkins,
     handleEquipItem,
     handleUnequipItem,
     handleInventoryPage,
     handleInventoryCategory,
     handleEquipSoul,
     handleUnequipSoul,
+    handleEquipSkin,
+    handleUnequipSkin,
     handleUsePotionOutside,
     handleUseStrengthTonic,
     handleUseDefenseTonic

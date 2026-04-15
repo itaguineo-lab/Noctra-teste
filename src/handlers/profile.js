@@ -11,6 +11,7 @@ const {
 const {
     getRarityEmoji
 } = require('../core/player/souls');
+const { getActiveCosmetic, ensureCosmeticsState } = require('../core/player/cosmetics');
 
 const assets = require('../data/assets');
 
@@ -93,9 +94,13 @@ function buildSoulsText(player) {
 }
 
 function renderProfileCaption(player) {
+    ensureCosmeticsState(player);
     const xpNeeded = getXpToNextLevel(player.level);
     const map = getPlayerMap(player);
     const buildName = detectBuild(player);
+    const activeTitle = getActiveCosmetic(player, 'title');
+    const activeAura = getActiveCosmetic(player, 'aura');
+    const activeBadge = getActiveCosmetic(player, 'badge');
 
     const xpBar = progressBar(player.xp, xpNeeded, 10, '🟨', '⬛');
     const hpBar = progressBar(player.hp, player.maxHp, 10, '🟥', '⬛');
@@ -108,6 +113,7 @@ function renderProfileCaption(player) {
 
     msg += `🌑 *${player.name}*\n`;
     msg += `🏹 ${formatClassName(player.class)}\n`;
+    if (activeTitle) msg += `🏷️ ${activeTitle.name}\n`;
     msg += `🧠 ${buildName}\n`;
     msg += `⭐ Nível ${player.level}\n\n`;
 
@@ -133,6 +139,10 @@ function renderProfileCaption(player) {
 
     msg += `💀 *Almas*\n`;
     msg += `${buildSoulsText(player)}\n\n`;
+
+    msg += `🎨 *Cosméticos Ativos*\n`;
+    msg += `✨ Aura: ${activeAura ? activeAura.name : '—'}\n`;
+    msg += `🎖️ Emblema: ${activeBadge ? activeBadge.name : '—'}\n\n`;
 
     msg += `☠️ Abates: ${player.totalKills || 0}`;
 
@@ -163,8 +173,12 @@ async function handleProfile(ctx) {
 
         if (messageId) {
             if (profileImage) {
-                await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
-                    parse_mode: 'Markdown',
+                await ctx.telegram.editMessageMedia(chatId, messageId, null, {
+                    type: 'photo',
+                    media: profileImage,
+                    caption,
+                    parse_mode: 'Markdown'
+                }, {
                     reply_markup: keyboard.reply_markup
                 });
                 return;
@@ -178,6 +192,11 @@ async function handleProfile(ctx) {
         }
     } catch (e) {
         // fallback para nova mensagem
+        try {
+            await ctx.deleteMessage();
+        } catch {
+            // ignora
+        }
     }
 
     if (profileImage) {
