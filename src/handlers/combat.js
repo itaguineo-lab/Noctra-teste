@@ -495,7 +495,98 @@ async function handleSoul(ctx) {
 // ================================================
 
 async function handleConsumables(ctx) {
-    await ctx.answerCbQuery('🧪 Em breve: uso de poções durante o combate.', { show_alert: true }).catch(() => {});
+    const fight = getFight(ctx);
+    if (!fight) {
+        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
+        return handleHunt(ctx);
+    }
+
+    const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        await ctx.answerCbQuery('Use /start para criar seu personagem.', { show_alert: true }).catch(() => {});
+        return;
+    }
+
+    const c = player.consumables || {};
+    const rows = [];
+
+    if ((c.potionHp || 0) > 0) rows.push([Markup.button.callback(`❤️ Poção HP (${c.potionHp})`, 'combat_use:potionHp')]);
+    if ((c.potionEnergy || 0) > 0) rows.push([Markup.button.callback(`⚡ Poção Energia (${c.potionEnergy})`, 'combat_use:potionEnergy')]);
+    if ((c.tonicStrength || 0) > 0) rows.push([Markup.button.callback(`💪 Tônico Força (${c.tonicStrength})`, 'combat_use:tonicStrength')]);
+    if ((c.tonicDefense || 0) > 0) rows.push([Markup.button.callback(`🛡️ Tônico Defesa (${c.tonicDefense})`, 'combat_use:tonicDefense')]);
+    rows.push([Markup.button.callback('◀️ Voltar', 'combat_back')]);
+
+    if (rows.length === 1) {
+        await ctx.answerCbQuery('❌ Você não possui consumíveis.', { show_alert: true }).catch(() => {});
+        return;
+    }
+
+    try {
+        await ctx.editMessageReplyMarkup(Markup.inlineKeyboard(rows).reply_markup);
+    } catch {
+        await ctx.reply('🧪 Escolha um consumível:', Markup.inlineKeyboard(rows));
+    }
+}
+
+async function handleUseConsumable(ctx) {
+    const key = ctx.match?.[1];
+    const fight = getFight(ctx);
+    if (!fight) {
+        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
+        return handleHunt(ctx);
+    }
+    if (fight.status !== 'ongoing') {
+        return finishFight(ctx, fight);
+    }
+
+    const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        await ctx.answerCbQuery('Use /start para criar seu personagem.', { show_alert: true }).catch(() => {});
+        return;
+    }
+
+    player.consumables ??= {};
+    if (!player.consumables[key] || player.consumables[key] <= 0) {
+        await ctx.answerCbQuery('❌ Item indisponível.', { show_alert: true }).catch(() => {});
+        return;
+    }
+
+    player.consumables[key] -= 1;
+    let log = '';
+
+    if (key === 'potionHp') {
+        const heal = Math.max(20, Math.floor(fight.player.maxHp * 0.4));
+        const before = fight.player.hp;
+        fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
+        log = `❤️ Você recuperou ${fight.player.hp - before} HP com poção.`;
+    } else if (key === 'potionEnergy') {
+        player.energy = Math.min(player.maxEnergy, (player.energy || 0) + 1);
+        fight.player.energy = player.energy;
+        log = '⚡ Energia +1 com poção.';
+    } else if (key === 'tonicStrength') {
+        fight.player.atk += 10;
+        log = '💪 ATK +10 para esta batalha.';
+    } else if (key === 'tonicDefense') {
+        fight.player.def += 10;
+        log = '🛡️ DEF +10 para esta batalha.';
+    } else {
+        await ctx.answerCbQuery('❌ Consumível inválido.', { show_alert: true }).catch(() => {});
+        return;
+    }
+
+    fight.logs.push(log);
+    await savePlayer(ctx.from.id, player);
+
+    if (fight.status === 'ongoing') {
+        processEnemyTurn(fight);
+    }
+
+    if (fight.status !== 'ongoing') {
+        return finishFight(ctx, fight);
+    }
+
+    await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
+    return updateBattleMessage(ctx, fight, player, combatMenu());
 }
 
 // ================================================
@@ -521,6 +612,7 @@ module.exports = {
     handleSoulMenu,
     handleSoul,
     handleConsumables,
+    handleUseConsumable,
     handleCombatBack,
     finishFight,
     activeFights

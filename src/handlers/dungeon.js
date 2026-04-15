@@ -712,7 +712,80 @@ async function handleDungeonSoulMenu(ctx) {
     await safeAnswer(ctx, '💀 Selecione uma alma para usar (em breve).', true);
 }
 async function handleDungeonConsumables(ctx) {
-    await safeAnswer(ctx, '🧪 Selecione um item para usar (em breve).', true);
+    const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
+
+    const c = player.consumables || {};
+    const rows = [];
+    if ((c.potionHp || 0) > 0) rows.push([Markup.button.callback(`❤️ Poção HP (${c.potionHp})`, 'dungeon_use:potionHp')]);
+    if ((c.potionEnergy || 0) > 0) rows.push([Markup.button.callback(`⚡ Poção Energia (${c.potionEnergy})`, 'dungeon_use:potionEnergy')]);
+    if ((c.tonicStrength || 0) > 0) rows.push([Markup.button.callback(`💪 Tônico Força (${c.tonicStrength})`, 'dungeon_use:tonicStrength')]);
+    if ((c.tonicDefense || 0) > 0) rows.push([Markup.button.callback(`🛡️ Tônico Defesa (${c.tonicDefense})`, 'dungeon_use:tonicDefense')]);
+    rows.push([Markup.button.callback('◀️ Voltar', 'dungeon')]);
+
+    if (rows.length === 1) {
+        return safeAnswer(ctx, '❌ Você não possui consumíveis.', true);
+    }
+
+    return safeSend(ctx, '🧪 *Consumíveis da Masmorra*\nEscolha um item:', {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(rows)
+    });
+}
+
+async function handleDungeonUseConsumable(ctx) {
+    const key = ctx.match?.[1];
+    const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
+    const d = normalizeDungeonState(player);
+    if (!d.active) {
+        await safeAnswer(ctx, '❌ Não há expedição ativa.', true);
+        return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+    }
+
+    player.consumables ??= {};
+    if (!player.consumables[key] || player.consumables[key] <= 0) {
+        return safeAnswer(ctx, '❌ Item indisponível.', true);
+    }
+
+    player.consumables[key] -= 1;
+    const room = getCurrentRoom(player);
+    let log = '';
+
+    if (key === 'potionHp') {
+        const heal = Math.max(20, Math.floor(player.maxHp * 0.35));
+        const before = player.hp;
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        log = `❤️ Poção restaurou ${player.hp - before} HP.`;
+    } else if (key === 'potionEnergy') {
+        const before = player.energy;
+        player.energy = Math.min(player.maxEnergy, player.energy + 1);
+        log = `⚡ Energia +${player.energy - before}.`;
+    } else if (key === 'tonicStrength') {
+        d.combatBonus.atk += 8;
+        log = '💪 Bônus de expedição: ATK +8.';
+    } else if (key === 'tonicDefense') {
+        d.combatBonus.def += 8;
+        log = '🛡️ Bônus de expedição: DEF +8.';
+    } else {
+        return safeAnswer(ctx, '❌ Consumível inválido.', true);
+    }
+
+    addDungeonLog(player, log);
+
+    if (room && (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') && !room.cleared && room.enemy?.hp > 0) {
+        const enemyHit = calculateDamage({ atk: room.enemy.atk, crit: room.enemy.crit }, { def: Math.max(0, (player.def || 0) + (d.combatBonus.def || 0)) });
+        player.hp = Math.max(1, player.hp - enemyHit.damage);
+        addDungeonLog(player, `👹 ${room.enemy.name} aproveitou e causou ${enemyHit.damage} de dano.`);
+    }
+
+    await savePlayer(ctx.from.id, player);
+    await safeAnswer(ctx, '✅ Consumível usado!', true);
+    return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
 }
 
 module.exports = {
@@ -722,5 +795,6 @@ module.exports = {
     handleDungeonNextRoom,
     handleDungeonFlee,
     handleDungeonSoulMenu,
-    handleDungeonConsumables
+    handleDungeonConsumables,
+    handleDungeonUseConsumable
 };

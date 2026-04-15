@@ -108,6 +108,12 @@ function battleKeyboard() {
         ],
         [
             Markup.button.callback(
+                '🧪 Consumíveis',
+                'arena_consumables'
+            )
+        ],
+        [
+            Markup.button.callback(
                 '🏠 Arena',
                 'arena'
             )
@@ -632,6 +638,90 @@ async function handleArenaFlee(
 
 /*
 =================================
+CONSUMABLES
+=================================
+*/
+
+async function handleArenaConsumables(ctx) {
+    await safeAnswer(ctx);
+
+    const battle = getBattle(ctx.from.id);
+    if (!battle) return handleArena(ctx);
+
+    const player = await getPlayer(ctx.from.id);
+    ensureArenaState(player);
+
+    const c = player.consumables || {};
+    const rows = [];
+    if ((c.potionHp || 0) > 0) rows.push([Markup.button.callback(`❤️ Poção HP (${c.potionHp})`, 'arena_use:potionHp')]);
+    if ((c.potionEnergy || 0) > 0) rows.push([Markup.button.callback(`⚡ Poção Energia (${c.potionEnergy})`, 'arena_use:potionEnergy')]);
+    if ((c.tonicStrength || 0) > 0) rows.push([Markup.button.callback(`💪 Tônico Força (${c.tonicStrength})`, 'arena_use:tonicStrength')]);
+    if ((c.tonicDefense || 0) > 0) rows.push([Markup.button.callback(`🛡️ Tônico Defesa (${c.tonicDefense})`, 'arena_use:tonicDefense')]);
+    rows.push([Markup.button.callback('◀️ Voltar', 'arena')]);
+
+    if (rows.length === 1) {
+        return safeAnswer(ctx, '❌ Você não possui consumíveis.', { show_alert: true });
+    }
+
+    return safeSend(ctx, '🧪 *Consumíveis da Arena*\nEscolha um item:', {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard(rows)
+    });
+}
+
+async function handleArenaUseConsumable(ctx) {
+    await safeAnswer(ctx);
+    const key = ctx.match?.[1];
+    const battle = getBattle(ctx.from.id);
+    if (!battle) return handleArena(ctx);
+
+    const player = await getPlayer(ctx.from.id);
+    ensureArenaState(player);
+    player.consumables ??= {};
+
+    if (!player.consumables[key] || player.consumables[key] <= 0) {
+        return safeAnswer(ctx, '❌ Item indisponível.', { show_alert: true });
+    }
+
+    player.consumables[key] -= 1;
+
+    if (key === 'potionHp') {
+        const heal = Math.max(20, Math.floor(battle.player.maxHp * 0.4));
+        battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + heal);
+        battle.logs.push(`❤️ Você usou Poção de HP e se curou.`);
+    } else if (key === 'potionEnergy') {
+        player.energy = Math.min(player.maxEnergy, (player.energy || 0) + 1);
+        battle.logs.push(`⚡ Energia +1 com Poção de Energia.`);
+    } else if (key === 'tonicStrength') {
+        battle.player.atk += 8;
+        battle.logs.push(`💪 Tônico de Força: ATK +8.`);
+    } else if (key === 'tonicDefense') {
+        battle.player.def += 8;
+        battle.logs.push(`🛡️ Tônico de Defesa: DEF +8.`);
+    } else {
+        return safeAnswer(ctx, '❌ Consumível inválido.', { show_alert: true });
+    }
+
+    // Consumível consome turno na arena: inimigo responde
+    const enemyHit = calculateDamage(battle.enemy, battle.player);
+    battle.player.hp = Math.max(0, battle.player.hp - enemyHit.damage);
+    battle.logs.push(`👹 ${battle.enemy.name} respondeu com ${enemyHit.damage} de dano.`);
+
+    await savePlayer(ctx.from.id, player);
+    await persistBattleHp(ctx.from.id, battle);
+
+    if (battle.player.hp <= 0) {
+        return finishBattle(ctx, battle, 'loss');
+    }
+
+    return safeSend(ctx, buildArenaBattleText(battle), {
+        parse_mode: 'Markdown',
+        ...battleKeyboard()
+    });
+}
+
+/*
+=================================
 CHESTS
 =================================
 */
@@ -790,6 +880,8 @@ module.exports = {
     handleArenaAttack,
     handleArenaDefend,
     handleArenaFlee,
+    handleArenaConsumables,
+    handleArenaUseConsumable,
     handleArenaChests,
     handleArenaOpenChest,
     handleArenaRanking
