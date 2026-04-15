@@ -173,8 +173,12 @@ async function handleProfile(ctx) {
 
         if (messageId) {
             if (profileImage) {
-                await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
-                    parse_mode: 'Markdown',
+                await ctx.telegram.editMessageMedia(chatId, messageId, null, {
+                    type: 'photo',
+                    media: profileImage,
+                    caption,
+                    parse_mode: 'Markdown'
+                }, {
                     reply_markup: keyboard.reply_markup
                 });
                 return;
@@ -188,6 +192,11 @@ async function handleProfile(ctx) {
         }
     } catch (e) {
         // fallback para nova mensagem
+        try {
+            await ctx.deleteMessage();
+        } catch {
+            // ignora
+        }
     }
 
     if (profileImage) {
