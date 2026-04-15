@@ -23,6 +23,7 @@ const {
     formatTime,
     formatSoulName
 } = require('./formatters');
+const { ensureCosmeticsState, getActiveCosmetic } = require('../core/player/cosmetics');
 
 /*
 =================================
@@ -35,6 +36,7 @@ async function getPlayerSafe(id, name = 'Viajante') {
     if (!player) return null;
     updateEnergy(player);
     recalculateStats(player);
+    ensureCosmeticsState(player);
     return player;
 }
 
@@ -204,11 +206,14 @@ async function getMainMenuText(playerId, username) {
 
     const vipIcon = player.vip ? '✨' : '👤';
     const buildName = getBuildName(player);
+    const activeTitle = getActiveCosmetic(player, 'title');
+    const activeAura = getActiveCosmetic(player, 'aura');
 
     const statsLine = `⚔️${formatNumber(player.atk)}  🛡️${formatNumber(player.def)}  💥${formatNumber(player.crit)}%`;
 
     const lines = [
-        `🌙 ${player.name || username}  ${vipIcon}`,
+        `🌙 ${player.name || username}  ${vipIcon}${activeAura ? ' ✨' : ''}`,
+        activeTitle ? `🏷️ ${activeTitle.name}` : null,
         `🏹 ${player.class}  ${buildName}  Lv.${player.level}`,
         statsLine,
         '',
@@ -220,15 +225,17 @@ async function getMainMenuText(playerId, username) {
         `🗺️ ${location.emoji} ${location.name}  🏟️ ${formatNumber(arenaPoints)} ${arenaLeague}`
     ];
 
+    const compactLines = lines.filter(Boolean);
+
     const buffsSummary = getBuffsSummary(player);
     if (buffsSummary) {
-        lines.push(`✨ Buffs: ${buffsSummary}`);
+        compactLines.push(`✨ Buffs: ${buffsSummary}`);
     }
 
-    lines.push(`💀 Souls: ${getSoulSummary(player)}`);
-    lines.push(`☠️ ${formatNumber(player.totalKills || 0)} abates`);
+    compactLines.push(`💀 Souls: ${getSoulSummary(player)}`);
+    compactLines.push(`☠️ ${formatNumber(player.totalKills || 0)} abates`);
 
-    return premiumFrame('🌑 NOCTRA RPG', lines.join('\n'));
+    return premiumFrame('🌑 NOCTRA RPG', compactLines.join('\n'));
 }
 
 module.exports = {
