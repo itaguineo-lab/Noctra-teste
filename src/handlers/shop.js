@@ -1,20 +1,15 @@
 const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
-const { processPurchase, sellItem } = require('../core/economy/shopLogic');
+const { processPurchase, sellItem, calculateSellPrice } = require('../core/economy/shopLogic');
 const { shopItems } = require('../data/shopItems');
 const { shopMainMenu, shopTabsMenu, renderShop } = require('../menus/shopMenu');
-const { renderInventory } = require('./inventory'); // Reutiliza a exibição do inventário
 
 const activePurchases = new Set();
-
-// ================================================
-// HELPERS
-// ================================================
 
 async function safeEdit(ctx, text, options = {}) {
     try {
         if (ctx.callbackQuery) {
-            await ctx.answerCbQuery();
+            await ctx.answerCbQuery().catch(() => {});
             return await ctx.editMessageText(text, options);
         }
         return await ctx.reply(text, options);
@@ -58,19 +53,11 @@ async function redirectAfterPurchase(ctx, shopName) {
     return renderTab(ctx, shopName);
 }
 
-// ================================================
-// MENU PRINCIPAL DA LOJA (COMPRAR / VENDER)
-// ================================================
-
 async function handleShop(ctx) {
     const player = await getPlayer(ctx.from.id);
     const msg = `🛒 *LOJAS DE NOCTRA*\n\n${getWalletText(player)}\n\nEscolha uma opção:`;
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopMainMenu() });
 }
-
-// ================================================
-// MENU DE COMPRA (abas das lojas)
-// ================================================
 
 async function handleShopBuyMenu(ctx) {
     const player = await getPlayer(ctx.from.id);
@@ -78,27 +65,39 @@ async function handleShopBuyMenu(ctx) {
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopTabsMenu() });
 }
 
-async function handleShopVillage(ctx) { return renderTab(ctx, 'village'); }
-async function handleShopCastle(ctx) { return renderTab(ctx, 'castle'); }
-async function handleShopArena(ctx) { return renderTab(ctx, 'arena'); }
+async function handleShopVillage(ctx) {
+    return renderTab(ctx, 'village');
+}
 
-// ================================================
-// COMPRA
-// ================================================
+async function handleShopCastle(ctx) {
+    return renderTab(ctx, 'castle');
+}
+
+async function handleShopArena(ctx) {
+    return renderTab(ctx, 'arena');
+}
 
 async function handleBuy(ctx) {
     const playerId = String(ctx.from.id);
+
     if (activePurchases.has(playerId)) {
         return ctx.answerCbQuery('⏳ Compra em andamento...', { show_alert: true });
     }
+
     activePurchases.add(playerId);
+
     try {
         const itemId = ctx.match?.[1];
-        if (!itemId) return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+        if (!itemId) {
+            return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+        }
 
         const player = await getPlayer(ctx.from.id);
         const item = shopItems.find(i => i.id === itemId);
-        if (!item) return ctx.answerCbQuery('❌ Item não encontrado.', { show_alert: true });
+
+        if (!item) {
+            return ctx.answerCbQuery('❌ Item não encontrado.', { show_alert: true });
+        }
 
         const result = processPurchase(player, item);
         if (!result?.success) {
@@ -116,10 +115,6 @@ async function handleBuy(ctx) {
     }
 }
 
-// ================================================
-// VENDER (Exibe inventário de equipamentos)
-// ================================================
-
 async function handleShopSell(ctx) {
     const player = await getPlayer(ctx.from.id);
     const inventory = player.inventory || [];
@@ -129,14 +124,11 @@ async function handleShopSell(ctx) {
         return;
     }
 
-    // Exibe o inventário de equipamentos (apenas itens não equipados)
-    // Vamos reutilizar a função renderInventory, mas com um callback de venda
     const text = `💰 *VENDER EQUIPAMENTOS*\n\n${getWalletText(player)}\n\nSelecione um item para vender:`;
     const keyboard = [];
 
-    // Exibe até 10 itens por página (simplificado)
     inventory.slice(0, 10).forEach((item, index) => {
-        const sellPrice = require('../core/economy/shopLogic').calculateSellPrice(item);
+        const sellPrice = calculateSellPrice(item);
         keyboard.push([
             Markup.button.callback(
                 `${item.name} (${sellPrice}💰)`,
@@ -153,14 +145,11 @@ async function handleShopSell(ctx) {
     });
 }
 
-// ================================================
-// CONFIRMAÇÃO E EXECUÇÃO DA VENDA
-// ================================================
-
 async function handleSellConfirm(ctx) {
-    const playerId = String(ctx.from.id);
     const match = ctx.match?.[1];
-    if (match === undefined) return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+    if (match === undefined) {
+        return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+    }
 
     const itemIndex = parseInt(match, 10);
     const player = await getPlayer(ctx.from.id);
@@ -172,7 +161,7 @@ async function handleSellConfirm(ctx) {
 
     await savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(result.message, { show_alert: true });
-    return handleShop(ctx); // Volta ao menu da loja
+    return handleShop(ctx);
 }
 
 module.exports = {
