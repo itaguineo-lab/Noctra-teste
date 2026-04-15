@@ -107,6 +107,8 @@ function normalizeDungeonState(player) {
     d.rewards ??= { xp: 0, gold: 0, keys: 0, glorias: 0, items: 0 };
     d.summary ??= null;
     d.logs ??= []; // NOVO: logs de combate
+    d.combatBonus ??= { atk: 0, def: 0, crit: 0 };
+    d.roomsVisited ??= 0;
     return d;
 }
 
@@ -135,23 +137,25 @@ function weightedPick(entries) {
     return entries[0]?.value || 'combat';
 }
 
-function buildDungeonRoomTypes() {
-    const room2 = weightedPick([
-        { value: 'combat', weight: 35 }, { value: 'treasure', weight: 25 },
-        { value: 'heal', weight: 20 }, { value: 'curse', weight: 10 }, { value: 'elite', weight: 10 }
-    ]);
-    const room3 = weightedPick([
-        { value: 'combat', weight: 25 }, { value: 'treasure', weight: 20 },
-        { value: 'heal', weight: 20 }, { value: 'curse', weight: 15 }, { value: 'elite', weight: 20 }
-    ]);
-    const room4 = weightedPick([
-        { value: 'combat', weight: 20 }, { value: 'treasure', weight: 20 },
-        { value: 'heal', weight: 20 }, { value: 'curse', weight: 15 }, { value: 'elite', weight: 25 }
-    ]);
-    const types = ['combat', room2, room3, room4, 'boss'];
+function buildDungeonRoomTypes(maxRooms = 5) {
+    const middleRoomCount = Math.max(3, maxRooms - 2);
+    const middleRooms = [];
+
+    for (let i = 0; i < middleRoomCount; i++) {
+        middleRooms.push(weightedPick([
+            { value: 'combat', weight: 30 },
+            { value: 'treasure', weight: 18 },
+            { value: 'heal', weight: 18 },
+            { value: 'curse', weight: 12 },
+            { value: 'elite', weight: 16 },
+            { value: 'shrine', weight: 6 }
+        ]));
+    }
+
+    const types = ['combat', ...middleRooms, 'boss'];
     if (!types.includes('treasure')) types[1] = 'treasure';
     if (!types.includes('heal')) types[2] = 'heal';
-    if (!types.includes('elite')) types[3] = 'elite';
+    if (!types.includes('elite')) types[types.length - 2] = 'elite';
     return types;
 }
 
@@ -163,6 +167,7 @@ function createDungeonRoom(player, index, type) {
         treasure: { emoji: '🎁', title: 'Sala do Tesouro', desc: 'Relíquias espalhadas.' },
         heal: { emoji: '❤️', title: 'Fonte Sombria', desc: 'Energia ancestral pulsa.' },
         curse: { emoji: '💀', title: 'Santuário Corrompido', desc: 'Escolhas trazem poder e dor.' },
+        shrine: { emoji: '✨', title: 'Santuário Arcano', desc: 'Uma bênção antiga emana deste altar.' },
         boss: { emoji: '👑', title: 'Trono do Guardião', desc: 'O guardião final bloqueia a passagem.' }
     }[type] || { emoji: '❓', title: type, desc: '' };
 
@@ -178,15 +183,22 @@ function createDungeonRoom(player, index, type) {
 
 function startDungeonRun(player) {
     const d = normalizeDungeonState(player);
+    const mapId = player.currentMap || 'clareira_sombria';
+    const mapNumber = getMapNumber(mapId);
+    const maxRooms = Math.min(7, 5 + Math.floor((mapNumber - 1) / 2));
+
     d.active = true;
     d.completed = false;
     d.aborted = false;
     d.startedAt = Date.now();
-    d.mapId = player.currentMap || 'clareira_sombria';
+    d.mapId = mapId;
+    d.maxRooms = maxRooms;
     d.currentRoomIndex = 0;
-    d.rooms = buildDungeonRoomTypes().map((type, i) => createDungeonRoom(player, i + 1, type));
+    d.rooms = buildDungeonRoomTypes(maxRooms).map((type, i) => createDungeonRoom(player, i + 1, type));
     d.rewards = { xp: 0, gold: 0, keys: 0, glorias: 0, items: 0 };
     d.summary = null;
+    d.combatBonus = { atk: 0, def: 0, crit: 0 };
+    d.roomsVisited = 1;
     d.logs = [`🌑 Você adentrou a masmorra...`];
     return d;
 }
@@ -261,11 +273,49 @@ function resolveCurseRoom(player, room) {
     return { success: true, message: `💀 Maldição cobrou ${hpLoss} HP, mas ganhou ${gold} ouro.`, notes };
 }
 
+function resolveShrineRoom(player, room) {
+    const d = normalizeDungeonState(player);
+    const boons = [
+        { atk: 4, def: 0, crit: 0, hpPercent: 0.1, note: '⚔️ Bênção de Força (+4 ATK)' },
+        { atk: 0, def: 4, crit: 0, hpPercent: 0.08, note: '🛡️ Bênção de Guarda (+4 DEF)' },
+        { atk: 0, def: 0, crit: 4, hpPercent: 0.05, note: '💥 Bênção de Precisão (+4% CRIT)' },
+        { atk: 2, def: 2, crit: 2, hpPercent: 0.12, note: '✨ Bênção Equilibrada (+2 em ATK/DEF/CRIT)' }
+    ];
+
+    const selected = boons[Math.floor(Math.random() * boons.length)];
+    d.combatBonus.atk += selected.atk;
+    d.combatBonus.def += selected.def;
+    d.combatBonus.crit += selected.crit;
+
+    const heal = Math.max(5, Math.floor(player.maxHp * selected.hpPercent));
+    const healed = Math.min(player.maxHp - player.hp, heal);
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+
+    room.cleared = true;
+    addSummaryNote(player, selected.note);
+    if (healed > 0) addSummaryNote(player, `❤️ +${healed} HP`);
+    addDungeonLog(player, `✨ Altar concedeu: ${selected.note.replace(/^.\s/, '')}`);
+
+    return {
+        success: true,
+        message: `✨ O altar respondeu ao seu toque.`,
+        notes: [selected.note, `❤️ Cura recebida: ${healed}`]
+    };
+}
+
 function resolveCombatRoom(player, room) {
     const d = normalizeDungeonState(player);
     if (!room.enemy) room.enemy = getRandomDungeonEnemy(d.mapId, room.type, player.level || 1, room.index);
 
-    const playerHit = calculateDamage({ atk: player.atk, crit: player.crit }, { def: room.enemy.def });
+    const effectivePlayer = {
+        atk: Math.max(1, (player.atk || 1) + (d.combatBonus.atk || 0)),
+        crit: Math.max(0, Math.min(75, (player.crit || 0) + (d.combatBonus.crit || 0)))
+    };
+    const effectiveDefense = {
+        def: Math.max(0, (player.def || 0) + (d.combatBonus.def || 0))
+    };
+
+    const playerHit = calculateDamage(effectivePlayer, { def: room.enemy.def });
     room.enemy.hp = Math.max(0, room.enemy.hp - playerHit.damage);
     
     let playerLog = `⚔️ Você causou ${playerHit.damage} de dano`;
@@ -291,7 +341,7 @@ function resolveCombatRoom(player, room) {
         return result;
     }
 
-    const enemyHit = calculateDamage({ atk: room.enemy.atk, crit: room.enemy.crit }, { def: player.def });
+    const enemyHit = calculateDamage({ atk: room.enemy.atk, crit: room.enemy.crit }, effectiveDefense);
     player.hp = Math.max(0, player.hp - enemyHit.damage);
     
     let enemyLog = `👹 ${room.enemy.name} causou ${enemyHit.damage} de dano`;
@@ -350,7 +400,29 @@ function finalizeDungeonRun(player, reason) {
 
 function renderDungeonText(player) {
     const d = normalizeDungeonState(player);
-    if (!d.active || d.completed || d.aborted) return renderDungeonSummary(player);
+    if (!d.active || d.completed || d.aborted) {
+        const hasSummary = d.summary && (d.completed || d.aborted);
+        if (!hasSummary) {
+            const map = getDungeonMap(player);
+            return [
+                `━━━━━━━━━━━━━━━━━━━━━━`,
+                `🏰 *MASMORRA 2.0*`,
+                `━━━━━━━━━━━━━━━━━━━━━━`,
+                ``,
+                `🗺️ Destino: ${map.emoji} ${map.name}`,
+                `🗝️ Chaves disponíveis: ${player.keys || 0}`,
+                `⚡ Energia atual: ${player.energy}/${player.maxEnergy}`,
+                ``,
+                `Entre em uma expedição tática por salas:`,
+                `• Combate, Elite e Boss`,
+                `• Tesouro, Fonte e Maldição`,
+                `• Novo *Santuário Arcano* com bônus de expedição`,
+                ``,
+                `Toque em *Nova expedição* para começar.`
+            ].join('\n');
+        }
+        return renderDungeonSummary(player);
+    }
 
     const room = getCurrentRoom(player);
     if (!room) return renderDungeonSummary(player);
@@ -370,6 +442,9 @@ function renderDungeonText(player) {
     text += `👤 ${escapeMarkdown(player.name)}  Lv.${player.level}\n`;
     text += `❤️ ${player.hp}/${player.maxHp} ${hpBar}\n`;
     text += `⚡ ${player.energy}/${player.maxEnergy} ${energyBar}\n\n`;
+    if (d.combatBonus.atk || d.combatBonus.def || d.combatBonus.crit) {
+        text += `✨ *Bônus da Expedição*: ⚔️ +${d.combatBonus.atk}  🛡️ +${d.combatBonus.def}  💥 +${d.combatBonus.crit}%\n\n`;
+    }
 
     if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
         const e = room.enemy;
@@ -386,7 +461,11 @@ function renderDungeonText(player) {
         }
         text += `\n`;
     } else {
-        text += `Ação: ${room.type === 'treasure' ? 'Abrir tesouro' : (room.type === 'heal' ? 'Canalizar fonte' : 'Quebrar maldição')}\n\n`;
+        text += `Ação: ${room.type === 'treasure'
+            ? 'Abrir tesouro'
+            : (room.type === 'heal'
+                ? 'Canalizar fonte'
+                : (room.type === 'shrine' ? 'Receber bênção' : 'Quebrar maldição'))}\n\n`;
     }
 
     text += `📊 *Recompensas acumuladas*\n`;
@@ -407,6 +486,7 @@ function renderDungeonSummary(player) {
     text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     text += `🗺️ ${map.emoji} ${map.name}\n\n`;
     text += `📊 Salas vencidas: ${sum.roomsCleared || 0}/${d.maxRooms}\n`;
+    text += `🚪 Salas visitadas: ${d.roomsVisited || 0}\n`;
     text += `✨ XP: ${formatNumber(sum.xp || 0)}\n`;
     text += `💰 Ouro: ${formatNumber(sum.gold || 0)}\n`;
     text += `🗝️ Chaves: ${sum.keys || 0}\n`;
@@ -453,7 +533,11 @@ function buildDungeonKeyboard(player) {
 
     return Markup.inlineKeyboard([
         [Markup.button.callback(
-            room.type === 'treasure' ? '🎁 Abrir Tesouro' : (room.type === 'heal' ? '❤️ Canalizar' : '💀 Aceitar Maldição'),
+            room.type === 'treasure'
+                ? '🎁 Abrir Tesouro'
+                : (room.type === 'heal'
+                    ? '❤️ Canalizar'
+                    : (room.type === 'shrine' ? '✨ Receber Bênção' : '💀 Aceitar Maldição')),
             'dungeon_attack'
         )],
         [Markup.button.callback('🏃 Sair', 'dungeon_flee'), Markup.button.callback('🏠 Menu', 'menu')]
@@ -483,12 +567,10 @@ async function safeAnswer(ctx, text, alert = true) {
 async function handleDungeon(ctx) {
     await safeAnswer(ctx, '', false);
     const player = await getPlayer(ctx.from.id);
-    normalizeDungeonState(player);
-
-    if (!player.dungeonProgress.rooms?.length && !player.dungeonProgress.active) {
-        startDungeonRun(player);
-        await savePlayer(ctx.from.id, player);
+    if (!player) {
+        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
+    normalizeDungeonState(player);
 
     return safeSend(ctx, renderDungeonText(player), {
         parse_mode: 'Markdown',
@@ -499,6 +581,9 @@ async function handleDungeon(ctx) {
 async function handleDungeonStart(ctx) {
     await safeAnswer(ctx, '', false);
     const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
 
     // VERIFICA SE TEM CHAVE
     if (!player.keys || player.keys < 1) {
@@ -523,6 +608,9 @@ async function handleDungeonStart(ctx) {
 async function handleDungeonAttack(ctx) {
     await safeAnswer(ctx, '', false);
     const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
@@ -539,6 +627,8 @@ async function handleDungeonAttack(ctx) {
         result = resolveHealRoom(player, room);
     } else if (room.type === 'curse') {
         result = resolveCurseRoom(player, room);
+    } else if (room.type === 'shrine') {
+        result = resolveShrineRoom(player, room);
     } else {
         result = { success: false, message: 'Sala inválida.' };
     }
@@ -565,6 +655,9 @@ async function handleDungeonAttack(ctx) {
 async function handleDungeonNextRoom(ctx) {
     await safeAnswer(ctx, '', false);
     const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
@@ -580,6 +673,7 @@ async function handleDungeonNextRoom(ctx) {
     }
 
     d.currentRoomIndex++;
+    d.roomsVisited = Math.max(d.roomsVisited || 0, d.currentRoomIndex + 1);
     // Limpa logs ao mudar de sala
     d.logs = [`🌑 Sala ${d.currentRoomIndex + 1}...`];
     await savePlayer(ctx.from.id, player);
@@ -589,6 +683,9 @@ async function handleDungeonNextRoom(ctx) {
 async function handleDungeonFlee(ctx) {
     await safeAnswer(ctx, '', false);
     const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+    }
     const d = normalizeDungeonState(player);
 
     if (!d.active) {
