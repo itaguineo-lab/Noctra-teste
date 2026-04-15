@@ -1,5 +1,6 @@
 const Player = require('./PlayerModel');
 const mongoose = require('mongoose');
+const { ensureCosmeticsState } = require('./cosmetics');
 
 let isConnected = false;
 
@@ -176,7 +177,7 @@ function ensurePlayerState(player) {
     player.lastDungeonRun ??= 0;
     player.soulPityCounter ??= 0;
 
-    player.cosmetics ??= [];
+    ensureCosmeticsState(player);
     player.lastDailyChest ??= null;
 
     player.renamed ??= false;

@@ -78,6 +78,11 @@ const playerSchema = new mongoose.Schema({
     lastDungeonRun: { type: Number, default: 0 },
     soulPityCounter: { type: Number, default: 0 },
     cosmetics: { type: Array, default: [] },
+    activeCosmetics: {
+        title: { type: String, default: null },
+        aura: { type: String, default: null },
+        badge: { type: String, default: null }
+    },
     
     // Baú diário
     lastDailyChest: { type: String, default: null },
