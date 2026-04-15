@@ -290,7 +290,6 @@ async function handleHunt(ctx) {
     }
 
     await savePlayer(ctx.from.id, player);
-    player = await getPlayer(ctx.from.id);
 
     const fight = createFight(player, enemy);
     fight.createdAt = Date.now();
