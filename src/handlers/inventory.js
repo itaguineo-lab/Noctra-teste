@@ -1,8 +1,7 @@
 const { Markup } = require('telegraf');
 const {
     getPlayer,
-    savePlayer,
-    recalculateStats
+    savePlayer
 } = require('../core/player/playerService');
 const {
     ensureCosmeticsState,
@@ -10,6 +9,20 @@ const {
     unequipCosmetic,
     getActiveCosmetic
 } = require('../core/player/cosmetics');
+const {
+    applyHeal,
+    restoreFullHp,
+    restoreEnergy,
+    applyEquipmentChange,
+    removeEquipment,
+    applySoulEquip,
+    applySoulUnequip,
+    applyBuff,
+    consumeConsumable,
+    normalizePlayerForSave,
+    sameItem,
+    getItemKey
+} = require('../core/player/playerMutations');
 const { inventoryMainMenu } = require('../menus/inventoryMenu');
 
 const PAGE_SIZE = 5;
@@ -210,20 +223,6 @@ function getRealSlot(item) {
         if (String(item.slot).startsWith(validSlot)) return validSlot;
     }
     return item.slot;
-}
-
-function getItemKey(item) {
-    if (!item || typeof item !== 'object') return '';
-    return String(
-        item.id ??
-        item._id ??
-        item.instanceId ??
-        `${item.slot || 'unknown'}|${item.name || 'item'}|${item.level || 0}|${item.atk || 0}|${item.def || 0}|${item.hp || 0}|${item.crit || 0}`
-    );
-}
-
-function sameItem(a, b) {
-    return getItemKey(a) === getItemKey(b);
 }
 
 function getComparisonDelta(item, player, slot) {
@@ -518,41 +517,39 @@ async function handleInvSouls(ctx) {
 
 async function handleUsePotionOutside(ctx, type) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
-    const consumables = player.consumables || {};
 
     if (type === 'hp') {
-        if (!consumables.potionHp || consumables.potionHp <= 0) {
+        const consumeResult = consumeConsumable(player, 'potionHp', 1);
+        if (!consumeResult.success) {
             return safeAnswer(ctx, '❌ Você não tem poções de vida.', { show_alert: true });
         }
+
         if (player.hp >= player.maxHp) {
+            player.consumables.potionHp += 1;
             return safeAnswer(ctx, '❤️ Seu HP já está cheio.', { show_alert: true });
         }
 
-        consumables.potionHp--;
-        player.hp = player.maxHp; // Cura 100%
-        player.consumables = consumables;
-
+        restoreFullHp(player);
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
+
         await safeAnswer(ctx, `🧪 Poção de Vida usada! HP restaurado para ${player.maxHp}.`, { show_alert: true });
         return handleInvConsumables(ctx);
     }
 
     if (type === 'strength') {
-        if (!consumables.tonicStrength || consumables.tonicStrength <= 0) {
+        const consumeResult = consumeConsumable(player, 'tonicStrength', 1);
+        if (!consumeResult.success) {
             return safeAnswer(ctx, '❌ Você não tem Tônicos de Força.', { show_alert: true });
         }
 
-        consumables.tonicStrength--;
-        player.consumables = consumables;
-
-        player.buffs = player.buffs || [];
-        player.buffs.push({
+        applyBuff(player, {
             type: 'strength',
             atk: 10,
-            expiresAt: Date.now() + 30 * 60 * 1000 // 30 minutos
+            expiresAt: Date.now() + 30 * 60 * 1000
         });
 
-        recalculateStats(player);
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
         await safeAnswer(ctx, `💪 Tônico de Força usado! +10 ATK por 30 minutos.`, { show_alert: true });
@@ -560,21 +557,18 @@ async function handleUsePotionOutside(ctx, type) {
     }
 
     if (type === 'defense') {
-        if (!consumables.tonicDefense || consumables.tonicDefense <= 0) {
+        const consumeResult = consumeConsumable(player, 'tonicDefense', 1);
+        if (!consumeResult.success) {
             return safeAnswer(ctx, '❌ Você não tem Tônicos de Defesa.', { show_alert: true });
         }
 
-        consumables.tonicDefense--;
-        player.consumables = consumables;
-
-        player.buffs = player.buffs || [];
-        player.buffs.push({
+        applyBuff(player, {
             type: 'defense',
             def: 10,
             expiresAt: Date.now() + 30 * 60 * 1000
         });
 
-        recalculateStats(player);
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
         await safeAnswer(ctx, `🛡️ Tônico de Defesa usado! +10 DEF por 30 minutos.`, { show_alert: true });
@@ -614,16 +608,13 @@ async function equipByCurrentList(ctx, category, page, absoluteIndex) {
         return renderInventory(ctx, category, page);
     }
 
-    const currentEquipped = player.equipment[slot];
-
-    if (currentEquipped && !sameItem(currentEquipped, item)) {
-        player.inventory.push({ ...currentEquipped, __equipped: false });
+    const result = applyEquipmentChange(player, slot, item);
+    if (!result.success) {
+        await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
+        return renderInventory(ctx, category, page);
     }
 
-    player.inventory = player.inventory.filter(invItem => !sameItem(invItem, item));
-    player.equipment[slot] = { ...item, __equipped: true };
-
-    recalculateStats(player);
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
     await safeAnswer(ctx, `✅ ${item.name} equipado!`);
@@ -633,19 +624,16 @@ async function equipByCurrentList(ctx, category, page, absoluteIndex) {
 async function unequipBySlot(ctx, slot, category, page) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
 
-    const item = player.equipment[slot];
-    if (!item) {
-        await safeAnswer(ctx, '❌ Nada equipado neste slot.', { show_alert: true });
+    const result = removeEquipment(player, slot);
+    if (!result.success) {
+        await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
         return renderInventory(ctx, category, page);
     }
 
-    player.inventory.push({ ...item, __equipped: false });
-    player.equipment[slot] = null;
-
-    recalculateStats(player);
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    await safeAnswer(ctx, `✅ ${item.name} removido!`);
+    await safeAnswer(ctx, `✅ ${result.item.name} removido!`);
     return renderInventory(ctx, category, page);
 }
 
@@ -681,15 +669,12 @@ async function handleEquipItem(ctx) {
             return safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
         }
 
-        const currentEquipped = player.equipment[slot];
-        if (currentEquipped && !sameItem(currentEquipped, item)) {
-            player.inventory.push({ ...currentEquipped, __equipped: false });
+        const result = applyEquipmentChange(player, slot, item);
+        if (!result.success) {
+            return safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
         }
 
-        player.inventory = player.inventory.filter(invItem => !sameItem(invItem, item));
-        player.equipment[slot] = { ...item, __equipped: true };
-
-        recalculateStats(player);
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
         await safeAnswer(ctx, `✅ ${item.name} equipado!`);
@@ -721,19 +706,16 @@ async function handleUnequipItem(ctx) {
     if (legacy) {
         const slot = legacy[1];
         const player = normalizePlayerState(await getPlayer(ctx.from.id));
-        const item = player.equipment?.[slot];
 
-        if (!item) {
-            return safeAnswer(ctx, '❌ Nada equipado neste slot.', { show_alert: true });
+        const result = removeEquipment(player, slot);
+        if (!result.success) {
+            return safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
         }
 
-        player.inventory.push({ ...item, __equipped: false });
-        player.equipment[slot] = null;
-
-        recalculateStats(player);
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
-        await safeAnswer(ctx, `✅ ${item.name} removido!`);
+        await safeAnswer(ctx, `✅ ${result.item.name} removido!`);
 
         let redirectCategory = 'weapons';
         if (slot === 'shield') redirectCategory = 'shields';
@@ -783,58 +765,39 @@ async function handleEquipSoul(ctx) {
     const soulId = ctx.match?.[1];
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
 
-    const soulIndex = player.soulsInventory.findIndex(
+    const soul = player.soulsInventory.find(
         s => String(s.instanceId || s.id) === String(soulId)
     );
 
-    if (soulIndex === -1) {
+    if (!soul) {
         return safeAnswer(ctx, 'Alma não encontrada.', { show_alert: true });
     }
 
-    const soul = player.soulsInventory[soulIndex];
-
-    if ((player.soulsEquipped || []).some(s => s && String(s.instanceId || s.id) === String(soulId))) {
-        return safeAnswer(ctx, '⚠️ Já equipada.', { show_alert: true });
+    const result = applySoulEquip(player, soul);
+    if (!result.success) {
+        return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
-    const emptySlot = player.soulsEquipped.findIndex(s => !s);
-    if (emptySlot === -1) {
-        return safeAnswer(ctx, 'Slots de almas cheios.', { show_alert: true });
-    }
-
-    player.soulsInventory.splice(soulIndex, 1);
-    player.soulsEquipped[emptySlot] = soul;
-
-    recalculateStats(player);
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    await safeAnswer(ctx, `💀 ${soul.name} equipada!`);
+    await safeAnswer(ctx, `💀 ${result.soul.name} equipada!`);
     return handleInvSouls(ctx);
 }
 
 async function handleUnequipSoul(ctx) {
     const slotIdx = parseInt(ctx.match?.[1], 10);
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
-    const soul = player.soulsEquipped?.[slotIdx];
 
-    if (!soul) {
-        return safeAnswer(ctx, 'Nada equipado.', { show_alert: true });
+    const result = applySoulUnequip(player, slotIdx);
+    if (!result.success) {
+        return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
-    const alreadyInInventory = player.soulsInventory.some(
-        s => String(s.instanceId || s.id) === String(soul.instanceId || soul.id)
-    );
-
-    if (!alreadyInInventory) {
-        player.soulsInventory.push(soul);
-    }
-
-    player.soulsEquipped[slotIdx] = null;
-
-    recalculateStats(player);
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    await safeAnswer(ctx, `💀 ${soul.name} removida e devolvida!`);
+    await safeAnswer(ctx, `💀 ${result.soul.name} removida e devolvida!`);
     return handleInvSouls(ctx);
 }
 
