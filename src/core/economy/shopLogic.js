@@ -1,3 +1,5 @@
+const { addCosmeticToPlayer, ensureCosmeticsState } = require('../player/cosmetics');
+
 function ensurePlayerEconomy(player) {
     if (!player) throw new Error('Player inválido.');
 
@@ -13,7 +15,7 @@ function ensurePlayerEconomy(player) {
         tonicDefense: 0
     };
 
-    player.cosmetics ??= [];
+    ensureCosmeticsState(player);
     player.vip ??= false;
     player.vipExpires ??= null;
 
@@ -92,7 +94,11 @@ function applyVip(player, item) {
 }
 
 function addCosmetic(player, item) {
-    player.cosmetics.push({ id: item.id, name: item.name });
+    const result = addCosmeticToPlayer(player, {
+        id: item.id,
+        name: item.name
+    });
+    if (!result.success) return result;
     return { success: true, message: `✨ ${item.name} desbloqueado!` };
 }
 

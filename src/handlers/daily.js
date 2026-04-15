@@ -93,7 +93,13 @@ HANDLER
 
 async function handleDaily(ctx) {
     try {
-        const player = await getPlayer(ctx.from.id, ctx.from.first_name);
+        const player = await getPlayer(ctx.from.id);
+        if (!player) {
+            return ctx.answerCbQuery(
+                '🧭 Você ainda não criou personagem. Use /start.',
+                { show_alert: true }
+            );
+        }
         const reward = giveDailyChest(player);
 
         if (!reward) {

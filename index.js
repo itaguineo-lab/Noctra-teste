@@ -6,6 +6,7 @@ const http = require('http');
 const { connectToMongo, getPlayer, createPlayer } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
 const { mainMenu } = require('./src/menus/mainMenu');
+const assets = require('./src/data/assets');
 
 /*
 =================================
@@ -112,11 +113,7 @@ async function finalizeCharacterCreation(ctx, userId, name, className) {
         await ctx.reply(`✨ Personagem criado com sucesso! Bem-vindo a Noctra, *${name}*!`);
         
         // Exibe o menu principal
-        const menuText = await getMainMenuText(userId, name);
-        await ctx.reply(menuText, {
-            parse_mode: 'Markdown',
-            ...mainMenu()
-        });
+        await sendMainMenu(ctx, userId, name, false);
     } catch (error) {
         console.error('Erro ao criar personagem:', error);
         await ctx.reply('❌ Ocorreu um erro ao criar seu personagem. Tente novamente com /start.');
@@ -178,6 +175,60 @@ function bindAction(pattern, handler) {
     bot.action(pattern, handler);
 }
 
+async function sendMainMenu(ctx, userId, username, editMode = false) {
+    const menuText = await getMainMenuText(userId, username);
+    const player = await getPlayer(userId);
+    const mapImage = player?.currentMap ? assets?.maps?.[player.currentMap] : null;
+    const keyboard = mainMenu();
+
+    if (!editMode) {
+        if (mapImage) {
+            return ctx.replyWithPhoto(mapImage, {
+                caption: menuText,
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        }
+        return ctx.reply(menuText, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
+    }
+
+    const chatId = ctx.chat.id;
+    const messageId = ctx.callbackQuery?.message?.message_id;
+    try {
+        if (mapImage && messageId) {
+            await ctx.telegram.editMessageMedia(chatId, messageId, null, {
+                type: 'photo',
+                media: mapImage,
+                caption: menuText,
+                parse_mode: 'Markdown'
+            }, {
+                reply_markup: keyboard.reply_markup
+            });
+            return;
+        }
+
+        await ctx.editMessageText(menuText, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
+    } catch {
+        if (mapImage) {
+            return ctx.replyWithPhoto(mapImage, {
+                caption: menuText,
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        }
+        return ctx.reply(menuText, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
+    }
+}
+
 /*
 =================================
 BOT STARTUP
@@ -220,11 +271,7 @@ bot.start(async (ctx) => {
 
     if (player) {
         // Jogador existente: menu normal
-        const menuText = await getMainMenuText(userId, firstName);
-        return ctx.reply(menuText, {
-            parse_mode: 'Markdown',
-            ...mainMenu()
-        });
+        return sendMainMenu(ctx, userId, firstName, false);
     }
 
     // Jogador novo: inicia cena de criação
@@ -336,6 +383,8 @@ bindAction('arena_fight', arena.handleArenaFight);
 bindAction('arena_attack', arena.handleArenaAttack);
 bindAction('arena_defend', arena.handleArenaDefend);
 bindAction('arena_flee', arena.handleArenaFlee);
+bindAction('arena_consumables', arena.handleArenaConsumables);
+bindAction(/^arena_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, arena.handleArenaUseConsumable);
 bindAction('arena_chests', arena.handleArenaChests);
 bindAction(/^arena_open_chest:(.+)$/, arena.handleArenaOpenChest);
 bindAction('arena_ranking', arena.handleArenaRanking);
@@ -354,6 +403,7 @@ bindAction('combat_defend', combat.handleDefend);
 bindAction('combat_soul_menu', combat.handleSoulMenu);
 bindAction(/combat_soul_([01])/, combat.handleSoul);
 bindAction('combat_consumables', combat.handleConsumables);
+bindAction(/^combat_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, combat.handleUseConsumable);
 bindAction('combat_flee', combat.handleFlee);
 bindAction('combat_back', combat.handleCombatBack);
 
@@ -370,6 +420,8 @@ bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
 
 bindAction(/^equip_soul_(.+)$/, inventory.handleEquipSoul);
 bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
+bindAction(/^invskin:equip:(.+)$/, inventory.handleEquipSkin);
+bindAction(/^invskin:unequip:(title|aura|badge)$/, inventory.handleUnequipSkin);
 
 bindAction('use_potion_outside_hp', (ctx) => inventory.handleUsePotionOutside(ctx, 'hp'));
 bindAction('use_tonic_strength', inventory.handleUseStrengthTonic);
@@ -411,6 +463,7 @@ bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
 bindAction('dungeon_flee', dungeon.handleDungeonFlee);
 bindAction('dungeon_soul_menu', dungeon.handleDungeonSoulMenu);
 bindAction('dungeon_consumables', dungeon.handleDungeonConsumables);
+bindAction(/^dungeon_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, dungeon.handleDungeonUseConsumable);
 
 /*
 =================================
@@ -437,32 +490,7 @@ MENU (CORRIGIDO PARA FOTOS)
 
 bindAction('menu', async (ctx) => {
     await ctx.answerCbQuery();
-
-    const menuText = await getMainMenuText(ctx.from.id, ctx.from.first_name);
-    const chatId = ctx.chat.id;
-    const messageId = ctx.callbackQuery.message.message_id;
-
-    try {
-        // Tenta editar como legenda (se a mensagem atual for uma foto)
-        await ctx.telegram.editMessageCaption(chatId, messageId, null, menuText, {
-            parse_mode: 'Markdown',
-            ...mainMenu()
-        });
-    } catch (e) {
-        try {
-            // Se falhar, tenta editar como texto normal
-            await ctx.editMessageText(menuText, {
-                parse_mode: 'Markdown',
-                ...mainMenu()
-            });
-        } catch (secondError) {
-            // Se ambas falharem, envia uma nova mensagem
-            await ctx.reply(menuText, {
-                parse_mode: 'Markdown',
-                ...mainMenu()
-            });
-        }
-    }
+    return sendMainMenu(ctx, ctx.from.id, ctx.from.first_name, true);
 });
 
 /*
