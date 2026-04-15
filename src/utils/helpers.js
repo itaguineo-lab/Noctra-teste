@@ -31,7 +31,8 @@ PLAYER SAFE
 */
 
 async function getPlayerSafe(id, name = 'Viajante') {
-    const player = await getPlayer(id, name);
+    const player = await getPlayer(id);
+    if (!player) return null;
     updateEnergy(player);
     recalculateStats(player);
     return player;
@@ -177,6 +178,17 @@ MENU TEXT (COM BUFFS)
 
 async function getMainMenuText(playerId, username) {
     const player = await getPlayerSafe(playerId, username);
+    if (!player) {
+        return premiumFrame(
+            '🌑 NOCTRA RPG',
+            [
+                `👋 Olá, ${username || 'Viajante'}!`,
+                '',
+                'Você ainda não possui personagem.',
+                'Use /start para criar sua classe e iniciar sua jornada.'
+            ].join('\n')
+        );
+    }
 
     const xpNeeded = getXpToNextLevel(player.level || 1);
     const location = getPlayerLocation(player);

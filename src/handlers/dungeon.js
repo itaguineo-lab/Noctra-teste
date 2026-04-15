@@ -335,7 +335,6 @@ function resolveCombatRoom(player, room) {
         if (rewards.loot?.length) result.notes.push(...rewards.loot.map(l => `🎁 ${l}`));
         room.cleared = true;
         result.rewards = rewards;
-        if (room.type === 'boss') finalizeDungeonRun(player, 'complete');
         result.notes.forEach(n => addSummaryNote(player, n));
         addDungeonLog(player, `🏆 ${room.enemy.name} foi derrotado!`);
         return result;
@@ -366,6 +365,10 @@ function resolveCombatRoom(player, room) {
 
 function finalizeDungeonRun(player, reason) {
     const d = normalizeDungeonState(player);
+    if (d.summary && (d.completed || d.aborted) && !d.active) {
+        return d;
+    }
+
     d.active = false;
     d.completed = reason === 'complete';
     d.aborted = reason === 'aborted';
