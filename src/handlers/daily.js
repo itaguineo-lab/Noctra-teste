@@ -7,6 +7,13 @@ const {
     mainMenu
 } = require('../menus/mainMenu');
 
+const {
+    ensureDailyMissionState,
+    claimAllMissionRewards,
+    renderDailyMissionsText,
+    areAllMissionsCompleted
+} = require('../core/daily/dailyService');
+
 /*
 =================================
 HELPERS
@@ -47,7 +54,7 @@ async function safeEdit(ctx, text, options = {}) {
 
 /*
 =================================
-REWARD ENGINE (SEM CHAVES)
+REWARD ENGINE (BAÚ DIÁRIO)
 =================================
 */
 
@@ -59,7 +66,6 @@ function giveDailyChest(player) {
         return null;
     }
 
-    // streak
     if (player.lastDailyChest === yesterday) {
         player.dailyStreak = (player.dailyStreak || 0) + 1;
     } else {
@@ -69,20 +75,32 @@ function giveDailyChest(player) {
     player.lastDailyChest = today;
     const streak = player.dailyStreak;
 
-    // BALANCEAMENTO: Chaves removidas do baú diário
     let gold = 100 + player.level * 20;
     let glorias = 0;
 
-    // streak milestones (apenas ouro e glórias)
     if (streak >= 3) gold += 50;
     if (streak >= 7) glorias = 1;
     if (streak >= 14) gold += 100;
 
-    // apply
     player.gold = (player.gold || 0) + gold;
     player.glorias = (player.glorias || 0) + glorias;
 
     return { gold, glorias, streak };
+}
+
+function renderDailyHub(player) {
+    ensureDailyMissionState(player);
+
+    let text = `╔══════════════════════════════╗\n`;
+    text += `║        🎁 *CENTRO DIÁRIO*         ║\n`;
+    text += `╠══════════════════════════════╣\n`;
+    text += `║ 🔥 Streak atual: ${player.dailyStreak || 0}\n`;
+    text += `║ 📦 Baú diário: ${player.lastDailyChest === getTodayKey() ? 'ABERTO' : 'DISPONÍVEL'}\n`;
+    text += `║ 📜 Missões: ${areAllMissionsCompleted(player) ? 'CONCLUÍDAS' : 'EM ANDAMENTO'}\n`;
+    text += `╠══════════════════════════════╣\n`;
+    text += `${renderDailyMissionsText(player)}\n`;
+
+    return text;
 }
 
 /*
@@ -100,6 +118,36 @@ async function handleDaily(ctx) {
                 { show_alert: true }
             );
         }
+
+        ensureDailyMissionState(player);
+        await savePlayer(ctx.from.id, player);
+
+        const text = renderDailyHub(player);
+
+        return safeEdit(ctx, text, {
+            parse_mode: 'Markdown',
+            ...mainMenu()
+        });
+    } catch (error) {
+        console.error('Erro daily:', error);
+        try {
+            return ctx.answerCbQuery('Erro ao abrir centro diário.', { show_alert: true });
+        } catch {
+            return ctx.reply('Erro ao abrir centro diário.');
+        }
+    }
+}
+
+async function handleDailyChest(ctx) {
+    try {
+        const player = await getPlayer(ctx.from.id);
+        if (!player) {
+            return ctx.answerCbQuery(
+                '🧭 Você ainda não criou personagem. Use /start.',
+                { show_alert: true }
+            );
+        }
+
         const reward = giveDailyChest(player);
 
         if (!reward) {
@@ -109,6 +157,7 @@ async function handleDaily(ctx) {
             );
         }
 
+        ensureDailyMissionState(player);
         await savePlayer(ctx.from.id, player);
 
         let msg = `╔════════════════════════╗\n`;
@@ -138,7 +187,7 @@ async function handleDaily(ctx) {
             ...mainMenu()
         });
     } catch (error) {
-        console.error('Erro daily:', error);
+        console.error('Erro daily chest:', error);
         try {
             return ctx.answerCbQuery('Erro ao abrir baú.', { show_alert: true });
         } catch {
@@ -147,7 +196,58 @@ async function handleDaily(ctx) {
     }
 }
 
+async function handleClaimMissionRewards(ctx) {
+    try {
+        const player = await getPlayer(ctx.from.id);
+        if (!player) {
+            return ctx.answerCbQuery(
+                '🧭 Você ainda não criou personagem. Use /start.',
+                { show_alert: true }
+            );
+        }
+
+        ensureDailyMissionState(player);
+
+        const result = claimAllMissionRewards(player);
+        if (!result.success) {
+            return ctx.answerCbQuery(result.message, { show_alert: true });
+        }
+
+        await savePlayer(ctx.from.id, player);
+
+        let msg = `╔══════════════════════════════╗\n`;
+        msg += `║    🎉 *MISSÕES CONCLUÍDAS*      ║\n`;
+        msg += `╠══════════════════════════════╣\n`;
+        msg += `║ 💰 +${result.rewards.gold} ouro\n`;
+        msg += `║ ✨ +${result.rewards.xp} XP\n`;
+
+        if (result.rewards.glorias > 0) {
+            msg += `║ 🏅 +${result.rewards.glorias} glória\n`;
+        }
+
+        if (result.rewards.keys > 0) {
+            msg += `║ 🗝️ +${result.rewards.keys} chave\n`;
+        }
+
+        msg += `╚══════════════════════════════╝`;
+
+        return safeEdit(ctx, msg, {
+            parse_mode: 'Markdown',
+            ...mainMenu()
+        });
+    } catch (error) {
+        console.error('Erro mission rewards:', error);
+        try {
+            return ctx.answerCbQuery('Erro ao resgatar recompensas.', { show_alert: true });
+        } catch {
+            return ctx.reply('Erro ao resgatar recompensas.');
+        }
+    }
+}
+
 module.exports = {
     handleDaily,
+    handleDailyChest,
+    handleClaimMissionRewards,
     giveDailyChest
 };
