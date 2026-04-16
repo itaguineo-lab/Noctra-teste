@@ -1,6 +1,10 @@
 const Player = require('./PlayerModel');
 const mongoose = require('mongoose');
 const { ensureCosmeticsState } = require('./cosmetics');
+const {
+    preserveTransientStates,
+    sanitizePlayerForPersistence
+} = require('./playerSaveGuard');
 
 let isConnected = false;
 
@@ -47,75 +51,6 @@ function updateBuffs(player) {
 
 /*
 =================================
-STATS
-=================================
-*/
-
-function recalculateStats(player) {
-    const BASE_STATS = {
-        guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 },
-        mago: { atk: 18, def: 4, hp: 80, crit: 8 },
-        arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
-    };
-
-    updateBuffs(player);
-
-    const previousMaxHp = Number(player.maxHp) || 0;
-    const previousHp = player.hp !== undefined && player.hp !== null ? Number(player.hp) : null;
-    const hpRatio = previousHp !== null && previousMaxHp > 0 ? previousHp / previousMaxHp : null;
-
-    const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
-
-    let atk = base.atk + ((player.level || 1) - 1) * 3;
-    let def = base.def + Math.floor(((player.level || 1) - 1) * 1.5);
-    let maxHp = base.hp + ((player.level || 1) - 1) * 20;
-    let crit = base.crit;
-
-    if (player.equipment) {
-        Object.values(player.equipment).forEach(item => {
-            if (!item) return;
-            atk += item.atk || 0;
-            def += item.def || 0;
-            maxHp += item.hp || 0;
-            crit += item.crit || 0;
-        });
-    }
-
-    if (Array.isArray(player.soulsEquipped)) {
-        player.soulsEquipped.forEach(soul => {
-            if (!soul?.effect) return;
-            atk += soul.effect.atkBonus || 0;
-            def += soul.effect.defBonus || 0;
-            maxHp += soul.effect.hpBonus || 0;
-            crit += soul.effect.critBonus || 0;
-        });
-    }
-
-    if (Array.isArray(player.buffs)) {
-        player.buffs.forEach(buff => {
-            atk += buff.atk || 0;
-            def += buff.def || 0;
-            maxHp += buff.hp || 0;
-            crit += buff.crit || 0;
-        });
-    }
-
-    player.atk = Math.max(1, atk);
-    player.def = Math.max(0, def);
-    player.maxHp = Math.max(10, maxHp);
-    player.crit = Math.min(75, crit);
-
-    if (previousHp === null || previousMaxHp === 0) {
-        player.hp = player.maxHp;
-    } else {
-        player.hp = Math.max(1, Math.min(Math.round(player.maxHp * hpRatio), player.maxHp));
-    }
-
-    return player;
-}
-
-/*
-=================================
 ACTIVE STATES
 =================================
 */
@@ -147,20 +82,6 @@ function ensureActiveArenaBattleState(player) {
     player.activeArenaBattle.payload ??= null;
 
     return player;
-}
-
-function mergePreservedFields(existingPlayer, incomingPlayer) {
-    if (!existingPlayer) return incomingPlayer;
-
-    if (existingPlayer.activeFight && !incomingPlayer.activeFight) {
-        incomingPlayer.activeFight = existingPlayer.activeFight;
-    }
-
-    if (existingPlayer.activeArenaBattle && !incomingPlayer.activeArenaBattle) {
-        incomingPlayer.activeArenaBattle = existingPlayer.activeArenaBattle;
-    }
-
-    return incomingPlayer;
 }
 
 /*
@@ -251,6 +172,67 @@ function ensurePlayerState(player) {
 
 /*
 =================================
+RECALCULAR STATS
+=================================
+*/
+
+function recalculateStats(player) {
+    const BASE_STATS = {
+        guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 },
+        mago: { atk: 18, def: 4, hp: 80, crit: 8 },
+        arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
+    };
+
+    updateBuffs(player);
+
+    const currentHp = Number(player.hp) || 1;
+    const base = BASE_STATS[player.class] || BASE_STATS.guerreiro;
+
+    let atk = base.atk + ((player.level || 1) - 1) * 3;
+    let def = base.def + Math.floor(((player.level || 1) - 1) * 1.5);
+    let maxHp = base.hp + ((player.level || 1) - 1) * 20;
+    let crit = base.crit;
+
+    if (player.equipment) {
+        Object.values(player.equipment).forEach(item => {
+            if (!item) return;
+            atk += item.atk || 0;
+            def += item.def || 0;
+            maxHp += item.hp || 0;
+            crit += item.crit || 0;
+        });
+    }
+
+    if (Array.isArray(player.soulsEquipped)) {
+        player.soulsEquipped.forEach(soul => {
+            if (!soul?.effect) return;
+            atk += soul.effect.atkBonus || 0;
+            def += soul.effect.defBonus || 0;
+            maxHp += soul.effect.hpBonus || 0;
+            crit += soul.effect.critBonus || 0;
+        });
+    }
+
+    if (Array.isArray(player.buffs)) {
+        player.buffs.forEach(buff => {
+            atk += buff.atk || 0;
+            def += buff.def || 0;
+            maxHp += buff.hp || 0;
+            crit += buff.crit || 0;
+        });
+    }
+
+    player.atk = Math.max(1, atk);
+    player.def = Math.max(0, def);
+    player.maxHp = Math.max(10, maxHp);
+    player.crit = Math.min(75, crit);
+    player.hp = Math.max(1, Math.min(currentHp, player.maxHp));
+
+    return player;
+}
+
+/*
+=================================
 MONGO
 =================================
 */
@@ -299,25 +281,16 @@ async function savePlayer(id, playerData) {
 
     const existing = await Player.findOne({ id }).lean();
 
-    const { _id, ...updateData } = playerData;
+    let updateData = preserveTransientStates(existing, playerData);
+    const { _id, ...withoutId } = updateData;
+    updateData = withoutId;
+
     ensurePlayerState(updateData);
-    mergePreservedFields(existing, updateData);
-
-    const currentHp = updateData.hp;
     recalculateStats(updateData);
-
-    if (currentHp !== undefined && currentHp !== null) {
-        updateData.hp = Math.max(1, Math.min(currentHp, updateData.maxHp));
-    }
-
-    updateData.energy = Math.max(
-        0,
-        Math.min(updateData.energy ?? updateData.maxEnergy, updateData.maxEnergy)
-    );
-
     ensureActiveFightState(updateData);
     ensureActiveArenaBattleState(updateData);
 
+    updateData = sanitizePlayerForPersistence(updateData);
     updateData.updatedAt = new Date();
 
     const result = await Player.findOneAndUpdate(
