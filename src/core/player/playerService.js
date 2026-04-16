@@ -116,6 +116,40 @@ function recalculateStats(player) {
 
 /*
 =================================
+ACTIVE FIGHT
+=================================
+*/
+
+function ensureActiveFightState(player) {
+    player.activeFight ??= null;
+
+    if (!player.activeFight) return player;
+
+    player.activeFight.mode ??= 'hunt';
+    player.activeFight.createdAt ??= Date.now();
+    player.activeFight.expiresAt ??= player.activeFight.createdAt + (10 * 60 * 1000);
+    player.activeFight.battleMessageId ??= null;
+    player.activeFight.isPhoto ??= false;
+    player.activeFight.payload ??= null;
+
+    return player;
+}
+
+function mergePreservedFields(existingPlayer, incomingPlayer) {
+    if (!existingPlayer) return incomingPlayer;
+
+    if (
+        existingPlayer.activeFight &&
+        !incomingPlayer.activeFight
+    ) {
+        incomingPlayer.activeFight = existingPlayer.activeFight;
+    }
+
+    return incomingPlayer;
+}
+
+/*
+=================================
 ESTADO PADRÃO
 =================================
 */
@@ -183,15 +217,7 @@ function ensurePlayerState(player) {
     player.renamed ??= false;
     player.classChanged ??= false;
 
-    player.activeFight ??= null;
-    if (player.activeFight) {
-        player.activeFight.mode ??= 'hunt';
-        player.activeFight.createdAt ??= Date.now();
-        player.activeFight.expiresAt ??= player.activeFight.createdAt + (10 * 60 * 1000);
-        player.activeFight.battleMessageId ??= null;
-        player.activeFight.isPhoto ??= false;
-        player.activeFight.payload ??= null;
-    }
+    ensureActiveFightState(player);
 
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
@@ -227,7 +253,7 @@ async function connectToMongo() {
 
 /*
 =================================
-GET PLAYER (NÃO CRIA AUTOMATICAMENTE)
+GET PLAYER
 =================================
 */
 
@@ -255,8 +281,11 @@ SAVE PLAYER
 async function savePlayer(id, playerData) {
     await connectToMongo();
 
+    const existing = await Player.findOne({ id }).lean();
+
     const { _id, ...updateData } = playerData;
     ensurePlayerState(updateData);
+    mergePreservedFields(existing, updateData);
 
     const currentHp = updateData.hp;
     recalculateStats(updateData);
@@ -265,7 +294,12 @@ async function savePlayer(id, playerData) {
         updateData.hp = Math.max(1, Math.min(currentHp, updateData.maxHp));
     }
 
-    updateData.energy = Math.max(0, Math.min(updateData.energy ?? updateData.maxEnergy, updateData.maxEnergy));
+    updateData.energy = Math.max(
+        0,
+        Math.min(updateData.energy ?? updateData.maxEnergy, updateData.maxEnergy)
+    );
+
+    ensureActiveFightState(updateData);
     updateData.updatedAt = new Date();
 
     const result = await Player.findOneAndUpdate(
@@ -312,7 +346,7 @@ async function getPlayerCollection() {
 
 /*
 =================================
-CRIAR NOVO JOGADOR (COM NOME E CLASSE)
+CRIAR NOVO JOGADOR
 =================================
 */
 
@@ -354,6 +388,7 @@ module.exports = {
     updateBuffs,
     connectToMongo,
     ensurePlayerState,
+    ensureActiveFightState,
     getPlayerCollection,
     getAllPlayers,
     createPlayer
