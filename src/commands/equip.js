@@ -1,8 +1,13 @@
 const {
     getPlayer,
-    savePlayer,
-    recalculateStats
+    savePlayer
 } = require('../core/player/playerService');
+
+const {
+    applyEquipmentChange,
+    applySoulEquip,
+    normalizePlayerForSave
+} = require('../core/player/playerMutations');
 
 /*
 =================================
@@ -14,6 +19,7 @@ function normalizePlayer(player) {
     if (!player.equipment) {
         player.equipment = {
             weapon: null,
+            shield: null,
             armor: null,
             necklace: null,
             ring: null,
@@ -44,6 +50,20 @@ function getItemId(item) {
     );
 }
 
+function getRealSlot(item) {
+    if (!item?.slot) return null;
+
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
+    for (const slot of validSlots) {
+        if (String(item.slot).startsWith(slot)) {
+            return slot;
+        }
+    }
+
+    return null;
+}
+
 /*
 =================================
 EQUIP ITEM
@@ -53,66 +73,42 @@ EQUIP ITEM
 function equipItemById(player, itemId) {
     player = normalizePlayer(player);
 
-    const itemIndex = player.inventory.findIndex(
-        item => item && getItemId(item) === String(itemId)
+    const item = player.inventory.find(
+        entry => entry && getItemId(entry) === String(itemId)
     );
 
-    if (itemIndex === -1) {
+    if (!item) {
         return {
             ok: false,
             message: '❌ Item não encontrado.'
         };
     }
 
-    const item = player.inventory[itemIndex];
-
-    const validSlots = [
-        'weapon',
-        'armor',
-        'necklace',
-        'ring',
-        'boots'
-    ];
-
-    if (!item.slot || !validSlots.includes(item.slot)) {
+    const slot = getRealSlot(item);
+    if (!slot) {
         return {
             ok: false,
             message: '❌ Este item não pode ser equipado.'
         };
     }
 
-    const slot = item.slot;
-    const current = player.equipment[slot];
-
-    if (
-        current &&
-        getItemId(current) === getItemId(item)
-    ) {
+    if (item.classRestriction && item.classRestriction !== player.class) {
         return {
             ok: false,
-            message: '⚠️ Este item já está equipado.'
+            message: `❌ Apenas ${item.classRestriction} pode equipar este item.`
         };
     }
 
-    if (current) {
-        player.inventory.push({
-            ...current,
-            __equipped: false
-        });
+    const result = applyEquipmentChange(player, slot, item);
+
+    if (!result.success) {
+        return {
+            ok: false,
+            message: `❌ ${result.message}`
+        };
     }
 
-    player.inventory.splice(itemIndex, 1);
-
-    player.equipment[slot] = {
-        ...item,
-        __equipped: true
-    };
-
-    recalculateStats(player);
-
-    if (player.hp > player.maxHp) {
-        player.hp = player.maxHp;
-    }
+    normalizePlayerForSave(player);
 
     return {
         ok: true,
@@ -129,52 +125,31 @@ EQUIP SOUL
 function equipSoulById(player, soulId) {
     player = normalizePlayer(player);
 
-    const soulIndex = player.soulsInventory.findIndex(
-        soul =>
-            soul &&
-            String(
-                soul.instanceId || soul.id
-            ) === String(soulId)
+    const soul = player.soulsInventory.find(
+        entry => entry && String(entry.instanceId || entry.id) === String(soulId)
     );
 
-    if (soulIndex === -1) {
+    if (!soul) {
         return {
             ok: false,
             message: '❌ Alma não encontrada.'
         };
     }
 
-    const emptySlot =
-        player.soulsEquipped.findIndex(
-            soul => !soul
-        );
+    const result = applySoulEquip(player, soul);
 
-    if (emptySlot === -1) {
+    if (!result.success) {
         return {
             ok: false,
-            message: '❌ Slots cheios.'
+            message: `❌ ${result.message}`
         };
     }
 
-    const soul =
-        player.soulsInventory[soulIndex];
-
-    player.soulsInventory.splice(
-        soulIndex,
-        1
-    );
-
-    player.soulsEquipped[emptySlot] = soul;
-
-    recalculateStats(player);
-
-    if (player.hp > player.maxHp) {
-        player.hp = player.maxHp;
-    }
+    normalizePlayerForSave(player);
 
     return {
         ok: true,
-        soul
+        soul: result.soul
     };
 }
 
@@ -186,105 +161,63 @@ COMMANDS
 
 async function handleEquip(ctx) {
     try {
-        const text =
-            ctx.message?.text || '';
-
-        const itemId = text
-            .split(' ')
-            .slice(1)
-            .join(' ')
-            .trim();
+        const text = ctx.message?.text || '';
+        const itemId = text.split(' ').slice(1).join(' ').trim();
 
         if (!itemId) {
-            return ctx.reply(
-                '❌ Informe o ID do item.'
-            );
+            return ctx.reply('❌ Informe o ID do item.');
         }
 
-        const player =
-            await getPlayer(ctx.from.id);
+        const player = await getPlayer(ctx.from.id);
+        if (!player) {
+            return ctx.reply('❌ Jogador não encontrado. Use /start.');
+        }
 
-        const result = equipItemById(
-            player,
-            itemId
-        );
+        const result = equipItemById(player, itemId);
 
         if (!result.ok) {
             return ctx.reply(result.message);
         }
 
-        await savePlayer(
-            ctx.from.id,
-            player
-        );
+        await savePlayer(ctx.from.id, player);
 
-        return ctx.reply(
-            `⚔️ *${result.item.name} equipado!*`,
-            {
-                parse_mode: 'Markdown'
-            }
-        );
+        return ctx.reply(`⚔️ *${result.item.name} equipado!*`, {
+            parse_mode: 'Markdown'
+        });
     } catch (error) {
-        console.error(
-            'Erro ao equipar:',
-            error
-        );
-
-        return ctx.reply(
-            '❌ Erro ao equipar item.'
-        );
+        console.error('Erro ao equipar:', error);
+        return ctx.reply('❌ Erro ao equipar item.');
     }
 }
 
 async function handleEquipSoulCommand(ctx) {
     try {
-        const text =
-            ctx.message?.text || '';
-
-        const soulId = text
-            .split(' ')
-            .slice(1)
-            .join(' ')
-            .trim();
+        const text = ctx.message?.text || '';
+        const soulId = text.split(' ').slice(1).join(' ').trim();
 
         if (!soulId) {
-            return ctx.reply(
-                '❌ Informe a alma.'
-            );
+            return ctx.reply('❌ Informe a alma.');
         }
 
-        const player =
-            await getPlayer(ctx.from.id);
+        const player = await getPlayer(ctx.from.id);
+        if (!player) {
+            return ctx.reply('❌ Jogador não encontrado. Use /start.');
+        }
 
-        const result = equipSoulById(
-            player,
-            soulId
-        );
+        const result = equipSoulById(player, soulId);
 
         if (!result.ok) {
             return ctx.reply(result.message);
         }
 
-        await savePlayer(
-            ctx.from.id,
-            player
-        );
+        await savePlayer(ctx.from.id, player);
 
-        return ctx.reply(
-            `💀 *${result.soul.name} equipada!*`,
-            {
-                parse_mode: 'Markdown'
-            }
-        );
+        return ctx.reply(`💀 *${result.soul.name} equipada!*`, {
+            parse_mode: 'Markdown'
+        });
     } catch (error) {
-        console.error(
-            'Erro ao equipar alma:',
-            error
-        );
-
-        return ctx.reply(
-            '❌ Erro ao equipar alma.'
-        );
+        console.error('Erro ao equipar alma:', error);
+        return ctx.reply('❌ Erro ao equipar alma.');
     }
 }
 
