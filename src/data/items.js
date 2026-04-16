@@ -1,73 +1,138 @@
 const ITEM_POOL = {
     level1: {
         weapon: [
-            { name: 'Espada do Vigia', class: 'guerreiro' },
-            { name: 'Machado Brutal', class: 'guerreiro' },
-            { name: 'Arco do Caçador', class: 'arqueiro' },
-            { name: 'Lança do Batedor', class: 'arqueiro' },
-            { name: 'Varinha Arcana', class: 'mago' },
-            { name: 'Grimório Antigo', class: 'mago' },
-            { name: 'Orbe Azul', class: 'mago' }
+            { name: 'Espada do Vigia', class: 'guerreiro', emoji: '🗡️' },
+            { name: 'Machado Brutal', class: 'guerreiro', emoji: '🪓' },
+            { name: 'Arco do Caçador', class: 'arqueiro', emoji: '🏹' },
+            { name: 'Lança do Batedor', class: 'arqueiro', emoji: '🔱' },
+            { name: 'Varinha Arcana', class: 'mago', emoji: '🪄' },
+            { name: 'Grimório Antigo', class: 'mago', emoji: '📘' },
+            { name: 'Orbe Azul', class: 'mago', emoji: '🔮' }
         ],
         armor: [
-            { name: 'Armadura do Soldado', class: null },
-            { name: 'Escudo de Ferro', class: null },
-            { name: 'Botas de Couro', class: null }
+            { name: 'Armadura do Soldado', class: null, emoji: '🥋', forcedSlot: 'armor' },
+            { name: 'Escudo de Ferro', class: null, emoji: '🛡️', forcedSlot: 'shield' },
+            { name: 'Botas de Couro', class: null, emoji: '👢', forcedSlot: 'boots' }
         ],
         jewelry: [
-            { name: 'Anel Comum', class: null },
-            { name: 'Amuleto Comum', class: null }
+            { name: 'Anel Comum', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto Comum', class: null, emoji: '📿', forcedSlot: 'necklace' }
         ]
     },
-    level8: {
+
+    level6: {
         weapon: [
-            { name: 'Espada Tumular', class: 'guerreiro' },
-            { name: 'Machado Carniceiro', class: 'guerreiro' },
-            { name: 'Arco dos Ossos', class: 'arqueiro' },
-            { name: 'Lança Élfica', class: 'arqueiro' },
-            { name: 'Cajado Tumular', class: 'mago' },
-            { name: 'Grimório das Almas', class: 'mago' },
-            { name: 'Orbe do Vazio', class: 'mago' }
+            { name: 'Espada da Névoa', class: 'guerreiro', emoji: '🗡️' },
+            { name: 'Machado do Eco', class: 'guerreiro', emoji: '🪓' },
+            { name: 'Arco das Folhas Mortas', class: 'arqueiro', emoji: '🏹' },
+            { name: 'Lança da Penumbra', class: 'arqueiro', emoji: '🔱' },
+            { name: 'Cajado dos Murmúrios', class: 'mago', emoji: '🪄' },
+            { name: 'Grimório da Cinza', class: 'mago', emoji: '📘' },
+            { name: 'Orbe do Véu', class: 'mago', emoji: '🔮' }
         ],
         armor: [
-            { name: 'Armadura do Cavaleiro Negro', class: null },
-            { name: 'Escudo do Corvo', class: null },
-            { name: 'Botas Sombrias', class: null }
+            { name: 'Couraça da Névoa', class: null, emoji: '🥋', forcedSlot: 'armor' },
+            { name: 'Escudo Sombrio', class: null, emoji: '🛡️', forcedSlot: 'shield' },
+            { name: 'Botas da Sombra', class: null, emoji: '👢', forcedSlot: 'boots' }
         ],
         jewelry: [
-            { name: 'Anel Incomum', class: null },
-            { name: 'Amuleto Incomum', class: null }
+            { name: 'Anel da Névoa', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto Espectral', class: null, emoji: '📿', forcedSlot: 'necklace' }
         ]
     },
-    level15: {
+
+    level12: {
         weapon: [
-            { name: 'Espada de Noctra', class: 'guerreiro' },
-            { name: 'Machado do Caos', class: 'guerreiro' },
-            { name: 'Arco do Eclipse', class: 'arqueiro' },
-            { name: 'Lança Lunar', class: 'arqueiro' },
-            { name: 'Cajado de Noctra', class: 'mago' },
-            { name: 'Grimório do Eclipse', class: 'mago' },
-            { name: 'Orbe da Eternidade', class: 'mago' }
+            { name: 'Espada Tumular', class: 'guerreiro', emoji: '🗡️' },
+            { name: 'Machado Carniceiro', class: 'guerreiro', emoji: '🪓' },
+            { name: 'Arco dos Ossos', class: 'arqueiro', emoji: '🏹' },
+            { name: 'Lança Élfica', class: 'arqueiro', emoji: '🔱' },
+            { name: 'Cajado Tumular', class: 'mago', emoji: '🪄' },
+            { name: 'Grimório das Almas', class: 'mago', emoji: '📘' },
+            { name: 'Orbe do Vazio', class: 'mago', emoji: '🔮' }
         ],
         armor: [
-            { name: 'Armadura do Eclipse', class: null },
-            { name: 'Escudo do Abismo', class: null },
-            { name: 'Botas do Vazio', class: null }
+            { name: 'Armadura do Cavaleiro Negro', class: null, emoji: '🥋', forcedSlot: 'armor' },
+            { name: 'Escudo do Corvo', class: null, emoji: '🛡️', forcedSlot: 'shield' },
+            { name: 'Botas Sombrias', class: null, emoji: '👢', forcedSlot: 'boots' }
         ],
         jewelry: [
-            { name: 'Anel Épico', class: null },
-            { name: 'Amuleto Lendário', class: null }
+            { name: 'Anel Incomum', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto Incomum', class: null, emoji: '📿', forcedSlot: 'necklace' }
+        ]
+    },
+
+    level18: {
+        weapon: [
+            { name: 'Espada do Eclipse', class: 'guerreiro', emoji: '🗡️' },
+            { name: 'Machado do Caos', class: 'guerreiro', emoji: '🪓' },
+            { name: 'Arco Lunar', class: 'arqueiro', emoji: '🏹' },
+            { name: 'Lança da Maré Sombria', class: 'arqueiro', emoji: '🔱' },
+            { name: 'Cajado de Noctra', class: 'mago', emoji: '🪄' },
+            { name: 'Grimório do Eclipse', class: 'mago', emoji: '📘' },
+            { name: 'Orbe da Eternidade', class: 'mago', emoji: '🔮' }
+        ],
+        armor: [
+            { name: 'Armadura do Eclipse', class: null, emoji: '🥋', forcedSlot: 'armor' },
+            { name: 'Escudo do Abismo', class: null, emoji: '🛡️', forcedSlot: 'shield' },
+            { name: 'Botas do Vazio', class: null, emoji: '👢', forcedSlot: 'boots' }
+        ],
+        jewelry: [
+            { name: 'Anel Épico', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto Lendário', class: null, emoji: '📿', forcedSlot: 'necklace' }
+        ]
+    },
+
+    level26: {
+        weapon: [
+            { name: 'Espada da Citadela', class: 'guerreiro', emoji: '🗡️' },
+            { name: 'Machado do Cometa', class: 'guerreiro', emoji: '🪓' },
+            { name: 'Arco da Lua Partida', class: 'arqueiro', emoji: '🏹' },
+            { name: 'Lança do Guardião Lunar', class: 'arqueiro', emoji: '🔱' },
+            { name: 'Cajado Astral', class: 'mago', emoji: '🪄' },
+            { name: 'Grimório Celeste', class: 'mago', emoji: '📘' },
+            { name: 'Orbe da Maré Lunar', class: 'mago', emoji: '🔮' }
+        ],
+        armor: [
+            { name: 'Armadura Celestial', class: null, emoji: '🥋', forcedSlot: 'armor' },
+            { name: 'Escudo Lunar', class: null, emoji: '🛡️', forcedSlot: 'shield' },
+            { name: 'Botas Astrais', class: null, emoji: '👢', forcedSlot: 'boots' }
+        ],
+        jewelry: [
+            { name: 'Anel da Lua Alta', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto Estelar', class: null, emoji: '📿', forcedSlot: 'necklace' }
+        ]
+    },
+
+    level36: {
+        weapon: [
+            { name: 'Espada de Noctra', class: 'guerreiro', emoji: '🗡️' },
+            { name: 'Machado do Fim', class: 'guerreiro', emoji: '🪓' },
+            { name: 'Arco do Abismo', class: 'arqueiro', emoji: '🏹' },
+            { name: 'Lança da Ruína', class: 'arqueiro', emoji: '🔱' },
+            { name: 'Cajado do Trono Vazio', class: 'mago', emoji: '🪄' },
+            { name: 'Grimório do Vazio Profundo', class: 'mago', emoji: '📘' },
+            { name: 'Orbe da Eternidade Negra', class: 'mago', emoji: '🔮' }
+        ],
+        armor: [
+            { name: 'Armadura de Noctra', class: null, emoji: '🥋', forcedSlot: 'armor' },
+            { name: 'Escudo do Vazio', class: null, emoji: '🛡️', forcedSlot: 'shield' },
+            { name: 'Botas da Eternidade', class: null, emoji: '👢', forcedSlot: 'boots' }
+        ],
+        jewelry: [
+            { name: 'Anel Mítico', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto de Noctra', class: null, emoji: '📿', forcedSlot: 'necklace' }
         ]
     }
 };
 
-// BALANCEAMENTO: Multiplicadores de raridade reduzidos para evitar picos de poder
 const RARITIES = [
-    { name: 'Comum',    multiplier: 1.0 },
-    { name: 'Incomum',  multiplier: 1.2 },
-    { name: 'Raro',     multiplier: 1.4 }, // era 1.5
-    { name: 'Épico',    multiplier: 1.7 }, // era 1.9
-    { name: 'Lendário', multiplier: 2.0 }  // era 2.4
+    { name: 'Comum', multiplier: 1.0, weight: 44 },
+    { name: 'Incomum', multiplier: 1.16, weight: 28 },
+    { name: 'Raro', multiplier: 1.34, weight: 16 },
+    { name: 'Épico', multiplier: 1.62, weight: 8 },
+    { name: 'Lendário', multiplier: 1.95, weight: 3 },
+    { name: 'Mítico', multiplier: 2.35, weight: 1 }
 ];
 
 const CATEGORY_WEIGHTS = {
@@ -87,32 +152,97 @@ function randomFrom(arr) {
 function weightedCategory() {
     const total = Object.values(CATEGORY_WEIGHTS).reduce((sum, w) => sum + w, 0);
     let roll = Math.random() * total;
+
     for (const [category, weight] of Object.entries(CATEGORY_WEIGHTS)) {
         roll -= weight;
         if (roll <= 0) return category;
     }
+
     return 'weapon';
 }
 
+function weightedRarity() {
+    const total = RARITIES.reduce((sum, rarity) => sum + rarity.weight, 0);
+    let roll = Math.random() * total;
+
+    for (const rarity of RARITIES) {
+        roll -= rarity.weight;
+        if (roll <= 0) return rarity;
+    }
+
+    return RARITIES[0];
+}
+
 function getTierByMap(mapId = 1) {
-    if (mapId === 1) return 'level1';
-    if (mapId === 2) return 'level8';
-    return 'level15';
+    if (mapId <= 1) return 'level1';
+    if (mapId === 2) return 'level6';
+    if (mapId === 3) return 'level12';
+    if (mapId === 4) return 'level18';
+    if (mapId === 5) return 'level26';
+    return 'level36';
 }
 
 function getLevelFromTier(tier) {
-    return tier === 'level1' ? 1 : tier === 'level8' ? 8 : 15;
+    const levelMap = {
+        level1: 1,
+        level6: 6,
+        level12: 12,
+        level18: 18,
+        level26: 26,
+        level36: 36
+    };
+    return levelMap[tier] || 1;
 }
 
-function buildStatsBySlot(tier, slot, itemName = '') {
-    const scale = tier === 'level1' ? 1 : tier === 'level8' ? 1.8 : 2.8;
+function getSlotFromItem(category, itemData) {
+    if (itemData.forcedSlot) return itemData.forcedSlot;
+
+    if (category === 'weapon') return 'weapon';
+
+    if (category === 'armor') {
+        const lowerName = itemData.name.toLowerCase();
+        if (lowerName.includes('escudo')) return 'shield';
+        if (lowerName.includes('bota')) return 'boots';
+        return 'armor';
+    }
+
+    if (category === 'jewelry') {
+        const lowerName = itemData.name.toLowerCase();
+        if (lowerName.includes('anel')) return 'ring';
+        if (lowerName.includes('amuleto')) return 'necklace';
+        return Math.random() < 0.5 ? 'ring' : 'necklace';
+    }
+
+    return 'weapon';
+}
+
+function getPowerTier(power) {
+    if (power < 18) return 'Fraco';
+    if (power < 35) return 'Bom';
+    if (power < 60) return 'Forte';
+    if (power < 90) return 'Elite';
+    if (power < 130) return 'Lendário';
+    return 'Mítico';
+}
+
+function buildStatsBySlot(tier, slot) {
+    const scaleMap = {
+        level1: 1.0,
+        level6: 1.45,
+        level12: 1.95,
+        level18: 2.55,
+        level26: 3.35,
+        level36: 4.35
+    };
+
+    const scale = scaleMap[tier] || 1;
 
     if (slot === 'weapon') {
         return {
             atk: rand(4, 7) * scale,
-            def: rand(0, 2),
-            hp: rand(0, 5),
-            crit: rand(2, 5)
+            def: rand(0, 2) * scale * 0.4,
+            hp: rand(0, 6) * scale * 0.5,
+            crit: rand(2, 5) * scale * 0.55
         };
     }
 
@@ -130,7 +260,7 @@ function buildStatsBySlot(tier, slot, itemName = '') {
             atk: 0,
             def: rand(4, 7) * scale,
             hp: rand(6, 12) * scale,
-            crit: rand(0, 1)
+            crit: rand(0, 1) * scale * 0.25
         };
     }
 
@@ -139,87 +269,81 @@ function buildStatsBySlot(tier, slot, itemName = '') {
             atk: 0,
             def: rand(2, 4) * scale,
             hp: rand(4, 8) * scale,
-            crit: rand(2, 4)
+            crit: rand(2, 4) * scale * 0.45
         };
     }
 
     if (slot === 'ring' || slot === 'necklace') {
         return {
             atk: rand(1, 3) * scale,
-            def: rand(1, 2),
+            def: rand(1, 2) * scale * 0.5,
             hp: rand(4, 8) * scale,
-            crit: rand(3, 6)
+            crit: rand(3, 6) * scale * 0.6
         };
     }
 
-    return { atk: 1, def: 1, hp: 1, crit: 1 };
+    return {
+        atk: 1,
+        def: 1,
+        hp: 1,
+        crit: 1
+    };
 }
 
-function rollRarity() {
-    const roll = Math.random();
-    if (roll < 0.45) return RARITIES[0];
-    if (roll < 0.75) return RARITIES[1];
-    if (roll < 0.90) return RARITIES[2];
-    if (roll < 0.98) return RARITIES[3];
-    return RARITIES[4];
+function roundStats(stats) {
+    return {
+        atk: Math.max(0, Math.round(stats.atk || 0)),
+        def: Math.max(0, Math.round(stats.def || 0)),
+        hp: Math.max(0, Math.round(stats.hp || 0)),
+        crit: Math.max(0, Math.round(stats.crit || 0))
+    };
+}
+
+function buildItemId() {
+    return `${Date.now()}_${rand(1000, 9999)}`;
 }
 
 function generateDrop(mapId = 1) {
     const tier = getTierByMap(mapId);
     const category = weightedCategory();
     const itemData = randomFrom(ITEM_POOL[tier][category]);
-    const name = itemData.name;
-    const classRestriction = itemData.class || null;
-    const rarity = rollRarity();
+    const rarity = weightedRarity();
+    const slot = getSlotFromItem(category, itemData);
 
-    let slot = 'weapon';
+    const base = buildStatsBySlot(tier, slot);
+    const finalStats = roundStats({
+        atk: base.atk * rarity.multiplier,
+        def: base.def * rarity.multiplier,
+        hp: base.hp * rarity.multiplier,
+        crit: base.crit * rarity.multiplier
+    });
 
-    if (category === 'armor') {
-        const lowerName = name.toLowerCase();
-        if (lowerName.includes('escudo')) {
-            slot = 'shield';
-        } else if (lowerName.includes('bota')) {
-            slot = 'boots';
-        } else {
-            slot = 'armor';
-        }
-    }
-
-    if (category === 'jewelry') {
-        const lowerName = name.toLowerCase();
-        if (lowerName.includes('anel')) {
-            slot = 'ring';
-        } else if (lowerName.includes('amuleto')) {
-            slot = 'necklace';
-        } else {
-            slot = Math.random() < 0.5 ? 'ring' : 'necklace';
-        }
-    }
-
-    const base = buildStatsBySlot(tier, slot, name);
-
-    const atk = Math.round(base.atk * rarity.multiplier);
-    const def = Math.round(base.def * rarity.multiplier);
-    const hp = Math.round(base.hp * rarity.multiplier);
-    const crit = Math.round(base.crit * rarity.multiplier);
+    const power =
+        finalStats.atk * 2 +
+        finalStats.def * 2 +
+        Math.floor(finalStats.hp / 2) +
+        finalStats.crit * 3;
 
     return {
-        id: Date.now() + rand(1000, 9999),
-        name,
+        id: buildItemId(),
+        name: itemData.name,
+        emoji: itemData.emoji || '⚪',
         rarity: rarity.name,
         level: getLevelFromTier(tier),
-        atk,
-        def,
-        hp,
-        crit,
-        power: atk * 2 + def * 2 + Math.floor(hp / 2) + crit * 3,
+        atk: finalStats.atk,
+        def: finalStats.def,
+        hp: finalStats.hp,
+        crit: finalStats.crit,
+        power,
+        powerTier: getPowerTier(power),
         slot,
         category,
-        classRestriction
+        classRestriction: itemData.class || null
     };
 }
 
 module.exports = {
     generateDrop,
-    ITEM_POOL
+    ITEM_POOL,
+    RARITIES
 };
