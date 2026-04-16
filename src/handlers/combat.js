@@ -2,14 +2,6 @@ const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { updateEnergy } = require('../services/energyService');
 const { processVictory } = require('../services/rewardService');
-const {
-    createFight,
-    processPlayerTurn,
-    processEnemyTurn,
-    attemptFlee,
-    useSoul,
-    applyDefend
-} = require('../core/combat/combatEngine');
 const { combatMenu, soulChoiceMenu, postCombatMenu } = require('../menus/combatMenu');
 const { progressBar } = require('../utils/formatters');
 const { getRandomEnemy } = require('../core/world/enemies');
@@ -20,9 +12,16 @@ const {
     consumeConsumable,
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
-
-const activeFights = new Map();
-const FIGHT_TIMEOUT = 10 * 60 * 1000;
+const {
+    createAndStoreFight,
+    getStoredFight,
+    persistFightMessage,
+    removeStoredFight,
+    runAttack,
+    runDefend,
+    runFlee,
+    runSoul
+} = require('../core/combat/fightService');
 
 function getEnemyBadge(enemy) {
     if (enemy?.isBoss) return '👑 BOSS';
@@ -31,16 +30,10 @@ function getEnemyBadge(enemy) {
     return '👹 INIMIGO';
 }
 
-function getFight(ctx) {
-    const fight = activeFights.get(ctx.from.id);
-    if (!fight) return null;
-
-    if (Date.now() - fight.createdAt > FIGHT_TIMEOUT) {
-        activeFights.delete(ctx.from.id);
-        return null;
-    }
-
-    return fight;
+async function getFight(ctx) {
+    const stored = await getStoredFight(ctx.from.id);
+    if (!stored) return null;
+    return stored;
 }
 
 function renderFightCaption(fight, player) {
@@ -79,9 +72,10 @@ function renderFightCaption(fight, player) {
     return text;
 }
 
-async function updateBattleMessage(ctx, fight, player, keyboard = null) {
+async function updateBattleMessage(ctx, stored, player, keyboard = null) {
+    const { fight, meta } = stored;
     const caption = renderFightCaption(fight, player);
-    const messageId = fight.battleMessageId;
+    const messageId = meta.battleMessageId;
     const chatId = ctx.chat.id;
 
     if (!messageId) return;
@@ -107,27 +101,26 @@ async function updateBattleMessage(ctx, fight, player, keyboard = null) {
                     parse_mode: 'Markdown',
                     ...(keyboard || combatMenu())
                 });
-                fight.battleMessageId = sent.message_id;
-                fight.isPhoto = true;
+                await persistFightMessage(ctx.from.id, sent.message_id, true);
             } else {
                 const sent = await ctx.reply(caption, {
                     parse_mode: 'Markdown',
                     ...(keyboard || combatMenu())
                 });
-                fight.battleMessageId = sent.message_id;
-                fight.isPhoto = false;
+                await persistFightMessage(ctx.from.id, sent.message_id, false);
             }
         }
     }
 }
 
-async function finishFight(ctx, fight) {
+async function finishFight(ctx, stored) {
+    const { fight, meta } = stored;
     const player = await getPlayer(ctx.from.id);
     updateEnergy(player);
 
     const chatId = ctx.chat.id;
-    const messageId = fight.battleMessageId;
-    const isPhoto = fight.isPhoto;
+    const messageId = meta.battleMessageId;
+    const isPhoto = meta.isPhoto;
 
     const sendPostCombatFallback = async (msg) => {
         if (messageId) {
@@ -135,11 +128,10 @@ async function finishFight(ctx, fight) {
                 await ctx.telegram.deleteMessage(chatId, messageId);
             } catch {}
         }
-
         await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
     };
 
-    activeFights.delete(ctx.from.id);
+    await removeStoredFight(ctx.from.id);
 
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
@@ -158,14 +150,11 @@ async function finishFight(ctx, fight) {
         msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         msg += `🎖️ *${player.name}*  •  Nível ${player.level}\n`;
         msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
         msg += `✨ *Experiência*\n`;
         msg += `   +${rewards.xp} XP\n`;
         msg += `   ${player.xp}/${xpNeeded}  ${xpProgress}\n\n`;
-
         msg += `💰 *Ouro*\n`;
         msg += `   +${rewards.gold} Ouro  |  Total: ${player.gold}\n\n`;
-
         msg += `❤️ *Vitalidade*\n`;
         msg += `   ${player.hp}/${player.maxHp}\n`;
         msg += `⚡ *Energia*: ${player.energy}/${player.maxEnergy}\n\n`;
@@ -303,13 +292,7 @@ async function handleHunt(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    const fight = createFight(player, enemy);
-    fight.createdAt = Date.now();
-    fight.battleMessageId = null;
-    fight.isPhoto = false;
-
-    activeFights.set(ctx.from.id, fight);
-
+    const fight = await createAndStoreFight(ctx.from.id, player, enemy);
     const caption = renderFightCaption(fight, player);
     const enemyImage = assets?.enemies?.[enemy.id];
 
@@ -324,102 +307,95 @@ async function handleHunt(ctx) {
             parse_mode: 'Markdown',
             ...combatMenu()
         });
-        fight.isPhoto = true;
+        await persistFightMessage(ctx.from.id, sent.message_id, true);
     } else {
         sent = await ctx.reply(caption, {
             parse_mode: 'Markdown',
             ...combatMenu()
         });
-        fight.isPhoto = false;
+        await persistFightMessage(ctx.from.id, sent.message_id, false);
     }
-
-    fight.battleMessageId = sent.message_id;
 }
 
 async function handleAttack(ctx) {
-    const fight = getFight(ctx);
-    if (!fight) {
+    const stored = await getFight(ctx);
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada. Inicie uma nova.').catch(() => {});
         return handleHunt(ctx);
     }
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (stored.fight.status !== 'ongoing') {
+        return finishFight(ctx, stored);
     }
 
-    processPlayerTurn(fight);
-
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-    }
-
+    const updated = await runAttack(ctx.from.id);
     const player = await getPlayer(ctx.from.id);
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (!updated || updated.fight.status !== 'ongoing') {
+        return finishFight(ctx, updated || stored);
     }
 
-    return updateBattleMessage(ctx, fight, player, combatMenu());
+    return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleDefend(ctx) {
-    const fight = getFight(ctx);
-    if (!fight) {
+    const stored = await getFight(ctx);
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (stored.fight.status !== 'ongoing') {
+        return finishFight(ctx, stored);
     }
 
-    applyDefend(fight);
-    processEnemyTurn(fight);
-
+    const updated = await runDefend(ctx.from.id);
     const player = await getPlayer(ctx.from.id);
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (!updated || updated.fight.status !== 'ongoing') {
+        return finishFight(ctx, updated || stored);
     }
 
-    return updateBattleMessage(ctx, fight, player, combatMenu());
+    return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleFlee(ctx) {
-    const fight = getFight(ctx);
-    if (!fight) {
+    const stored = await getFight(ctx);
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (stored.fight.status !== 'ongoing') {
+        return finishFight(ctx, stored);
     }
 
-    const success = attemptFlee(fight);
-    if (success) {
-        fight.status = 'fled';
-        return finishFight(ctx, fight);
+    const updated = await runFlee(ctx.from.id);
+    if (!updated) {
+        return handleHunt(ctx);
+    }
+
+    if (updated.success) {
+        return finishFight(ctx, updated);
     }
 
     const player = await getPlayer(ctx.from.id);
-
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (updated.fight.status !== 'ongoing') {
+        return finishFight(ctx, updated);
     }
 
-    return updateBattleMessage(ctx, fight, player, combatMenu());
+    return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleSoulMenu(ctx) {
-    const fight = getFight(ctx);
-    if (!fight) {
+    const stored = await getFight(ctx);
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (stored.fight.status !== 'ongoing') {
+        return finishFight(ctx, stored);
     }
 
     const player = await getPlayer(ctx.from.id);
@@ -438,40 +414,36 @@ async function handleSoulMenu(ctx) {
 }
 
 async function handleSoul(ctx) {
-    const fight = getFight(ctx);
-    if (!fight) {
+    const stored = await getFight(ctx);
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (stored.fight.status !== 'ongoing') {
+        return finishFight(ctx, stored);
     }
 
     const soulIndex = parseInt(ctx.match[1], 10);
-    const result = useSoul(fight, soulIndex);
+    const updated = await runSoul(ctx.from.id, soulIndex);
 
-    if (!result) {
+    if (!updated || !updated.result) {
         await ctx.answerCbQuery('❌ Alma inválida ou vazia.', { show_alert: true }).catch(() => {});
         return;
     }
 
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-    }
-
     const player = await getPlayer(ctx.from.id);
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (updated.fight.status !== 'ongoing') {
+        return finishFight(ctx, updated);
     }
 
-    return updateBattleMessage(ctx, fight, player, combatMenu());
+    return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleConsumables(ctx) {
-    const fight = getFight(ctx);
-    if (!fight) {
+    const stored = await getFight(ctx);
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
@@ -505,15 +477,15 @@ async function handleConsumables(ctx) {
 
 async function handleUseConsumable(ctx) {
     const key = ctx.match?.[1];
-    const fight = getFight(ctx);
+    const stored = await getFight(ctx);
 
-    if (!fight) {
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+    if (stored.fight.status !== 'ongoing') {
+        return finishFight(ctx, stored);
     }
 
     const player = await getPlayer(ctx.from.id);
@@ -528,6 +500,7 @@ async function handleUseConsumable(ctx) {
         return;
     }
 
+    const fight = stored.fight;
     let log = '';
 
     if (key === 'potionHp') {
@@ -555,28 +528,49 @@ async function handleUseConsumable(ctx) {
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
+    await require('../core/combat/fightService').persistFightState(ctx.from.id, fight, stored.meta);
 
     if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
+        const updated = await runDefendLikeEnemyOnly(ctx.from.id);
+        const refreshedPlayer = await getPlayer(ctx.from.id);
+
+        if (!updated || updated.fight.status !== 'ongoing') {
+            return finishFight(ctx, updated || stored);
+        }
+
+        await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
+        return updateBattleMessage(ctx, updated, refreshedPlayer, combatMenu());
     }
 
     if (fight.status !== 'ongoing') {
-        return finishFight(ctx, fight);
+        return finishFight(ctx, stored);
     }
 
     await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
-    return updateBattleMessage(ctx, fight, player, combatMenu());
+    return updateBattleMessage(ctx, stored, player, combatMenu());
+}
+
+async function runDefendLikeEnemyOnly(userId) {
+    const stored = await getStoredFight(userId);
+    if (!stored) return null;
+
+    const { fight, meta } = stored;
+    const { processEnemyTurn } = require('../core/combat/combatEngine');
+    processEnemyTurn(fight);
+
+    await require('../core/combat/fightService').persistFightState(userId, fight, meta);
+    return { fight, meta };
 }
 
 async function handleCombatBack(ctx) {
-    const fight = getFight(ctx);
-    if (!fight) {
+    const stored = await getFight(ctx);
+    if (!stored) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
 
     const player = await getPlayer(ctx.from.id);
-    return updateBattleMessage(ctx, fight, player, combatMenu());
+    return updateBattleMessage(ctx, stored, player, combatMenu());
 }
 
 module.exports = {
@@ -589,6 +583,5 @@ module.exports = {
     handleConsumables,
     handleUseConsumable,
     handleCombatBack,
-    finishFight,
-    activeFights
+    finishFight
 };
