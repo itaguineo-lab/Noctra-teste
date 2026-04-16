@@ -21,7 +21,6 @@ const soulsList = [
             multiplier: 1.35
         }
     },
-
     {
         id: 'soul_heal',
         bossId: 'forest_guardian',
@@ -36,7 +35,6 @@ const soulsList = [
             multiplier: 0.35
         }
     },
-
     {
         id: 'soul_frost',
         bossId: 'lord_of_crypt',
@@ -52,7 +50,6 @@ const soulsList = [
             freezeChance: 0.25
         }
     },
-
     {
         id: 'soul_guardian',
         bossId: 'swamp_abomination',
@@ -68,7 +65,6 @@ const soulsList = [
             hpBonus: 30
         }
     },
-
     {
         id: 'soul_vampire',
         bossId: 'lord_of_decay',
@@ -84,10 +80,9 @@ const soulsList = [
             healPercent: 0.25
         }
     },
-
     {
         id: 'soul_dragon',
-        bossId: 'dragon_of_void',
+        bossId: 'void_drake',
         name: 'Alma Dracônica',
         rarity: 'Mítico',
         tier: 4,
@@ -98,6 +93,21 @@ const soulsList = [
             type: 'passive',
             atkBonus: 18,
             critBonus: 6
+        }
+    },
+    {
+        id: 'soul_noctra',
+        bossId: 'noctra_avatar',
+        name: 'Alma de Noctra',
+        rarity: 'Mítico',
+        tier: 5,
+        emoji: '🌑',
+        minLevel: 35,
+        shardValue: 60,
+        effect: {
+            type: 'damage',
+            multiplier: 2.1,
+            freezeChance: 0.15
         }
     }
 ];
@@ -145,11 +155,7 @@ function createSoulInstance(soul) {
 }
 
 function getSoulById(id) {
-    return (
-        soulsList.find(
-            soul => soul.id === id
-        ) || null
-    );
+    return soulsList.find(soul => soul.id === id) || null;
 }
 
 function getRarityEmoji(rarity) {
@@ -164,26 +170,34 @@ function getRarityEmoji(rarity) {
 }
 
 function weightedRandom(list) {
-    const total = list.reduce(
-        (sum, soul) =>
-            sum +
-            (rarityWeights[soul.rarity] || 1),
-        0
-    );
-
-    let roll =
-        Math.random() * total;
+    const total = list.reduce((sum, soul) => sum + (rarityWeights[soul.rarity] || 1), 0);
+    let roll = Math.random() * total;
 
     for (const soul of list) {
-        roll -=
-            rarityWeights[soul.rarity] || 1;
-
-        if (roll <= 0) {
-            return soul;
-        }
+        roll -= rarityWeights[soul.rarity] || 1;
+        if (roll <= 0) return soul;
     }
 
     return list[0];
+}
+
+function getGuaranteedSoulByPity(available, pityCounter) {
+    if (pityCounter >= pityLimits.Mítico) {
+        const mythic = available.filter(s => s.rarity === 'Mítico');
+        if (mythic.length) return weightedRandom(mythic);
+    }
+
+    if (pityCounter >= pityLimits.Lendário) {
+        const legendary = available.filter(s => s.rarity === 'Lendário' || s.rarity === 'Mítico');
+        if (legendary.length) return weightedRandom(legendary);
+    }
+
+    if (pityCounter >= pityLimits.Épico) {
+        const epic = available.filter(s => ['Épico', 'Lendário', 'Mítico'].includes(s.rarity));
+        if (epic.length) return weightedRandom(epic);
+    }
+
+    return null;
 }
 
 /*
@@ -192,75 +206,27 @@ DROP WITH PITY
 =================================
 */
 
-function dropSoul(
-    playerLevel,
-    bossId = null,
-    pityCounter = 0
-) {
-    const available = soulsList.filter(
-        soul =>
-            soul.minLevel <=
-            playerLevel
-    );
+function dropSoul(playerLevel, bossId = null, pityCounter = 0) {
+    const available = soulsList.filter(soul => soul.minLevel <= playerLevel);
 
     if (!available.length) {
         return null;
     }
 
-    /*
-    guaranteed boss soul
-    */
-
     if (bossId) {
-        const bossSoul =
-            available.find(
-                soul =>
-                    soul.bossId ===
-                    bossId
-            );
-
-        if (
-            bossSoul &&
-            Math.random() <= 0.20
-        ) {
-            return createSoulInstance(
-                bossSoul
-            );
+        const bossSoul = available.find(soul => soul.bossId === bossId);
+        if (bossSoul && Math.random() <= 0.20) {
+            return createSoulInstance(bossSoul);
         }
     }
 
-    /*
-    pity
-    */
-
-    if (
-        pityCounter >=
-        pityLimits.Mítico
-    ) {
-        const mythic =
-            available.filter(
-                s =>
-                    s.rarity ===
-                    'Mítico'
-            );
-
-        if (mythic.length) {
-            return createSoulInstance(
-                weightedRandom(
-                    mythic
-                )
-            );
-        }
+    const guaranteedByPity = getGuaranteedSoulByPity(available, pityCounter);
+    if (guaranteedByPity) {
+        return createSoulInstance(guaranteedByPity);
     }
 
-    const selected =
-        weightedRandom(
-            available
-        );
-
-    return createSoulInstance(
-        selected
-    );
+    const selected = weightedRandom(available);
+    return createSoulInstance(selected);
 }
 
 /*
@@ -269,54 +235,24 @@ FUSION
 =================================
 */
 
-function fuseSouls(
-    soulA,
-    soulB
-) {
-    if (
-        !soulA ||
-        !soulB
-    ) {
+function fuseSouls(soulA, soulB) {
+    if (!soulA || !soulB) {
         return null;
     }
 
-    if (
-        soulA.id !== soulB.id
-    ) {
+    if (soulA.id !== soulB.id) {
         return null;
     }
 
-    const newSoul = {
-        ...soulA
-    };
+    const newSoul = { ...soulA };
+    newSoul.awakenLevel = (soulA.awakenLevel || 0) + 1;
+    newSoul.level = Math.max(soulA.level, soulB.level);
 
-    newSoul.awakenLevel =
-        (soulA.awakenLevel || 0) + 1;
-
-    newSoul.level =
-        Math.max(
-            soulA.level,
-            soulB.level
-        );
-
-    if (
-        newSoul.effect
-            .multiplier
-    ) {
-        newSoul.effect.multiplier =
-            Number(
-                (
-                    newSoul.effect
-                        .multiplier +
-                    0.10
-                ).toFixed(2)
-            );
+    if (newSoul.effect.multiplier) {
+        newSoul.effect.multiplier = Number((newSoul.effect.multiplier + 0.10).toFixed(2));
     }
 
-    if (
-        newSoul.effect
-            .atkBonus
-    ) {
+    if (newSoul.effect.atkBonus) {
         newSoul.effect.atkBonus += 5;
     }
 
@@ -329,12 +265,8 @@ SHARDS
 =================================
 */
 
-function dismantleSoul(
-    soul
-) {
-    return (
-        soul.shardValue || 5
-    );
+function dismantleSoul(soul) {
+    return soul.shardValue || 5;
 }
 
 /*
@@ -343,50 +275,22 @@ ACTIVATION
 =================================
 */
 
-function activateSoul(
-    soul,
-    state
-) {
-    if (
-        !soul ||
-        !state
-    ) {
+function activateSoul(soul, state) {
+    if (!soul || !state) {
         return {
-            message:
-                '❌ Alma inválida.'
+            message: '❌ Alma inválida.'
         };
     }
 
-    const effect =
-        soul.effect || {};
+    const effect = soul.effect || {};
 
-    switch (
-        effect.type
-    ) {
+    switch (effect.type) {
         case 'damage': {
-            const damage =
-                Math.floor(
-                    (state.player
-                        .atk ||
-                        1) *
-                        (effect.multiplier ||
-                            1)
-                );
+            const damage = Math.floor((state.player.atk || 1) * (effect.multiplier || 1));
+            state.enemy.hp = Math.max(0, state.enemy.hp - damage);
 
-            state.enemy.hp =
-                Math.max(
-                    0,
-                    state.enemy.hp -
-                        damage
-                );
-
-            if (
-                effect.freezeChance &&
-                Math.random() <
-                    effect.freezeChance
-            ) {
-                state.enemy.frozen =
-                    true;
+            if (effect.freezeChance && Math.random() < effect.freezeChance) {
+                state.enemy.frozen = true;
             }
 
             return {
@@ -396,22 +300,8 @@ function activateSoul(
         }
 
         case 'heal': {
-            const heal =
-                Math.floor(
-                    (state.player
-                        .maxHp ||
-                        1) *
-                        (effect.multiplier ||
-                            1)
-                );
-
-            state.player.hp =
-                Math.min(
-                    state.player
-                        .maxHp,
-                    state.player.hp +
-                        heal
-                );
+            const heal = Math.floor((state.player.maxHp || 1) * (effect.multiplier || 1));
+            state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
 
             return {
                 heal,
@@ -420,36 +310,11 @@ function activateSoul(
         }
 
         case 'lifesteal': {
-            const damage =
-                Math.floor(
-                    (state.player
-                        .atk ||
-                        1) *
-                        (effect.multiplier ||
-                            1)
-                );
+            const damage = Math.floor((state.player.atk || 1) * (effect.multiplier || 1));
+            const heal = Math.floor(damage * (effect.healPercent || 0.2));
 
-            const heal =
-                Math.floor(
-                    damage *
-                        (effect.healPercent ||
-                            0.2)
-                );
-
-            state.enemy.hp =
-                Math.max(
-                    0,
-                    state.enemy.hp -
-                        damage
-                );
-
-            state.player.hp =
-                Math.min(
-                    state.player
-                        .maxHp,
-                    state.player.hp +
-                        heal
-                );
+            state.enemy.hp = Math.max(0, state.enemy.hp - damage);
+            state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
 
             return {
                 damage,
@@ -471,41 +336,19 @@ UPGRADE
 =================================
 */
 
-function levelUpSoul(
-    soul,
-    expGain = 1
-) {
-    soul.exp =
-        (soul.exp || 0) +
-        expGain;
+function levelUpSoul(soul, expGain = 1) {
+    soul.exp = (soul.exp || 0) + expGain;
 
-    const needed =
-        soul.level * 3;
-
-    if (
-        soul.exp >= needed
-    ) {
+    const needed = soul.level * 3;
+    if (soul.exp >= needed) {
         soul.exp -= needed;
         soul.level++;
 
-        if (
-            soul.effect
-                .multiplier
-        ) {
-            soul.effect.multiplier =
-                Number(
-                    (
-                        soul.effect
-                            .multiplier +
-                        0.05
-                    ).toFixed(2)
-                );
+        if (soul.effect.multiplier) {
+            soul.effect.multiplier = Number((soul.effect.multiplier + 0.05).toFixed(2));
         }
 
-        if (
-            soul.effect
-                .atkBonus
-        ) {
+        if (soul.effect.atkBonus) {
             soul.effect.atkBonus += 2;
         }
     }
