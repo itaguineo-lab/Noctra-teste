@@ -26,6 +26,22 @@ const activeArenaBattleSchema = new mongoose.Schema({
     payload: { type: Object, default: null }
 }, { _id: false });
 
+const missionEntrySchema = new mongoose.Schema({
+    id: { type: String, required: true },
+    title: { type: String, required: true },
+    type: { type: String, required: true },
+    target: { type: Number, required: true },
+    progress: { type: Number, default: 0 },
+    completed: { type: Boolean, default: false },
+    reward: { type: Object, default: {} }
+}, { _id: false });
+
+const dailyMissionsSchema = new mongoose.Schema({
+    dateKey: { type: String, default: null },
+    missions: { type: [missionEntrySchema], default: [] },
+    claimedAll: { type: Boolean, default: false }
+}, { _id: false });
+
 const playerSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
     name: { type: String, default: 'Viajante' },
@@ -89,7 +105,10 @@ const playerSchema = new mongoose.Schema({
 
     arena: { type: Object, default: null },
 
+    dailyMissions: { type: dailyMissionsSchema, default: () => ({}) },
     lastDailyChest: { type: String, default: null },
+    dailyStreak: { type: Number, default: 0 },
+
     banned: { type: Boolean, default: false },
 
     activeFight: { type: activeFightSchema, default: null },
