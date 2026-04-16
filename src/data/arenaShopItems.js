@@ -25,20 +25,49 @@ const arenaShopItems = [
         description: 'Chave rara.'
     },
     {
-        id: 'arena_title_bronze',
+        id: 'arena_strength_tonic',
+        name: 'Tônico de Força Arena',
+        type: 'consumable',
+        effect: 'tonicStrength',
+        value: 1,
+        price: 65,
+        description: '+ATK para batalhas decisivas.'
+    },
+    {
+        id: 'arena_defense_tonic',
+        name: 'Tônico de Defesa Arena',
+        type: 'consumable',
+        effect: 'tonicDefense',
+        value: 1,
+        price: 65,
+        description: '+DEF para sobrevivência na arena.'
+    },
+    {
+        id: 'arena_title_gladiador',
         name: 'Título Gladiador',
         type: 'cosmetic',
+        cosmeticType: 'title',
         value: 'Gladiador',
         price: 120,
         description: 'Título exclusivo da arena.'
     },
     {
-        id: 'arena_skin_shadow',
+        id: 'arena_aura_champion',
         name: 'Aura do Campeão',
         type: 'cosmetic',
+        cosmeticType: 'aura',
         value: 'Aura do Campeão',
         price: 180,
-        description: 'Cosmético exclusivo.'
+        description: 'Cosmético exclusivo para campeões.'
+    },
+    {
+        id: 'arena_badge_bloodmoon',
+        name: 'Emblema Lua de Sangue',
+        type: 'cosmetic',
+        cosmeticType: 'badge',
+        value: 'Lua de Sangue',
+        price: 150,
+        description: 'Emblema raro de prestígio.'
     }
 ];
 
