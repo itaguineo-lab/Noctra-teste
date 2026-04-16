@@ -183,6 +183,16 @@ function ensurePlayerState(player) {
     player.renamed ??= false;
     player.classChanged ??= false;
 
+    player.activeFight ??= null;
+    if (player.activeFight) {
+        player.activeFight.mode ??= 'hunt';
+        player.activeFight.createdAt ??= Date.now();
+        player.activeFight.expiresAt ??= player.activeFight.createdAt + (10 * 60 * 1000);
+        player.activeFight.battleMessageId ??= null;
+        player.activeFight.isPhoto ??= false;
+        player.activeFight.payload ??= null;
+    }
+
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
 
@@ -226,7 +236,7 @@ async function getPlayer(id) {
 
     const player = await Player.findOne({ id });
     if (!player) {
-        return null;   // <-- NÃO CRIA MAIS AUTOMATICAMENTE
+        return null;
     }
 
     const playerObj = player.toObject();
@@ -247,13 +257,15 @@ async function savePlayer(id, playerData) {
 
     const { _id, ...updateData } = playerData;
     ensurePlayerState(updateData);
-    
+
     const currentHp = updateData.hp;
     recalculateStats(updateData);
+
     if (currentHp !== undefined && currentHp !== null) {
-        updateData.hp = Math.min(currentHp, updateData.maxHp);
+        updateData.hp = Math.max(1, Math.min(currentHp, updateData.maxHp));
     }
 
+    updateData.energy = Math.max(0, Math.min(updateData.energy ?? updateData.maxEnergy, updateData.maxEnergy));
     updateData.updatedAt = new Date();
 
     const result = await Player.findOneAndUpdate(
@@ -278,10 +290,12 @@ async function getAllPlayers() {
     await connectToMongo();
     const players = await Player.find({}).lean();
     const playersMap = {};
+
     for (const player of players) {
         ensurePlayerState(player);
         playersMap[player.id] = player;
     }
+
     return playersMap;
 }
 
