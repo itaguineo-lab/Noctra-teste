@@ -123,6 +123,36 @@ async function runSoul(userId, soulIndex) {
     return { fight, meta, result };
 }
 
+async function runEnemyOnlyTurn(userId) {
+    const stored = await getStoredFight(userId);
+    if (!stored) return null;
+
+    const { fight, meta } = stored;
+
+    if (fight.status === 'ongoing') {
+        processEnemyTurn(fight);
+    }
+
+    await persistFightState(userId, fight, meta);
+    return { fight, meta };
+}
+
+async function runConsumableTurn(userId, applyConsumableEffect) {
+    const stored = await getStoredFight(userId);
+    if (!stored) return null;
+
+    const { fight, meta } = stored;
+
+    const effectResult = applyConsumableEffect(fight);
+
+    if (fight.status === 'ongoing') {
+        processEnemyTurn(fight);
+    }
+
+    await persistFightState(userId, fight, meta);
+    return { fight, meta, effectResult };
+}
+
 module.exports = {
     createAndStoreFight,
     getStoredFight,
@@ -132,5 +162,7 @@ module.exports = {
     runAttack,
     runDefend,
     runFlee,
-    runSoul
+    runSoul,
+    runEnemyOnlyTurn,
+    runConsumableTurn
 };
