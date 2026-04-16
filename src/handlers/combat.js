@@ -1,6 +1,6 @@
 const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
-const { consumeEnergy, updateEnergy } = require('../services/energyService');
+const { updateEnergy } = require('../services/energyService');
 const { processVictory } = require('../services/rewardService');
 const {
     createFight,
@@ -14,14 +14,15 @@ const { combatMenu, soulChoiceMenu, postCombatMenu } = require('../menus/combatM
 const { progressBar } = require('../utils/formatters');
 const { getRandomEnemy } = require('../core/world/enemies');
 const assets = require('../data/assets');
+const {
+    consumeEnergy,
+    restoreEnergy,
+    consumeConsumable,
+    normalizePlayerForSave
+} = require('../core/player/playerMutations');
 
-// Cache de lutas ativas
 const activeFights = new Map();
-const FIGHT_TIMEOUT = 10 * 60 * 1000; // 10 minutos
-
-// ================================================
-// FUNÇÕES AUXILIARES
-// ================================================
+const FIGHT_TIMEOUT = 10 * 60 * 1000;
 
 function getEnemyBadge(enemy) {
     if (enemy?.isBoss) return '👑 BOSS';
@@ -33,10 +34,12 @@ function getEnemyBadge(enemy) {
 function getFight(ctx) {
     const fight = activeFights.get(ctx.from.id);
     if (!fight) return null;
+
     if (Date.now() - fight.createdAt > FIGHT_TIMEOUT) {
         activeFights.delete(ctx.from.id);
         return null;
     }
+
     return fight;
 }
 
@@ -84,14 +87,11 @@ async function updateBattleMessage(ctx, fight, player, keyboard = null) {
     if (!messageId) return;
 
     try {
-        // Verifica se a mensagem é uma foto (possui caption) ou texto puro
-        // Tenta editar como legenda primeiro; se falhar, tenta editar como texto
         await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
             parse_mode: 'Markdown',
             reply_markup: keyboard ? keyboard.reply_markup : undefined
         });
-    } catch (error) {
-        // Se falhar, pode ser que a mensagem não seja uma foto. Tenta editar como texto.
+    } catch {
         try {
             await ctx.telegram.editMessageText(chatId, messageId, null, caption, {
                 parse_mode: 'Markdown',
@@ -99,7 +99,7 @@ async function updateBattleMessage(ctx, fight, player, keyboard = null) {
             });
         } catch (secondError) {
             console.error('Erro ao editar mensagem de batalha:', secondError);
-            // Recria a mensagem
+
             const enemyImage = assets?.enemies?.[fight.enemy.id];
             if (enemyImage) {
                 const sent = await ctx.replyWithPhoto(enemyImage, {
@@ -124,21 +124,21 @@ async function updateBattleMessage(ctx, fight, player, keyboard = null) {
 async function finishFight(ctx, fight) {
     const player = await getPlayer(ctx.from.id);
     updateEnergy(player);
+
     const chatId = ctx.chat.id;
     const messageId = fight.battleMessageId;
     const isPhoto = fight.isPhoto;
+
     const sendPostCombatFallback = async (msg) => {
         if (messageId) {
             try {
                 await ctx.telegram.deleteMessage(chatId, messageId);
-            } catch {
-                // ignora falhas de remoção
-            }
+            } catch {}
         }
+
         await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
     };
 
-    // Remove a luta do cache
     activeFights.delete(ctx.from.id);
 
     if (fight.status === 'win') {
@@ -146,6 +146,7 @@ async function finishFight(ctx, fight) {
 
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
         const { getXpToNextLevel } = require('../core/player/progression');
@@ -171,7 +172,9 @@ async function finishFight(ctx, fight) {
 
         if (rewards.loot?.length) {
             msg += `🎁 *Loot Obtido*\n`;
-            rewards.loot.forEach(item => msg += `   ${item}\n`);
+            rewards.loot.forEach(item => {
+                msg += `   ${item}\n`;
+            });
             msg += `\n`;
         }
 
@@ -196,27 +199,29 @@ async function finishFight(ctx, fight) {
                         reply_markup: postCombatMenu().reply_markup
                     });
                 }
-            } catch (e) {
+            } catch {
                 await sendPostCombatFallback(msg);
             }
         } else {
             await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
         }
+
         return;
     }
 
     if (fight.status === 'loss') {
         player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
         const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `          💀 *DERROTA* 💀\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `Você foi derrotado...\n\n` +
-                    `❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
-                    `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `🌑 Reúna forças e tente novamente.`;
+            `          💀 *DERROTA* 💀\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Você foi derrotado...\n\n` +
+            `❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
+            `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🌑 Reúna forças e tente novamente.`;
 
         if (messageId) {
             try {
@@ -231,26 +236,28 @@ async function finishFight(ctx, fight) {
                         reply_markup: postCombatMenu().reply_markup
                     });
                 }
-            } catch (e) {
+            } catch {
                 await sendPostCombatFallback(msg);
             }
         } else {
             await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
         }
+
         return;
     }
 
     if (fight.status === 'fled') {
         player.hp = Math.max(1, fight.player.hp);
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
         const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `      🏃 *FUGA BEM-SUCEDIDA*\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `Você escapou da batalha!\n\n` +
-                    `❤️ HP atual: ${player.hp}/${player.maxHp}\n` +
-                    `⚡ Energia restante: ${player.energy}/${player.maxEnergy}\n\n` +
-                    `🌑 A escuridão te poupou... por enquanto.`;
+            `      🏃 *FUGA BEM-SUCEDIDA*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Você escapou da batalha!\n\n` +
+            `❤️ HP atual: ${player.hp}/${player.maxHp}\n` +
+            `⚡ Energia restante: ${player.energy}/${player.maxEnergy}\n\n` +
+            `🌑 A escuridão te poupou... por enquanto.`;
 
         if (messageId) {
             try {
@@ -265,24 +272,19 @@ async function finishFight(ctx, fight) {
                         reply_markup: postCombatMenu().reply_markup
                     });
                 }
-            } catch (e) {
+            } catch {
                 await sendPostCombatFallback(msg);
             }
         } else {
             await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
         }
-        return;
     }
 }
-
-// ================================================
-// HANDLER PRINCIPAL: /hunt (mensagem com foto quando disponível, com fallback para texto)
-// ================================================
 
 async function handleHunt(ctx) {
     await ctx.answerCbQuery().catch(() => {});
 
-    let player = await getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
     updateEnergy(player);
 
     if (player.energy < 1) {
@@ -298,6 +300,7 @@ async function handleHunt(ctx) {
         return ctx.reply('⚡ Sem energia.');
     }
 
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
     const fight = createFight(player, enemy);
@@ -310,12 +313,9 @@ async function handleHunt(ctx) {
     const caption = renderFightCaption(fight, player);
     const enemyImage = assets?.enemies?.[enemy.id];
 
-    // Exclui a mensagem do menu (opcional, para limpar)
     try {
         await ctx.deleteMessage();
-    } catch (e) {
-        // ignora
-    }
+    } catch {}
 
     let sent;
     if (enemyImage) {
@@ -335,10 +335,6 @@ async function handleHunt(ctx) {
 
     fight.battleMessageId = sent.message_id;
 }
-
-// ================================================
-// HANDLER: Atacar (combat_attack)
-// ================================================
 
 async function handleAttack(ctx) {
     const fight = getFight(ctx);
@@ -366,10 +362,6 @@ async function handleAttack(ctx) {
     return updateBattleMessage(ctx, fight, player, combatMenu());
 }
 
-// ================================================
-// HANDLER: Defender (combat_defend)
-// ================================================
-
 async function handleDefend(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
@@ -393,10 +385,6 @@ async function handleDefend(ctx) {
     return updateBattleMessage(ctx, fight, player, combatMenu());
 }
 
-// ================================================
-// HANDLER: Fugir (combat_flee)
-// ================================================
-
 async function handleFlee(ctx) {
     const fight = getFight(ctx);
     if (!fight) {
@@ -412,20 +400,16 @@ async function handleFlee(ctx) {
     if (success) {
         fight.status = 'fled';
         return finishFight(ctx, fight);
-    } else {
-        const player = await getPlayer(ctx.from.id);
-
-        if (fight.status !== 'ongoing') {
-            return finishFight(ctx, fight);
-        }
-
-        return updateBattleMessage(ctx, fight, player, combatMenu());
     }
-}
 
-// ================================================
-// HANDLER: Menu de Almas (combat_soul_menu)
-// ================================================
+    const player = await getPlayer(ctx.from.id);
+
+    if (fight.status !== 'ongoing') {
+        return finishFight(ctx, fight);
+    }
+
+    return updateBattleMessage(ctx, fight, player, combatMenu());
+}
 
 async function handleSoulMenu(ctx) {
     const fight = getFight(ctx);
@@ -448,14 +432,10 @@ async function handleSoulMenu(ctx) {
 
     try {
         await ctx.editMessageReplyMarkup(soulChoiceMenu().reply_markup);
-    } catch (e) {
+    } catch {
         await ctx.reply('💀 Escolha uma alma:', soulChoiceMenu());
     }
 }
-
-// ================================================
-// HANDLER: Usar Alma (combat_soul_0 ou _1)
-// ================================================
 
 async function handleSoul(ctx) {
     const fight = getFight(ctx);
@@ -468,10 +448,9 @@ async function handleSoul(ctx) {
         return finishFight(ctx, fight);
     }
 
-    const match = ctx.match;
-    const soulIndex = parseInt(match[1], 10);
-
+    const soulIndex = parseInt(ctx.match[1], 10);
     const result = useSoul(fight, soulIndex);
+
     if (!result) {
         await ctx.answerCbQuery('❌ Alma inválida ou vazia.', { show_alert: true }).catch(() => {});
         return;
@@ -489,10 +468,6 @@ async function handleSoul(ctx) {
 
     return updateBattleMessage(ctx, fight, player, combatMenu());
 }
-
-// ================================================
-// HANDLER: Consumíveis (combat_consumables)
-// ================================================
 
 async function handleConsumables(ctx) {
     const fight = getFight(ctx);
@@ -531,10 +506,12 @@ async function handleConsumables(ctx) {
 async function handleUseConsumable(ctx) {
     const key = ctx.match?.[1];
     const fight = getFight(ctx);
+
     if (!fight) {
         await ctx.answerCbQuery('Luta expirada.').catch(() => {});
         return handleHunt(ctx);
     }
+
     if (fight.status !== 'ongoing') {
         return finishFight(ctx, fight);
     }
@@ -545,13 +522,12 @@ async function handleUseConsumable(ctx) {
         return;
     }
 
-    player.consumables ??= {};
-    if (!player.consumables[key] || player.consumables[key] <= 0) {
+    const consumeResult = consumeConsumable(player, key, 1);
+    if (!consumeResult.success) {
         await ctx.answerCbQuery('❌ Item indisponível.', { show_alert: true }).catch(() => {});
         return;
     }
 
-    player.consumables[key] -= 1;
     let log = '';
 
     if (key === 'potionHp') {
@@ -560,9 +536,10 @@ async function handleUseConsumable(ctx) {
         fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
         log = `❤️ Você recuperou ${fight.player.hp - before} HP com poção.`;
     } else if (key === 'potionEnergy') {
-        player.energy = Math.min(player.maxEnergy, (player.energy || 0) + 1);
+        const before = player.energy;
+        restoreEnergy(player, 1);
         fight.player.energy = player.energy;
-        log = '⚡ Energia +1 com poção.';
+        log = `⚡ Energia +${player.energy - before} com poção.`;
     } else if (key === 'tonicStrength') {
         fight.player.atk += 10;
         log = '💪 ATK +10 para esta batalha.';
@@ -575,6 +552,8 @@ async function handleUseConsumable(ctx) {
     }
 
     fight.logs.push(log);
+
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
     if (fight.status === 'ongoing') {
@@ -588,10 +567,6 @@ async function handleUseConsumable(ctx) {
     await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
     return updateBattleMessage(ctx, fight, player, combatMenu());
 }
-
-// ================================================
-// HANDLER: Voltar do menu de almas (combat_back)
-// ================================================
 
 async function handleCombatBack(ctx) {
     const fight = getFight(ctx);
