@@ -9,7 +9,8 @@ const {
     removeGlorias,
     addKeys,
     restoreEnergy,
-    normalizePlayerForSave
+    normalizePlayerForSave,
+    getItemKey
 } = require('../player/playerMutations');
 
 function ensurePlayerEconomy(player) {
@@ -203,7 +204,6 @@ function processPurchase(player, item) {
 
 /**
  * Calcula o valor de venda de um item (50% do valor base)
- * BALANCEAMENTO: Multiplicadores de raridade alinhados com os de atributos
  */
 function calculateSellPrice(item) {
     if (!item) return 0;
@@ -253,8 +253,24 @@ function sellItem(player, itemIndex) {
     };
 }
 
+function sellItemByKey(player, itemKey) {
+    ensurePlayerEconomy(player);
+
+    if (!Array.isArray(player.inventory) || !player.inventory.length) {
+        return { success: false, message: '❌ Você não possui itens para vender.' };
+    }
+
+    const index = player.inventory.findIndex(item => getItemKey(item) === String(itemKey));
+    if (index === -1) {
+        return { success: false, message: '❌ Item não encontrado.' };
+    }
+
+    return sellItem(player, index);
+}
+
 module.exports = {
     processPurchase,
     sellItem,
+    sellItemByKey,
     calculateSellPrice
 };
