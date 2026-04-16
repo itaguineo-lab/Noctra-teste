@@ -2,19 +2,23 @@ const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { calculateDamage } = require('../core/combat/damageCalc');
 const { processVictory } = require('../services/rewardService');
-const { addXp } = require('../core/player/progression');
 const { generateDrop } = require('../data/items');
 const { getMapById, maps } = require('../core/world/maps');
 const { progressBar, formatNumber } = require('../utils/formatters');
 const { enemyPools } = require('../core/world/enemies');
-
-// Cache de combates na masmorra
-const dungeonFights = new Map();
-const FIGHT_TIMEOUT = 10 * 60 * 1000;
-
-// ================================================
-// FUNÇÕES AUXILIARES
-// ================================================
+const {
+    applyDamage,
+    applyHeal,
+    restoreEnergy,
+    consumeEnergy,
+    addInventoryItem,
+    applyGoldReward,
+    applyKeyReward,
+    applyGloriaReward,
+    applyXpReward,
+    consumeConsumable,
+    normalizePlayerForSave
+} = require('../core/player/playerMutations');
 
 function escapeMarkdown(text = '') {
     return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -40,10 +44,6 @@ function getMapNumber(mapId) {
     return mapMap[mapId] || 1;
 }
 
-// ================================================
-// INIMIGOS TEMÁTICOS DA MASMORRA
-// ================================================
-
 function getDungeonEnemyPool(mapId) {
     const pool = enemyPools[mapId] || enemyPools.clareira_sombria;
     return {
@@ -68,7 +68,6 @@ function getRandomDungeonEnemy(mapId, type, playerLevel, roomIndex) {
         enemyTemplate = pool.common.length ? pool.common[Math.floor(Math.random() * pool.common.length)] : { name: 'Criatura Sombria', emoji: '👹' };
     }
 
-    // Ajusta atributos baseados no nível
     const hp = type === 'boss' ? 170 + level * 42 : (type === 'elite' ? 110 + level * 28 : 70 + level * 18);
     const atk = type === 'boss' ? 14 + level * 4 : (type === 'elite' ? 10 + level * 3 : 7 + level * 2);
     const def = type === 'boss' ? 10 + level * 3 : (type === 'elite' ? 8 + level * 2 : 5 + level);
@@ -80,21 +79,26 @@ function getRandomDungeonEnemy(mapId, type, playerLevel, roomIndex) {
         id: `${type}_${roomIndex}_${Date.now()}`,
         name: enemyTemplate.name,
         emoji: enemyTemplate.emoji || '👹',
-        hp, maxHp: hp, atk, def, crit, level, xp, gold,
-        isElite: type === 'elite', isBoss: type === 'boss',
+        hp,
+        maxHp: hp,
+        atk,
+        def,
+        crit,
+        level,
+        xp,
+        gold,
+        isElite: type === 'elite',
+        isBoss: type === 'boss',
         ability: enemyTemplate.ability || null,
         frozen: false
     };
 }
 
-// ================================================
-// ESTADO DA MASMORRA
-// ================================================
-
 function normalizeDungeonState(player) {
     if (!player.dungeonProgress || typeof player.dungeonProgress !== 'object') {
         player.dungeonProgress = {};
     }
+
     const d = player.dungeonProgress;
     d.active ??= false;
     d.completed ??= false;
@@ -106,9 +110,10 @@ function normalizeDungeonState(player) {
     d.rooms ??= [];
     d.rewards ??= { xp: 0, gold: 0, keys: 0, glorias: 0, items: 0 };
     d.summary ??= null;
-    d.logs ??= []; // NOVO: logs de combate
+    d.logs ??= [];
     d.combatBonus ??= { atk: 0, def: 0, crit: 0 };
     d.roomsVisited ??= 0;
+
     return d;
 }
 
@@ -120,20 +125,18 @@ function getCurrentRoom(player) {
 function addDungeonLog(player, message) {
     const d = normalizeDungeonState(player);
     d.logs.push(message);
-    if (d.logs.length > 4) d.logs.shift(); // Mantém apenas os últimos 4 logs
+    if (d.logs.length > 4) d.logs.shift();
 }
-
-// ================================================
-// GERAÇÃO DA MASMORRA
-// ================================================
 
 function weightedPick(entries) {
     const total = entries.reduce((sum, e) => sum + (e.weight || 0), 0);
     let roll = Math.random() * total;
+
     for (const e of entries) {
         roll -= e.weight || 0;
         if (roll <= 0) return e.value;
     }
+
     return entries[0]?.value || 'combat';
 }
 
@@ -156,6 +159,7 @@ function buildDungeonRoomTypes(maxRooms = 5) {
     if (!types.includes('treasure')) types[1] = 'treasure';
     if (!types.includes('heal')) types[2] = 'heal';
     if (!types.includes('elite')) types[types.length - 2] = 'elite';
+
     return types;
 }
 
@@ -172,12 +176,21 @@ function createDungeonRoom(player, index, type) {
     }[type] || { emoji: '❓', title: type, desc: '' };
 
     const room = {
-        index, type, emoji: meta.emoji, title: meta.title, description: meta.desc,
-        cleared: false, clearedAt: null, enemy: null, reward: null
+        index,
+        type,
+        emoji: meta.emoji,
+        title: meta.title,
+        description: meta.desc,
+        cleared: false,
+        clearedAt: null,
+        enemy: null,
+        reward: null
     };
+
     if (type === 'combat' || type === 'elite' || type === 'boss') {
         room.enemy = getRandomDungeonEnemy(mapId, type, player.level || 1, index);
     }
+
     return room;
 }
 
@@ -199,13 +212,10 @@ function startDungeonRun(player) {
     d.summary = null;
     d.combatBonus = { atk: 0, def: 0, crit: 0 };
     d.roomsVisited = 1;
-    d.logs = [`🌑 Você adentrou a masmorra...`];
+    d.logs = ['🌑 Você adentrou a masmorra...'];
+
     return d;
 }
-
-// ================================================
-// RESOLUÇÃO DE SALAS
-// ================================================
 
 function addSummaryNote(player, note) {
     const d = normalizeDungeonState(player);
@@ -218,59 +228,83 @@ function resolveTreasureRoom(player, room) {
     const d = normalizeDungeonState(player);
     const mapNumber = getMapNumber(d.mapId);
     const gold = 45 + player.level * 12 + room.index * 8;
-    player.gold = (player.gold || 0) + gold;
+
+    applyGoldReward(player, gold);
     d.rewards.gold += gold;
     d.rewards.items += 1;
+
     const notes = [`🎁 +${gold} ouro`];
 
     if (Math.random() < 0.25) {
-        player.keys = (player.keys || 0) + 1;
+        applyKeyReward(player, 1);
         d.rewards.keys += 1;
         notes.push('🗝️ +1 chave');
     }
+
     if (Math.random() < 0.35) {
         const drop = generateDrop(mapNumber);
-        if (drop && (player.inventory?.length || 0) < (player.maxInventory || 20)) {
-            player.inventory.push(drop);
+        const addResult = addInventoryItem(player, drop);
+        if (addResult.success) {
             notes.push(`✨ ${drop.name}`);
         }
     }
+
     room.cleared = true;
     notes.forEach(n => addSummaryNote(player, n));
     addDungeonLog(player, `🎁 Tesouro: +${gold} ouro`);
-    return { success: true, message: `🎁 Você encontrou ${gold} ouro!`, notes };
+
+    return {
+        success: true,
+        message: `🎁 Você encontrou ${gold} ouro!`,
+        notes
+    };
 }
 
 function resolveHealRoom(player, room) {
-    const d = normalizeDungeonState(player);
     const heal = Math.floor(player.maxHp * 0.45);
     const beforeHp = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + heal);
-    player.energy = Math.min(player.maxEnergy, player.energy + 1);
+    const beforeEnergy = player.energy;
+
+    applyHeal(player, heal);
+    restoreEnergy(player, 1);
+
     room.cleared = true;
-    addSummaryNote(player, `❤️ +${player.hp - beforeHp} HP, ⚡ +1 energia`);
-    addDungeonLog(player, `❤️ Fonte restaurou ${player.hp - beforeHp} HP e 1 energia`);
-    return { success: true, message: `❤️ Fonte restaurou ${player.hp - beforeHp} HP e 1 energia.` };
+    addSummaryNote(player, `❤️ +${player.hp - beforeHp} HP, ⚡ +${player.energy - beforeEnergy} energia`);
+    addDungeonLog(player, `❤️ Fonte restaurou ${player.hp - beforeHp} HP e ${player.energy - beforeEnergy} energia`);
+
+    return {
+        success: true,
+        message: `❤️ Fonte restaurou ${player.hp - beforeHp} HP e ${player.energy - beforeEnergy} energia.`
+    };
 }
 
 function resolveCurseRoom(player, room) {
     const d = normalizeDungeonState(player);
     const damage = Math.floor(player.maxHp * 0.18);
-    const hpLoss = Math.min(damage, player.hp - 1);
-    player.hp = Math.max(1, player.hp - hpLoss);
+    const hpLoss = Math.min(damage, Math.max(0, player.hp - 1));
     const gold = 90 + player.level * 15 + room.index * 10;
-    player.gold = (player.gold || 0) + gold;
+
+    applyDamage(player, hpLoss);
+    applyGoldReward(player, gold);
     d.rewards.gold += gold;
+
     const notes = [`💀 -${hpLoss} HP`, `💰 +${gold} ouro`];
+
     if (Math.random() < 0.2) {
-        player.keys = (player.keys || 0) + 1;
+        applyKeyReward(player, 1);
         d.rewards.keys += 1;
         notes.push('🗝️ +1 chave');
     }
+
     room.cleared = true;
     notes.forEach(n => addSummaryNote(player, n));
     addDungeonLog(player, `💀 Maldição: -${hpLoss} HP, +${gold} ouro`);
-    return { success: true, message: `💀 Maldição cobrou ${hpLoss} HP, mas ganhou ${gold} ouro.`, notes };
+
+    return {
+        success: true,
+        message: `💀 Maldição cobrou ${hpLoss} HP, mas rendeu ${gold} ouro.`,
+        notes
+    };
 }
 
 function resolveShrineRoom(player, room) {
@@ -288,51 +322,60 @@ function resolveShrineRoom(player, room) {
     d.combatBonus.crit += selected.crit;
 
     const heal = Math.max(5, Math.floor(player.maxHp * selected.hpPercent));
-    const healed = Math.min(player.maxHp - player.hp, heal);
-    player.hp = Math.min(player.maxHp, player.hp + heal);
+    const beforeHp = player.hp;
+
+    applyHeal(player, heal);
 
     room.cleared = true;
     addSummaryNote(player, selected.note);
-    if (healed > 0) addSummaryNote(player, `❤️ +${healed} HP`);
+    if (player.hp - beforeHp > 0) addSummaryNote(player, `❤️ +${player.hp - beforeHp} HP`);
     addDungeonLog(player, `✨ Altar concedeu: ${selected.note.replace(/^.\s/, '')}`);
 
     return {
         success: true,
-        message: `✨ O altar respondeu ao seu toque.`,
-        notes: [selected.note, `❤️ Cura recebida: ${healed}`]
+        message: '✨ O altar respondeu ao seu toque.',
+        notes: [selected.note, `❤️ Cura recebida: ${player.hp - beforeHp}`]
     };
 }
 
 function resolveCombatRoom(player, room) {
     const d = normalizeDungeonState(player);
-    if (!room.enemy) room.enemy = getRandomDungeonEnemy(d.mapId, room.type, player.level || 1, room.index);
+    if (!room.enemy) {
+        room.enemy = getRandomDungeonEnemy(d.mapId, room.type, player.level || 1, room.index);
+    }
 
     const effectivePlayer = {
         atk: Math.max(1, (player.atk || 1) + (d.combatBonus.atk || 0)),
         crit: Math.max(0, Math.min(75, (player.crit || 0) + (d.combatBonus.crit || 0)))
     };
+
     const effectiveDefense = {
         def: Math.max(0, (player.def || 0) + (d.combatBonus.def || 0))
     };
 
     const playerHit = calculateDamage(effectivePlayer, { def: room.enemy.def });
     room.enemy.hp = Math.max(0, room.enemy.hp - playerHit.damage);
-    
+
     let playerLog = `⚔️ Você causou ${playerHit.damage} de dano`;
-    if (playerHit.isCrit) playerLog += ` (💥 CRÍTICO!)`;
+    if (playerHit.isCrit) playerLog += ' (💥 CRÍTICO!)';
     addDungeonLog(player, playerLog);
 
     const result = { success: true, defeated: false, message: '', notes: [] };
+
     if (room.enemy.hp <= 0) {
         const rewards = processVictory(player, room.enemy);
         d.rewards.xp += safeNumber(rewards.xp);
         d.rewards.gold += safeNumber(rewards.gold);
-        if (rewards.keyDropped) d.rewards.keys++;
+        if (rewards.keyDropped) d.rewards.keys += 1;
         if (rewards.loot?.length) d.rewards.items += rewards.loot.length;
+
         result.defeated = true;
         result.message = `🏆 ${room.enemy.name} derrotado!`;
         result.notes = [`✨ +${rewards.xp} XP`, `💰 +${rewards.gold} ouro`];
-        if (rewards.loot?.length) result.notes.push(...rewards.loot.map(l => `🎁 ${l}`));
+        if (rewards.loot?.length) {
+            result.notes.push(...rewards.loot.map(l => `🎁 ${l}`));
+        }
+
         room.cleared = true;
         result.rewards = rewards;
         result.notes.forEach(n => addSummaryNote(player, n));
@@ -341,30 +384,32 @@ function resolveCombatRoom(player, room) {
     }
 
     const enemyHit = calculateDamage({ atk: room.enemy.atk, crit: room.enemy.crit }, effectiveDefense);
-    player.hp = Math.max(0, player.hp - enemyHit.damage);
-    
+    applyDamage(player, enemyHit.damage);
+
     let enemyLog = `👹 ${room.enemy.name} causou ${enemyHit.damage} de dano`;
-    if (enemyHit.isCrit) enemyLog += ` (💀 CRÍTICO!)`;
+    if (enemyHit.isCrit) enemyLog += ' (💀 CRÍTICO!)';
     addDungeonLog(player, enemyLog);
-    
+
     result.message = `⚔️ Você causou ${playerHit.damage} dano. ${room.enemy.emoji || '👹'} ${room.enemy.name} causou ${enemyHit.damage}.`;
 
-    if (player.hp <= 0) {
-        d.active = false; d.aborted = true;
+    if (player.hp <= 1) {
+        d.active = false;
+        d.aborted = true;
         d.summary = d.summary || {};
         d.summary.notes = d.summary.notes || [];
         d.summary.notes.push('💀 Derrotado na masmorra.');
-        player.hp = 1;
-        player.energy = Math.max(0, player.energy - 1);
+        consumeEnergy(player, 1);
         result.finished = true;
         result.playerDefeated = true;
-        addDungeonLog(player, `💀 Você foi derrotado...`);
+        addDungeonLog(player, '💀 Você foi derrotado...');
     }
+
     return result;
 }
 
 function finalizeDungeonRun(player, reason) {
     const d = normalizeDungeonState(player);
+
     if (d.summary && (d.completed || d.aborted) && !d.active) {
         return d;
     }
@@ -372,6 +417,7 @@ function finalizeDungeonRun(player, reason) {
     d.active = false;
     d.completed = reason === 'complete';
     d.aborted = reason === 'aborted';
+
     const cleared = d.rooms.filter(r => r.cleared).length;
     const bonusXp = 20 + cleared * 10 + player.level * 2;
     const bonusGold = 60 + cleared * 20 + player.level * 5;
@@ -387,22 +433,21 @@ function finalizeDungeonRun(player, reason) {
         items: safeNumber(d.rewards.items),
         notes: d.summary?.notes || []
     };
+
     if (reason === 'complete') d.summary.notes.push('🏁 Expedição perfeita!');
     else d.summary.notes.push('🚪 Expedição interrompida.');
 
-    addXp(player, bonusXp);
-    player.gold = (player.gold || 0) + bonusGold;
-    player.keys = (player.keys || 0) + bonusKeys;
-    player.glorias = (player.glorias || 0) + bonusGlorias;
+    applyXpReward(player, bonusXp);
+    applyGoldReward(player, bonusGold);
+    applyKeyReward(player, bonusKeys);
+    applyGloriaReward(player, bonusGlorias);
+
     return d;
 }
 
-// ================================================
-// RENDERIZAÇÃO DA INTERFACE
-// ================================================
-
 function renderDungeonText(player) {
     const d = normalizeDungeonState(player);
+
     if (!d.active || d.completed || d.aborted) {
         const hasSummary = d.summary && (d.completed || d.aborted);
         if (!hasSummary) {
@@ -433,7 +478,7 @@ function renderDungeonText(player) {
     const map = getDungeonMap(player);
     const hpBar = progressBar(player.hp, player.maxHp, 8, '🟩', '⬛');
     const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟦', '⬛');
-    const progressPercent = Math.floor((d.currentRoomIndex + 1) / d.maxRooms * 100);
+    const progressPercent = Math.floor(((d.currentRoomIndex + 1) / d.maxRooms) * 100);
     const roomProgressBar = progressBar(d.currentRoomIndex + 1, d.maxRooms, 8, '🟪', '⬛');
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -445,6 +490,7 @@ function renderDungeonText(player) {
     text += `👤 ${escapeMarkdown(player.name)}  Lv.${player.level}\n`;
     text += `❤️ ${player.hp}/${player.maxHp} ${hpBar}\n`;
     text += `⚡ ${player.energy}/${player.maxEnergy} ${energyBar}\n\n`;
+
     if (d.combatBonus.atk || d.combatBonus.def || d.combatBonus.crit) {
         text += `✨ *Bônus da Expedição*: ⚔️ +${d.combatBonus.atk}  🛡️ +${d.combatBonus.def}  💥 +${d.combatBonus.crit}%\n\n`;
     }
@@ -453,15 +499,16 @@ function renderDungeonText(player) {
         const e = room.enemy;
         const enemyBar = progressBar(e.hp, e.maxHp, 8, '🟥', '⬛');
         const badge = room.type === 'boss' ? '👑 BOSS' : (room.type === 'elite' ? '🔥 ELITE' : '👹 INIMIGO');
+
         text += `${badge}: ${e.emoji || '👹'} *${escapeMarkdown(e.name)}* Lv.${e.level}\n`;
         text += `❤️ ${e.hp}/${e.maxHp} ${enemyBar}\n`;
         text += `⚔️ ${e.atk} 🛡️ ${e.def} 💥 ${e.crit}%\n`;
-        
-        // Exibe os logs de combate
+
         if (d.logs && d.logs.length > 0) {
             text += `\n📜 *Últimas ações*\n`;
             text += d.logs.slice(-3).join('\n');
         }
+
         text += `\n`;
     } else {
         text += `Ação: ${room.type === 'treasure'
@@ -495,9 +542,11 @@ function renderDungeonSummary(player) {
     text += `🗝️ Chaves: ${sum.keys || 0}\n`;
     text += `🏅 Glórias: ${sum.glorias || 0}\n`;
     text += `🎁 Itens: ${sum.items || 0}\n`;
+
     if (sum.notes?.length) {
         text += `\n📜 *Destaques*\n${sum.notes.map(n => `• ${n}`).join('\n')}`;
     }
+
     return text;
 }
 
@@ -547,10 +596,6 @@ function buildDungeonKeyboard(player) {
     ]);
 }
 
-// ================================================
-// HANDLERS PRINCIPAIS
-// ================================================
-
 async function safeSend(ctx, text, options = {}) {
     try {
         if (ctx.callbackQuery) {
@@ -564,15 +609,19 @@ async function safeSend(ctx, text, options = {}) {
 }
 
 async function safeAnswer(ctx, text, alert = true) {
-    try { await ctx.answerCbQuery(text, { show_alert: alert }); } catch { }
+    try {
+        await ctx.answerCbQuery(text, { show_alert: alert });
+    } catch {}
 }
 
 async function handleDungeon(ctx) {
     await safeAnswer(ctx, '', false);
+
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
+
     normalizeDungeonState(player);
 
     return safeSend(ctx, renderDungeonText(player), {
@@ -583,12 +632,12 @@ async function handleDungeon(ctx) {
 
 async function handleDungeonStart(ctx) {
     await safeAnswer(ctx, '', false);
+
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
 
-    // VERIFICA SE TEM CHAVE
     if (!player.keys || player.keys < 1) {
         await safeAnswer(ctx, '❌ Você precisa de 1 Chave de Masmorra para entrar.', true);
         return safeSend(ctx, renderDungeonSummary(player), {
@@ -597,9 +646,9 @@ async function handleDungeonStart(ctx) {
         });
     }
 
-    // Consome 1 chave
     player.keys -= 1;
     startDungeonRun(player);
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
     return safeSend(ctx, renderDungeonText(player), {
@@ -610,18 +659,24 @@ async function handleDungeonStart(ctx) {
 
 async function handleDungeonAttack(ctx) {
     await safeAnswer(ctx, '', false);
+
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
+
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
     if (!room || room.cleared) {
-        return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+        return safeSend(ctx, renderDungeonText(player), {
+            parse_mode: 'Markdown',
+            ...buildDungeonKeyboard(player)
+        });
     }
 
     let result;
+
     if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
         result = resolveCombatRoom(player, room);
     } else if (room.type === 'treasure') {
@@ -636,31 +691,47 @@ async function handleDungeonAttack(ctx) {
         result = { success: false, message: 'Sala inválida.' };
     }
 
+    normalizePlayerForSave(player);
+
     if (result.playerDefeated) {
         await savePlayer(ctx.from.id, player);
-        return safeSend(ctx, renderDungeonSummary(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+        return safeSend(ctx, renderDungeonSummary(player), {
+            parse_mode: 'Markdown',
+            ...buildDungeonKeyboard(player)
+        });
     }
 
     await savePlayer(ctx.from.id, player);
 
     if (room.type === 'boss' && room.cleared) {
         finalizeDungeonRun(player, 'complete');
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        return safeSend(ctx, renderDungeonSummary(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+        return safeSend(ctx, renderDungeonSummary(player), {
+            parse_mode: 'Markdown',
+            ...buildDungeonKeyboard(player)
+        });
     }
 
     let msg = result.message;
     if (result.notes?.length) msg += '\n' + result.notes.join('\n');
+
     await safeAnswer(ctx, msg, true);
-    return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+
+    return safeSend(ctx, renderDungeonText(player), {
+        parse_mode: 'Markdown',
+        ...buildDungeonKeyboard(player)
+    });
 }
 
 async function handleDungeonNextRoom(ctx) {
     await safeAnswer(ctx, '', false);
+
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
+
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
@@ -671,24 +742,35 @@ async function handleDungeonNextRoom(ctx) {
 
     if (d.currentRoomIndex >= d.maxRooms - 1) {
         finalizeDungeonRun(player, 'complete');
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        return safeSend(ctx, renderDungeonSummary(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+        return safeSend(ctx, renderDungeonSummary(player), {
+            parse_mode: 'Markdown',
+            ...buildDungeonKeyboard(player)
+        });
     }
 
     d.currentRoomIndex++;
     d.roomsVisited = Math.max(d.roomsVisited || 0, d.currentRoomIndex + 1);
-    // Limpa logs ao mudar de sala
     d.logs = [`🌑 Sala ${d.currentRoomIndex + 1}...`];
+
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+
+    return safeSend(ctx, renderDungeonText(player), {
+        parse_mode: 'Markdown',
+        ...buildDungeonKeyboard(player)
+    });
 }
 
 async function handleDungeonFlee(ctx) {
     await safeAnswer(ctx, '', false);
+
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
+
     const d = normalizeDungeonState(player);
 
     if (!d.active) {
@@ -696,21 +778,33 @@ async function handleDungeonFlee(ctx) {
         return;
     }
 
-    d.aborted = true; d.active = false; d.completed = false;
+    d.aborted = true;
+    d.active = false;
+    d.completed = false;
     d.summary = {
         roomsCleared: d.rooms.filter(r => r.cleared).length,
-        xp: d.rewards.xp, gold: d.rewards.gold, keys: d.rewards.keys, glorias: d.rewards.glorias, items: d.rewards.items,
+        xp: d.rewards.xp,
+        gold: d.rewards.gold,
+        keys: d.rewards.keys,
+        glorias: d.rewards.glorias,
+        items: d.rewards.items,
         notes: ['🚪 Expedição abandonada.']
     };
-    player.energy = Math.max(0, player.energy - 1);
+
+    consumeEnergy(player, 1);
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    return safeSend(ctx, renderDungeonSummary(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+
+    return safeSend(ctx, renderDungeonSummary(player), {
+        parse_mode: 'Markdown',
+        ...buildDungeonKeyboard(player)
+    });
 }
 
-// Placeholders funcionais para alma/itens
 async function handleDungeonSoulMenu(ctx) {
     await safeAnswer(ctx, '💀 Selecione uma alma para usar (em breve).', true);
 }
+
 async function handleDungeonConsumables(ctx) {
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -719,6 +813,7 @@ async function handleDungeonConsumables(ctx) {
 
     const c = player.consumables || {};
     const rows = [];
+
     if ((c.potionHp || 0) > 0) rows.push([Markup.button.callback(`❤️ Poção HP (${c.potionHp})`, 'dungeon_use:potionHp')]);
     if ((c.potionEnergy || 0) > 0) rows.push([Markup.button.callback(`⚡ Poção Energia (${c.potionEnergy})`, 'dungeon_use:potionEnergy')]);
     if ((c.tonicStrength || 0) > 0) rows.push([Markup.button.callback(`💪 Tônico Força (${c.tonicStrength})`, 'dungeon_use:tonicStrength')]);
@@ -737,33 +832,37 @@ async function handleDungeonConsumables(ctx) {
 
 async function handleDungeonUseConsumable(ctx) {
     const key = ctx.match?.[1];
+
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
+
     const d = normalizeDungeonState(player);
     if (!d.active) {
         await safeAnswer(ctx, '❌ Não há expedição ativa.', true);
-        return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+        return safeSend(ctx, renderDungeonText(player), {
+            parse_mode: 'Markdown',
+            ...buildDungeonKeyboard(player)
+        });
     }
 
-    player.consumables ??= {};
-    if (!player.consumables[key] || player.consumables[key] <= 0) {
+    const consumeResult = consumeConsumable(player, key, 1);
+    if (!consumeResult.success) {
         return safeAnswer(ctx, '❌ Item indisponível.', true);
     }
 
-    player.consumables[key] -= 1;
     const room = getCurrentRoom(player);
     let log = '';
 
     if (key === 'potionHp') {
         const heal = Math.max(20, Math.floor(player.maxHp * 0.35));
         const before = player.hp;
-        player.hp = Math.min(player.maxHp, player.hp + heal);
+        applyHeal(player, heal);
         log = `❤️ Poção restaurou ${player.hp - before} HP.`;
     } else if (key === 'potionEnergy') {
         const before = player.energy;
-        player.energy = Math.min(player.maxEnergy, player.energy + 1);
+        restoreEnergy(player, 1);
         log = `⚡ Energia +${player.energy - before}.`;
     } else if (key === 'tonicStrength') {
         d.combatBonus.atk += 8;
@@ -778,14 +877,24 @@ async function handleDungeonUseConsumable(ctx) {
     addDungeonLog(player, log);
 
     if (room && (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') && !room.cleared && room.enemy?.hp > 0) {
-        const enemyHit = calculateDamage({ atk: room.enemy.atk, crit: room.enemy.crit }, { def: Math.max(0, (player.def || 0) + (d.combatBonus.def || 0)) });
-        player.hp = Math.max(1, player.hp - enemyHit.damage);
+        const enemyHit = calculateDamage(
+            { atk: room.enemy.atk, crit: room.enemy.crit },
+            { def: Math.max(0, (player.def || 0) + (d.combatBonus.def || 0)) }
+        );
+
+        applyDamage(player, enemyHit.damage);
         addDungeonLog(player, `👹 ${room.enemy.name} aproveitou e causou ${enemyHit.damage} de dano.`);
     }
 
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
+
     await safeAnswer(ctx, '✅ Consumível usado!', true);
-    return safeSend(ctx, renderDungeonText(player), { parse_mode: 'Markdown', ...buildDungeonKeyboard(player) });
+
+    return safeSend(ctx, renderDungeonText(player), {
+        parse_mode: 'Markdown',
+        ...buildDungeonKeyboard(player)
+    });
 }
 
 module.exports = {
