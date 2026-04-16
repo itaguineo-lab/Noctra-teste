@@ -1,10 +1,16 @@
 const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
-const { processPurchase, sellItem, calculateSellPrice } = require('../core/economy/shopLogic');
+const {
+    processPurchase,
+    sellItemByKey,
+    calculateSellPrice
+} = require('../core/economy/shopLogic');
 const { shopItems } = require('../data/shopItems');
 const { shopMainMenu, shopTabsMenu, renderShop } = require('../menus/shopMenu');
+const { getItemKey } = require('../core/player/playerMutations');
 
 const activePurchases = new Set();
+const SELL_PAGE_SIZE = 8;
 
 async function safeEdit(ctx, text, options = {}) {
     try {
@@ -51,6 +57,97 @@ async function renderTab(ctx, tab) {
 async function redirectAfterPurchase(ctx, shopName) {
     if (!shopName) return handleShop(ctx);
     return renderTab(ctx, shopName);
+}
+
+function buildSellInventory(player) {
+    const inventory = Array.isArray(player.inventory) ? player.inventory : [];
+
+    return inventory
+        .map(item => ({
+            key: getItemKey(item),
+            name: item.name,
+            rarity: item.rarity || 'Comum',
+            price: calculateSellPrice(item),
+            item
+        }))
+        .sort((a, b) => b.price - a.price);
+}
+
+function paginate(items, page, pageSize) {
+    const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const start = (safePage - 1) * pageSize;
+    return {
+        page: safePage,
+        totalPages,
+        items: items.slice(start, start + pageSize)
+    };
+}
+
+function renderSellText(player, pageData) {
+    let text = `💰 *VENDER EQUIPAMENTOS*\n\n`;
+    text += `${getWalletText(player)}\n\n`;
+
+    if (!pageData.items.length) {
+        text += `Você não possui itens vendáveis no inventário.`;
+        return text;
+    }
+
+    text += `Página ${pageData.page}/${pageData.totalPages}\n\n`;
+
+    pageData.items.forEach((entry, index) => {
+        text += `${index + 1}. *${entry.name}*\n`;
+        text += `   Raridade: ${entry.rarity}\n`;
+        text += `   Valor: ${entry.price} ouro\n\n`;
+    });
+
+    text += `Selecione um item para vender:`;
+    return text;
+}
+
+function buildSellKeyboard(pageData) {
+    const keyboard = [];
+
+    pageData.items.forEach(entry => {
+        keyboard.push([
+            Markup.button.callback(
+                `${entry.name} (${entry.price}💰)`,
+                `sell_confirm_key_${encodeURIComponent(entry.key)}`
+            )
+        ]);
+    });
+
+    const navRow = [];
+    if (pageData.page > 1) {
+        navRow.push(Markup.button.callback('⬅️', `shop_sell_page_${pageData.page - 1}`));
+    }
+    if (pageData.page < pageData.totalPages) {
+        navRow.push(Markup.button.callback('➡️', `shop_sell_page_${pageData.page + 1}`));
+    }
+    if (navRow.length) keyboard.push(navRow);
+
+    keyboard.push([Markup.button.callback('◀️ Voltar', 'shop')]);
+
+    return Markup.inlineKeyboard(keyboard);
+}
+
+async function renderSellPage(ctx, page = 1) {
+    const player = await getPlayer(ctx.from.id);
+    const sellable = buildSellInventory(player);
+
+    if (!sellable.length) {
+        await ctx.answerCbQuery?.('❌ Você não tem itens para vender.', { show_alert: true }).catch(() => {});
+        return handleShop(ctx);
+    }
+
+    const pageData = paginate(sellable, page, SELL_PAGE_SIZE);
+    const text = renderSellText(player, pageData);
+    const keyboard = buildSellKeyboard(pageData);
+
+    return safeEdit(ctx, text, {
+        parse_mode: 'Markdown',
+        ...keyboard
+    });
 }
 
 async function handleShop(ctx) {
@@ -116,33 +213,12 @@ async function handleBuy(ctx) {
 }
 
 async function handleShopSell(ctx) {
-    const player = await getPlayer(ctx.from.id);
-    const inventory = player.inventory || [];
+    return renderSellPage(ctx, 1);
+}
 
-    if (inventory.length === 0) {
-        await ctx.answerCbQuery('❌ Você não tem itens para vender.', { show_alert: true });
-        return;
-    }
-
-    const text = `💰 *VENDER EQUIPAMENTOS*\n\n${getWalletText(player)}\n\nSelecione um item para vender:`;
-    const keyboard = [];
-
-    inventory.slice(0, 10).forEach((item, index) => {
-        const sellPrice = calculateSellPrice(item);
-        keyboard.push([
-            Markup.button.callback(
-                `${item.name} (${sellPrice}💰)`,
-                `sell_confirm_${index}`
-            )
-        ]);
-    });
-
-    keyboard.push([Markup.button.callback('◀️ Voltar', 'shop')]);
-
-    await safeEdit(ctx, text, {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(keyboard)
-    });
+async function handleShopSellPage(ctx) {
+    const page = parseInt(ctx.match?.[1], 10) || 1;
+    return renderSellPage(ctx, page);
 }
 
 async function handleSellConfirm(ctx) {
@@ -154,7 +230,7 @@ async function handleSellConfirm(ctx) {
     const itemIndex = parseInt(match, 10);
     const player = await getPlayer(ctx.from.id);
 
-    const result = sellItem(player, itemIndex);
+    const result = require('../core/economy/shopLogic').sellItem(player, itemIndex);
     if (!result.success) {
         return ctx.answerCbQuery(result.message, { show_alert: true });
     }
@@ -162,6 +238,25 @@ async function handleSellConfirm(ctx) {
     await savePlayer(ctx.from.id, player);
     await ctx.answerCbQuery(result.message, { show_alert: true });
     return handleShop(ctx);
+}
+
+async function handleSellConfirmByKey(ctx) {
+    const itemKey = ctx.match?.[1];
+    if (!itemKey) {
+        return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+    }
+
+    const decodedKey = decodeURIComponent(itemKey);
+    const player = await getPlayer(ctx.from.id);
+
+    const result = sellItemByKey(player, decodedKey);
+    if (!result.success) {
+        return ctx.answerCbQuery(result.message, { show_alert: true });
+    }
+
+    await savePlayer(ctx.from.id, player);
+    await ctx.answerCbQuery(result.message, { show_alert: true });
+    return renderSellPage(ctx, 1);
 }
 
 module.exports = {
@@ -172,5 +267,7 @@ module.exports = {
     handleShopArena,
     handleBuy,
     handleShopSell,
-    handleSellConfirm
+    handleShopSellPage,
+    handleSellConfirm,
+    handleSellConfirmByKey
 };
