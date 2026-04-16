@@ -76,6 +76,7 @@ async function runAttack(userId) {
     const { fight, meta } = stored;
 
     processPlayerTurn(fight);
+
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
     }
