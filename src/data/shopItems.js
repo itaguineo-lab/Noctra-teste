@@ -1,7 +1,7 @@
 const shopItems = [
     /*
     =================================
-    VILA — APENAS CONSUMÍVEIS BÁSICOS (OURO)
+    VILA — CONSUMÍVEIS BÁSICOS (OURO)
     =================================
     */
 
@@ -13,10 +13,9 @@ const shopItems = [
         effect: 'potionHp',
         value: 1,
         currency: 'gold',
-        price: 50,
+        price: 60,
         description: 'Restaura 100% do HP máximo.'
     },
-
     {
         id: 'strength_tonic',
         name: 'Tônico de Força',
@@ -25,10 +24,9 @@ const shopItems = [
         effect: 'tonicStrength',
         value: 1,
         currency: 'gold',
-        price: 120,
+        price: 140,
         description: '+10 ATK por 30 minutos.'
     },
-
     {
         id: 'defense_tonic',
         name: 'Tônico de Defesa',
@@ -37,13 +35,13 @@ const shopItems = [
         effect: 'tonicDefense',
         value: 1,
         currency: 'gold',
-        price: 120,
+        price: 140,
         description: '+10 DEF por 30 minutos.'
     },
 
     /*
     =================================
-    CASTELO — PREMIUM (NOX)
+    CASTELO — PREMIUM / CONVENIÊNCIA (NOX)
     =================================
     */
 
@@ -58,7 +56,6 @@ const shopItems = [
         price: 3,
         description: 'Recupera 1 energia instantaneamente.'
     },
-
     {
         id: 'dungeon_key',
         name: 'Chave de Masmorra',
@@ -70,7 +67,6 @@ const shopItems = [
         price: 5,
         description: 'Entrada instantânea na masmorra.'
     },
-
     {
         id: 'energy_refill_10',
         name: 'Recarga de Energia (+10)',
@@ -82,7 +78,6 @@ const shopItems = [
         price: 8,
         description: 'Recupera 10 de energia.'
     },
-
     {
         id: 'vip_7d',
         name: 'VIP 7 Dias',
@@ -93,7 +88,6 @@ const shopItems = [
         price: 25,
         description: '⚡ Energia 40 | 🎒 +10 slots | 💰 +50% XP/Ouro'
     },
-
     {
         id: 'vip_30d',
         name: 'VIP 30 Dias',
@@ -105,24 +99,41 @@ const shopItems = [
         description: '👑 Melhor custo-benefício mensal'
     },
 
+    /*
+    =================================
+    COSMÉTICOS PREMIUM
+    =================================
+    */
+
     {
-        id: 'cosmetic_aura',
+        id: 'cosmetic_aura_shadow',
         name: 'Aura Sombria',
         shop: 'castle',
         type: 'cosmetic',
+        cosmeticType: 'aura',
         currency: 'nox',
         price: 12,
-        description: 'Efeito visual exclusivo.'
+        description: 'Efeito visual sombrio exclusivo.'
     },
-
     {
         id: 'cosmetic_title_shadowlord',
         name: 'Título: Shadow Lord',
         shop: 'castle',
         type: 'cosmetic',
+        cosmeticType: 'title',
         currency: 'nox',
         price: 15,
         description: 'Título lendário exclusivo.'
+    },
+    {
+        id: 'cosmetic_badge_moon',
+        name: 'Emblema Lunar',
+        shop: 'castle',
+        type: 'cosmetic',
+        cosmeticType: 'badge',
+        currency: 'nox',
+        price: 10,
+        description: 'Emblema raro para o perfil.'
     },
 
     /*
@@ -140,7 +151,29 @@ const shopItems = [
         value: 3,
         currency: 'glorias',
         price: 2,
-        description: 'Pacote competitivo.'
+        description: 'Pacote competitivo de chaves.'
+    },
+    {
+        id: 'arena_energy_single',
+        name: 'Carga Tática',
+        shop: 'arena',
+        type: 'consumable',
+        effect: 'energyRefill',
+        value: 5,
+        currency: 'glorias',
+        price: 2,
+        description: 'Recupera 5 de energia.'
+    },
+    {
+        id: 'arena_strength_pack',
+        name: 'Kit de Força',
+        shop: 'arena',
+        type: 'consumable',
+        effect: 'tonicStrength',
+        value: 2,
+        currency: 'glorias',
+        price: 3,
+        description: '2 Tônicos de Força.'
     }
 ];
 
