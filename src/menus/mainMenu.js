@@ -19,11 +19,12 @@ function mainMenu() {
             Markup.button.callback('🎁 Diário', 'daily')
         ],
         [
-            Markup.button.callback('💎 VIP', 'vip'),
-            Markup.button.callback('👥 Online', 'online')
+            Markup.button.callback('🏟️ Arena', 'arena'),
+            Markup.button.callback('🏆 Ranking', 'ranking')
         ],
         [
-            Markup.button.callback('🏆 Ranking', 'ranking')
+            Markup.button.callback('💎 VIP', 'vip'),
+            Markup.button.callback('👥 Online', 'online')
         ]
     ]);
 }
