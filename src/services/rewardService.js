@@ -99,6 +99,41 @@ function buildGoldRewards(player, enemy) {
 
 /*
 =================================
+SOUL DROP
+=================================
+*/
+
+function tryDropSoul(player, enemy, loot) {
+    const soulChance = getSoulChance(enemy);
+    let droppedSoul = null;
+    let soulDropped = false;
+
+    if (Math.random() < soulChance) {
+        droppedSoul = dropSoul(player.level, enemy.id, player.soulPityCounter);
+
+        if (droppedSoul) {
+            player.soulsInventory.push(droppedSoul);
+            loot.push(`💀 ${droppedSoul.name}`);
+            soulDropped = true;
+        }
+    }
+
+    if (enemy.isBoss) {
+        if (soulDropped) {
+            player.soulPityCounter = 0;
+        } else {
+            player.soulPityCounter += 1;
+        }
+    }
+
+    return {
+        droppedSoul,
+        soulDropped
+    };
+}
+
+/*
+=================================
 PROCESSAMENTO DE RECOMPENSAS
 =================================
 */
@@ -140,33 +175,13 @@ function processVictory(player, enemy) {
 
     /*
     =================================
-    DROP DE ALMA (COM PITY SYSTEM)
+    DROP DE ALMA
+    PITY TOTALMENTE CENTRALIZADO EM souls.js
     =================================
     */
 
-    const soulChance = getSoulChance(enemy);
-    const pityThreshold = 10;
-    const pityGuaranteed = player.soulPityCounter >= pityThreshold;
-
-    let soulDropped = false;
-
-    if (Math.random() < soulChance || pityGuaranteed) {
-        droppedSoul = dropSoul(player.level, enemy.id, player.soulPityCounter);
-
-        if (droppedSoul) {
-            player.soulsInventory.push(droppedSoul);
-            loot.push(`💀 ${droppedSoul.name}`);
-            soulDropped = true;
-        }
-    }
-
-    if (enemy.isBoss) {
-        if (soulDropped) {
-            player.soulPityCounter = 0;
-        } else {
-            player.soulPityCounter += 1;
-        }
-    }
+    const soulResult = tryDropSoul(player, enemy, loot);
+    droppedSoul = soulResult.droppedSoul;
 
     /*
     =================================
