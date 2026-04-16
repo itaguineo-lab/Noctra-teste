@@ -18,6 +18,14 @@ const activeFightSchema = new mongoose.Schema({
     payload: { type: Object, default: null }
 }, { _id: false });
 
+const activeArenaBattleSchema = new mongoose.Schema({
+    mode: { type: String, default: 'arena' },
+    createdAt: { type: Number, default: null },
+    expiresAt: { type: Number, default: null },
+    messageId: { type: Number, default: null },
+    payload: { type: Object, default: null }
+}, { _id: false });
+
 const playerSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
     name: { type: String, default: 'Viajante' },
@@ -79,10 +87,13 @@ const playerSchema = new mongoose.Schema({
         badge: { type: String, default: null }
     },
 
+    arena: { type: Object, default: null },
+
     lastDailyChest: { type: String, default: null },
     banned: { type: Boolean, default: false },
 
     activeFight: { type: activeFightSchema, default: null },
+    activeArenaBattle: { type: activeArenaBattleSchema, default: null },
 
     lastActive: { type: Date, default: Date.now },
     createdAt: { type: Date, default: Date.now },
