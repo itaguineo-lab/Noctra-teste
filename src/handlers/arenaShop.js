@@ -12,10 +12,17 @@ const {
 const {
     arenaShopItems
 } = require('../data/arenaShopItems');
+
 const {
     addCosmeticToPlayer,
     ensureCosmeticsState
 } = require('../core/player/cosmetics');
+
+const {
+    restoreEnergy,
+    applyKeyReward,
+    normalizePlayerForSave
+} = require('../core/player/playerMutations');
 
 /*
 =================================
@@ -28,13 +35,10 @@ async function safeSend(ctx, text, keyboard) {
         if (ctx.callbackQuery) {
             await ctx.answerCbQuery();
 
-            return await ctx.editMessageText(
-                text,
-                {
-                    parse_mode: 'Markdown',
-                    ...keyboard
-                }
-            );
+            return await ctx.editMessageText(text, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
         }
 
         return await ctx.reply(text, {
@@ -51,7 +55,6 @@ async function safeSend(ctx, text, keyboard) {
 
 function buildArenaShopText(player) {
     let text = `🏪 *LOJA DA ARENA*\n\n`;
-
     text += `🪙 Saldo: ${player.arena.coins}\n\n`;
 
     arenaShopItems.forEach((item, index) => {
@@ -85,9 +88,12 @@ MENU
 */
 
 async function handleArenaShop(ctx) {
-    const player = await getPlayer(
-        ctx.from.id
-    );
+    const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeSend(ctx, '❌ Jogador não encontrado.', Markup.inlineKeyboard([
+            [Markup.button.callback('🏠 Menu', 'menu')]
+        ]));
+    }
 
     ensureArenaState(player);
 
@@ -108,29 +114,22 @@ async function handleArenaShopBuy(ctx) {
     await ctx.answerCbQuery();
 
     const itemId = ctx.match?.[1];
+    const player = await getPlayer(ctx.from.id);
 
-    const player = await getPlayer(
-        ctx.from.id
-    );
+    if (!player) {
+        return ctx.answerCbQuery('❌ Jogador não encontrado.', { show_alert: true });
+    }
 
     ensureArenaState(player);
 
-    const item = arenaShopItems.find(
-        i => i.id === itemId
-    );
+    const item = arenaShopItems.find(i => i.id === itemId);
 
     if (!item) {
-        return ctx.answerCbQuery(
-            '❌ Item inválido.',
-            { show_alert: true }
-        );
+        return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
     }
 
     if (player.arena.coins < item.price) {
-        return ctx.answerCbQuery(
-            '❌ Moedas insuficientes.',
-            { show_alert: true }
-        );
+        return ctx.answerCbQuery('❌ Moedas insuficientes.', { show_alert: true });
     }
 
     player.arena.coins -= item.price;
@@ -146,37 +145,36 @@ async function handleArenaShopBuy(ctx) {
             break;
 
         case 'energy':
-            player.energy = Math.min(
-                player.maxEnergy,
-                player.energy + item.value
-            );
+            restoreEnergy(player, item.value);
             break;
 
         case 'key':
-            player.keys =
-                (player.keys || 0) + item.value;
+            applyKeyReward(player, item.value);
             break;
 
-        case 'cosmetic':
-            {
-                const cosmeticResult = addCosmeticToPlayer(player, {
-                    id: item.id,
-                    name: item.value || item.name
-                });
-                if (!cosmeticResult.success) {
-                    player.arena.coins += item.price;
-                    return ctx.answerCbQuery(cosmeticResult.message, { show_alert: true });
-                }
+        case 'cosmetic': {
+            const cosmeticResult = addCosmeticToPlayer(player, {
+                id: item.id,
+                name: item.value || item.name,
+                type: item.cosmeticType || item.skinType || 'badge'
+            });
+
+            if (!cosmeticResult.success) {
+                player.arena.coins += item.price;
+                return ctx.answerCbQuery(cosmeticResult.message, { show_alert: true });
             }
             break;
+        }
+
+        default:
+            player.arena.coins += item.price;
+            return ctx.answerCbQuery('❌ Tipo de item inválido.', { show_alert: true });
     }
 
+    normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    return ctx.answerCbQuery(
-        `✅ ${item.name} comprado!`,
-        { show_alert: true }
-    );
+    return ctx.answerCbQuery(`✅ ${item.name} comprado!`, { show_alert: true });
 }
 
 module.exports = {
