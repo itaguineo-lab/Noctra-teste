@@ -11,8 +11,13 @@ const {
 const {
     getRarityEmoji
 } = require('../core/player/souls');
-const { getActiveCosmetic, ensureCosmeticsState } = require('../core/player/cosmetics');
 
+const {
+    getActiveCosmetic,
+    ensureCosmeticsState
+} = require('../core/player/cosmetics');
+
+const { getTimeToNextEnergy, formatEnergyTime } = require('../services/energyService');
 const assets = require('../data/assets');
 
 /*
@@ -34,16 +39,12 @@ function formatClassName(className = 'guerreiro') {
     return map[className] || className;
 }
 
-/**
- * BUILD 2.0 – Baseada em equipamentos (idêntica à do helpers.js)
- */
 function detectBuild(player) {
     const weapon = player.equipment?.weapon;
     const shield = player.equipment?.shield;
     const weaponName = weapon?.name?.toLowerCase() || '';
     const hasShield = !!shield;
 
-    // Guerreiro
     if (player.class === 'guerreiro') {
         if (weaponName.includes('machado') && !hasShield) return '⚔️ Berserker';
         if (weaponName.includes('espada') && hasShield) return '🛡️ Guardião';
@@ -51,7 +52,6 @@ function detectBuild(player) {
         return '⚔️ Berserker';
     }
 
-    // Arqueiro
     if (player.class === 'arqueiro') {
         if (weaponName.includes('arco')) return '🏹 Caçador';
         if (weaponName.includes('lança') && hasShield) return '🛡️ Lanceiro';
@@ -59,7 +59,6 @@ function detectBuild(player) {
         return '🏹 Caçador';
     }
 
-    // Mago
     if (player.class === 'mago') {
         if (weaponName.includes('cajado')) return '🔥 Ofensivo';
         if (weaponName.includes('varinha') || weaponName.includes('orbe')) return '💚 Curandeiro';
@@ -93,17 +92,52 @@ function buildSoulsText(player) {
     }).join('\n');
 }
 
+function buildBuffsText(player) {
+    if (!Array.isArray(player.buffs) || player.buffs.length === 0) {
+        return '—';
+    }
+
+    const now = Date.now();
+    const activeBuffs = player.buffs.filter(buff => {
+        if (!buff.expiresAt) return true;
+        return buff.expiresAt > now;
+    });
+
+    if (activeBuffs.length === 0) return '—';
+
+    return activeBuffs.map(buff => {
+        const parts = [];
+        if (buff.atk) parts.push(`⚔️+${buff.atk}`);
+        if (buff.def) parts.push(`🛡️+${buff.def}`);
+        if (buff.hp) parts.push(`❤️+${buff.hp}`);
+        if (buff.crit) parts.push(`💥+${buff.crit}%`);
+
+        let suffix = '';
+        if (buff.expiresAt) {
+            suffix = ` • ⏳ ${formatEnergyTime(Math.max(0, buff.expiresAt - now))}`;
+        }
+
+        return `• ${parts.join(' ')}${suffix}`;
+    }).join('\n');
+}
+
 function renderProfileCaption(player) {
     ensureCosmeticsState(player);
+
     const xpNeeded = getXpToNextLevel(player.level);
     const map = getPlayerMap(player);
     const buildName = detectBuild(player);
+
     const activeTitle = getActiveCosmetic(player, 'title');
     const activeAura = getActiveCosmetic(player, 'aura');
     const activeBadge = getActiveCosmetic(player, 'badge');
 
     const xpBar = progressBar(player.xp, xpNeeded, 10, '🟨', '⬛');
     const hpBar = progressBar(player.hp, player.maxHp, 10, '🟥', '⬛');
+    const energyBar = progressBar(player.energy, player.maxEnergy, 10, '🟦', '⬛');
+
+    const nextEnergy = getTimeToNextEnergy(player);
+    const nextEnergyText = nextEnergy > 0 ? formatEnergyTime(nextEnergy) : 'Cheio';
 
     const eq = player.equipment || {};
 
@@ -123,10 +157,12 @@ function renderProfileCaption(player) {
     msg += `❤️ HP ${player.hp}/${player.maxHp}\n`;
     msg += `[${hpBar}]\n\n`;
 
+    msg += `⚡ Energia ${player.energy}/${player.maxEnergy} • Próxima em: ${nextEnergyText}\n`;
+    msg += `[${energyBar}]\n\n`;
+
     msg += `⚔️ ATK ${player.atk}\n`;
     msg += `🛡️ DEF ${player.def}\n`;
     msg += `💥 CRIT ${player.crit}%\n`;
-    msg += `⚡ Energia ${player.energy}/${player.maxEnergy}\n`;
     msg += `🗺️ ${map.emoji} ${map.name}\n\n`;
 
     msg += `🎒 *Equipamentos*\n`;
@@ -140,11 +176,18 @@ function renderProfileCaption(player) {
     msg += `💀 *Almas*\n`;
     msg += `${buildSoulsText(player)}\n\n`;
 
+    msg += `✨ *Buffs Ativos*\n`;
+    msg += `${buildBuffsText(player)}\n\n`;
+
     msg += `🎨 *Cosméticos Ativos*\n`;
     msg += `✨ Aura: ${activeAura ? activeAura.name : '—'}\n`;
     msg += `🎖️ Emblema: ${activeBadge ? activeBadge.name : '—'}\n\n`;
 
     msg += `☠️ Abates: ${player.totalKills || 0}`;
+
+    if (player.activeFight?.payload) {
+        msg += `\n⚔️ Em combate: Sim`;
+    }
 
     return msg;
 }
@@ -159,6 +202,10 @@ async function handleProfile(ctx) {
     await ctx.answerCbQuery?.();
 
     const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return ctx.reply('❌ Jogador não encontrado. Use /start.');
+    }
+
     const caption = renderProfileCaption(player);
     const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📝 Renomear', 'rename_help'), Markup.button.callback('🔄 Classe', 'class_help')],
@@ -182,21 +229,18 @@ async function handleProfile(ctx) {
                     reply_markup: keyboard.reply_markup
                 });
                 return;
-            } else {
-                await ctx.editMessageText(caption, {
-                    parse_mode: 'Markdown',
-                    ...keyboard
-                });
-                return;
             }
+
+            await ctx.editMessageText(caption, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+            return;
         }
-    } catch (e) {
-        // fallback para nova mensagem
+    } catch {
         try {
             await ctx.deleteMessage();
-        } catch {
-            // ignora
-        }
+        } catch {}
     }
 
     if (profileImage) {
