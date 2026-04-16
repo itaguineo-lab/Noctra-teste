@@ -1,6 +1,12 @@
-const { addXp } = require('../core/player/progression');
 const { dropSoul } = require('../core/player/souls');
 const { generateDrop } = require('../data/items');
+const {
+    addInventoryItem,
+    applyGoldReward,
+    applyKeyReward,
+    applyXpReward,
+    normalizePlayerForSave
+} = require('../core/player/playerMutations');
 
 /*
 =================================
@@ -22,31 +28,28 @@ function getMapNumber(mapName) {
 
 /*
 =================================
-TAXAS DE DROP (REDUZIDAS PARA MAIOR RARIDADE)
+TAXAS DE DROP
 =================================
 */
 
 function getEquipmentChance(enemy) {
-    // BALANCEAMENTO: Equipamentos mais raros
-    if (enemy.isBoss) return 0.80;       // 80% (antes 100%)
-    if (enemy.isMiniBoss) return 0.40;    // 40% (antes 60%)
-    if (enemy.isElite) return 0.25;       // 25% (antes 40%)
-    return 0.15;                          // 15% comum (antes 25%)
+    if (enemy.isBoss) return 0.80;
+    if (enemy.isMiniBoss) return 0.40;
+    if (enemy.isElite) return 0.25;
+    return 0.15;
 }
 
 function getSoulChance(enemy) {
-    // Taxas mantidas (já são bem raras)
-    if (enemy.isBoss) return 0.015;      // 1.5%
-    if (enemy.isMiniBoss) return 0.008;  // 0.8%
-    if (enemy.isElite) return 0.004;     // 0.4%
-    return 0.0005;                       // 0.05% comum
+    if (enemy.isBoss) return 0.015;
+    if (enemy.isMiniBoss) return 0.008;
+    if (enemy.isElite) return 0.004;
+    return 0.0005;
 }
 
 function getKeyChance(enemy) {
-    // BALANCEAMENTO: Chaves de masmorra extremamente raras
-    if (enemy.isBoss) return 0.04;       // 4% (antes 10%)
-    if (enemy.isMiniBoss) return 0.02;   // 2% (antes 6%)
-    return 0.01;                         // 1% elite/comum (antes 3%)
+    if (enemy.isBoss) return 0.04;
+    if (enemy.isMiniBoss) return 0.02;
+    return 0.01;
 }
 
 function getVictoryTitle(enemy) {
@@ -56,6 +59,44 @@ function getVictoryTitle(enemy) {
     return '🏆 VITÓRIA';
 }
 
+function ensureRewardState(player) {
+    player.inventory ??= [];
+    player.soulsInventory ??= [];
+    player.totalKills ??= 0;
+    player.soulPityCounter ??= 0;
+    player.keys ??= 0;
+    player.gold ??= 0;
+    player.maxInventory ??= 20;
+    player.currentMap ??= 'clareira_sombria';
+    player.level ??= 1;
+    player.vip ??= false;
+    return player;
+}
+
+function buildGoldRewards(player, enemy) {
+    let baseXp = enemy.xp || 0;
+    let baseGold = enemy.gold || 0;
+
+    if (player.vip) {
+        baseXp = Math.floor(baseXp * 1.5);
+        baseGold = Math.floor(baseGold * 1.5);
+    }
+
+    const bonusGold = Math.random() < 0.15 ? Math.floor(baseGold * 0.5) : 0;
+    const streakBonus = (player.totalKills > 0 && player.totalKills % 10 === 0)
+        ? Math.floor(baseGold * 0.3)
+        : 0;
+
+    const finalGold = baseGold + bonusGold + streakBonus;
+
+    return {
+        xp: baseXp,
+        gold: finalGold,
+        bonusGold,
+        streakBonus
+    };
+}
+
 /*
 =================================
 PROCESSAMENTO DE RECOMPENSAS
@@ -63,67 +104,17 @@ PROCESSAMENTO DE RECOMPENSAS
 */
 
 function processVictory(player, enemy) {
-    // Inicializa estruturas
-    player.inventory ??= [];
-    player.soulsInventory ??= [];
-    player.totalKills ??= 0;
-    player.soulPityCounter ??= 0;
-    player.keys ??= 0;
-    player.gold ??= 0;
+    ensureRewardState(player);
 
-    /*
-    =================================
-    XP E OURO BASE (COM BÔNUS VIP)
-    =================================
-    */
+    const rewardBase = buildGoldRewards(player, enemy);
+    const loot = [];
 
-    let baseXp = enemy.xp || 0;
-    let baseGold = enemy.gold || 0;
-
-    // VIP: +50% XP e Ouro
-    if (player.vip) {
-        baseXp = Math.floor(baseXp * 1.5);
-        baseGold = Math.floor(baseGold * 1.5);
-    }
-
-    /*
-    =================================
-    BÔNUS ALEATÓRIO DE OURO
-    =================================
-    */
-
-    const bonusGold = Math.random() < 0.15 ? Math.floor(baseGold * 0.5) : 0;
-
-    /*
-    =================================
-    BÔNUS DE STREAK (A CADA 10 KILLS)
-    =================================
-    */
-
-    const streakBonus = (player.totalKills > 0 && player.totalKills % 10 === 0)
-        ? Math.floor(baseGold * 0.3)
-        : 0;
-
-    const finalGold = baseGold + bonusGold + streakBonus;
-    player.gold += finalGold;
-
-    /*
-    =================================
-    XP E LEVEL UP
-    =================================
-    */
+    applyGoldReward(player, rewardBase.gold);
 
     const previousLevel = player.level;
-    addXp(player, baseXp);
+    applyXpReward(player, rewardBase.xp);
     const leveledUp = player.level > previousLevel;
 
-    /*
-    =================================
-    LOOT
-    =================================
-    */
-
-    const loot = [];
     let droppedItem = null;
     let droppedSoul = null;
 
@@ -138,9 +129,12 @@ function processVictory(player, enemy) {
     const equipmentChance = getEquipmentChance(enemy);
     if (Math.random() < equipmentChance) {
         droppedItem = generateDrop(mapNumber);
-        if (player.inventory.length < (player.maxInventory || 20)) {
-            player.inventory.push(droppedItem);
+
+        const addItemResult = addInventoryItem(player, droppedItem);
+        if (addItemResult.success) {
             loot.push(`🎁 ${droppedItem.name} [Lv${droppedItem.level}]`);
+        } else {
+            droppedItem = null;
         }
     }
 
@@ -151,13 +145,14 @@ function processVictory(player, enemy) {
     */
 
     const soulChance = getSoulChance(enemy);
-    const pityThreshold = 10;            // 10 bosses sem alma → próximo garantido
+    const pityThreshold = 10;
     const pityGuaranteed = player.soulPityCounter >= pityThreshold;
 
     let soulDropped = false;
 
     if (Math.random() < soulChance || pityGuaranteed) {
         droppedSoul = dropSoul(player.level, enemy.id, player.soulPityCounter);
+
         if (droppedSoul) {
             player.soulsInventory.push(droppedSoul);
             loot.push(`💀 ${droppedSoul.name}`);
@@ -165,24 +160,23 @@ function processVictory(player, enemy) {
         }
     }
 
-    // Atualiza contador de pity apenas para bosses
     if (enemy.isBoss) {
         if (soulDropped) {
             player.soulPityCounter = 0;
         } else {
-            player.soulPityCounter++;
+            player.soulPityCounter += 1;
         }
     }
 
     /*
     =================================
-    DROP DE CHAVE (MAIS RARA)
+    DROP DE CHAVE
     =================================
     */
 
     const keyDropped = Math.random() < getKeyChance(enemy);
     if (keyDropped) {
-        player.keys++;
+        applyKeyReward(player, 1);
         loot.push('🗝️ Chave Sombria');
     }
 
@@ -192,14 +186,16 @@ function processVictory(player, enemy) {
     =================================
     */
 
-    player.totalKills++;
+    player.totalKills += 1;
+
+    normalizePlayerForSave(player);
 
     return {
         title: getVictoryTitle(enemy),
-        xp: baseXp,
-        gold: finalGold,
-        bonusGold,
-        streakBonus,
+        xp: rewardBase.xp,
+        gold: rewardBase.gold,
+        bonusGold: rewardBase.bonusGold,
+        streakBonus: rewardBase.streakBonus,
         loot,
         droppedItem,
         droppedSoul,
