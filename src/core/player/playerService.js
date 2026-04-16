@@ -29,7 +29,7 @@ function migrateItemSlot(item) {
 
 /*
 =================================
-ATUALIZAR BUFFS (REMOVER EXPIRADOS)
+BUFFS
 =================================
 */
 
@@ -47,7 +47,7 @@ function updateBuffs(player) {
 
 /*
 =================================
-RECALCULAR ESTATÍSTICAS (COM BUFFS)
+STATS
 =================================
 */
 
@@ -116,7 +116,7 @@ function recalculateStats(player) {
 
 /*
 =================================
-ACTIVE FIGHT
+ACTIVE STATES
 =================================
 */
 
@@ -135,14 +135,29 @@ function ensureActiveFightState(player) {
     return player;
 }
 
+function ensureActiveArenaBattleState(player) {
+    player.activeArenaBattle ??= null;
+
+    if (!player.activeArenaBattle) return player;
+
+    player.activeArenaBattle.mode ??= 'arena';
+    player.activeArenaBattle.createdAt ??= Date.now();
+    player.activeArenaBattle.expiresAt ??= player.activeArenaBattle.createdAt + (10 * 60 * 1000);
+    player.activeArenaBattle.messageId ??= null;
+    player.activeArenaBattle.payload ??= null;
+
+    return player;
+}
+
 function mergePreservedFields(existingPlayer, incomingPlayer) {
     if (!existingPlayer) return incomingPlayer;
 
-    if (
-        existingPlayer.activeFight &&
-        !incomingPlayer.activeFight
-    ) {
+    if (existingPlayer.activeFight && !incomingPlayer.activeFight) {
         incomingPlayer.activeFight = existingPlayer.activeFight;
+    }
+
+    if (existingPlayer.activeArenaBattle && !incomingPlayer.activeArenaBattle) {
+        incomingPlayer.activeArenaBattle = existingPlayer.activeArenaBattle;
     }
 
     return incomingPlayer;
@@ -211,6 +226,8 @@ function ensurePlayerState(player) {
     player.lastDungeonRun ??= 0;
     player.soulPityCounter ??= 0;
 
+    player.arena ??= null;
+
     ensureCosmeticsState(player);
     player.lastDailyChest ??= null;
 
@@ -218,6 +235,7 @@ function ensurePlayerState(player) {
     player.classChanged ??= false;
 
     ensureActiveFightState(player);
+    ensureActiveArenaBattleState(player);
 
     player.createdAt ??= Date.now();
     player.updatedAt ??= Date.now();
@@ -261,9 +279,7 @@ async function getPlayer(id) {
     await connectToMongo();
 
     const player = await Player.findOne({ id });
-    if (!player) {
-        return null;
-    }
+    if (!player) return null;
 
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
@@ -300,6 +316,8 @@ async function savePlayer(id, playerData) {
     );
 
     ensureActiveFightState(updateData);
+    ensureActiveArenaBattleState(updateData);
+
     updateData.updatedAt = new Date();
 
     const result = await Player.findOneAndUpdate(
@@ -389,6 +407,7 @@ module.exports = {
     connectToMongo,
     ensurePlayerState,
     ensureActiveFightState,
+    ensureActiveArenaBattleState,
     getPlayerCollection,
     getAllPlayers,
     createPlayer
