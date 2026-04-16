@@ -200,6 +200,16 @@ function getGuaranteedSoulByPity(available, pityCounter) {
     return null;
 }
 
+function shouldAttemptRandomSoulDrop(playerLevel, enemyId, pityCounter = 0) {
+    const available = soulsList.filter(soul => soul.minLevel <= playerLevel);
+    if (!available.length) return false;
+
+    const guaranteedByPity = getGuaranteedSoulByPity(available, pityCounter);
+    if (guaranteedByPity) return true;
+
+    return true;
+}
+
 /*
 =================================
 DROP WITH PITY
@@ -358,11 +368,13 @@ function levelUpSoul(soul, expGain = 1) {
 
 module.exports = {
     soulsList,
+    pityLimits,
     getSoulById,
     dropSoul,
     fuseSouls,
     dismantleSoul,
     activateSoul,
     getRarityEmoji,
-    levelUpSoul
+    levelUpSoul,
+    shouldAttemptRandomSoulDrop
 };
