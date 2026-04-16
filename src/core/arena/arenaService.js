@@ -65,8 +65,8 @@ const ARENA_CHEST_CONFIG = {
         unlockMs: 24 * 60 * 60 * 1000,
         arenaCoins: [300, 500],
         gold: [350, 600],
-        keyChance: 0.3,
-        gloriaChance: 0.3,
+        keyChance: 0.30,
+        gloriaChance: 0.30,
         consumables: ['potionHp', 'potionEnergy', 'tonicStrength', 'tonicDefense']
     }
 };
@@ -142,14 +142,8 @@ function formatDuration(ms) {
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
 
-    if (hours > 0) {
-        return `${hours}h ${minutes}m`;
-    }
-
-    if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-    }
-
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
     return `${seconds}s`;
 }
 
@@ -170,6 +164,7 @@ function ensureArenaState(player) {
     player.arena.maxStreak = Number.isFinite(player.arena.maxStreak) ? Math.max(0, Math.floor(player.arena.maxStreak)) : 0;
     player.arena.leagueId = player.arena.leagueId || 'bronze';
     player.arena.lastBattleAt = player.arena.lastBattleAt || null;
+    player.arena.totalDamageDealt = Number.isFinite(player.arena.totalDamageDealt) ? Math.max(0, Math.floor(player.arena.totalDamageDealt)) : 0;
 
     if (!Array.isArray(player.arena.chests)) {
         player.arena.chests = [];
@@ -185,7 +180,6 @@ function ensureArenaState(player) {
 
 function getArenaLeagueByPoints(points = 0) {
     const safePoints = Math.max(0, Math.floor(Number(points) || 0));
-
     let league = ARENA_LEAGUES[0];
 
     for (const current of ARENA_LEAGUES) {
@@ -327,18 +321,19 @@ async function selectArenaOpponentSnapshot(player) {
         const leagueIndex = getArenaLeagueIndex(opponent.leagueId);
         const powerGap = Math.abs(opponent.power - playerPower);
         const leaguePenalty = Math.abs(leagueIndex - playerLeagueIndex) * 120;
+        const freshnessPenalty = opponent.arenaPoints > playerSnapshot.arenaPoints * 1.8 ? 80 : 0;
 
         return {
             opponent,
-            score: powerGap + leaguePenalty
+            score: powerGap + leaguePenalty + freshnessPenalty
         };
     });
 
     const preferred = scored.filter(({ opponent }) => {
         const leagueIndex = getArenaLeagueIndex(opponent.leagueId);
         return (
-            opponent.power >= playerPower * 0.7 &&
-            opponent.power <= playerPower * 1.35 &&
+            opponent.power >= playerPower * 0.72 &&
+            opponent.power <= playerPower * 1.32 &&
             Math.abs(leagueIndex - playerLeagueIndex) <= 2
         );
     });
@@ -415,17 +410,9 @@ function getChestTierForVictory(playerLeagueId, enemyLeagueId, streak = 1) {
 
     let tier = baseTier;
 
-    if (leagueDiff > 0) {
-        tier = shiftChestTier(tier, 1);
-    }
-
-    if (streak >= 4) {
-        tier = shiftChestTier(tier, 1);
-    }
-
-    if (streak >= 8) {
-        tier = shiftChestTier(tier, 1);
-    }
+    if (leagueDiff > 0) tier = shiftChestTier(tier, 1);
+    if (streak >= 4) tier = shiftChestTier(tier, 1);
+    if (streak >= 8) tier = shiftChestTier(tier, 1);
 
     return tier;
 }
@@ -456,8 +443,13 @@ function buildArenaHubText(player) {
     const progress = getArenaLeagueProgress(player.arena.points);
     const league = progress.league;
     const nextLeague = progress.nextLeague;
-
-    const bar = renderBar(player.arena.points - league.minPoints, nextLeague ? (nextLeague.minPoints - league.minPoints) : 1, 10, '🟩', '⬜');
+    const bar = renderBar(
+        player.arena.points - league.minPoints,
+        nextLeague ? (nextLeague.minPoints - league.minPoints) : 1,
+        10,
+        '🟩',
+        '⬜'
+    );
 
     let text = `🏟️ *ARENA*\n\n`;
     text += `📛 Liga: ${league.emoji} ${league.name}\n`;
@@ -466,6 +458,7 @@ function buildArenaHubText(player) {
     text += `🏆 Vitórias: ${formatNumber(player.arena.wins)}\n`;
     text += `💀 Derrotas: ${formatNumber(player.arena.losses)}\n`;
     text += `🔥 Sequência: ${formatNumber(player.arena.streak)}\n`;
+    text += `👑 Melhor sequência: ${formatNumber(player.arena.maxStreak)}\n`;
     text += `💎 Baús ativos: ${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}\n\n`;
 
     if (nextLeague) {
@@ -491,10 +484,7 @@ function buildArenaBattleText(battle) {
     text += `💥 Power ${formatNumber(battle.player.power)}\n`;
     text += `❤️ ${formatNumber(battle.player.hp)}/${formatNumber(battle.player.maxHp)}\n`;
     text += `[${playerBar}]\n`;
-
-    if (battle.player.defending) {
-        text += `🛡️ Defendendo\n`;
-    }
+    if (battle.player.defending) text += `🛡️ Defendendo\n`;
 
     text += `\n🆚 *${escapeMarkdown(battle.enemy.name)}*\n`;
     text += `📛 ${battle.enemy.leagueEmoji} ${escapeMarkdown(battle.enemy.leagueName)}\n`;
@@ -631,13 +621,14 @@ function resolveArenaVictory(player, battle) {
     ensureArenaState(player);
 
     const beforeLeague = player.arena.leagueId;
-    const playerLeagueIndex = getArenaLeagueIndex(player.arena.leagueId);
+    const playerLeagueId = player.arena.leagueId;
+    const playerLeagueIndex = getArenaLeagueIndex(playerLeagueId);
     const enemyLeagueIndex = getArenaLeagueIndex(battle.enemy.leagueId);
 
     const powerGap = Math.max(0, battle.enemy.power - battle.player.power);
     const leagueGap = Math.max(0, enemyLeagueIndex - playerLeagueIndex);
-
     const streakBonus = player.arena.streak >= 4 ? 3 : 0;
+
     const pointsGained = Math.max(
         8,
         18 +
@@ -661,6 +652,7 @@ function resolveArenaVictory(player, battle) {
     player.arena.streak += 1;
     player.arena.maxStreak = Math.max(player.arena.maxStreak, player.arena.streak);
     player.arena.lastBattleAt = Date.now();
+    player.arena.totalDamageDealt += Math.max(0, Math.floor(battle.totalDamageDealt || 0));
 
     const newLeague = getArenaLeagueByPoints(player.arena.points);
     player.arena.leagueId = newLeague.id;
@@ -669,7 +661,7 @@ function resolveArenaVictory(player, battle) {
     let overflowCoins = 0;
 
     if (player.arena.chests.length < MAX_ACTIVE_CHESTS) {
-        const tier = getChestTierForVictory(playerLeagueIndex ? player.arena.leagueId : beforeLeague, battle.enemy.leagueId, player.arena.streak);
+        const tier = getChestTierForVictory(playerLeagueId, battle.enemy.leagueId, player.arena.streak);
         chest = createArenaChest(tier, {
             opponentId: battle.enemy.id,
             opponentName: battle.enemy.name,
@@ -703,7 +695,6 @@ function resolveArenaLoss(player) {
     player.arena.streak = 0;
     player.arena.lastBattleAt = Date.now();
     player.arena.leagueId = getArenaLeagueByPoints(player.arena.points).id;
-
     player.hp = Math.max(1, Math.floor((player.maxHp || 1) * 0.25));
 
     return {
