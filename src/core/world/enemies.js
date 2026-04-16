@@ -1,22 +1,21 @@
 /*
 =================================
-NOCTRA — ENEMY SYSTEM 2.0
-INIMIGOS TEMÁTICOS + HABILIDADES
+NOCTRA — ENEMY SYSTEM 3.0
+INIMIGOS TEMÁTICOS + HABILIDADES + PROGRESSÃO CONTROLADA
 =================================
 */
 
 // ================================================
-// HABILIDADES ESPECIAIS (Efeitos de Status)
+// HABILIDADES ESPECIAIS
 // ================================================
 
 const ENEMY_ABILITIES = {
-    // Aplica veneno que causa dano por turno
     POISON: {
         name: 'Veneno',
         emoji: '🧪',
         apply: (enemy, fight) => {
             if (!fight.enemy.poisonTurns) fight.enemy.poisonTurns = 0;
-            fight.enemy.poisonTurns += 2; // Dura 2 turnos
+            fight.enemy.poisonTurns += 2;
             fight.logs.push(`🧪 ${enemy.name} foi envenenado!`);
         },
         tick: (enemy, fight) => {
@@ -28,7 +27,7 @@ const ENEMY_ABILITIES = {
             }
         }
     },
-    // Causa dano extra e sangramento
+
     BLEED: {
         name: 'Sangramento',
         emoji: '🩸',
@@ -46,12 +45,11 @@ const ENEMY_ABILITIES = {
             }
         }
     },
-    // Chance de atordoar o jogador (pula turno)
+
     STUN: {
         name: 'Atordoamento',
         emoji: '💫',
         apply: (target, fight) => {
-            // target é o jogador
             if (Math.random() < 0.3) {
                 fight.player.stunned = true;
                 fight.logs.push(`💫 ${fight.enemy.name} atordoou você!`);
@@ -60,7 +58,7 @@ const ENEMY_ABILITIES = {
             return false;
         }
     },
-    // Escudo que reduz dano recebido
+
     SHIELD: {
         name: 'Escudo Sombrio',
         emoji: '🛡️',
@@ -70,7 +68,7 @@ const ENEMY_ABILITIES = {
             fight.logs.push(`🛡️ ${enemy.name} ergueu um escudo sombrio!`);
         }
     },
-    // Cura uma porcentagem do HP
+
     HEAL: {
         name: 'Regeneração',
         emoji: '💚',
@@ -83,11 +81,10 @@ const ENEMY_ABILITIES = {
 };
 
 // ================================================
-// DEFINIÇÃO DE INIMIGOS POR MAPA (COMPLETO)
+// DEFINIÇÃO DE INIMIGOS POR MAPA
 // ================================================
 
 const enemyPools = {
-    // MAPA 1: CLAREIRA SOMBRIA (Nível 1-8)
     clareira_sombria: {
         common: [
             {
@@ -104,7 +101,7 @@ const enemyPools = {
                 emoji: '🐀',
                 hp: 40, atk: 7, def: 2, crit: 4,
                 xp: 25, gold: 12,
-                ability: { type: 'POISON', chance: 0.2 } // 20% de chance de envenenar
+                ability: { type: 'POISON', chance: 0.2 }
             },
             {
                 id: 'forest_spider',
@@ -167,7 +164,6 @@ const enemyPools = {
         ]
     },
 
-    // MAPA 2: CRIPTA EM RUÍNAS (Nível 6-15)
     cripta_em_ruinas: {
         common: [
             {
@@ -239,7 +235,6 @@ const enemyPools = {
         ]
     },
 
-    // MAPA 3: PÂNTANO CORROMPIDO (Nível 12-24)
     pantano_corrompido: {
         common: [
             {
@@ -311,7 +306,6 @@ const enemyPools = {
         ]
     },
 
-    // MAPA 4: DESERTO INCANDESCENTE (Nível 18-30) - DEF aumentada em 20%
     deserto_incandescente: {
         common: [
             {
@@ -336,7 +330,7 @@ const enemyPools = {
                 emoji: '🔥',
                 hp: 200, atk: 38, def: 14, crit: 12,
                 xp: 120, gold: 75,
-                ability: { type: 'BLEED', chance: 0.3 } // Queimadura como sangramento
+                ability: { type: 'BLEED', chance: 0.3 }
             }
         ],
         elite: [
@@ -383,7 +377,6 @@ const enemyPools = {
         ]
     },
 
-    // MAPA 5: CITADELA LUNAR (Nível 25-40) - DEF aumentada em 30%
     citadela_lunar: {
         common: [
             {
@@ -455,7 +448,6 @@ const enemyPools = {
         ]
     },
 
-    // MAPA 6: ABISMO DE NOCTRA (Nível 35+) - DEF aumentada em 40%
     abismo_noctra: {
         common: [
             {
@@ -529,7 +521,7 @@ const enemyPools = {
 };
 
 // ================================================
-// FUNÇÕES AUXILIARES
+// HELPERS
 // ================================================
 
 function getPool(mapId) {
@@ -540,58 +532,160 @@ function randomFrom(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
+function cloneEnemy(enemy) {
+    return JSON.parse(JSON.stringify(enemy));
+}
+
+function getSpawnProfileForLevel(playerLevel) {
+    const level = Number(playerLevel) || 1;
+
+    if (level <= 4) {
+        return {
+            common: 1.0,
+            elite: 0,
+            miniboss: 0,
+            boss: 0
+        };
+    }
+
+    if (level <= 9) {
+        return {
+            common: 0.88,
+            elite: 0.12,
+            miniboss: 0,
+            boss: 0
+        };
+    }
+
+    if (level <= 14) {
+        return {
+            common: 0.73,
+            elite: 0.22,
+            miniboss: 0.05,
+            boss: 0
+        };
+    }
+
+    if (level <= 24) {
+        return {
+            common: 0.65,
+            elite: 0.24,
+            miniboss: 0.09,
+            boss: 0.02
+        };
+    }
+
+    return {
+        common: 0.60,
+        elite: 0.25,
+        miniboss: 0.11,
+        boss: 0.04
+    };
+}
+
+function applyDangerProfile(profile, dangerLevel = 0, pool = {}) {
+    const bonus = Math.min(0.12, Math.max(0, dangerLevel) * 0.015);
+
+    const adjusted = { ...profile };
+
+    if (pool.elite?.length) {
+        adjusted.elite += bonus;
+        adjusted.common -= bonus * 0.65;
+    }
+
+    if (pool.miniboss?.length) {
+        adjusted.miniboss += bonus * 0.45;
+        adjusted.common -= bonus * 0.25;
+    }
+
+    if (pool.boss?.length) {
+        adjusted.boss += bonus * 0.2;
+        adjusted.common -= bonus * 0.1;
+    }
+
+    adjusted.common = Math.max(0.2, adjusted.common);
+
+    const total = adjusted.common + adjusted.elite + adjusted.miniboss + adjusted.boss;
+    return {
+        common: adjusted.common / total,
+        elite: adjusted.elite / total,
+        miniboss: adjusted.miniboss / total,
+        boss: adjusted.boss / total
+    };
+}
+
+function rollEnemyTier(profile) {
+    let roll = Math.random();
+
+    if ((roll -= profile.boss) <= 0) return 'boss';
+    if ((roll -= profile.miniboss) <= 0) return 'miniboss';
+    if ((roll -= profile.elite) <= 0) return 'elite';
+    return 'common';
+}
+
+function scaleEnemyForPlayer(baseEnemy, playerLevel = 1, mapId = 'clareira_sombria') {
+    const enemy = cloneEnemy(baseEnemy);
+    const level = Number(playerLevel) || 1;
+
+    const mapBaseLevel = {
+        clareira_sombria: 1,
+        cripta_em_ruinas: 6,
+        pantano_corrompido: 12,
+        deserto_incandescente: 18,
+        citadela_lunar: 25,
+        abismo_noctra: 35
+    }[mapId] || 1;
+
+    const delta = Math.max(0, level - mapBaseLevel);
+
+    const statScale = Math.min(1 + delta * 0.035, 1.55);
+    const rewardScale = Math.min(1 + delta * 0.03, 1.45);
+
+    enemy.hp = Math.max(1, Math.round(enemy.hp * statScale));
+    enemy.atk = Math.max(1, Math.round(enemy.atk * (1 + delta * 0.025)));
+    enemy.def = Math.max(0, Math.round(enemy.def * (1 + delta * 0.02)));
+    enemy.crit = Math.min(35, Math.round((enemy.crit || 0) * (1 + delta * 0.01)));
+
+    enemy.xp = Math.max(1, Math.round((enemy.xp || 0) * rewardScale));
+    enemy.gold = Math.max(1, Math.round((enemy.gold || 0) * rewardScale));
+    enemy.level = Math.max(enemy.level || mapBaseLevel, Math.min(level, mapBaseLevel + 10));
+
+    return enemy;
+}
+
 // ================================================
-// SPAWN INTELIGENTE COM PERIGO (DANGER LEVEL)
+// SPAWN INTELIGENTE
 // ================================================
 
 function getRandomEnemy(mapId, playerLevel = 1, dangerLevel = 0) {
     const pool = getPool(mapId);
-    const level = Number(playerLevel) || 1;
-    const dangerBonus = Math.min(0.15, dangerLevel * 0.02); // Aumenta chance de elite/miniboss
-    
-    let roll = Math.random();
+    const baseProfile = getSpawnProfileForLevel(playerLevel);
+    const profile = applyDangerProfile(baseProfile, dangerLevel, pool);
 
-    // Ajusta chances baseado no nível do jogador
-    if (level <= 4) {
-        return { ...randomFrom(pool.common) };
-    }
+    let tier = rollEnemyTier(profile);
 
-    if (level <= 9) {
-        if (roll <= 0.12 + dangerBonus && pool.elite?.length) {
-            return { ...randomFrom(pool.elite), isElite: true };
-        }
-        return { ...randomFrom(pool.common) };
+    if (!pool[tier]?.length) {
+        if (tier === 'boss' && pool.miniboss?.length) tier = 'miniboss';
+        else if (tier === 'miniboss' && pool.elite?.length) tier = 'elite';
+        else if (tier === 'elite' && pool.common?.length) tier = 'common';
+        else tier = 'common';
     }
 
-    if (level <= 14) {
-        if (roll <= 0.05 + dangerBonus * 0.5 && pool.miniboss?.length) {
-            return { ...randomFrom(pool.miniboss), isMiniBoss: true };
-        }
-        if (roll <= 0.22 + dangerBonus && pool.elite?.length) {
-            return { ...randomFrom(pool.elite), isElite: true };
-        }
-        return { ...randomFrom(pool.common) };
-    }
+    const enemy = randomFrom(pool[tier]);
+    const cloned = scaleEnemyForPlayer(enemy, playerLevel, mapId);
 
-    // Nível 15+
-    if (roll <= 0.03 + dangerBonus * 0.3 && pool.boss?.length) {
-        return { ...randomFrom(pool.boss), isBoss: true };
-    }
-    if (roll <= 0.10 + dangerBonus * 0.5 && pool.miniboss?.length) {
-        return { ...randomFrom(pool.miniboss), isMiniBoss: true };
-    }
-    if (roll <= 0.25 + dangerBonus && pool.elite?.length) {
-        return { ...randomFrom(pool.elite), isElite: true };
-    }
+    if (tier === 'elite') cloned.isElite = true;
+    if (tier === 'miniboss') cloned.isMiniBoss = true;
+    if (tier === 'boss') cloned.isBoss = true;
 
-    return { ...randomFrom(pool.common) };
+    return cloned;
 }
 
 function getEnemyById(enemyId) {
     for (const map of Object.values(enemyPools)) {
         for (const tier of Object.values(map)) {
             const enemy = tier.find(e => e.id === enemyId);
-            if (enemy) return { ...enemy };
+            if (enemy) return cloneEnemy(enemy);
         }
     }
     return null;
