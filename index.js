@@ -49,20 +49,19 @@ let launched = false;
 const sleep = (ms) =>
     new Promise(resolve => setTimeout(resolve, ms));
 
-// ================================================
-// CENA DE CRIAÇÃO DE PERSONAGEM
-// ================================================
+/*
+=================================
+CENA DE CRIAÇÃO DE PERSONAGEM
+=================================
+*/
 
-// Armazena sessões de criação: userId -> { step: 'awaiting_name' | 'awaiting_class', name: string }
 const creationSessions = new Map();
 
-// Validação de nome
 function isValidName(name) {
     const trimmed = name.trim();
     return trimmed.length >= 3 && trimmed.length <= 20;
 }
 
-// Middleware para capturar mensagens de texto durante a criação
 bot.use(async (ctx, next) => {
     if (!ctx.message || !ctx.message.text) return next();
 
@@ -71,14 +70,15 @@ bot.use(async (ctx, next) => {
 
     if (!session) return next();
 
-    // Se estiver aguardando o nome
     if (session.step === 'awaiting_name') {
         const rawName = ctx.message.text.trim();
+
         if (!isValidName(rawName)) {
-            return ctx.reply('❌ O nome deve ter entre *3 e 20 caracteres*. Tente novamente:', { parse_mode: 'Markdown' });
+            return ctx.reply('❌ O nome deve ter entre *3 e 20 caracteres*. Tente novamente:', {
+                parse_mode: 'Markdown'
+            });
         }
 
-        // Salva o nome e avança para escolha da classe
         session.name = rawName;
         session.step = 'awaiting_class';
         creationSessions.set(userId, session);
@@ -95,7 +95,6 @@ bot.use(async (ctx, next) => {
         });
     }
 
-    // Se estiver aguardando classe, mas enviou texto em vez de clicar no botão
     if (session.step === 'awaiting_class') {
         return ctx.reply('Por favor, escolha uma classe usando os botões acima.');
     }
@@ -103,17 +102,16 @@ bot.use(async (ctx, next) => {
     return next();
 });
 
-// Finaliza a criação e exibe o menu principal
 async function finalizeCharacterCreation(ctx, userId, name, className) {
     try {
-        // Cria o jogador no banco
         const player = await createPlayer(userId, name, className);
         creationSessions.delete(userId);
 
-        await ctx.reply(`✨ Personagem criado com sucesso! Bem-vindo a Noctra, *${name}*!`);
-        
-        // Exibe o menu principal
-        await sendMainMenu(ctx, userId, name, false);
+        await ctx.reply(`✨ Personagem criado com sucesso! Bem-vindo a Noctra, *${player.name}*!`, {
+            parse_mode: 'Markdown'
+        });
+
+        await sendMainMenu(ctx, userId, player.name, false);
     } catch (error) {
         console.error('Erro ao criar personagem:', error);
         await ctx.reply('❌ Ocorreu um erro ao criar seu personagem. Tente novamente com /start.');
@@ -121,9 +119,11 @@ async function finalizeCharacterCreation(ctx, userId, name, className) {
     }
 }
 
-// ================================================
-// MIDDLEWARE ANTI-BAN
-// ================================================
+/*
+=================================
+MIDDLEWARE ANTI-BAN
+=================================
+*/
 
 bot.use(async (ctx, next) => {
     if (ctx.from) {
@@ -132,10 +132,11 @@ bot.use(async (ctx, next) => {
             if (player && player.banned) {
                 return ctx.reply('⛔ Você está banido do Noctra.');
             }
-        } catch (err) {
-            // Se o jogador não existir, permite continuar (será criado no /start)
+        } catch {
+            // jogador ainda não existe
         }
     }
+
     return next();
 });
 
@@ -189,6 +190,7 @@ async function sendMainMenu(ctx, userId, username, editMode = false) {
                 ...keyboard
             });
         }
+
         return ctx.reply(menuText, {
             parse_mode: 'Markdown',
             ...keyboard
@@ -197,6 +199,7 @@ async function sendMainMenu(ctx, userId, username, editMode = false) {
 
     const chatId = ctx.chat.id;
     const messageId = ctx.callbackQuery?.message?.message_id;
+
     try {
         if (mapImage && messageId) {
             await ctx.telegram.editMessageMedia(chatId, messageId, null, {
@@ -222,6 +225,7 @@ async function sendMainMenu(ctx, userId, username, editMode = false) {
                 ...keyboard
             });
         }
+
         return ctx.reply(menuText, {
             parse_mode: 'Markdown',
             ...keyboard
@@ -242,9 +246,11 @@ async function startBot() {
     try {
         await bot.telegram.deleteWebhook({ drop_pending_updates: true });
         console.log('✅ Webhook removido');
+
         await sleep(3000);
         await connectToMongo();
         console.log('✅ MongoDB conectado');
+
         await bot.launch({ dropPendingUpdates: true });
         console.log('🌑 NOCTRA ONLINE');
     } catch (err) {
@@ -265,17 +271,16 @@ bot.start(async (ctx) => {
     let player;
     try {
         player = await getPlayer(userId);
-    } catch (e) {
+    } catch {
         player = null;
     }
 
     if (player) {
-        // Jogador existente: menu normal
         return sendMainMenu(ctx, userId, firstName, false);
     }
 
-    // Jogador novo: inicia cena de criação
     creationSessions.set(userId, { step: 'awaiting_name' });
+
     await ctx.reply(
         `🌑 *Bem-vindo a Noctra!*\n\n` +
         `Você é um Caçador da Noite, destinado a enfrentar a escuridão.\n\n` +
@@ -284,7 +289,6 @@ bot.start(async (ctx) => {
     );
 });
 
-// Ação para escolha de classe (via botões inline)
 bindAction(/choose_class_(.+)/, async (ctx) => {
     const userId = String(ctx.from.id);
     const session = creationSessions.get(userId);
@@ -295,6 +299,7 @@ bindAction(/choose_class_(.+)/, async (ctx) => {
 
     const className = ctx.match[1];
     const allowed = ['guerreiro', 'arqueiro', 'mago'];
+
     if (!allowed.includes(className)) {
         return ctx.answerCbQuery('Classe inválida.');
     }
@@ -309,7 +314,6 @@ COMMANDS
 =================================
 */
 
-// Comandos de jogador
 bindCommand('profile', profile.handleProfile);
 bindCommand('inventory', inventory.handleInventory);
 bindCommand('energy', energy.handleEnergy);
@@ -327,7 +331,6 @@ bindCommand('equip', handleEquip);
 bindCommand('equipsoul', handleEquipSoulCommand);
 bindCommand('reset', resetCommands.handleReset);
 
-// Comandos administrativos
 bindCommand('give', (ctx) => {
     const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
     if (subCommand === 'xp') return adminCommands.handleGiveXp(ctx);
@@ -484,7 +487,7 @@ bindAction('rest_energy', energy.handleRestEnergy);
 
 /*
 =================================
-MENU (CORRIGIDO PARA FOTOS)
+MENU
 =================================
 */
 
