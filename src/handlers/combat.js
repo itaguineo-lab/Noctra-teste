@@ -23,6 +23,9 @@ const {
     runSoul,
     runConsumableTurn
 } = require('../core/combat/fightService');
+const {
+    updateMissionProgress
+} = require('../core/daily/dailyService');
 
 function getEnemyBadge(enemy) {
     if (enemy?.isBoss) return '👑 BOSS';
@@ -136,6 +139,7 @@ async function finishFight(ctx, stored) {
 
     if (fight.status === 'win') {
         const rewards = processVictory(player, fight.enemy);
+        updateMissionProgress(player, 'kill', 1);
 
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
         player.energy = Math.min(fight.player.energy, player.maxEnergy);
@@ -499,6 +503,8 @@ async function handleUseConsumable(ctx) {
         await ctx.answerCbQuery('❌ Item indisponível.', { show_alert: true }).catch(() => {});
         return;
     }
+
+    updateMissionProgress(player, 'use_consumable', 1);
 
     const updated = await runConsumableTurn(ctx.from.id, (fight) => {
         let log = '';
