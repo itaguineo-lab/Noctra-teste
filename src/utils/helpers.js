@@ -1,11 +1,11 @@
 const {
-    getPlayer,
-    recalculateStats
+    getPlayer
 } = require('../core/player/playerService');
 
 const {
     updateEnergy,
-    getTimeToNextEnergy
+    getTimeToNextEnergy,
+    getTimeToFullEnergy
 } = require('../services/energyService');
 
 const {
@@ -23,7 +23,11 @@ const {
     formatTime,
     formatSoulName
 } = require('./formatters');
-const { ensureCosmeticsState, getActiveCosmetic } = require('../core/player/cosmetics');
+
+const {
+    ensureCosmeticsState,
+    getActiveCosmetic
+} = require('../core/player/cosmetics');
 
 /*
 =================================
@@ -31,12 +35,13 @@ PLAYER SAFE
 =================================
 */
 
-async function getPlayerSafe(id, name = 'Viajante') {
+async function getPlayerSafe(id) {
     const player = await getPlayer(id);
     if (!player) return null;
+
     updateEnergy(player);
-    recalculateStats(player);
     ensureCosmeticsState(player);
+
     return player;
 }
 
@@ -50,56 +55,29 @@ function getPlayerLocation(player) {
     return getMapById(player.currentMap) || maps[0];
 }
 
-/**
- * BUILD 2.0 – Baseada em equipamentos (fallback para atributos)
- */
 function getBuildName(player) {
     const weapon = player.equipment?.weapon;
     const shield = player.equipment?.shield;
     const weaponName = weapon?.name?.toLowerCase() || '';
     const hasShield = !!shield;
 
-    // ========== GUERREIRO ==========
     if (player.class === 'guerreiro') {
-        // Machado sem escudo = Berserker
-        if (weaponName.includes('machado') && !hasShield) {
-            return '⚔️ Berserker';
-        }
-        // Espada com escudo = Guardião
-        if (weaponName.includes('espada') && hasShield) {
-            return '🛡️ Guardião';
-        }
-        // Fallback para atributos
+        if (weaponName.includes('machado') && !hasShield) return '⚔️ Berserker';
+        if (weaponName.includes('espada') && hasShield) return '🛡️ Guardião';
         if ((player.def || 0) >= 35) return '🛡️ Guardião';
         return '⚔️ Berserker';
     }
 
-    // ========== ARQUEIRO ==========
     if (player.class === 'arqueiro') {
-        // Arco = Caçador
-        if (weaponName.includes('arco')) {
-            return '🏹 Caçador';
-        }
-        // Lança com escudo = Lanceiro
-        if (weaponName.includes('lança') && hasShield) {
-            return '🛡️ Lanceiro';
-        }
-        // Fallback para atributos
+        if (weaponName.includes('arco')) return '🏹 Caçador';
+        if (weaponName.includes('lança') && hasShield) return '🛡️ Lanceiro';
         if ((player.crit || 0) >= 20) return '🎯 Sniper';
         return '🏹 Caçador';
     }
 
-    // ========== MAGO ==========
     if (player.class === 'mago') {
-        // Cajado = Ofensivo
-        if (weaponName.includes('cajado')) {
-            return '🔥 Ofensivo';
-        }
-        // Varinha ou Orbe = Curandeiro
-        if (weaponName.includes('varinha') || weaponName.includes('orbe')) {
-            return '💚 Curandeiro';
-        }
-        // Fallback para atributos
+        if (weaponName.includes('cajado')) return '🔥 Ofensivo';
+        if (weaponName.includes('varinha') || weaponName.includes('orbe')) return '💚 Curandeiro';
         if ((player.atk || 0) >= 35) return '🔥 Ofensivo';
         if ((player.maxHp || 0) >= 140) return '💚 Curandeiro';
         return '✨ Balanceado';
@@ -138,7 +116,7 @@ function premiumFrame(title, body) {
 
 /*
 =================================
-RESUMO DE BUFFS ATIVOS
+BUFFS
 =================================
 */
 
@@ -155,6 +133,7 @@ function getBuffsSummary(player) {
     if (activeBuffs.length === 0) return null;
 
     const parts = [];
+
     activeBuffs.forEach(buff => {
         if (buff.atk) parts.push(`💪+${buff.atk}`);
         if (buff.def) parts.push(`🛡️+${buff.def}`);
@@ -174,12 +153,12 @@ function getBuffsSummary(player) {
 
 /*
 =================================
-MENU TEXT (COM BUFFS)
+MENU TEXT
 =================================
 */
 
 async function getMainMenuText(playerId, username) {
-    const player = await getPlayerSafe(playerId, username);
+    const player = await getPlayerSafe(playerId);
     if (!player) {
         return premiumFrame(
             '🌑 NOCTRA RPG',
@@ -195,7 +174,7 @@ async function getMainMenuText(playerId, username) {
     const xpNeeded = getXpToNextLevel(player.level || 1);
     const location = getPlayerLocation(player);
     const nextEnergyTime = getTimeToNextEnergy(player);
-    const energyTimeStr = nextEnergyTime > 0 ? ` ${formatTime(nextEnergyTime)}` : '';
+    const fullEnergyTime = getTimeToFullEnergy(player);
 
     const hpBar = progressBar(player.hp, player.maxHp, 6, '🟩', '⬛');
     const energyBar = progressBar(player.energy, player.maxEnergy, 6, '🟦', '⬛');
@@ -218,10 +197,16 @@ async function getMainMenuText(playerId, username) {
         statsLine,
         '',
         `❤️ ${formatNumber(player.hp)}/${formatNumber(player.maxHp)} ${hpBar}`,
-        `⚡ ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}${energyTimeStr} ${energyBar}`,
+        `⚡ ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)} ${energyBar}`,
+        nextEnergyTime > 0
+            ? `⏳ Próxima energia em ${formatTime(nextEnergyTime)}`
+            : `⚡ Energia cheia`,
+        fullEnergyTime > 0 && player.energy < player.maxEnergy
+            ? `🔋 Energia cheia em ${formatTime(fullEnergyTime)}`
+            : null,
         `✨ ${formatNumber(player.xp)}/${formatNumber(xpNeeded)} ${xpBar}`,
         '',
-        `💰 ${formatNumber(player.gold)}  💎 ${formatNumber(player.nox)}`,
+        `💰 ${formatNumber(player.gold)}  💎 ${formatNumber(player.nox)}  🗝️ ${formatNumber(player.keys || 0)}`,
         `🗺️ ${location.emoji} ${location.name}  🏟️ ${formatNumber(arenaPoints)} ${arenaLeague}`
     ];
 
@@ -234,6 +219,10 @@ async function getMainMenuText(playerId, username) {
 
     compactLines.push(`💀 Souls: ${getSoulSummary(player)}`);
     compactLines.push(`☠️ ${formatNumber(player.totalKills || 0)} abates`);
+
+    if (player.activeFight?.payload) {
+        compactLines.push(`⚔️ Luta ativa: em andamento`);
+    }
 
     return premiumFrame('🌑 NOCTRA RPG', compactLines.join('\n'));
 }
