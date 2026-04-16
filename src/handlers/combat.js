@@ -20,7 +20,8 @@ const {
     runAttack,
     runDefend,
     runFlee,
-    runSoul
+    runSoul,
+    runConsumableTurn
 } = require('../core/combat/fightService');
 
 function getEnemyBadge(enemy) {
@@ -300,16 +301,15 @@ async function handleHunt(ctx) {
         await ctx.deleteMessage();
     } catch {}
 
-    let sent;
     if (enemyImage) {
-        sent = await ctx.replyWithPhoto(enemyImage, {
+        const sent = await ctx.replyWithPhoto(enemyImage, {
             caption,
             parse_mode: 'Markdown',
             ...combatMenu()
         });
         await persistFightMessage(ctx.from.id, sent.message_id, true);
     } else {
-        sent = await ctx.reply(caption, {
+        const sent = await ctx.reply(caption, {
             parse_mode: 'Markdown',
             ...combatMenu()
         });
@@ -500,66 +500,50 @@ async function handleUseConsumable(ctx) {
         return;
     }
 
-    const fight = stored.fight;
-    let log = '';
+    const updated = await runConsumableTurn(ctx.from.id, (fight) => {
+        let log = '';
 
-    if (key === 'potionHp') {
-        const heal = Math.max(20, Math.floor(fight.player.maxHp * 0.4));
-        const before = fight.player.hp;
-        fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
-        log = `❤️ Você recuperou ${fight.player.hp - before} HP com poção.`;
-    } else if (key === 'potionEnergy') {
-        const before = player.energy;
-        restoreEnergy(player, 1);
-        fight.player.energy = player.energy;
-        log = `⚡ Energia +${player.energy - before} com poção.`;
-    } else if (key === 'tonicStrength') {
-        fight.player.atk += 10;
-        log = '💪 ATK +10 para esta batalha.';
-    } else if (key === 'tonicDefense') {
-        fight.player.def += 10;
-        log = '🛡️ DEF +10 para esta batalha.';
-    } else {
-        await ctx.answerCbQuery('❌ Consumível inválido.', { show_alert: true }).catch(() => {});
-        return;
-    }
+        if (key === 'potionHp') {
+            const heal = Math.max(20, Math.floor(fight.player.maxHp * 0.4));
+            const before = fight.player.hp;
+            fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
+            log = `❤️ Você recuperou ${fight.player.hp - before} HP com poção.`;
+        } else if (key === 'potionEnergy') {
+            const before = player.energy;
+            restoreEnergy(player, 1);
+            fight.player.energy = player.energy;
+            log = `⚡ Energia +${player.energy - before} com poção.`;
+        } else if (key === 'tonicStrength') {
+            fight.player.atk += 10;
+            log = '💪 ATK +10 para esta batalha.';
+        } else if (key === 'tonicDefense') {
+            fight.player.def += 10;
+            log = '🛡️ DEF +10 para esta batalha.';
+        } else {
+            fight.logs.push('❌ Consumível inválido.');
+            return { success: false };
+        }
 
-    fight.logs.push(log);
+        fight.logs.push(log);
+        return { success: true };
+    });
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    await require('../core/combat/fightService').persistFightState(ctx.from.id, fight, stored.meta);
 
-    if (fight.status === 'ongoing') {
-        const updated = await runDefendLikeEnemyOnly(ctx.from.id);
-        const refreshedPlayer = await getPlayer(ctx.from.id);
-
-        if (!updated || updated.fight.status !== 'ongoing') {
-            return finishFight(ctx, updated || stored);
-        }
-
-        await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
-        return updateBattleMessage(ctx, updated, refreshedPlayer, combatMenu());
+    if (!updated) {
+        await ctx.answerCbQuery('❌ Erro ao usar consumível.', { show_alert: true }).catch(() => {});
+        return;
     }
 
-    if (fight.status !== 'ongoing') {
-        return finishFight(ctx, stored);
+    const refreshedPlayer = await getPlayer(ctx.from.id);
+
+    if (updated.fight.status !== 'ongoing') {
+        return finishFight(ctx, updated);
     }
 
     await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
-    return updateBattleMessage(ctx, stored, player, combatMenu());
-}
-
-async function runDefendLikeEnemyOnly(userId) {
-    const stored = await getStoredFight(userId);
-    if (!stored) return null;
-
-    const { fight, meta } = stored;
-    const { processEnemyTurn } = require('../core/combat/combatEngine');
-    processEnemyTurn(fight);
-
-    await require('../core/combat/fightService').persistFightState(userId, fight, meta);
-    return { fight, meta };
+    return updateBattleMessage(ctx, updated, refreshedPlayer, combatMenu());
 }
 
 async function handleCombatBack(ctx) {
