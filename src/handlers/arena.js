@@ -6,15 +6,9 @@ const {
 } = require('../core/player/playerService');
 
 const {
-    calculateDamage
-} = require('../core/combat/damageCalc');
-
-const {
     ensureArenaState,
     snapshotArenaPlayer,
     selectArenaOpponentSnapshot,
-    createArenaBattle,
-    isBattleExpired,
     buildArenaHubText,
     buildArenaBattleText,
     buildArenaLeaderboardText,
@@ -28,18 +22,21 @@ const {
 } = require('../core/arena/arenaService');
 
 const {
+    createAndStoreArenaBattle,
+    getStoredArenaBattle,
+    persistArenaMessage,
+    removeStoredArenaBattle,
+    runArenaAttack,
+    runArenaDefend,
+    runArenaFlee,
+    runArenaConsumable
+} = require('../core/arena/arenaBattleService');
+
+const {
     restoreEnergy,
     consumeConsumable,
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
-
-/*
-=================================
-ACTIVE BATTLES
-=================================
-*/
-
-const activeArenaBattles = new Map();
 
 /*
 =================================
@@ -48,10 +45,7 @@ HELPERS
 */
 
 function getChestConfigSafe(tier) {
-    return (
-        ARENA_CHEST_CONFIG[tier] ||
-        ARENA_CHEST_CONFIG.wood
-    );
+    return ARENA_CHEST_CONFIG[tier] || ARENA_CHEST_CONFIG.wood;
 }
 
 function safeAnswer(ctx, text = undefined, options = {}) {
@@ -67,7 +61,6 @@ async function safeSend(ctx, text, options = {}) {
         if (ctx.callbackQuery) {
             return await ctx.editMessageText(text, options);
         }
-
         return await ctx.reply(text, options);
     } catch {
         return await ctx.reply(text, options);
@@ -110,30 +103,21 @@ function hubKeyboard() {
     ]);
 }
 
-function getBattle(playerId) {
-    const battle = activeArenaBattles.get(String(playerId));
-
-    if (!battle) return null;
-
-    if (isBattleExpired(battle)) {
-        activeArenaBattles.delete(String(playerId));
-        return null;
-    }
-
-    return battle;
+async function getBattle(userId) {
+    return getStoredArenaBattle(userId);
 }
 
-async function persistBattleHp(playerId, battle) {
+async function persistBattleHp(playerId, stored) {
     const player = await getPlayer(playerId);
-    if (!player) return null;
+    if (!player || !stored?.battle) return null;
 
     ensureArenaState(player);
 
     player.hp = Math.max(
         1,
         Math.min(
-            battle.player.hp,
-            player.maxHp || battle.player.hp
+            stored.battle.player.hp,
+            player.maxHp || stored.battle.player.hp
         )
     );
 
@@ -142,10 +126,10 @@ async function persistBattleHp(playerId, battle) {
     return player;
 }
 
-async function finishBattle(ctx, battle, resultType) {
+async function finishBattle(ctx, stored, resultType) {
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        activeArenaBattles.delete(String(ctx.from.id));
+        await removeStoredArenaBattle(ctx.from.id);
         return safeSend(ctx, '❌ Jogador não encontrado.', {
             parse_mode: 'Markdown',
             ...hubKeyboard()
@@ -153,6 +137,8 @@ async function finishBattle(ctx, battle, resultType) {
     }
 
     ensureArenaState(player);
+
+    const battle = stored.battle;
 
     player.hp = Math.max(
         1,
@@ -187,16 +173,17 @@ async function finishBattle(ctx, battle, resultType) {
             summaryText += `🎁 ${rewards.chest.name}\n`;
         }
 
+        if (rewards.overflowCoins) {
+            summaryText += `💰 +${rewards.overflowCoins} moedas extras por slots de baú cheios\n`;
+        }
+
         if (rewards.leagueChanged) {
-            summaryText +=
-                `\n⬆️ Nova liga!\n` +
-                `${rewards.newLeague.emoji} ${rewards.newLeague.name}\n`;
+            summaryText += `\n⬆️ Nova liga!\n${rewards.newLeague.emoji} ${rewards.newLeague.name}\n`;
         }
     }
 
     if (resultType === 'loss') {
         const rewards = resolveArenaLoss(player);
-
         summaryText =
             `💀 *DERROTA*\n\n` +
             `📉 -${rewards.pointsLost} pontos\n`;
@@ -204,7 +191,6 @@ async function finishBattle(ctx, battle, resultType) {
 
     if (resultType === 'fled') {
         const rewards = resolveArenaFlee(player);
-
         summaryText =
             `🏳️ *FUGA*\n\n` +
             `📉 -${rewards.pointsLost} pontos\n`;
@@ -212,8 +198,7 @@ async function finishBattle(ctx, battle, resultType) {
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-
-    activeArenaBattles.delete(String(ctx.from.id));
+    await removeStoredArenaBattle(ctx.from.id);
 
     return safeSend(ctx, summaryText, {
         parse_mode: 'Markdown',
@@ -239,10 +224,9 @@ async function handleArena(ctx) {
 
     ensureArenaState(player);
 
-    const battle = getBattle(ctx.from.id);
-
-    if (battle) {
-        return safeSend(ctx, buildArenaBattleText(battle), {
+    const stored = await getBattle(ctx.from.id);
+    if (stored?.battle) {
+        return safeSend(ctx, buildArenaBattleText(stored.battle), {
             parse_mode: 'Markdown',
             ...battleKeyboard()
         });
@@ -283,18 +267,23 @@ async function handleArenaFight(ctx) {
         )
     );
 
-    const battle = createArenaBattle(
+    const battle = await createAndStoreArenaBattle(
+        ctx.from.id,
         playerSnapshot,
         opponent,
         startingHp
     );
 
-    activeArenaBattles.set(String(ctx.from.id), battle);
-
-    return safeSend(ctx, buildArenaBattleText(battle), {
+    const sent = await safeSend(ctx, buildArenaBattleText(battle), {
         parse_mode: 'Markdown',
         ...battleKeyboard()
     });
+
+    if (sent?.message_id) {
+        await persistArenaMessage(ctx.from.id, sent.message_id);
+    }
+
+    return sent;
 }
 
 /*
@@ -306,40 +295,27 @@ ATTACK
 async function handleArenaAttack(ctx) {
     await safeAnswer(ctx);
 
-    const battle = getBattle(ctx.from.id);
-    if (!battle) {
+    const stored = await getBattle(ctx.from.id);
+    if (!stored) {
         return handleArena(ctx);
     }
 
-    const hit = calculateDamage(battle.player, battle.enemy);
-
-    battle.enemy.hp = Math.max(
-        0,
-        battle.enemy.hp - hit.damage
-    );
-
-    battle.logs.push(`⚔️ Você causou ${hit.damage}`);
-
-    if (battle.enemy.hp <= 0) {
-        return finishBattle(ctx, battle, 'win');
+    const updated = await runArenaAttack(ctx.from.id);
+    if (!updated) {
+        return handleArena(ctx);
     }
 
-    const enemyHit = calculateDamage(battle.enemy, battle.player);
+    await persistBattleHp(ctx.from.id, updated);
 
-    battle.player.hp = Math.max(
-        0,
-        battle.player.hp - enemyHit.damage
-    );
-
-    battle.logs.push(`👹 ${battle.enemy.name} causou ${enemyHit.damage}`);
-
-    await persistBattleHp(ctx.from.id, battle);
-
-    if (battle.player.hp <= 0) {
-        return finishBattle(ctx, battle, 'loss');
+    if (updated.battle.status === 'win') {
+        return finishBattle(ctx, updated, 'win');
     }
 
-    return safeSend(ctx, buildArenaBattleText(battle), {
+    if (updated.battle.status === 'loss') {
+        return finishBattle(ctx, updated, 'loss');
+    }
+
+    return safeSend(ctx, buildArenaBattleText(updated.battle), {
         parse_mode: 'Markdown',
         ...battleKeyboard()
     });
@@ -354,29 +330,23 @@ DEFEND
 async function handleArenaDefend(ctx) {
     await safeAnswer(ctx);
 
-    const battle = getBattle(ctx.from.id);
-    if (!battle) {
+    const stored = await getBattle(ctx.from.id);
+    if (!stored) {
         return handleArena(ctx);
     }
 
-    const enemyHit = calculateDamage(battle.enemy, battle.player, {
-        multiplier: 0.5
-    });
-
-    battle.player.hp = Math.max(
-        0,
-        battle.player.hp - enemyHit.damage
-    );
-
-    battle.logs.push(`🛡️ Defesa reduziu dano para ${enemyHit.damage}`);
-
-    await persistBattleHp(ctx.from.id, battle);
-
-    if (battle.player.hp <= 0) {
-        return finishBattle(ctx, battle, 'loss');
+    const updated = await runArenaDefend(ctx.from.id);
+    if (!updated) {
+        return handleArena(ctx);
     }
 
-    return safeSend(ctx, buildArenaBattleText(battle), {
+    await persistBattleHp(ctx.from.id, updated);
+
+    if (updated.battle.status === 'loss') {
+        return finishBattle(ctx, updated, 'loss');
+    }
+
+    return safeSend(ctx, buildArenaBattleText(updated.battle), {
         parse_mode: 'Markdown',
         ...battleKeyboard()
     });
@@ -391,12 +361,17 @@ FLEE
 async function handleArenaFlee(ctx) {
     await safeAnswer(ctx);
 
-    const battle = getBattle(ctx.from.id);
-    if (!battle) {
+    const stored = await getBattle(ctx.from.id);
+    if (!stored) {
         return handleArena(ctx);
     }
 
-    return finishBattle(ctx, battle, 'fled');
+    const updated = await runArenaFlee(ctx.from.id);
+    if (!updated) {
+        return handleArena(ctx);
+    }
+
+    return finishBattle(ctx, updated, 'fled');
 }
 
 /*
@@ -408,8 +383,8 @@ CONSUMABLES
 async function handleArenaConsumables(ctx) {
     await safeAnswer(ctx);
 
-    const battle = getBattle(ctx.from.id);
-    if (!battle) return handleArena(ctx);
+    const stored = await getBattle(ctx.from.id);
+    if (!stored?.battle) return handleArena(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -443,8 +418,8 @@ async function handleArenaUseConsumable(ctx) {
     await safeAnswer(ctx);
 
     const key = ctx.match?.[1];
-    const battle = getBattle(ctx.from.id);
-    if (!battle) return handleArena(ctx);
+    const stored = await getBattle(ctx.from.id);
+    if (!stored?.battle) return handleArena(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -461,36 +436,32 @@ async function handleArenaUseConsumable(ctx) {
         return safeAnswer(ctx, '❌ Item indisponível.', { show_alert: true });
     }
 
-    if (key === 'potionHp') {
-        const heal = Math.max(20, Math.floor(battle.player.maxHp * 0.4));
-        battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + heal);
-        battle.logs.push('❤️ Você usou Poção de HP e se curou.');
-    } else if (key === 'potionEnergy') {
-        restoreEnergy(player, 1);
-        battle.logs.push('⚡ Energia +1 com Poção de Energia.');
-    } else if (key === 'tonicStrength') {
-        battle.player.atk += 8;
-        battle.logs.push('💪 Tônico de Força: ATK +8.');
-    } else if (key === 'tonicDefense') {
-        battle.player.def += 8;
-        battle.logs.push('🛡️ Tônico de Defesa: DEF +8.');
-    } else {
-        return safeAnswer(ctx, '❌ Consumível inválido.', { show_alert: true });
-    }
-
-    const enemyHit = calculateDamage(battle.enemy, battle.player);
-    battle.player.hp = Math.max(0, battle.player.hp - enemyHit.damage);
-    battle.logs.push(`👹 ${battle.enemy.name} respondeu com ${enemyHit.damage} de dano.`);
+    const updated = await runArenaConsumable(ctx.from.id, (battle) => {
+        if (key === 'potionHp') {
+            const heal = Math.max(20, Math.floor(battle.player.maxHp * 0.4));
+            battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + heal);
+            battle.logs.push('❤️ Você usou Poção de HP e se curou.');
+        } else if (key === 'potionEnergy') {
+            restoreEnergy(player, 1);
+            battle.logs.push('⚡ Energia +1 com Poção de Energia.');
+        } else if (key === 'tonicStrength') {
+            battle.player.atk += 8;
+            battle.logs.push('💪 Tônico de Força: ATK +8.');
+        } else if (key === 'tonicDefense') {
+            battle.player.def += 8;
+            battle.logs.push('🛡️ Tônico de Defesa: DEF +8.');
+        }
+    });
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    await persistBattleHp(ctx.from.id, battle);
+    await persistBattleHp(ctx.from.id, updated);
 
-    if (battle.player.hp <= 0) {
-        return finishBattle(ctx, battle, 'loss');
+    if (updated.battle.status === 'loss') {
+        return finishBattle(ctx, updated, 'loss');
     }
 
-    return safeSend(ctx, buildArenaBattleText(battle), {
+    return safeSend(ctx, buildArenaBattleText(updated.battle), {
         parse_mode: 'Markdown',
         ...battleKeyboard()
     });
@@ -530,9 +501,7 @@ async function handleArenaChests(ctx) {
         ];
     });
 
-    rows.push([
-        Markup.button.callback('🏠 Arena', 'arena')
-    ]);
+    rows.push([Markup.button.callback('🏠 Arena', 'arena')]);
 
     return safeSend(ctx, buildArenaChestListText(player), {
         parse_mode: 'Markdown',
@@ -550,8 +519,8 @@ async function handleArenaOpenChest(ctx) {
     await safeAnswer(ctx);
 
     const chestId = ctx.match?.[1];
-
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeSend(ctx, '❌ Jogador não encontrado.', {
             parse_mode: 'Markdown'
@@ -563,9 +532,7 @@ async function handleArenaOpenChest(ctx) {
     const result = openArenaChest(player, chestId);
 
     if (!result.success) {
-        return safeAnswer(ctx, result.message, {
-            show_alert: true
-        });
+        return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
     normalizePlayerForSave(player);
@@ -575,6 +542,10 @@ async function handleArenaOpenChest(ctx) {
         `🎁 *BAÚ ABERTO*\n\n` +
         `🪙 +${result.rewards.arenaCoins}\n` +
         `💰 +${result.rewards.gold}\n`;
+
+    if (result.rewards.keys) msg += `🗝️ +${result.rewards.keys}\n`;
+    if (result.rewards.glorias) msg += `🏅 +${result.rewards.glorias}\n`;
+    if (result.rewards.consumable) msg += `🧪 +1 ${result.rewards.consumable}\n`;
 
     return safeSend(ctx, msg, {
         parse_mode: 'Markdown',
