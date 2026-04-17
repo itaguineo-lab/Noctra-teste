@@ -1,18 +1,43 @@
+function toTimestamp(value, fallback = Date.now()) {
+    if (value instanceof Date) return value.getTime();
+
+    const parsed = new Date(value).getTime();
+    if (Number.isFinite(parsed)) return parsed;
+
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+
+    return fallback;
+}
+
 function ensureEnergyFields(player) {
     if (!player || typeof player !== 'object') {
         throw new Error('Player inválido.');
     }
 
-    if (typeof player.maxEnergy !== 'number' || Number.isNaN(player.maxEnergy)) {
-        player.maxEnergy = player.vip ? 40 : 20;
+    const vip = Boolean(player.vip);
+    const expectedMaxEnergy = vip ? 40 : 20;
+
+    if (!Number.isFinite(Number(player.maxEnergy)) || Number(player.maxEnergy) <= 0) {
+        player.maxEnergy = expectedMaxEnergy;
+    } else {
+        player.maxEnergy = Number(player.maxEnergy);
     }
 
-    if (typeof player.energy !== 'number' || Number.isNaN(player.energy)) {
+    if (player.maxEnergy !== expectedMaxEnergy) {
+        player.maxEnergy = expectedMaxEnergy;
+    }
+
+    if (!Number.isFinite(Number(player.energy))) {
         player.energy = player.maxEnergy;
+    } else {
+        player.energy = Math.max(0, Math.min(player.maxEnergy, Number(player.energy)));
     }
 
     if (!player.lastEnergyUpdate) {
-        player.lastEnergyUpdate = Date.now();
+        player.lastEnergyUpdate = new Date();
+    } else {
+        player.lastEnergyUpdate = new Date(toTimestamp(player.lastEnergyUpdate));
     }
 
     return player;
@@ -27,7 +52,37 @@ VIP: 8 minutos
 */
 
 function getRegenInterval(player) {
+    ensureEnergyFields(player);
     return player.vip ? 8 * 60 * 1000 : 10 * 60 * 1000;
+}
+
+/*
+=================================
+SINCRONIZA CAPACIDADE DE ENERGIA
+=================================
+*/
+
+function syncEnergyCapacity(player, options = {}) {
+    ensureEnergyFields(player);
+
+    const expectedMaxEnergy = player.vip ? 40 : 20;
+    const oldMaxEnergy = Number(player.maxEnergy) || expectedMaxEnergy;
+
+    if (oldMaxEnergy === expectedMaxEnergy) {
+        player.maxEnergy = expectedMaxEnergy;
+        player.energy = Math.max(0, Math.min(player.energy, player.maxEnergy));
+        return player;
+    }
+
+    player.maxEnergy = expectedMaxEnergy;
+
+    if (options.preserveRatio && oldMaxEnergy > 0) {
+        const ratio = (player.energy || 0) / oldMaxEnergy;
+        player.energy = Math.round(player.maxEnergy * ratio);
+    }
+
+    player.energy = Math.max(0, Math.min(player.energy, player.maxEnergy));
+    return player;
 }
 
 /*
@@ -38,30 +93,36 @@ ATUALIZA ENERGIA (PASSIVA)
 
 function updateEnergy(player) {
     ensureEnergyFields(player);
+    syncEnergyCapacity(player);
 
     const now = Date.now();
     const interval = getRegenInterval(player);
-    const elapsed = now - new Date(player.lastEnergyUpdate).getTime();
+    const lastUpdate = toTimestamp(player.lastEnergyUpdate, now);
 
+    if (player.energy >= player.maxEnergy) {
+        player.energy = player.maxEnergy;
+        player.lastEnergyUpdate = new Date(now);
+        return false;
+    }
+
+    const elapsed = now - lastUpdate;
     if (elapsed < interval) {
         return false;
     }
 
-    if (player.energy >= player.maxEnergy) {
-        player.energy = player.maxEnergy;
-        player.lastEnergyUpdate = now;
+    const amount = Math.floor(elapsed / interval);
+    if (amount <= 0) {
         return false;
     }
 
-    const amount = Math.floor(elapsed / interval);
     player.energy = Math.min(player.maxEnergy, player.energy + amount);
 
-    const baseTime = new Date(player.lastEnergyUpdate).getTime();
-    player.lastEnergyUpdate = baseTime + (amount * interval);
+    const consumedTime = lastUpdate + (amount * interval);
+    player.lastEnergyUpdate = new Date(consumedTime);
 
     if (player.energy >= player.maxEnergy) {
         player.energy = player.maxEnergy;
-        player.lastEnergyUpdate = now;
+        player.lastEnergyUpdate = new Date(now);
     }
 
     return true;
@@ -75,19 +136,22 @@ CONSUMO DE ENERGIA
 
 function consumeEnergy(player, amount = 1) {
     ensureEnergyFields(player);
-
-    const value = Number(amount) || 1;
-    if (value <= 0) return false;
-
+    syncEnergyCapacity(player);
     updateEnergy(player);
 
-    if (player.energy < value) return false;
+    const value = Math.max(0, Math.floor(Number(amount) || 0));
+    if (value <= 0) return false;
 
-    const wasFull = player.energy === player.maxEnergy;
-    player.energy -= value;
+    if (player.energy < value) {
+        return false;
+    }
+
+    const wasFull = player.energy >= player.maxEnergy;
+
+    player.energy = Math.max(0, player.energy - value);
 
     if (wasFull) {
-        player.lastEnergyUpdate = Date.now();
+        player.lastEnergyUpdate = new Date();
     }
 
     return true;
@@ -101,12 +165,27 @@ RECUPERA ENERGIA
 
 function restoreEnergy(player, amount = 1) {
     ensureEnergyFields(player);
+    syncEnergyCapacity(player);
+    updateEnergy(player);
 
-    const value = Math.max(0, Number(amount) || 0);
+    const value = Math.max(0, Math.floor(Number(amount) || 0));
     if (value <= 0) return player;
 
-    updateEnergy(player);
     player.energy = Math.min(player.maxEnergy, player.energy + value);
+
+    if (player.energy >= player.maxEnergy) {
+        player.lastEnergyUpdate = new Date();
+    }
+
+    return player;
+}
+
+function restoreFullEnergy(player) {
+    ensureEnergyFields(player);
+    syncEnergyCapacity(player);
+
+    player.energy = player.maxEnergy;
+    player.lastEnergyUpdate = new Date();
 
     return player;
 }
@@ -119,6 +198,7 @@ TEMPO ATÉ PRÓXIMA ENERGIA
 
 function getTimeToNextEnergy(player) {
     ensureEnergyFields(player);
+    syncEnergyCapacity(player);
     updateEnergy(player);
 
     if (player.energy >= player.maxEnergy) {
@@ -126,7 +206,7 @@ function getTimeToNextEnergy(player) {
     }
 
     const interval = getRegenInterval(player);
-    const elapsed = Date.now() - new Date(player.lastEnergyUpdate).getTime();
+    const elapsed = Date.now() - toTimestamp(player.lastEnergyUpdate);
 
     return Math.max(0, interval - elapsed);
 }
@@ -139,6 +219,7 @@ TEMPO ATÉ ENERGIA CHEIA
 
 function getTimeToFullEnergy(player) {
     ensureEnergyFields(player);
+    syncEnergyCapacity(player);
     updateEnergy(player);
 
     if (player.energy >= player.maxEnergy) {
@@ -159,15 +240,19 @@ FORMATAÇÃO
 */
 
 function formatEnergyTime(ms) {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
+    const safeMs = Math.max(0, Number(ms) || 0);
+    const minutes = Math.floor(safeMs / 60000);
+    const seconds = Math.floor((safeMs % 60000) / 1000);
     return `${minutes}m ${seconds}s`;
 }
 
 module.exports = {
+    ensureEnergyFields,
+    syncEnergyCapacity,
     updateEnergy,
     consumeEnergy,
     restoreEnergy,
+    restoreFullEnergy,
     getTimeToNextEnergy,
     getTimeToFullEnergy,
     getRegenInterval,
