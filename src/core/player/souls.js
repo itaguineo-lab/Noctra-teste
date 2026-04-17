@@ -2,7 +2,7 @@ const { randomUUID } = require('crypto');
 
 /*
 =================================
-SOUL DATABASE PREMIUM
+SOUL DATABASE
 =================================
 */
 
@@ -132,9 +132,10 @@ PITY SYSTEM
 */
 
 const pityLimits = {
-    Épico: 8,
-    Lendário: 15,
-    Mítico: 25
+    boostAt: 10,
+    epicAt: 18,
+    legendaryAt: 26,
+    mythicAt: 40
 };
 
 /*
@@ -181,18 +182,22 @@ function weightedRandom(list) {
     return list[0];
 }
 
+function getAvailableSoulsByLevel(playerLevel) {
+    return soulsList.filter(soul => soul.minLevel <= playerLevel);
+}
+
 function getGuaranteedSoulByPity(available, pityCounter) {
-    if (pityCounter >= pityLimits.Mítico) {
+    if (pityCounter >= pityLimits.mythicAt) {
         const mythic = available.filter(s => s.rarity === 'Mítico');
         if (mythic.length) return weightedRandom(mythic);
     }
 
-    if (pityCounter >= pityLimits.Lendário) {
-        const legendary = available.filter(s => s.rarity === 'Lendário' || s.rarity === 'Mítico');
+    if (pityCounter >= pityLimits.legendaryAt) {
+        const legendary = available.filter(s => ['Lendário', 'Mítico'].includes(s.rarity));
         if (legendary.length) return weightedRandom(legendary);
     }
 
-    if (pityCounter >= pityLimits.Épico) {
+    if (pityCounter >= pityLimits.epicAt) {
         const epic = available.filter(s => ['Épico', 'Lendário', 'Mítico'].includes(s.rarity));
         if (epic.length) return weightedRandom(epic);
     }
@@ -200,43 +205,48 @@ function getGuaranteedSoulByPity(available, pityCounter) {
     return null;
 }
 
-function shouldAttemptRandomSoulDrop(playerLevel, enemyId, pityCounter = 0) {
-    const available = soulsList.filter(soul => soul.minLevel <= playerLevel);
-    if (!available.length) return false;
+function getSoulDropChanceByEnemy(enemy, pityCounter = 0) {
+    let chance = 0;
 
-    const guaranteedByPity = getGuaranteedSoulByPity(available, pityCounter);
-    if (guaranteedByPity) return true;
+    if (enemy?.isBoss) chance = 0.03;
+    else if (enemy?.isMiniBoss) chance = 0.015;
+    else if (enemy?.isElite) chance = 0.006;
+    else chance = 0;
 
-    return true;
+    if (enemy?.isBoss && pityCounter >= pityLimits.boostAt) {
+        chance *= 2;
+    }
+
+    return Math.min(0.25, chance);
 }
 
-/*
-=================================
-DROP WITH PITY
-=================================
-*/
-
-function dropSoul(playerLevel, bossId = null, pityCounter = 0) {
-    const available = soulsList.filter(soul => soul.minLevel <= playerLevel);
-
-    if (!available.length) {
-        return null;
-    }
-
-    if (bossId) {
-        const bossSoul = available.find(soul => soul.bossId === bossId);
-        if (bossSoul && Math.random() <= 0.20) {
-            return createSoulInstance(bossSoul);
-        }
-    }
+function resolveSoulDrop({ playerLevel, enemy, pityCounter = 0 }) {
+    const available = getAvailableSoulsByLevel(playerLevel);
+    if (!available.length) return null;
 
     const guaranteedByPity = getGuaranteedSoulByPity(available, pityCounter);
     if (guaranteedByPity) {
         return createSoulInstance(guaranteedByPity);
     }
 
-    const selected = weightedRandom(available);
-    return createSoulInstance(selected);
+    if (enemy?.id) {
+        const bossSoul = available.find(soul => soul.bossId === enemy.id);
+        if (bossSoul && Math.random() <= 0.65) {
+            return createSoulInstance(bossSoul);
+        }
+    }
+
+    return createSoulInstance(weightedRandom(available));
+}
+
+function registerSoulPityFailure(player) {
+    player.soulPityCounter = Math.max(0, Number(player.soulPityCounter || 0)) + 1;
+    return player.soulPityCounter;
+}
+
+function resetSoulPity(player) {
+    player.soulPityCounter = 0;
+    return player.soulPityCounter;
 }
 
 /*
@@ -370,11 +380,13 @@ module.exports = {
     soulsList,
     pityLimits,
     getSoulById,
-    dropSoul,
+    getSoulDropChanceByEnemy,
+    resolveSoulDrop,
+    registerSoulPityFailure,
+    resetSoulPity,
     fuseSouls,
     dismantleSoul,
     activateSoul,
     getRarityEmoji,
-    levelUpSoul,
-    shouldAttemptRandomSoulDrop
+    levelUpSoul
 };
