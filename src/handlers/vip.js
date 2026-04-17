@@ -1,20 +1,30 @@
+const { Markup } = require('telegraf');
 const { getPlayer } = require('../core/player/playerService');
-const { mainMenu } = require('../menus/mainMenu');
+const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 
-async function safeEdit(ctx, text, options = {}) {
-    try {
-        await ctx.editMessageText(text, options);
-    } catch {
-        await ctx.reply(text, options);
-    }
+function vipKeyboard() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback('🏰 Loja do Castelo', 'shop_castle')],
+        [Markup.button.callback('🏠 Menu', 'menu')]
+    ]);
 }
 
 async function handleVip(ctx) {
     try {
+        await safeAnswer(ctx);
+
         const player = await getPlayer(ctx.from.id);
-        const vipActive = player.vip && player.vipExpires && new Date() < new Date(player.vipExpires);
+        if (!player) {
+            return navigateText(ctx, '❌ Perfil não encontrado.');
+        }
+
+        const vipActive =
+            player.vip &&
+            player.vipExpires &&
+            new Date() < new Date(player.vipExpires);
 
         let msg = `💎 *VIP*\n\n`;
+
         if (vipActive) {
             const expiry = new Date(player.vipExpires).toLocaleDateString('pt-BR');
             msg += `✨ VIP ativo até ${expiry}\n\n`;
@@ -29,12 +39,17 @@ async function handleVip(ctx) {
         msg += `🎒 +10 slots de inventário\n`;
         msg += `🎁 Baú extra diário\n\n`;
 
-        if (!vipActive) msg += `🛒 Adquira na loja do Castelo.`;
+        if (!vipActive) {
+            msg += `🛒 Adquira na loja do Castelo.`;
+        }
 
-        await safeEdit(ctx, msg, { parse_mode: 'Markdown', ...mainMenu() });
+        return navigateText(ctx, msg, {
+            parse_mode: 'Markdown',
+            ...vipKeyboard()
+        });
     } catch (error) {
         console.error('Erro VIP:', error);
-        await ctx.answerCbQuery('Erro ao mostrar VIP.');
+        return safeAnswer(ctx, 'Erro ao mostrar VIP.', { show_alert: true });
     }
 }
 
