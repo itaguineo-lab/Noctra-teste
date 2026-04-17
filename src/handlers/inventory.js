@@ -24,6 +24,7 @@ const {
     getItemKey
 } = require('../core/player/playerMutations');
 const { inventoryMainMenu } = require('../menus/inventoryMenu');
+const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 
 const PAGE_SIZE = 5;
 
@@ -144,39 +145,11 @@ function buildSkinsKeyboard(player) {
 
 async function handleInvSkins(ctx) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
-    return sendScreen(ctx, renderSkinsText(player), safeReplyMarkup(buildSkinsKeyboard(player)));
-}
-
-function safeReplyMarkup(markupFactoryResult) {
-    return markupFactoryResult || {};
+    return sendScreen(ctx, renderSkinsText(player), buildSkinsKeyboard(player));
 }
 
 async function sendScreen(ctx, text, options = {}) {
-    const payload = {
-        parse_mode: 'Markdown',
-        ...options
-    };
-
-    try {
-        if (ctx.callbackQuery?.message) {
-            return await ctx.editMessageText(text, payload);
-        }
-        return await ctx.reply(text, payload);
-    } catch (err) {
-        try {
-            return await ctx.reply(text, payload);
-        } catch (err2) {
-            console.error('Falha ao enviar tela de inventário:', err2);
-        }
-    }
-}
-
-async function safeAnswer(ctx, text = undefined, options = {}) {
-    try {
-        return await ctx.answerCbQuery(text, options);
-    } catch (err) {
-        return null;
-    }
+    return navigateText(ctx, text, options);
 }
 
 function calcItemPower(item) {
@@ -332,7 +305,7 @@ async function renderInventory(ctx, category = null, page = 1) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
 
     if (!category) {
-        return sendScreen(ctx, renderInventoryHeader(player), safeReplyMarkup(inventoryMainMenu(player)));
+        return sendScreen(ctx, renderInventoryHeader(player), inventoryMainMenu(player));
     }
 
     if (!CATEGORY_CONFIG[category]) {
@@ -390,9 +363,7 @@ async function renderInventory(ctx, category = null, page = 1) {
 
     buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
 
-    return sendScreen(ctx, text, {
-        ...Markup.inlineKeyboard(buttons)
-    });
+    return sendScreen(ctx, text, Markup.inlineKeyboard(buttons));
 }
 
 async function handleInventory(ctx) {
@@ -450,9 +421,7 @@ async function handleInvConsumables(ctx) {
     if (c.tonicDefense > 0) buttons.push([Markup.button.callback('🛡️ Usar Tônico de Defesa', 'use_tonic_defense')]);
     buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
 
-    return sendScreen(ctx, text, {
-        ...Markup.inlineKeyboard(buttons)
-    });
+    return sendScreen(ctx, text, Markup.inlineKeyboard(buttons));
 }
 
 async function handleInvSouls(ctx) {
@@ -510,9 +479,7 @@ async function handleInvSouls(ctx) {
 
     rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
 
-    return sendScreen(ctx, text, {
-        ...Markup.inlineKeyboard(rows)
-    });
+    return sendScreen(ctx, text, Markup.inlineKeyboard(rows));
 }
 
 async function handleUsePotionOutside(ctx, type) {
@@ -753,10 +720,7 @@ async function handleInventoryCategory(ctx) {
 
     if (category === 'consumables') return handleInvConsumables(ctx);
     if (category === 'souls') return handleInvSouls(ctx);
-
-    if (category === 'skins') {
-        return handleInvSkins(ctx);
-    }
+    if (category === 'skins') return handleInvSkins(ctx);
 
     return renderInventory(ctx, category, 1);
 }
