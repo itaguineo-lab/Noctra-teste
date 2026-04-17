@@ -5,9 +5,20 @@ function sumConsumables(player = {}) {
     return Object.values(consumables).reduce((acc, value) => acc + (Number(value) || 0), 0);
 }
 
+function getRealSlot(item = {}) {
+    const slot = String(item.slot || '');
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
+    for (const validSlot of validSlots) {
+        if (slot.startsWith(validSlot)) return validSlot;
+    }
+
+    return slot;
+}
+
 function countItemsBySlots(player = {}, slots = []) {
     const items = player.inventory || [];
-    return items.filter(item => slots.includes(item.slot)).length;
+    return items.filter(item => slots.includes(getRealSlot(item))).length;
 }
 
 function inventoryMainMenu(player = {}) {
