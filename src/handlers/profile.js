@@ -18,6 +18,7 @@ const {
 } = require('../core/player/cosmetics');
 
 const { getTimeToNextEnergy, formatEnergyTime } = require('../services/energyService');
+const { navigateScreen, safeAnswer } = require('../utils/uiNavigator');
 const assets = require('../data/assets');
 
 /*
@@ -199,7 +200,7 @@ PROFILE HANDLER (COM FOTO)
 */
 
 async function handleProfile(ctx) {
-    await ctx.answerCbQuery?.();
+    await safeAnswer(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -214,47 +215,11 @@ async function handleProfile(ctx) {
 
     const profileImage = assets?.profile?.[player.class];
 
-    try {
-        const chatId = ctx.chat.id;
-        const messageId = ctx.callbackQuery?.message?.message_id;
-
-        if (messageId) {
-            if (profileImage) {
-                await ctx.telegram.editMessageMedia(chatId, messageId, null, {
-                    type: 'photo',
-                    media: profileImage,
-                    caption,
-                    parse_mode: 'Markdown'
-                }, {
-                    reply_markup: keyboard.reply_markup
-                });
-                return;
-            }
-
-            await ctx.editMessageText(caption, {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
-            return;
-        }
-    } catch {
-        try {
-            await ctx.deleteMessage();
-        } catch {}
-    }
-
-    if (profileImage) {
-        await ctx.replyWithPhoto(profileImage, {
-            caption,
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    } else {
-        await ctx.reply(caption, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    }
+    return navigateScreen(ctx, {
+        text: caption,
+        media: profileImage || null,
+        options: keyboard
+    });
 }
 
 module.exports = {
