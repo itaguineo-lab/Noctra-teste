@@ -38,6 +38,10 @@ const {
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
 
+const {
+    updateMissionProgress
+} = require('../core/daily/dailyService');
+
 /*
 =================================
 HELPERS
@@ -161,6 +165,8 @@ async function finishBattle(ctx, stored, resultType) {
     ]);
 
     if (resultType === 'win') {
+        updateMissionProgress(player, 'arena_win', 1);
+
         const rewards = resolveArenaVictory(player, battle);
 
         summaryText =
