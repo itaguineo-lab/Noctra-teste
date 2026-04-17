@@ -1,5 +1,15 @@
-const { dropSoul } = require('../core/player/souls');
-const { generateDrop } = require('../data/items');
+const {
+    resolveSoulDrop,
+    registerSoulPityFailure,
+    resetSoulPity,
+    getSoulDropChanceByEnemy
+} = require('../core/player/souls');
+
+const {
+    generateDrop,
+    getDropProfileByEnemy
+} = require('../data/items');
+
 const {
     addInventoryItem,
     applyGoldReward,
@@ -28,34 +38,27 @@ function getMapNumber(mapName) {
 
 /*
 =================================
-TAXAS DE DROP
+CLASSIFICAÇÃO DE ENCONTRO
 =================================
 */
 
-function getEquipmentChance(enemy) {
-    if (enemy.isBoss) return 0.80;
-    if (enemy.isMiniBoss) return 0.40;
-    if (enemy.isElite) return 0.25;
-    return 0.15;
+function getEncounterTier(enemy) {
+    if (enemy?.isBoss) return 'boss';
+    if (enemy?.isMiniBoss) return 'miniboss';
+    if (enemy?.isElite) return 'elite';
+    return 'common';
 }
 
-function getSoulChance(enemy) {
-    if (enemy.isBoss) return 0.015;
-    if (enemy.isMiniBoss) return 0.008;
-    if (enemy.isElite) return 0.004;
-    return 0.0005;
-}
-
-function getKeyChance(enemy) {
-    if (enemy.isBoss) return 0.04;
-    if (enemy.isMiniBoss) return 0.02;
-    return 0.01;
-}
+/*
+=================================
+TÍTULO DE VITÓRIA
+=================================
+*/
 
 function getVictoryTitle(enemy) {
-    if (enemy.isBoss) return '👑 BOSS DERROTADO';
-    if (enemy.isMiniBoss) return '💀 MINI BOSS DERROTADO';
-    if (enemy.isElite) return '🔥 ELITE DERROTADO';
+    if (enemy?.isBoss) return '👑 BOSS DERROTADO';
+    if (enemy?.isMiniBoss) return '💀 MINI BOSS DERROTADO';
+    if (enemy?.isElite) return '🔥 ELITE DERROTADO';
     return '🏆 VITÓRIA';
 }
 
@@ -73,62 +76,149 @@ function ensureRewardState(player) {
     return player;
 }
 
-function buildGoldRewards(player, enemy) {
-    let baseXp = enemy.xp || 0;
-    let baseGold = enemy.gold || 0;
+/*
+=================================
+RECOMPENSA BASE
+=================================
+*/
+
+function buildRewardBase(player, enemy) {
+    let baseXp = Math.max(1, Number(enemy?.xp || 0));
+    let baseGold = Math.max(1, Number(enemy?.gold || 0));
 
     if (player.vip) {
-        baseXp = Math.floor(baseXp * 1.5);
-        baseGold = Math.floor(baseGold * 1.5);
+        baseXp = Math.floor(baseXp * 1.20);
+        baseGold = Math.floor(baseGold * 1.20);
     }
 
-    const bonusGold = Math.random() < 0.15 ? Math.floor(baseGold * 0.5) : 0;
     const streakBonus = (player.totalKills > 0 && player.totalKills % 10 === 0)
-        ? Math.floor(baseGold * 0.3)
+        ? Math.floor(baseGold * 0.20)
         : 0;
 
-    const finalGold = baseGold + bonusGold + streakBonus;
+    const occasionalBonusGold = Math.random() < 0.10
+        ? Math.floor(baseGold * 0.25)
+        : 0;
 
     return {
         xp: baseXp,
-        gold: finalGold,
-        bonusGold,
-        streakBonus
+        gold: baseGold + streakBonus + occasionalBonusGold,
+        streakBonus,
+        bonusGold: occasionalBonusGold
     };
 }
 
 /*
 =================================
-SOUL DROP
+CHAVE
+=================================
+*/
+
+function tryDropKey(player, enemy, loot) {
+    // Chave não cai de inimigo comum.
+    let chance = 0;
+
+    if (enemy?.isBoss) chance = 0.12;
+    else if (enemy?.isMiniBoss) chance = 0.05;
+    else if (enemy?.isElite) chance = 0.015;
+    else chance = 0;
+
+    const dropped = Math.random() < chance;
+
+    if (dropped) {
+        applyKeyReward(player, 1);
+        loot.push('🗝️ Chave Sombria');
+    }
+
+    return dropped;
+}
+
+/*
+=================================
+ITEM
+=================================
+*/
+
+function tryDropItem(player, enemy, loot) {
+    const mapNumber = getMapNumber(player.currentMap);
+    const encounterTier = getEncounterTier(enemy);
+    const dropProfile = getDropProfileByEnemy(mapNumber, encounterTier);
+
+    if (Math.random() > dropProfile.chance) {
+        return {
+            droppedItem: null,
+            inventoryFull: false
+        };
+    }
+
+    const droppedItem = generateDrop(mapNumber, {
+        encounterTier,
+        rarityBias: dropProfile.rarityBias
+    });
+
+    const addItemResult = addInventoryItem(player, droppedItem);
+
+    if (!addItemResult.success) {
+        return {
+            droppedItem: null,
+            inventoryFull: true
+        };
+    }
+
+    loot.push(`🎁 ${droppedItem.name} [${droppedItem.rarity}]`);
+    return {
+        droppedItem,
+        inventoryFull: false
+    };
+}
+
+/*
+=================================
+SOUL
 =================================
 */
 
 function tryDropSoul(player, enemy, loot) {
-    const soulChance = getSoulChance(enemy);
-    let droppedSoul = null;
-    let soulDropped = false;
+    const soulChance = getSoulDropChanceByEnemy(enemy, player.soulPityCounter);
 
-    if (Math.random() < soulChance) {
-        droppedSoul = dropSoul(player.level, enemy.id, player.soulPityCounter);
-
-        if (droppedSoul) {
-            player.soulsInventory.push(droppedSoul);
-            loot.push(`💀 ${droppedSoul.name}`);
-            soulDropped = true;
+    if (Math.random() > soulChance) {
+        if (enemy?.isBoss) {
+            registerSoulPityFailure(player);
         }
+        return {
+            droppedSoul: null,
+            soulDropped: false,
+            soulChance
+        };
     }
 
-    if (enemy.isBoss) {
-        if (soulDropped) {
-            player.soulPityCounter = 0;
-        } else {
-            player.soulPityCounter += 1;
+    const droppedSoul = resolveSoulDrop({
+        playerLevel: player.level,
+        enemy,
+        pityCounter: player.soulPityCounter
+    });
+
+    if (!droppedSoul) {
+        if (enemy?.isBoss) {
+            registerSoulPityFailure(player);
         }
+        return {
+            droppedSoul: null,
+            soulDropped: false,
+            soulChance
+        };
+    }
+
+    player.soulsInventory.push(droppedSoul);
+    loot.push(`💀 ${droppedSoul.name} [${droppedSoul.rarity}]`);
+
+    if (enemy?.isBoss) {
+        resetSoulPity(player);
     }
 
     return {
         droppedSoul,
-        soulDropped
+        soulDropped: true,
+        soulChance
     };
 }
 
@@ -141,7 +231,7 @@ PROCESSAMENTO DE RECOMPENSAS
 function processVictory(player, enemy) {
     ensureRewardState(player);
 
-    const rewardBase = buildGoldRewards(player, enemy);
+    const rewardBase = buildRewardBase(player, enemy);
     const loot = [];
 
     applyGoldReward(player, rewardBase.gold);
@@ -150,56 +240,9 @@ function processVictory(player, enemy) {
     applyXpReward(player, rewardBase.xp);
     const leveledUp = player.level > previousLevel;
 
-    let droppedItem = null;
-    let droppedSoul = null;
-
-    const mapNumber = getMapNumber(player.currentMap);
-
-    /*
-    =================================
-    DROP DE EQUIPAMENTO
-    =================================
-    */
-
-    const equipmentChance = getEquipmentChance(enemy);
-    if (Math.random() < equipmentChance) {
-        droppedItem = generateDrop(mapNumber);
-
-        const addItemResult = addInventoryItem(player, droppedItem);
-        if (addItemResult.success) {
-            loot.push(`🎁 ${droppedItem.name} [Lv${droppedItem.level}]`);
-        } else {
-            droppedItem = null;
-        }
-    }
-
-    /*
-    =================================
-    DROP DE ALMA
-    PITY TOTALMENTE CENTRALIZADO EM souls.js
-    =================================
-    */
-
+    const itemResult = tryDropItem(player, enemy, loot);
     const soulResult = tryDropSoul(player, enemy, loot);
-    droppedSoul = soulResult.droppedSoul;
-
-    /*
-    =================================
-    DROP DE CHAVE
-    =================================
-    */
-
-    const keyDropped = Math.random() < getKeyChance(enemy);
-    if (keyDropped) {
-        applyKeyReward(player, 1);
-        loot.push('🗝️ Chave Sombria');
-    }
-
-    /*
-    =================================
-    TOTAL DE ABATES
-    =================================
-    */
+    const keyDropped = tryDropKey(player, enemy, loot);
 
     player.totalKills += 1;
 
@@ -212,8 +255,11 @@ function processVictory(player, enemy) {
         bonusGold: rewardBase.bonusGold,
         streakBonus: rewardBase.streakBonus,
         loot,
-        droppedItem,
-        droppedSoul,
+        droppedItem: itemResult.droppedItem,
+        inventoryFull: itemResult.inventoryFull,
+        droppedSoul: soulResult.droppedSoul,
+        soulDropped: soulResult.soulDropped,
+        soulChance: soulResult.soulChance,
         keyDropped,
         leveledUp,
         totalKills: player.totalKills
