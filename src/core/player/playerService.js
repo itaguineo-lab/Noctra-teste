@@ -5,6 +5,11 @@ const {
     preserveTransientStates,
     sanitizePlayerForPersistence
 } = require('./playerSaveGuard');
+const {
+    ensureEnergyFields,
+    syncEnergyCapacity,
+    updateEnergy
+} = require('../../services/energyService');
 
 let isConnected = false;
 
@@ -43,7 +48,7 @@ function updateBuffs(player) {
     const now = Date.now();
     player.buffs = player.buffs.filter(buff => {
         if (!buff.expiresAt) return true;
-        return buff.expiresAt > now;
+        return Number(buff.expiresAt) > now;
     });
 
     return player;
@@ -108,9 +113,8 @@ function ensurePlayerState(player) {
     player.vip ??= false;
     player.vipExpires ??= null;
 
-    player.maxEnergy ??= player.vip ? 40 : 20;
-    player.energy ??= player.maxEnergy;
-    player.lastEnergyUpdate ??= Date.now();
+    ensureEnergyFields(player);
+    syncEnergyCapacity(player);
 
     player.inventory ??= [];
     player.inventory = player.inventory.map(migrateItemSlot);
@@ -158,8 +162,8 @@ function ensurePlayerState(player) {
     ensureActiveFightState(player);
     ensureActiveArenaBattleState(player);
 
-    player.createdAt ??= Date.now();
-    player.updatedAt ??= Date.now();
+    player.createdAt ??= new Date();
+    player.updatedAt ??= new Date();
 
     player.hp ??= 120;
     player.maxHp ??= 120;
@@ -183,6 +187,7 @@ function recalculateStats(player) {
         arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
     };
 
+    ensurePlayerState(player);
     updateBuffs(player);
 
     const currentHp = Number(player.hp) || 1;
@@ -196,36 +201,36 @@ function recalculateStats(player) {
     if (player.equipment) {
         Object.values(player.equipment).forEach(item => {
             if (!item) return;
-            atk += item.atk || 0;
-            def += item.def || 0;
-            maxHp += item.hp || 0;
-            crit += item.crit || 0;
+            atk += Number(item.atk || 0);
+            def += Number(item.def || 0);
+            maxHp += Number(item.hp || 0);
+            crit += Number(item.crit || 0);
         });
     }
 
     if (Array.isArray(player.soulsEquipped)) {
         player.soulsEquipped.forEach(soul => {
             if (!soul?.effect) return;
-            atk += soul.effect.atkBonus || 0;
-            def += soul.effect.defBonus || 0;
-            maxHp += soul.effect.hpBonus || 0;
-            crit += soul.effect.critBonus || 0;
+            atk += Number(soul.effect.atkBonus || 0);
+            def += Number(soul.effect.defBonus || 0);
+            maxHp += Number(soul.effect.hpBonus || 0);
+            crit += Number(soul.effect.critBonus || 0);
         });
     }
 
     if (Array.isArray(player.buffs)) {
         player.buffs.forEach(buff => {
-            atk += buff.atk || 0;
-            def += buff.def || 0;
-            maxHp += buff.hp || 0;
-            crit += buff.crit || 0;
+            atk += Number(buff.atk || 0);
+            def += Number(buff.def || 0);
+            maxHp += Number(buff.hp || 0);
+            crit += Number(buff.crit || 0);
         });
     }
 
-    player.atk = Math.max(1, atk);
-    player.def = Math.max(0, def);
-    player.maxHp = Math.max(10, maxHp);
-    player.crit = Math.min(75, crit);
+    player.atk = Math.max(1, Math.floor(atk));
+    player.def = Math.max(0, Math.floor(def));
+    player.maxHp = Math.max(10, Math.floor(maxHp));
+    player.crit = Math.min(75, Math.max(0, Math.floor(crit)));
     player.hp = Math.max(1, Math.min(currentHp, player.maxHp));
 
     return player;
@@ -266,6 +271,8 @@ async function getPlayer(id) {
     const playerObj = player.toObject();
     ensurePlayerState(playerObj);
     updateBuffs(playerObj);
+    updateEnergy(playerObj);
+    recalculateStats(playerObj);
 
     return playerObj;
 }
@@ -286,6 +293,8 @@ async function savePlayer(id, playerData) {
     updateData = withoutId;
 
     ensurePlayerState(updateData);
+    updateBuffs(updateData);
+    syncEnergyCapacity(updateData);
     recalculateStats(updateData);
     ensureActiveFightState(updateData);
     ensureActiveArenaBattleState(updateData);
@@ -301,6 +310,8 @@ async function savePlayer(id, playerData) {
 
     const saved = result.toObject();
     ensurePlayerState(saved);
+    updateBuffs(saved);
+    recalculateStats(saved);
 
     return saved;
 }
@@ -318,6 +329,9 @@ async function getAllPlayers() {
 
     for (const player of players) {
         ensurePlayerState(player);
+        updateBuffs(player);
+        updateEnergy(player);
+        recalculateStats(player);
         playersMap[player.id] = player;
     }
 
@@ -367,6 +381,7 @@ async function createPlayer(id, name, className) {
     recalculateStats(playerObj);
     playerObj.hp = playerObj.maxHp;
     playerObj.energy = playerObj.maxEnergy;
+    playerObj.lastEnergyUpdate = new Date();
 
     await savePlayer(id, playerObj);
     return playerObj;
