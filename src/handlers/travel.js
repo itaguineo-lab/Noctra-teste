@@ -13,6 +13,7 @@ const {
 } = require('../core/world/maps');
 
 const assets = require('../data/assets');
+const { navigateScreen, safeAnswer } = require('../utils/uiNavigator');
 
 /*
 =================================
@@ -80,46 +81,11 @@ async function sendOrUpdateTravelMessage(ctx, player) {
     const currentMap = player.currentMap || maps[0].id;
     const mapImage = assets?.maps?.[currentMap];
 
-    const chatId = ctx.chat.id;
-    const messageId = ctx.callbackQuery?.message?.message_id;
-
-    try {
-        if (messageId) {
-            if (mapImage) {
-                await ctx.telegram.editMessageMedia(chatId, messageId, null, {
-                    type: 'photo',
-                    media: mapImage,
-                    caption,
-                    parse_mode: 'Markdown'
-                }, {
-                    reply_markup: keyboard.reply_markup
-                });
-                return;
-            } else {
-                await ctx.editMessageText(caption, {
-                    parse_mode: 'Markdown',
-                    ...keyboard
-                });
-                return;
-            }
-        }
-    } catch (e) {
-        // Edição falhou, envia nova
-    }
-
-    // Envia nova mensagem
-    if (mapImage) {
-        await ctx.replyWithPhoto(mapImage, {
-            caption,
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    } else {
-        await ctx.reply(caption, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    }
+    return navigateScreen(ctx, {
+        text: caption,
+        media: mapImage || null,
+        options: keyboard
+    });
 }
 
 /*
@@ -129,7 +95,7 @@ TRAVEL MENU
 */
 
 async function handleTravel(ctx) {
-    let player = await getPlayer(ctx.from.id);
+    const player = await getPlayer(ctx.from.id);
 
     if (!player) {
         return ctx.reply('🧭 Você ainda não criou um personagem. Use /start para começar.');
@@ -151,31 +117,30 @@ TRAVEL TO
 
 async function handleTravelTo(ctx) {
     try {
-        await ctx.answerCbQuery();
+        await safeAnswer(ctx);
 
         const mapId = ctx.match?.[1];
         if (!mapId) {
-            return ctx.answerCbQuery('❌ Destino inválido', { show_alert: true });
+            return safeAnswer(ctx, '❌ Destino inválido', { show_alert: true });
         }
 
         const map = getMapById(mapId);
         if (!map) {
-            return ctx.answerCbQuery('❌ Mapa não encontrado', { show_alert: true });
+            return safeAnswer(ctx, '❌ Mapa não encontrado', { show_alert: true });
         }
 
         const player = await getPlayer(ctx.from.id);
         if (!player) {
-            return ctx.answerCbQuery('🧭 Use /start para criar seu personagem.', { show_alert: true });
+            return safeAnswer(ctx, '🧭 Use /start para criar seu personagem.', { show_alert: true });
         }
 
         if (!canPlayerEnter(player, map.id)) {
-            return ctx.answerCbQuery(`🔒 Requer nível ${map.levelReq}`, { show_alert: true });
+            return safeAnswer(ctx, `🔒 Requer nível ${map.levelReq}`, { show_alert: true });
         }
 
         player.currentMap = map.id;
         await savePlayer(ctx.from.id, player);
 
-        // Atualiza a mensagem para mostrar o novo mapa
         return sendOrUpdateTravelMessage(ctx, player);
     } catch (error) {
         console.error('Erro ao viajar:', error);
@@ -190,7 +155,7 @@ LOCKED
 */
 
 async function handleTravelLocked(ctx) {
-    return ctx.answerCbQuery('🔒 Este mapa ainda está bloqueado.', { show_alert: true });
+    return safeAnswer(ctx, '🔒 Este mapa ainda está bloqueado.', { show_alert: true });
 }
 
 /*
@@ -200,7 +165,7 @@ DUNGEON
 */
 
 async function handleDungeon(ctx) {
-    await ctx.answerCbQuery();
+    await safeAnswer(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -208,10 +173,13 @@ async function handleDungeon(ctx) {
     }
     const currentMap = getMapById(player.currentMap);
 
-    return ctx.reply(
-        `🏰 *${currentMap?.dungeonName || 'Masmorra'}*\n\nPrepare-se para o desafio.`,
-        { parse_mode: 'Markdown' }
-    );
+    return navigateScreen(ctx, {
+        text: `🏰 *${currentMap?.dungeonName || 'Masmorra'}*\n\nPrepare-se para o desafio.`,
+        media: null,
+        options: {
+            ...Markup.inlineKeyboard([[Markup.button.callback('🏠 Menu', 'menu')]])
+        }
+    });
 }
 
 module.exports = {
