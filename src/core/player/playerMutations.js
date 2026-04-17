@@ -6,6 +6,13 @@ const {
     sameItem,
     getItemKey
 } = require('./equipmentService');
+const {
+    ensureEnergyFields,
+    consumeEnergy: consumeEnergyState,
+    restoreEnergy: restoreEnergyState,
+    restoreFullEnergy: restoreFullEnergyState,
+    syncEnergyCapacity
+} = require('../../services/energyService');
 
 const VALID_EQUIPMENT_SLOTS = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
 
@@ -51,6 +58,8 @@ function ensurePlayer(player) {
     ensureInventory(player);
     ensureSouls(player);
     ensureConsumables(player);
+    ensureEnergyFields(player);
+    syncEnergyCapacity(player);
     return player;
 }
 
@@ -88,32 +97,17 @@ function restoreFullHp(player) {
 
 function consumeEnergy(player, amount = 1) {
     ensurePlayer(player);
-
-    const value = Math.max(0, Math.floor(toSafeNumber(amount, 1)));
-    if (value <= 0) return true;
-
-    if ((player.energy || 0) < value) {
-        return false;
-    }
-
-    player.energy = Math.max(0, (player.energy || 0) - value);
-    return true;
+    return consumeEnergyState(player, amount);
 }
 
 function restoreEnergy(player, amount = 1) {
     ensurePlayer(player);
-
-    const value = Math.max(0, Math.floor(toSafeNumber(amount, 1)));
-    if (value <= 0) return player;
-
-    player.energy = clamp((player.energy || 0) + value, 0, player.maxEnergy || 0);
-    return player;
+    return restoreEnergyState(player, amount);
 }
 
 function restoreFullEnergy(player) {
     ensurePlayer(player);
-    player.energy = Math.max(0, player.maxEnergy || 0);
-    return player;
+    return restoreFullEnergyState(player);
 }
 
 function addInventoryItem(player, item) {
@@ -401,6 +395,7 @@ function consumeConsumable(player, key, amount = 1) {
 function normalizePlayerForSave(player) {
     ensurePlayer(player);
     cleanupExpiredBuffs(player);
+    syncEnergyCapacity(player);
     recalculateStats(player);
 
     player.hp = clamp(toSafeNumber(player.hp, player.maxHp || 1), 1, player.maxHp || 1);
