@@ -1,5 +1,6 @@
 const { getAllPlayers } = require('../core/player/playerService');
 const { Markup } = require('telegraf');
+const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 
 /*
 =================================
@@ -36,28 +37,6 @@ function formatSection(title, list, formatter) {
     return text + '\n';
 }
 
-async function safeSend(ctx, msg, keyboard) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery();
-            return await ctx.editMessageText(msg, {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
-        }
-        return await ctx.reply(msg, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    } catch (error) {
-        console.error('Erro ranking UI:', error);
-        return await ctx.reply(msg, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
-    }
-}
-
 /*
 =================================
 HANDLER
@@ -66,6 +45,8 @@ HANDLER
 
 async function handleRanking(ctx) {
     try {
+        await safeAnswer(ctx);
+
         const playersMap = await getAllPlayers();
         const list = Object.values(playersMap || {})
             .filter(player => player && player.id)
@@ -110,13 +91,17 @@ async function handleRanking(ctx) {
         );
 
         const keyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('🔄 Atualizar', 'ranking')],
             [Markup.button.callback('◀️ Voltar', 'menu')]
         ]);
 
-        return safeSend(ctx, msg, keyboard);
+        return navigateText(ctx, msg, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
     } catch (error) {
         console.error('Erro ranking:', error);
-        return ctx.reply('❌ Erro ao carregar ranking.');
+        return safeAnswer(ctx, '❌ Erro ao carregar ranking.', { show_alert: true });
     }
 }
 
