@@ -27,7 +27,7 @@ function shopTabsMenu() {
 function renderShop(title, items, player) {
     let text =
         `╔════════════════════════╗\n` +
-        `║      🛒 *${title}*      ║\n` +
+        `║      ${title}      ║\n` +
         `╠════════════════════════╣\n` +
         `║ 💰 ${player.gold || 0}\n` +
         `║ 💎 ${player.nox || 0}\n` +
