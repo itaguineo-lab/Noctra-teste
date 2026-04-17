@@ -15,8 +15,8 @@ function mainMenu() {
             Markup.button.callback('🛒 Loja', 'shop')
         ],
         [
-            Markup.button.callback('⚡ Energia', 'energy'),
-            Markup.button.callback('🎁 Diário', 'daily')
+            Markup.button.callback('🎁 Diário', 'daily'),
+            Markup.button.callback('⚡ Energia', 'energy')
         ],
         [
             Markup.button.callback('🏟️ Arena', 'arena'),
