@@ -19,6 +19,9 @@ const {
     consumeConsumable,
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
+const {
+    updateMissionProgress
+} = require('../core/daily/dailyService');
 
 function escapeMarkdown(text = '') {
     return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -56,7 +59,7 @@ function getDungeonEnemyPool(mapId) {
 function getRandomDungeonEnemy(mapId, type, playerLevel, roomIndex) {
     const pool = getDungeonEnemyPool(mapId);
     const baseLevel = Math.max(1, playerLevel + roomIndex - 1);
-    const bonus = type === 'elite' ? 1 : (type === 'boss' ? 2 : 0);
+    const bonus = type === 'boss' ? 2 : (type === 'elite' ? 1 : 0);
     const level = baseLevel + bonus;
 
     let enemyTemplate;
@@ -441,6 +444,10 @@ function finalizeDungeonRun(player, reason) {
     applyGoldReward(player, bonusGold);
     applyKeyReward(player, bonusKeys);
     applyGloriaReward(player, bonusGlorias);
+
+    if (reason === 'complete') {
+        updateMissionProgress(player, 'dungeon_complete', 1);
+    }
 
     return d;
 }
@@ -851,6 +858,8 @@ async function handleDungeonUseConsumable(ctx) {
     if (!consumeResult.success) {
         return safeAnswer(ctx, '❌ Item indisponível.', true);
     }
+
+    updateMissionProgress(player, 'use_consumable', 1);
 
     const room = getCurrentRoom(player);
     let log = '';
