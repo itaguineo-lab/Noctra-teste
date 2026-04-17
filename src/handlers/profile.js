@@ -17,7 +17,12 @@ const {
     ensureCosmeticsState
 } = require('../core/player/cosmetics');
 
-const { getTimeToNextEnergy, formatEnergyTime } = require('../services/energyService');
+const {
+    getTimeToNextEnergy,
+    getTimeToFullEnergy,
+    formatEnergyTime
+} = require('../services/energyService');
+
 const { navigateScreen, safeAnswer } = require('../utils/uiNavigator');
 const assets = require('../data/assets');
 
@@ -40,6 +45,15 @@ function formatClassName(className = 'guerreiro') {
     return map[className] || className;
 }
 
+function getPlayerPower(player) {
+    const atk = Number(player.atk || 0);
+    const def = Number(player.def || 0);
+    const hp = Number(player.maxHp || 0);
+    const crit = Number(player.crit || 0);
+
+    return Math.max(1, Math.round((atk * 2) + (def * 1.5) + (hp * 0.5) + (crit * 3)));
+}
+
 function detectBuild(player) {
     const weapon = player.equipment?.weapon;
     const shield = player.equipment?.shield;
@@ -50,14 +64,15 @@ function detectBuild(player) {
         if (weaponName.includes('machado') && !hasShield) return '⚔️ Berserker';
         if (weaponName.includes('espada') && hasShield) return '🛡️ Guardião';
         if ((player.def || 0) >= 35) return '🛡️ Guardião';
-        return '⚔️ Berserker';
+        if ((player.atk || 0) >= 40) return '⚔️ Executor';
+        return '⚔️ Guerreiro Base';
     }
 
     if (player.class === 'arqueiro') {
         if (weaponName.includes('arco')) return '🏹 Caçador';
         if (weaponName.includes('lança') && hasShield) return '🛡️ Lanceiro';
         if ((player.crit || 0) >= 20) return '🎯 Sniper';
-        return '🏹 Caçador';
+        return '🏹 Arqueiro Base';
     }
 
     if (player.class === 'mago') {
@@ -122,12 +137,23 @@ function buildBuffsText(player) {
     }).join('\n');
 }
 
+function getEnergySummary(player) {
+    const nextEnergy = getTimeToNextEnergy(player);
+    const fullEnergy = getTimeToFullEnergy(player);
+
+    return {
+        nextText: nextEnergy > 0 ? formatEnergyTime(nextEnergy) : 'Cheio',
+        fullText: fullEnergy > 0 ? formatEnergyTime(fullEnergy) : 'Cheio'
+    };
+}
+
 function renderProfileCaption(player) {
     ensureCosmeticsState(player);
 
     const xpNeeded = getXpToNextLevel(player.level);
     const map = getPlayerMap(player);
     const buildName = detectBuild(player);
+    const power = getPlayerPower(player);
 
     const activeTitle = getActiveCosmetic(player, 'title');
     const activeAura = getActiveCosmetic(player, 'aura');
@@ -136,9 +162,7 @@ function renderProfileCaption(player) {
     const xpBar = progressBar(player.xp, xpNeeded, 10, '🟨', '⬛');
     const hpBar = progressBar(player.hp, player.maxHp, 10, '🟥', '⬛');
     const energyBar = progressBar(player.energy, player.maxEnergy, 10, '🟦', '⬛');
-
-    const nextEnergy = getTimeToNextEnergy(player);
-    const nextEnergyText = nextEnergy > 0 ? formatEnergyTime(nextEnergy) : 'Cheio';
+    const energySummary = getEnergySummary(player);
 
     const eq = player.equipment || {};
 
@@ -150,7 +174,8 @@ function renderProfileCaption(player) {
     msg += `🏹 ${formatClassName(player.class)}\n`;
     if (activeTitle) msg += `🏷️ ${activeTitle.name}\n`;
     msg += `🧠 ${buildName}\n`;
-    msg += `⭐ Nível ${player.level}\n\n`;
+    msg += `⭐ Nível ${player.level}\n`;
+    msg += `🔥 Poder ${power}\n\n`;
 
     msg += `✨ XP ${formatNumber(player.xp)} / ${formatNumber(xpNeeded)}\n`;
     msg += `[${xpBar}]\n\n`;
@@ -158,7 +183,8 @@ function renderProfileCaption(player) {
     msg += `❤️ HP ${player.hp}/${player.maxHp}\n`;
     msg += `[${hpBar}]\n\n`;
 
-    msg += `⚡ Energia ${player.energy}/${player.maxEnergy} • Próxima em: ${nextEnergyText}\n`;
+    msg += `⚡ Energia ${player.energy}/${player.maxEnergy} • Próxima em: ${energySummary.nextText}\n`;
+    msg += `🔋 Energia cheia em: ${energySummary.fullText}\n`;
     msg += `[${energyBar}]\n\n`;
 
     msg += `⚔️ ATK ${player.atk}\n`;
@@ -195,7 +221,7 @@ function renderProfileCaption(player) {
 
 /*
 =================================
-PROFILE HANDLER (COM FOTO)
+PROFILE HANDLER
 =================================
 */
 
@@ -209,8 +235,17 @@ async function handleProfile(ctx) {
 
     const caption = renderProfileCaption(player);
     const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📝 Renomear', 'rename_help'), Markup.button.callback('🔄 Classe', 'class_help')],
-        [Markup.button.callback('◀️ Voltar', 'menu')]
+        [
+            Markup.button.callback('🎒 Inventário', 'inventory'),
+            Markup.button.callback('🗺️ Viajar', 'travel')
+        ],
+        [
+            Markup.button.callback('📝 Renomear', 'rename_help'),
+            Markup.button.callback('🔄 Classe', 'class_help')
+        ],
+        [
+            Markup.button.callback('◀️ Voltar', 'menu')
+        ]
     ]);
 
     const profileImage = assets?.profile?.[player.class];
