@@ -50,14 +50,20 @@ async function navigatePhoto(ctx, media, caption, options = {}) {
 
     if (chatId && messageId) {
         try {
-            await ctx.telegram.editMessageMedia(chatId, messageId, null, {
-                type: 'photo',
-                media,
-                caption,
-                parse_mode: 'Markdown'
-            }, {
-                reply_markup: payload.reply_markup
-            });
+            await ctx.telegram.editMessageMedia(
+                chatId,
+                messageId,
+                null,
+                {
+                    type: 'photo',
+                    media,
+                    caption,
+                    parse_mode: 'Markdown'
+                },
+                {
+                    reply_markup: payload.reply_markup
+                }
+            );
             return true;
         } catch {
             const deleted = await tryDeleteCurrentMessage(ctx);
@@ -82,11 +88,11 @@ async function navigatePhoto(ctx, media, caption, options = {}) {
     return true;
 }
 
-async function navigateScreen(ctx, { text = null, media = null, options = {} }) {
+async function navigateScreen(ctx, { text = '', media = null, options = {} }) {
     if (media) {
-        return navigatePhoto(ctx, media, text || '', options);
+        return navigatePhoto(ctx, media, text, options);
     }
-    return navigateText(ctx, text || '', options);
+    return navigateText(ctx, text, options);
 }
 
 module.exports = {
