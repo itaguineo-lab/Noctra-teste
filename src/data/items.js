@@ -126,13 +126,13 @@ const ITEM_POOL = {
     }
 };
 
-const RARITIES = [
-    { name: 'Comum', multiplier: 1.0, weight: 44 },
-    { name: 'Incomum', multiplier: 1.16, weight: 28 },
-    { name: 'Raro', multiplier: 1.34, weight: 16 },
-    { name: 'Épico', multiplier: 1.62, weight: 8 },
-    { name: 'Lendário', multiplier: 1.95, weight: 3 },
-    { name: 'Mítico', multiplier: 2.35, weight: 1 }
+const BASE_RARITIES = [
+    { name: 'Comum', multiplier: 1.00, weight: 52 },
+    { name: 'Incomum', multiplier: 1.15, weight: 26 },
+    { name: 'Raro', multiplier: 1.32, weight: 13 },
+    { name: 'Épico', multiplier: 1.58, weight: 6 },
+    { name: 'Lendário', multiplier: 1.90, weight: 2 },
+    { name: 'Mítico', multiplier: 2.30, weight: 1 }
 ];
 
 const CATEGORY_WEIGHTS = {
@@ -149,28 +149,22 @@ function randomFrom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function weightedCategory() {
-    const total = Object.values(CATEGORY_WEIGHTS).reduce((sum, w) => sum + w, 0);
+function weightedChoice(entries) {
+    const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
     let roll = Math.random() * total;
 
-    for (const [category, weight] of Object.entries(CATEGORY_WEIGHTS)) {
-        roll -= weight;
-        if (roll <= 0) return category;
+    for (const entry of entries) {
+        roll -= entry.weight;
+        if (roll <= 0) return entry;
     }
 
-    return 'weapon';
+    return entries[0];
 }
 
-function weightedRarity() {
-    const total = RARITIES.reduce((sum, rarity) => sum + rarity.weight, 0);
-    let roll = Math.random() * total;
-
-    for (const rarity of RARITIES) {
-        roll -= rarity.weight;
-        if (roll <= 0) return rarity;
-    }
-
-    return RARITIES[0];
+function weightedCategory() {
+    return weightedChoice(
+        Object.entries(CATEGORY_WEIGHTS).map(([name, weight]) => ({ name, weight }))
+    ).name;
 }
 
 function getTierByMap(mapId = 1) {
@@ -227,7 +221,7 @@ function getPowerTier(power) {
 
 function buildStatsBySlot(tier, slot) {
     const scaleMap = {
-        level1: 1.0,
+        level1: 1.00,
         level6: 1.45,
         level12: 1.95,
         level18: 2.55,
@@ -240,9 +234,9 @@ function buildStatsBySlot(tier, slot) {
     if (slot === 'weapon') {
         return {
             atk: rand(4, 7) * scale,
-            def: rand(0, 2) * scale * 0.4,
-            hp: rand(0, 6) * scale * 0.5,
-            crit: rand(2, 5) * scale * 0.55
+            def: rand(0, 2) * scale * 0.35,
+            hp: rand(0, 6) * scale * 0.45,
+            crit: rand(2, 5) * scale * 0.50
         };
     }
 
@@ -260,7 +254,7 @@ function buildStatsBySlot(tier, slot) {
             atk: 0,
             def: rand(4, 7) * scale,
             hp: rand(6, 12) * scale,
-            crit: rand(0, 1) * scale * 0.25
+            crit: rand(0, 1) * scale * 0.20
         };
     }
 
@@ -269,16 +263,16 @@ function buildStatsBySlot(tier, slot) {
             atk: 0,
             def: rand(2, 4) * scale,
             hp: rand(4, 8) * scale,
-            crit: rand(2, 4) * scale * 0.45
+            crit: rand(2, 4) * scale * 0.40
         };
     }
 
     if (slot === 'ring' || slot === 'necklace') {
         return {
             atk: rand(1, 3) * scale,
-            def: rand(1, 2) * scale * 0.5,
+            def: rand(1, 2) * scale * 0.45,
             hp: rand(4, 8) * scale,
-            crit: rand(3, 6) * scale * 0.6
+            crit: rand(3, 6) * scale * 0.55
         };
     }
 
@@ -303,11 +297,146 @@ function buildItemId() {
     return `${Date.now()}_${rand(1000, 9999)}`;
 }
 
-function generateDrop(mapId = 1) {
+/*
+=================================
+PERFIS DE DROP
+=================================
+*/
+
+function getDropProfileByEnemy(mapId = 1, encounterTier = 'common') {
+    const baseByMap = {
+        1: {
+            common: { chance: 0.08, rarityBias: 'early_common' },
+            elite: { chance: 0.18, rarityBias: 'early_elite' },
+            miniboss: { chance: 0.32, rarityBias: 'early_boss' },
+            boss: { chance: 0.55, rarityBias: 'early_boss' }
+        },
+        2: {
+            common: { chance: 0.10, rarityBias: 'mid_common' },
+            elite: { chance: 0.20, rarityBias: 'mid_elite' },
+            miniboss: { chance: 0.35, rarityBias: 'mid_boss' },
+            boss: { chance: 0.60, rarityBias: 'mid_boss' }
+        },
+        3: {
+            common: { chance: 0.11, rarityBias: 'mid_common' },
+            elite: { chance: 0.22, rarityBias: 'mid_elite' },
+            miniboss: { chance: 0.38, rarityBias: 'mid_boss' },
+            boss: { chance: 0.65, rarityBias: 'mid_boss' }
+        },
+        4: {
+            common: { chance: 0.12, rarityBias: 'late_common' },
+            elite: { chance: 0.24, rarityBias: 'late_elite' },
+            miniboss: { chance: 0.42, rarityBias: 'late_boss' },
+            boss: { chance: 0.70, rarityBias: 'late_boss' }
+        },
+        5: {
+            common: { chance: 0.13, rarityBias: 'late_common' },
+            elite: { chance: 0.26, rarityBias: 'late_elite' },
+            miniboss: { chance: 0.45, rarityBias: 'late_boss' },
+            boss: { chance: 0.74, rarityBias: 'late_boss' }
+        },
+        6: {
+            common: { chance: 0.14, rarityBias: 'endgame_common' },
+            elite: { chance: 0.28, rarityBias: 'endgame_elite' },
+            miniboss: { chance: 0.48, rarityBias: 'endgame_boss' },
+            boss: { chance: 0.78, rarityBias: 'endgame_boss' }
+        }
+    };
+
+    const profileMap = baseByMap[mapId] || baseByMap[1];
+    return profileMap[encounterTier] || profileMap.common;
+}
+
+function getRarityTableByBias(rarityBias = 'early_common') {
+    const tables = {
+        early_common: [
+            { name: 'Comum', multiplier: 1.00, weight: 64 },
+            { name: 'Incomum', multiplier: 1.15, weight: 24 },
+            { name: 'Raro', multiplier: 1.32, weight: 9 },
+            { name: 'Épico', multiplier: 1.58, weight: 2 },
+            { name: 'Lendário', multiplier: 1.90, weight: 1 }
+        ],
+        early_elite: [
+            { name: 'Comum', multiplier: 1.00, weight: 42 },
+            { name: 'Incomum', multiplier: 1.15, weight: 30 },
+            { name: 'Raro', multiplier: 1.32, weight: 18 },
+            { name: 'Épico', multiplier: 1.58, weight: 8 },
+            { name: 'Lendário', multiplier: 1.90, weight: 2 }
+        ],
+        early_boss: [
+            { name: 'Incomum', multiplier: 1.15, weight: 38 },
+            { name: 'Raro', multiplier: 1.32, weight: 30 },
+            { name: 'Épico', multiplier: 1.58, weight: 18 },
+            { name: 'Lendário', multiplier: 1.90, weight: 10 },
+            { name: 'Mítico', multiplier: 2.30, weight: 4 }
+        ],
+        mid_common: [
+            { name: 'Comum', multiplier: 1.00, weight: 42 },
+            { name: 'Incomum', multiplier: 1.15, weight: 30 },
+            { name: 'Raro', multiplier: 1.32, weight: 18 },
+            { name: 'Épico', multiplier: 1.58, weight: 7 },
+            { name: 'Lendário', multiplier: 1.90, weight: 3 }
+        ],
+        mid_elite: [
+            { name: 'Incomum', multiplier: 1.15, weight: 34 },
+            { name: 'Raro', multiplier: 1.32, weight: 28 },
+            { name: 'Épico', multiplier: 1.58, weight: 22 },
+            { name: 'Lendário', multiplier: 1.90, weight: 12 },
+            { name: 'Mítico', multiplier: 2.30, weight: 4 }
+        ],
+        mid_boss: [
+            { name: 'Raro', multiplier: 1.32, weight: 34 },
+            { name: 'Épico', multiplier: 1.58, weight: 28 },
+            { name: 'Lendário', multiplier: 1.90, weight: 24 },
+            { name: 'Mítico', multiplier: 2.30, weight: 14 }
+        ],
+        late_common: [
+            { name: 'Incomum', multiplier: 1.15, weight: 34 },
+            { name: 'Raro', multiplier: 1.32, weight: 30 },
+            { name: 'Épico', multiplier: 1.58, weight: 20 },
+            { name: 'Lendário', multiplier: 1.90, weight: 12 },
+            { name: 'Mítico', multiplier: 2.30, weight: 4 }
+        ],
+        late_elite: [
+            { name: 'Raro', multiplier: 1.32, weight: 32 },
+            { name: 'Épico', multiplier: 1.58, weight: 28 },
+            { name: 'Lendário', multiplier: 1.90, weight: 24 },
+            { name: 'Mítico', multiplier: 2.30, weight: 16 }
+        ],
+        late_boss: [
+            { name: 'Épico', multiplier: 1.58, weight: 36 },
+            { name: 'Lendário', multiplier: 1.90, weight: 34 },
+            { name: 'Mítico', multiplier: 2.30, weight: 30 }
+        ],
+        endgame_common: [
+            { name: 'Raro', multiplier: 1.32, weight: 30 },
+            { name: 'Épico', multiplier: 1.58, weight: 28 },
+            { name: 'Lendário', multiplier: 1.90, weight: 24 },
+            { name: 'Mítico', multiplier: 2.30, weight: 18 }
+        ],
+        endgame_elite: [
+            { name: 'Épico', multiplier: 1.58, weight: 34 },
+            { name: 'Lendário', multiplier: 1.90, weight: 33 },
+            { name: 'Mítico', multiplier: 2.30, weight: 33 }
+        ],
+        endgame_boss: [
+            { name: 'Lendário', multiplier: 1.90, weight: 50 },
+            { name: 'Mítico', multiplier: 2.30, weight: 50 }
+        ]
+    };
+
+    return tables[rarityBias] || BASE_RARITIES;
+}
+
+function selectRarity(rarityBias) {
+    return weightedChoice(getRarityTableByBias(rarityBias));
+}
+
+function generateDrop(mapId = 1, options = {}) {
     const tier = getTierByMap(mapId);
     const category = weightedCategory();
     const itemData = randomFrom(ITEM_POOL[tier][category]);
-    const rarity = weightedRarity();
+    const rarity = selectRarity(options.rarityBias);
     const slot = getSlotFromItem(category, itemData);
 
     const base = buildStatsBySlot(tier, slot);
@@ -344,6 +473,7 @@ function generateDrop(mapId = 1) {
 
 module.exports = {
     generateDrop,
+    getDropProfileByEnemy,
     ITEM_POOL,
-    RARITIES
+    RARITIES: BASE_RARITIES
 };
