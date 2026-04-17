@@ -92,7 +92,10 @@ async function runDefend(userId) {
     const { fight, meta } = stored;
 
     applyDefend(fight);
-    processEnemyTurn(fight);
+
+    if (fight.status === 'ongoing') {
+        processEnemyTurn(fight);
+    }
 
     await persistFightState(userId, fight, meta);
     return { fight, meta };
@@ -116,7 +119,12 @@ async function runSoul(userId, soulIndex) {
     const { fight, meta } = stored;
     const result = useSoul(fight, soulIndex);
 
-    if (result && fight.status === 'ongoing') {
+    if (!result) {
+        await persistFightState(userId, fight, meta);
+        return { fight, meta, result: null };
+    }
+
+    if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
     }
 
@@ -145,6 +153,10 @@ async function runConsumableTurn(userId, applyConsumableEffect) {
     const { fight, meta } = stored;
 
     const effectResult = applyConsumableEffect(fight);
+    if (effectResult?.success === false) {
+        await persistFightState(userId, fight, meta);
+        return { fight, meta, effectResult };
+    }
 
     if (fight.status === 'ongoing') {
         processEnemyTurn(fight);
