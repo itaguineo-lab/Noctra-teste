@@ -8,20 +8,14 @@ const {
 const { shopItems } = require('../data/shopItems');
 const { shopMainMenu, shopTabsMenu, renderShop } = require('../menus/shopMenu');
 const { getItemKey } = require('../core/player/playerMutations');
+const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 
 const activePurchases = new Set();
 const SELL_PAGE_SIZE = 8;
 
 async function safeEdit(ctx, text, options = {}) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery().catch(() => {});
-            return await ctx.editMessageText(text, options);
-        }
-        return await ctx.reply(text, options);
-    } catch {
-        return await ctx.reply(text, options);
-    }
+    await safeAnswer(ctx).catch?.(() => {});
+    return navigateText(ctx, text, options);
 }
 
 function getWalletText(player) {
@@ -136,7 +130,7 @@ async function renderSellPage(ctx, page = 1) {
     const sellable = buildSellInventory(player);
 
     if (!sellable.length) {
-        await ctx.answerCbQuery?.('❌ Você não tem itens para vender.', { show_alert: true }).catch(() => {});
+        await safeAnswer(ctx, '❌ Você não tem itens para vender.', { show_alert: true });
         return handleShop(ctx);
     }
 
@@ -178,7 +172,7 @@ async function handleBuy(ctx) {
     const playerId = String(ctx.from.id);
 
     if (activePurchases.has(playerId)) {
-        return ctx.answerCbQuery('⏳ Compra em andamento...', { show_alert: true });
+        return safeAnswer(ctx, '⏳ Compra em andamento...', { show_alert: true });
     }
 
     activePurchases.add(playerId);
@@ -186,27 +180,27 @@ async function handleBuy(ctx) {
     try {
         const itemId = ctx.match?.[1];
         if (!itemId) {
-            return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+            return safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
         }
 
         const player = await getPlayer(ctx.from.id);
         const item = shopItems.find(i => i.id === itemId);
 
         if (!item) {
-            return ctx.answerCbQuery('❌ Item não encontrado.', { show_alert: true });
+            return safeAnswer(ctx, '❌ Item não encontrado.', { show_alert: true });
         }
 
         const result = processPurchase(player, item);
         if (!result?.success) {
-            return ctx.answerCbQuery(result?.message || '❌ Compra falhou.', { show_alert: true });
+            return safeAnswer(ctx, result?.message || '❌ Compra falhou.', { show_alert: true });
         }
 
         await savePlayer(ctx.from.id, player);
-        await ctx.answerCbQuery(result.message || `✅ ${item.name} comprado!`, { show_alert: true });
+        await safeAnswer(ctx, result.message || `✅ ${item.name} comprado!`, { show_alert: true });
         return redirectAfterPurchase(ctx, item.shop);
     } catch (error) {
         console.error('Erro ao comprar:', error);
-        return ctx.answerCbQuery('❌ Erro ao processar compra.', { show_alert: true });
+        return safeAnswer(ctx, '❌ Erro ao processar compra.', { show_alert: true });
     } finally {
         activePurchases.delete(playerId);
     }
@@ -224,7 +218,7 @@ async function handleShopSellPage(ctx) {
 async function handleSellConfirm(ctx) {
     const match = ctx.match?.[1];
     if (match === undefined) {
-        return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+        return safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
     }
 
     const itemIndex = parseInt(match, 10);
@@ -232,18 +226,18 @@ async function handleSellConfirm(ctx) {
 
     const result = require('../core/economy/shopLogic').sellItem(player, itemIndex);
     if (!result.success) {
-        return ctx.answerCbQuery(result.message, { show_alert: true });
+        return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
     await savePlayer(ctx.from.id, player);
-    await ctx.answerCbQuery(result.message, { show_alert: true });
+    await safeAnswer(ctx, result.message, { show_alert: true });
     return handleShop(ctx);
 }
 
 async function handleSellConfirmByKey(ctx) {
     const itemKey = ctx.match?.[1];
     if (!itemKey) {
-        return ctx.answerCbQuery('❌ Item inválido.', { show_alert: true });
+        return safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
     }
 
     const decodedKey = decodeURIComponent(itemKey);
@@ -251,11 +245,11 @@ async function handleSellConfirmByKey(ctx) {
 
     const result = sellItemByKey(player, decodedKey);
     if (!result.success) {
-        return ctx.answerCbQuery(result.message, { show_alert: true });
+        return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
     await savePlayer(ctx.from.id, player);
-    await ctx.answerCbQuery(result.message, { show_alert: true });
+    await safeAnswer(ctx, result.message, { show_alert: true });
     return renderSellPage(ctx, 1);
 }
 
