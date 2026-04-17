@@ -22,6 +22,10 @@ const {
 const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
+const {
+    navigateText,
+    safeAnswer
+} = require('../utils/uiNavigator');
 
 function escapeMarkdown(text = '') {
     return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -604,25 +608,14 @@ function buildDungeonKeyboard(player) {
 }
 
 async function safeSend(ctx, text, options = {}) {
-    try {
-        if (ctx.callbackQuery) {
-            await ctx.answerCbQuery().catch(() => {});
-            return await ctx.editMessageText(text, options);
-        }
-        return await ctx.reply(text, options);
-    } catch {
-        return await ctx.reply(text, options);
-    }
-}
-
-async function safeAnswer(ctx, text, alert = true) {
-    try {
-        await ctx.answerCbQuery(text, { show_alert: alert });
-    } catch {}
+    return navigateText(ctx, text, {
+        parse_mode: 'Markdown',
+        ...options
+    });
 }
 
 async function handleDungeon(ctx) {
-    await safeAnswer(ctx, '', false);
+    await safeAnswer(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -631,14 +624,11 @@ async function handleDungeon(ctx) {
 
     normalizeDungeonState(player);
 
-    return safeSend(ctx, renderDungeonText(player), {
-        parse_mode: 'Markdown',
-        ...buildDungeonKeyboard(player)
-    });
+    return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonStart(ctx) {
-    await safeAnswer(ctx, '', false);
+    await safeAnswer(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -646,11 +636,8 @@ async function handleDungeonStart(ctx) {
     }
 
     if (!player.keys || player.keys < 1) {
-        await safeAnswer(ctx, '❌ Você precisa de 1 Chave de Masmorra para entrar.', true);
-        return safeSend(ctx, renderDungeonSummary(player), {
-            parse_mode: 'Markdown',
-            ...buildDungeonKeyboard(player)
-        });
+        await safeAnswer(ctx, '❌ Você precisa de 1 Chave de Masmorra para entrar.', { show_alert: true });
+        return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
     player.keys -= 1;
@@ -658,14 +645,11 @@ async function handleDungeonStart(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    return safeSend(ctx, renderDungeonText(player), {
-        parse_mode: 'Markdown',
-        ...buildDungeonKeyboard(player)
-    });
+    return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonAttack(ctx) {
-    await safeAnswer(ctx, '', false);
+    await safeAnswer(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -676,10 +660,7 @@ async function handleDungeonAttack(ctx) {
     const room = getCurrentRoom(player);
 
     if (!room || room.cleared) {
-        return safeSend(ctx, renderDungeonText(player), {
-            parse_mode: 'Markdown',
-            ...buildDungeonKeyboard(player)
-        });
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
     let result;
@@ -702,10 +683,7 @@ async function handleDungeonAttack(ctx) {
 
     if (result.playerDefeated) {
         await savePlayer(ctx.from.id, player);
-        return safeSend(ctx, renderDungeonSummary(player), {
-            parse_mode: 'Markdown',
-            ...buildDungeonKeyboard(player)
-        });
+        return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
     await savePlayer(ctx.from.id, player);
@@ -714,25 +692,19 @@ async function handleDungeonAttack(ctx) {
         finalizeDungeonRun(player, 'complete');
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        return safeSend(ctx, renderDungeonSummary(player), {
-            parse_mode: 'Markdown',
-            ...buildDungeonKeyboard(player)
-        });
+        return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
     let msg = result.message;
     if (result.notes?.length) msg += '\n' + result.notes.join('\n');
 
-    await safeAnswer(ctx, msg, true);
+    await safeAnswer(ctx, msg, { show_alert: true });
 
-    return safeSend(ctx, renderDungeonText(player), {
-        parse_mode: 'Markdown',
-        ...buildDungeonKeyboard(player)
-    });
+    return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonNextRoom(ctx) {
-    await safeAnswer(ctx, '', false);
+    await safeAnswer(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -743,7 +715,7 @@ async function handleDungeonNextRoom(ctx) {
     const room = getCurrentRoom(player);
 
     if (!room || !room.cleared) {
-        await safeAnswer(ctx, '⚠️ Resolva a sala atual primeiro.', true);
+        await safeAnswer(ctx, '⚠️ Resolva a sala atual primeiro.', { show_alert: true });
         return;
     }
 
@@ -751,10 +723,7 @@ async function handleDungeonNextRoom(ctx) {
         finalizeDungeonRun(player, 'complete');
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        return safeSend(ctx, renderDungeonSummary(player), {
-            parse_mode: 'Markdown',
-            ...buildDungeonKeyboard(player)
-        });
+        return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
     d.currentRoomIndex++;
@@ -764,14 +733,11 @@ async function handleDungeonNextRoom(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    return safeSend(ctx, renderDungeonText(player), {
-        parse_mode: 'Markdown',
-        ...buildDungeonKeyboard(player)
-    });
+    return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonFlee(ctx) {
-    await safeAnswer(ctx, '', false);
+    await safeAnswer(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -781,7 +747,7 @@ async function handleDungeonFlee(ctx) {
     const d = normalizeDungeonState(player);
 
     if (!d.active) {
-        await safeAnswer(ctx, 'Nenhuma expedição ativa.', true);
+        await safeAnswer(ctx, 'Nenhuma expedição ativa.', { show_alert: true });
         return;
     }
 
@@ -802,17 +768,16 @@ async function handleDungeonFlee(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    return safeSend(ctx, renderDungeonSummary(player), {
-        parse_mode: 'Markdown',
-        ...buildDungeonKeyboard(player)
-    });
+    return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonSoulMenu(ctx) {
-    await safeAnswer(ctx, '💀 Selecione uma alma para usar (em breve).', true);
+    await safeAnswer(ctx, '💀 Selecione uma alma para usar (em breve).', { show_alert: true });
 }
 
 async function handleDungeonConsumables(ctx) {
+    await safeAnswer(ctx);
+
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
@@ -828,16 +793,15 @@ async function handleDungeonConsumables(ctx) {
     rows.push([Markup.button.callback('◀️ Voltar', 'dungeon')]);
 
     if (rows.length === 1) {
-        return safeAnswer(ctx, '❌ Você não possui consumíveis.', true);
+        return safeAnswer(ctx, '❌ Você não possui consumíveis.', { show_alert: true });
     }
 
-    return safeSend(ctx, '🧪 *Consumíveis da Masmorra*\nEscolha um item:', {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(rows)
-    });
+    return safeSend(ctx, '🧪 *Consumíveis da Masmorra*\nEscolha um item:', Markup.inlineKeyboard(rows));
 }
 
 async function handleDungeonUseConsumable(ctx) {
+    await safeAnswer(ctx);
+
     const key = ctx.match?.[1];
 
     const player = await getPlayer(ctx.from.id);
@@ -847,16 +811,13 @@ async function handleDungeonUseConsumable(ctx) {
 
     const d = normalizeDungeonState(player);
     if (!d.active) {
-        await safeAnswer(ctx, '❌ Não há expedição ativa.', true);
-        return safeSend(ctx, renderDungeonText(player), {
-            parse_mode: 'Markdown',
-            ...buildDungeonKeyboard(player)
-        });
+        await safeAnswer(ctx, '❌ Não há expedição ativa.', { show_alert: true });
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
     const consumeResult = consumeConsumable(player, key, 1);
     if (!consumeResult.success) {
-        return safeAnswer(ctx, '❌ Item indisponível.', true);
+        return safeAnswer(ctx, '❌ Item indisponível.', { show_alert: true });
     }
 
     updateMissionProgress(player, 'use_consumable', 1);
@@ -880,7 +841,7 @@ async function handleDungeonUseConsumable(ctx) {
         d.combatBonus.def += 8;
         log = '🛡️ Bônus de expedição: DEF +8.';
     } else {
-        return safeAnswer(ctx, '❌ Consumível inválido.', true);
+        return safeAnswer(ctx, '❌ Consumível inválido.', { show_alert: true });
     }
 
     addDungeonLog(player, log);
@@ -898,12 +859,9 @@ async function handleDungeonUseConsumable(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    await safeAnswer(ctx, '✅ Consumível usado!', true);
+    await safeAnswer(ctx, '✅ Consumível usado!', { show_alert: true });
 
-    return safeSend(ctx, renderDungeonText(player), {
-        parse_mode: 'Markdown',
-        ...buildDungeonKeyboard(player)
-    });
+    return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 module.exports = {
