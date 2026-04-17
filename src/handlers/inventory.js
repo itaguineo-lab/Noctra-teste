@@ -10,19 +10,20 @@ const {
     getActiveCosmetic
 } = require('../core/player/cosmetics');
 const {
-    applyHeal,
     restoreFullHp,
-    restoreEnergy,
     applyEquipmentChange,
     removeEquipment,
     applySoulEquip,
     applySoulUnequip,
     applyBuff,
     consumeConsumable,
-    normalizePlayerForSave,
-    sameItem,
-    getItemKey
+    normalizePlayerForSave
 } = require('../core/player/playerMutations');
+const {
+    sameItem,
+    getItemKey,
+    findInventoryItemByKey
+} = require('../core/player/equipmentService');
 const { inventoryMainMenu } = require('../menus/inventoryMenu');
 const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 
@@ -74,7 +75,7 @@ function getClassNamePortuguese(className) {
 }
 
 function escapeMarkdown(text = '') {
-    return String(text).replace(/([_*[\]()])/g, '\\$1');
+    return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
 function safeNumber(value) {
@@ -96,56 +97,6 @@ function getCosmeticTypeLabel(type) {
     if (type === 'title') return '🏷️ Título';
     if (type === 'aura') return '✨ Aura';
     return '🎖️ Emblema';
-}
-
-function renderSkinsText(player) {
-    const cosmetics = Array.isArray(player.cosmetics) ? player.cosmetics : [];
-    const activeTitle = getActiveCosmetic(player, 'title');
-    const activeAura = getActiveCosmetic(player, 'aura');
-    const activeBadge = getActiveCosmetic(player, 'badge');
-
-    let text = `🎨 *SKINS & COSMÉTICOS*\n\n`;
-    text += `Ativos:\n`;
-    text += `• 🏷️ Título: ${activeTitle ? activeTitle.name : 'Nenhum'}\n`;
-    text += `• ✨ Aura: ${activeAura ? activeAura.name : 'Nenhuma'}\n`;
-    text += `• 🎖️ Emblema: ${activeBadge ? activeBadge.name : 'Nenhum'}\n\n`;
-
-    if (!cosmetics.length) {
-        text += `Você não possui skins ainda.\nCompre na loja para desbloquear.`;
-        return text;
-    }
-
-    text += `Coleção (${cosmetics.length}):\n`;
-    cosmetics.forEach((skin, idx) => {
-        const equipped = player.activeCosmetics?.[skin.type] === skin.id ? ' ✅' : '';
-        text += `${idx + 1}. ${getCosmeticTypeLabel(skin.type)} — *${escapeMarkdown(skin.name)}*${equipped}\n`;
-    });
-
-    return text;
-}
-
-function buildSkinsKeyboard(player) {
-    const rows = [];
-    const cosmetics = Array.isArray(player.cosmetics) ? player.cosmetics : [];
-
-    cosmetics.forEach(cosmetic => {
-        const equipped = player.activeCosmetics?.[cosmetic.type] === cosmetic.id;
-        const prefix = equipped ? '✅' : '🎨';
-        rows.push([
-            Markup.button.callback(
-                `${prefix} ${cosmetic.name}`,
-                equipped ? `invskin:unequip:${cosmetic.type}` : `invskin:equip:${cosmetic.id}`
-            )
-        ]);
-    });
-
-    rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
-    return Markup.inlineKeyboard(rows);
-}
-
-async function handleInvSkins(ctx) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
-    return sendScreen(ctx, renderSkinsText(player), buildSkinsKeyboard(player));
 }
 
 async function sendScreen(ctx, text, options = {}) {
@@ -186,7 +137,7 @@ function getPowerBadge(power) {
 function getPowerBar(power, width = 10) {
     const normalized = Math.max(0, Math.min(120, power));
     const filled = Math.max(1, Math.min(width, Math.round((normalized / 120) * width)));
-    return `█`.repeat(filled) + `░`.repeat(width - filled);
+    return '█'.repeat(filled) + '░'.repeat(width - filled);
 }
 
 function getRealSlot(item) {
@@ -296,9 +247,16 @@ function getPageItems(items, page) {
     return {
         totalPages,
         page: safePage,
-        start,
         items: items.slice(start, start + PAGE_SIZE)
     };
+}
+
+function buildEquipCallback(item, category, page) {
+    return `eqid:${category}:${page}:${encodeURIComponent(getItemKey(item))}`;
+}
+
+function buildUnequipCallback(slot, category, page) {
+    return `uneq:${slot}:${category}:${page}`;
 }
 
 async function renderInventory(ctx, category = null, page = 1) {
@@ -314,7 +272,7 @@ async function renderInventory(ctx, category = null, page = 1) {
 
     const config = CATEGORY_CONFIG[category];
     const allItems = getCategoryItems(player, category);
-    const { totalPages, page: safePage, start, items: pageItems } = getPageItems(allItems, page);
+    const { totalPages, page: safePage, items: pageItems } = getPageItems(allItems, page);
 
     let text = `${renderInventoryHeader(player)}\n\n`;
     text += `║ *${config.title}* — página ${safePage}/${totalPages}\n`;
@@ -325,7 +283,7 @@ async function renderInventory(ctx, category = null, page = 1) {
     if (pageItems.length === 0) {
         text += `║   Nenhum item encontrado.\n`;
     } else {
-        pageItems.forEach((item, index) => {
+        pageItems.forEach(item => {
             const realSlot = getRealSlot(item);
             const isEquipped = Boolean(item.__equipped);
             const [l1, l2, l3, l4] = formatItemBlock(item, player);
@@ -339,15 +297,15 @@ async function renderInventory(ctx, category = null, page = 1) {
             if (isEquipped) {
                 buttons.push([
                     Markup.button.callback(
-                        `⭐ Desequipar ${escapeMarkdown(item.name)}`,
-                        `uneq:${realSlot}:${category}:${safePage}`
+                        `⭐ Desequipar ${item.name}`,
+                        buildUnequipCallback(realSlot, category, safePage)
                     )
                 ]);
             } else {
                 buttons.push([
                     Markup.button.callback(
-                        `🔹 Equipar ${escapeMarkdown(item.name)}`,
-                        `eq:${category}:${safePage}:${start + index}`
+                        `🔹 Equipar ${item.name}`,
+                        buildEquipCallback(item, category, safePage)
                     )
                 ]);
             }
@@ -369,36 +327,6 @@ async function renderInventory(ctx, category = null, page = 1) {
 async function handleInventory(ctx) {
     await safeAnswer(ctx);
     return renderInventory(ctx);
-}
-
-async function handleInvWeapons(ctx) {
-    await safeAnswer(ctx);
-    return renderInventory(ctx, 'weapons', 1);
-}
-
-async function handleInvShields(ctx) {
-    await safeAnswer(ctx);
-    return renderInventory(ctx, 'shields', 1);
-}
-
-async function handleInvArmors(ctx) {
-    await safeAnswer(ctx);
-    return renderInventory(ctx, 'armors', 1);
-}
-
-async function handleInvNecklaces(ctx) {
-    await safeAnswer(ctx);
-    return renderInventory(ctx, 'necklaces', 1);
-}
-
-async function handleInvRings(ctx) {
-    await safeAnswer(ctx);
-    return renderInventory(ctx, 'rings', 1);
-}
-
-async function handleInvBoots(ctx) {
-    await safeAnswer(ctx);
-    return renderInventory(ctx, 'boots', 1);
 }
 
 async function handleInvConsumables(ctx) {
@@ -460,7 +388,7 @@ async function handleInvSouls(ctx) {
     souls.forEach(soul => {
         rows.push([
             Markup.button.callback(
-                `💀 Equipar ${escapeMarkdown(soul.name)}`,
+                `💀 Equipar ${soul.name}`,
                 `equip_soul_${soul.instanceId || soul.id}`
             )
         ]);
@@ -480,6 +408,56 @@ async function handleInvSouls(ctx) {
     rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
 
     return sendScreen(ctx, text, Markup.inlineKeyboard(rows));
+}
+
+function renderSkinsText(player) {
+    const cosmetics = Array.isArray(player.cosmetics) ? player.cosmetics : [];
+    const activeTitle = getActiveCosmetic(player, 'title');
+    const activeAura = getActiveCosmetic(player, 'aura');
+    const activeBadge = getActiveCosmetic(player, 'badge');
+
+    let text = `🎨 *SKINS & COSMÉTICOS*\n\n`;
+    text += `Ativos:\n`;
+    text += `• 🏷️ Título: ${activeTitle ? activeTitle.name : 'Nenhum'}\n`;
+    text += `• ✨ Aura: ${activeAura ? activeAura.name : 'Nenhuma'}\n`;
+    text += `• 🎖️ Emblema: ${activeBadge ? activeBadge.name : 'Nenhum'}\n\n`;
+
+    if (!cosmetics.length) {
+        text += `Você não possui skins ainda.\nCompre na loja para desbloquear.`;
+        return text;
+    }
+
+    text += `Coleção (${cosmetics.length}):\n`;
+    cosmetics.forEach((skin, idx) => {
+        const equipped = player.activeCosmetics?.[skin.type] === skin.id ? ' ✅' : '';
+        text += `${idx + 1}. ${getCosmeticTypeLabel(skin.type)} — *${escapeMarkdown(skin.name)}*${equipped}\n`;
+    });
+
+    return text;
+}
+
+function buildSkinsKeyboard(player) {
+    const rows = [];
+    const cosmetics = Array.isArray(player.cosmetics) ? player.cosmetics : [];
+
+    cosmetics.forEach(cosmetic => {
+        const equipped = player.activeCosmetics?.[cosmetic.type] === cosmetic.id;
+        const prefix = equipped ? '✅' : '🎨';
+        rows.push([
+            Markup.button.callback(
+                `${prefix} ${cosmetic.name}`,
+                equipped ? `invskin:unequip:${cosmetic.type}` : `invskin:equip:${cosmetic.id}`
+            )
+        ]);
+    });
+
+    rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    return Markup.inlineKeyboard(rows);
+}
+
+async function handleInvSkins(ctx) {
+    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    return sendScreen(ctx, renderSkinsText(player), buildSkinsKeyboard(player));
 }
 
 async function handleUsePotionOutside(ctx, type) {
@@ -553,13 +531,12 @@ async function handleUseDefenseTonic(ctx) {
     return handleUsePotionOutside(ctx, 'defense');
 }
 
-async function equipByCurrentList(ctx, category, page, absoluteIndex) {
+async function equipByItemKey(ctx, category, page, itemKey) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
-    const allItems = getCategoryItems(player, category);
 
-    const item = allItems[absoluteIndex];
+    const item = findInventoryItemByKey(player, itemKey);
     if (!item) {
-        await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
+        await safeAnswer(ctx, '⚠️ Item não encontrado. O inventário foi atualizado.', { show_alert: true });
         return renderInventory(ctx, category, page);
     }
 
@@ -607,44 +584,41 @@ async function unequipBySlot(ctx, slot, category, page) {
 async function handleEquipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
 
-    const match = raw.match(/^eq:(weapons|shields|armors|necklaces|rings|boots):(\d+):(\d+)$/);
-    if (match) {
-        const [, category, pageStr, indexStr] = match;
-        return equipByCurrentList(ctx, category, Number(pageStr), Number(indexStr));
+    const byId = raw.match(/^eqid:(weapons|shields|armors|necklaces|rings|boots):(\d+):(.+)$/);
+    if (byId) {
+        const [, category, pageStr, encodedKey] = byId;
+        return equipByItemKey(ctx, category, Number(pageStr), decodeURIComponent(encodedKey));
     }
 
-    const legacy = raw.match(/^equip_(weapon|shield|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/);
+    const legacy = raw.match(/^eq:(weapons|shields|armors|necklaces|rings|boots):(\d+):(\d+)$/);
     if (legacy) {
-        const [, slot, itemIdRaw] = legacy;
+        const [, category, pageStr, absoluteIndexStr] = legacy;
         const player = normalizePlayerState(await getPlayer(ctx.from.id));
-        const inventory = player.inventory;
+        const allItems = getCategoryItems(player, category);
+        const item = allItems[Number(absoluteIndexStr)];
 
-        const item = inventory.find(invItem => {
+        if (!item) {
+            await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
+            return renderInventory(ctx, category, Number(pageStr));
+        }
+
+        return equipByItemKey(ctx, category, Number(pageStr), getItemKey(item));
+    }
+
+    const legacyOld = raw.match(/^equip_(weapon|shield|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/);
+    if (legacyOld) {
+        const [, slot, itemIdRaw] = legacyOld;
+        const player = normalizePlayerState(await getPlayer(ctx.from.id));
+        const item = player.inventory.find(invItem => {
             return (
                 getRealSlot(invItem) === slot &&
-                String(invItem.id ?? invItem._id ?? invItem.instanceId) === String(itemIdRaw)
+                String(getItemKey(invItem)) === String(itemIdRaw)
             );
         });
 
         if (!item) {
-            console.error('[Equipar legado] Item NÃO encontrado:', raw);
             return safeAnswer(ctx, '❌ Item não encontrado no inventário.', { show_alert: true });
         }
-
-        if (item.classRestriction && item.classRestriction !== player.class) {
-            const restrictedClassName = getClassNamePortuguese(item.classRestriction);
-            return safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
-        }
-
-        const result = applyEquipmentChange(player, slot, item);
-        if (!result.success) {
-            return safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
-        }
-
-        normalizePlayerForSave(player);
-        await savePlayer(ctx.from.id, player);
-
-        await safeAnswer(ctx, `✅ ${item.name} equipado!`);
 
         let redirectCategory = 'weapons';
         if (slot === 'shield') redirectCategory = 'shields';
@@ -653,10 +627,9 @@ async function handleEquipItem(ctx) {
         else if (slot === 'ring') redirectCategory = 'rings';
         else if (slot === 'boots') redirectCategory = 'boots';
 
-        return renderInventory(ctx, redirectCategory, 1);
+        return equipByItemKey(ctx, redirectCategory, 1, getItemKey(item));
     }
 
-    console.error('[Equipar] Formato inválido:', raw);
     return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
 }
 
@@ -672,17 +645,6 @@ async function handleUnequipItem(ctx) {
     const legacy = raw.match(/^unequip_(weapon|shield|armor|necklace|ring|boots)$/);
     if (legacy) {
         const slot = legacy[1];
-        const player = normalizePlayerState(await getPlayer(ctx.from.id));
-
-        const result = removeEquipment(player, slot);
-        if (!result.success) {
-            return safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
-        }
-
-        normalizePlayerForSave(player);
-        await savePlayer(ctx.from.id, player);
-
-        await safeAnswer(ctx, `✅ ${result.item.name} removido!`);
 
         let redirectCategory = 'weapons';
         if (slot === 'shield') redirectCategory = 'shields';
@@ -691,10 +653,9 @@ async function handleUnequipItem(ctx) {
         else if (slot === 'ring') redirectCategory = 'rings';
         else if (slot === 'boots') redirectCategory = 'boots';
 
-        return renderInventory(ctx, redirectCategory, 1);
+        return unequipBySlot(ctx, slot, redirectCategory, 1);
     }
 
-    console.error('[Desequipar] Formato inválido:', raw);
     return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
 }
 
@@ -800,12 +761,6 @@ async function handleUnequipSkin(ctx) {
 module.exports = {
     renderInventory,
     handleInventory,
-    handleInvWeapons,
-    handleInvShields,
-    handleInvArmors,
-    handleInvNecklaces,
-    handleInvRings,
-    handleInvBoots,
     handleInvConsumables,
     handleInvSouls,
     handleInvSkins,
