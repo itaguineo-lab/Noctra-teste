@@ -55,6 +55,15 @@ function getPlayerLocation(player) {
     return getMapById(player.currentMap) || maps[0];
 }
 
+function getClassLabel(className = 'guerreiro') {
+    const map = {
+        guerreiro: 'Guerreiro',
+        arqueiro: 'Arqueiro',
+        mago: 'Mago'
+    };
+    return map[className] || className;
+}
+
 function getBuildName(player) {
     const weapon = player.equipment?.weapon;
     const shield = player.equipment?.shield;
@@ -193,7 +202,7 @@ async function getMainMenuText(playerId, username) {
     const lines = [
         `🌙 ${player.name || username}  ${vipIcon}${activeAura ? ' ✨' : ''}`,
         activeTitle ? `🏷️ ${activeTitle.name}` : null,
-        `🏹 ${player.class}  ${buildName}  Lv.${player.level}`,
+        `🏹 ${getClassLabel(player.class)}  ${buildName}  Lv.${player.level}`,
         statsLine,
         '',
         `❤️ ${formatNumber(player.hp)}/${formatNumber(player.maxHp)} ${hpBar}`,
@@ -230,6 +239,7 @@ async function getMainMenuText(playerId, username) {
 module.exports = {
     getPlayerSafe,
     getPlayerLocation,
+    getClassLabel,
     getBuildName,
     getLeagueName,
     getSoulSummary,
