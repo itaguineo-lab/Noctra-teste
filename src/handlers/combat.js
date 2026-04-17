@@ -35,9 +35,7 @@ function getEnemyBadge(enemy) {
 }
 
 async function getFight(ctx) {
-    const stored = await getStoredFight(ctx.from.id);
-    if (!stored) return null;
-    return stored;
+    return getStoredFight(ctx.from.id);
 }
 
 function renderFightCaption(fight, player) {
@@ -71,9 +69,31 @@ function renderFightCaption(fight, player) {
     text += `⚔️ ${fight.enemy.atk} • 🛡️ ${fight.enemy.def} • 💥 ${fight.enemy.crit}%\n\n`;
 
     text += `📜 *Últimas ações*\n`;
-    text += fight.logs.slice(-4).join('\n');
+    text += (fight.logs?.slice(-4).join('\n') || '—');
 
     return text;
+}
+
+async function sendNewBattleMessage(ctx, fight, keyboard = null) {
+    const player = await getPlayer(ctx.from.id);
+    const caption = renderFightCaption(fight, player);
+    const enemyImage = assets?.enemies?.[fight.enemy.id];
+
+    if (enemyImage) {
+        const sent = await ctx.replyWithPhoto(enemyImage, {
+            caption,
+            parse_mode: 'Markdown',
+            ...(keyboard || combatMenu())
+        });
+        await persistFightMessage(ctx.from.id, sent.message_id, true);
+        return;
+    }
+
+    const sent = await ctx.reply(caption, {
+        parse_mode: 'Markdown',
+        ...(keyboard || combatMenu())
+    });
+    await persistFightMessage(ctx.from.id, sent.message_id, false);
 }
 
 async function updateBattleMessage(ctx, stored, player, keyboard = null) {
@@ -82,7 +102,9 @@ async function updateBattleMessage(ctx, stored, player, keyboard = null) {
     const messageId = meta.battleMessageId;
     const chatId = ctx.chat.id;
 
-    if (!messageId) return;
+    if (!messageId) {
+        return sendNewBattleMessage(ctx, fight, keyboard);
+    }
 
     try {
         await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
@@ -97,44 +119,117 @@ async function updateBattleMessage(ctx, stored, player, keyboard = null) {
             });
         } catch (secondError) {
             console.error('Erro ao editar mensagem de batalha:', secondError);
-
-            const enemyImage = assets?.enemies?.[fight.enemy.id];
-            if (enemyImage) {
-                const sent = await ctx.replyWithPhoto(enemyImage, {
-                    caption,
-                    parse_mode: 'Markdown',
-                    ...(keyboard || combatMenu())
-                });
-                await persistFightMessage(ctx.from.id, sent.message_id, true);
-            } else {
-                const sent = await ctx.reply(caption, {
-                    parse_mode: 'Markdown',
-                    ...(keyboard || combatMenu())
-                });
-                await persistFightMessage(ctx.from.id, sent.message_id, false);
-            }
+            return sendNewBattleMessage(ctx, fight, keyboard);
         }
     }
+}
+
+async function sendPostCombatMessage(ctx, meta, message, keyboard) {
+    const chatId = ctx.chat.id;
+    const messageId = meta?.battleMessageId;
+    const isPhoto = meta?.isPhoto;
+
+    if (!messageId) {
+        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        return;
+    }
+
+    try {
+        if (isPhoto) {
+            await ctx.telegram.editMessageCaption(chatId, messageId, null, message, {
+                parse_mode: 'Markdown',
+                reply_markup: keyboard.reply_markup
+            });
+        } else {
+            await ctx.telegram.editMessageText(chatId, messageId, null, message, {
+                parse_mode: 'Markdown',
+                reply_markup: keyboard.reply_markup
+            });
+        }
+    } catch {
+        try {
+            await ctx.telegram.deleteMessage(chatId, messageId);
+        } catch {}
+        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+    }
+}
+
+function buildVictoryMessage(player, rewards) {
+    const { getXpToNextLevel } = require('../core/player/progression');
+    const xpNeeded = getXpToNextLevel(player.level);
+    const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
+
+    let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `       🏆 *VITÓRIA ÉPICA* 🏆\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    msg += `🎖️ *${player.name}*  •  Nível ${player.level}\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    msg += `✨ *Experiência*\n`;
+    msg += `   +${rewards.xp} XP\n`;
+    msg += `   ${player.xp}/${xpNeeded}  ${xpProgress}\n\n`;
+    msg += `💰 *Ouro*\n`;
+    msg += `   +${rewards.gold} Ouro  |  Total: ${player.gold}\n\n`;
+    msg += `❤️ *Vitalidade*\n`;
+    msg += `   ${player.hp}/${player.maxHp}\n`;
+    msg += `⚡ *Energia*: ${player.energy}/${player.maxEnergy}\n\n`;
+
+    if (rewards.loot?.length) {
+        msg += `🎁 *Loot Obtido*\n`;
+        rewards.loot.forEach(item => {
+            msg += `   ${item}\n`;
+        });
+        msg += `\n`;
+    }
+
+    if (rewards.inventoryFull) {
+        msg += `🎒 *Inventário cheio!* Um item deixou de entrar.\n\n`;
+    }
+
+    if (rewards.leveledUp) {
+        msg += `🌟 *LEVEL UP!* 🌟\n`;
+        msg += `   Agora você é nível ${player.level}!\n\n`;
+    }
+
+    msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🌑 A escuridão recua... por enquanto.`;
+
+    return msg;
+}
+
+function buildLossMessage(player) {
+    return `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `          💀 *DERROTA* 💀\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Você foi derrotado...\n\n` +
+        `❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
+        `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🌑 Reúna forças e tente novamente.`;
+}
+
+function buildFleeMessage(player) {
+    return `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `      🏃 *FUGA BEM-SUCEDIDA*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Você escapou da batalha!\n\n` +
+        `❤️ HP atual: ${player.hp}/${player.maxHp}\n` +
+        `⚡ Energia restante: ${player.energy}/${player.maxEnergy}\n\n` +
+        `🌑 A escuridão te poupou... por enquanto.`;
+}
+
+async function resolveExpiredFight(ctx) {
+    await ctx.answerCbQuery('⚠️ Esta luta expirou. Caçe novamente se quiser.', { show_alert: true }).catch(() => {});
+    try {
+        await ctx.editMessageReplyMarkup(postCombatMenu().reply_markup);
+    } catch {}
+    return;
 }
 
 async function finishFight(ctx, stored) {
     const { fight, meta } = stored;
     const player = await getPlayer(ctx.from.id);
+
     updateEnergy(player);
-
-    const chatId = ctx.chat.id;
-    const messageId = meta.battleMessageId;
-    const isPhoto = meta.isPhoto;
-
-    const sendPostCombatFallback = async (msg) => {
-        if (messageId) {
-            try {
-                await ctx.telegram.deleteMessage(chatId, messageId);
-            } catch {}
-        }
-        await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
-    };
-
     await removeStoredFight(ctx.from.id);
 
     if (fight.status === 'win') {
@@ -142,65 +237,17 @@ async function finishFight(ctx, stored) {
         updateMissionProgress(player, 'kill', 1);
 
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
-        player.energy = Math.min(fight.player.energy, player.maxEnergy);
+        player.energy = Math.max(0, Math.min(fight.player.energy, player.maxEnergy));
+
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
-        const { getXpToNextLevel } = require('../core/player/progression');
-        const xpNeeded = getXpToNextLevel(player.level);
-        const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
-
-        let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
-        msg += `       🏆 *VITÓRIA ÉPICA* 🏆\n`;
-        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-        msg += `🎖️ *${player.name}*  •  Nível ${player.level}\n`;
-        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-        msg += `✨ *Experiência*\n`;
-        msg += `   +${rewards.xp} XP\n`;
-        msg += `   ${player.xp}/${xpNeeded}  ${xpProgress}\n\n`;
-        msg += `💰 *Ouro*\n`;
-        msg += `   +${rewards.gold} Ouro  |  Total: ${player.gold}\n\n`;
-        msg += `❤️ *Vitalidade*\n`;
-        msg += `   ${player.hp}/${player.maxHp}\n`;
-        msg += `⚡ *Energia*: ${player.energy}/${player.maxEnergy}\n\n`;
-
-        if (rewards.loot?.length) {
-            msg += `🎁 *Loot Obtido*\n`;
-            rewards.loot.forEach(item => {
-                msg += `   ${item}\n`;
-            });
-            msg += `\n`;
-        }
-
-        if (rewards.leveledUp) {
-            msg += `🌟 *LEVEL UP!* 🌟\n`;
-            msg += `   Agora você é nível ${player.level}!\n\n`;
-        }
-
-        msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-        msg += `🌑 A escuridão recua... por enquanto.`;
-
-        if (messageId) {
-            try {
-                if (isPhoto) {
-                    await ctx.telegram.editMessageCaption(chatId, messageId, null, msg, {
-                        parse_mode: 'Markdown',
-                        reply_markup: postCombatMenu().reply_markup
-                    });
-                } else {
-                    await ctx.telegram.editMessageText(chatId, messageId, null, msg, {
-                        parse_mode: 'Markdown',
-                        reply_markup: postCombatMenu().reply_markup
-                    });
-                }
-            } catch {
-                await sendPostCombatFallback(msg);
-            }
-        } else {
-            await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
-        }
-
-        return;
+        return sendPostCombatMessage(
+            ctx,
+            meta,
+            buildVictoryMessage(player, rewards),
+            postCombatMenu()
+        );
     }
 
     if (fight.status === 'loss') {
@@ -208,70 +255,27 @@ async function finishFight(ctx, stored) {
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
-        const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `          💀 *DERROTA* 💀\n` +
-            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-            `Você foi derrotado...\n\n` +
-            `❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
-            `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
-            `━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `🌑 Reúna forças e tente novamente.`;
-
-        if (messageId) {
-            try {
-                if (isPhoto) {
-                    await ctx.telegram.editMessageCaption(chatId, messageId, null, msg, {
-                        parse_mode: 'Markdown',
-                        reply_markup: postCombatMenu().reply_markup
-                    });
-                } else {
-                    await ctx.telegram.editMessageText(chatId, messageId, null, msg, {
-                        parse_mode: 'Markdown',
-                        reply_markup: postCombatMenu().reply_markup
-                    });
-                }
-            } catch {
-                await sendPostCombatFallback(msg);
-            }
-        } else {
-            await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
-        }
-
-        return;
+        return sendPostCombatMessage(
+            ctx,
+            meta,
+            buildLossMessage(player),
+            postCombatMenu()
+        );
     }
 
     if (fight.status === 'fled') {
-        player.hp = Math.max(1, fight.player.hp);
+        player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
+        player.energy = Math.max(0, Math.min(fight.player.energy, player.maxEnergy));
+
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
-        const msg = `━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `      🏃 *FUGA BEM-SUCEDIDA*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-            `Você escapou da batalha!\n\n` +
-            `❤️ HP atual: ${player.hp}/${player.maxHp}\n` +
-            `⚡ Energia restante: ${player.energy}/${player.maxEnergy}\n\n` +
-            `🌑 A escuridão te poupou... por enquanto.`;
-
-        if (messageId) {
-            try {
-                if (isPhoto) {
-                    await ctx.telegram.editMessageCaption(chatId, messageId, null, msg, {
-                        parse_mode: 'Markdown',
-                        reply_markup: postCombatMenu().reply_markup
-                    });
-                } else {
-                    await ctx.telegram.editMessageText(chatId, messageId, null, msg, {
-                        parse_mode: 'Markdown',
-                        reply_markup: postCombatMenu().reply_markup
-                    });
-                }
-            } catch {
-                await sendPostCombatFallback(msg);
-            }
-        } else {
-            await ctx.reply(msg, { parse_mode: 'Markdown', ...postCombatMenu() });
-        }
+        return sendPostCombatMessage(
+            ctx,
+            meta,
+            buildFleeMessage(player),
+            postCombatMenu()
+        );
     }
 }
 
@@ -298,34 +302,18 @@ async function handleHunt(ctx) {
     await savePlayer(ctx.from.id, player);
 
     const fight = await createAndStoreFight(ctx.from.id, player, enemy);
-    const caption = renderFightCaption(fight, player);
-    const enemyImage = assets?.enemies?.[enemy.id];
 
     try {
         await ctx.deleteMessage();
     } catch {}
 
-    if (enemyImage) {
-        const sent = await ctx.replyWithPhoto(enemyImage, {
-            caption,
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        });
-        await persistFightMessage(ctx.from.id, sent.message_id, true);
-    } else {
-        const sent = await ctx.reply(caption, {
-            parse_mode: 'Markdown',
-            ...combatMenu()
-        });
-        await persistFightMessage(ctx.from.id, sent.message_id, false);
-    }
+    return sendNewBattleMessage(ctx, fight, combatMenu());
 }
 
 async function handleAttack(ctx) {
     const stored = await getFight(ctx);
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada. Inicie uma nova.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     if (stored.fight.status !== 'ongoing') {
@@ -339,14 +327,14 @@ async function handleAttack(ctx) {
         return finishFight(ctx, updated || stored);
     }
 
+    await ctx.answerCbQuery().catch(() => {});
     return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleDefend(ctx) {
     const stored = await getFight(ctx);
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     if (stored.fight.status !== 'ongoing') {
@@ -360,14 +348,14 @@ async function handleDefend(ctx) {
         return finishFight(ctx, updated || stored);
     }
 
+    await ctx.answerCbQuery().catch(() => {});
     return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleFlee(ctx) {
     const stored = await getFight(ctx);
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     if (stored.fight.status !== 'ongoing') {
@@ -376,26 +364,22 @@ async function handleFlee(ctx) {
 
     const updated = await runFlee(ctx.from.id);
     if (!updated) {
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
-    if (updated.success) {
+    if (updated.success || updated.fight.status !== 'ongoing') {
         return finishFight(ctx, updated);
     }
 
     const player = await getPlayer(ctx.from.id);
-    if (updated.fight.status !== 'ongoing') {
-        return finishFight(ctx, updated);
-    }
-
+    await ctx.answerCbQuery().catch(() => {});
     return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleSoulMenu(ctx) {
     const stored = await getFight(ctx);
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     if (stored.fight.status !== 'ongoing') {
@@ -420,8 +404,7 @@ async function handleSoulMenu(ctx) {
 async function handleSoul(ctx) {
     const stored = await getFight(ctx);
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     if (stored.fight.status !== 'ongoing') {
@@ -442,14 +425,14 @@ async function handleSoul(ctx) {
         return finishFight(ctx, updated);
     }
 
+    await ctx.answerCbQuery().catch(() => {});
     return updateBattleMessage(ctx, updated, player, combatMenu());
 }
 
 async function handleConsumables(ctx) {
     const stored = await getFight(ctx);
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     const player = await getPlayer(ctx.from.id);
@@ -484,8 +467,7 @@ async function handleUseConsumable(ctx) {
     const stored = await getFight(ctx);
 
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     if (stored.fight.status !== 'ongoing') {
@@ -537,7 +519,7 @@ async function handleUseConsumable(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    if (!updated) {
+    if (!updated || updated.effectResult?.success === false) {
         await ctx.answerCbQuery('❌ Erro ao usar consumível.', { show_alert: true }).catch(() => {});
         return;
     }
@@ -555,11 +537,11 @@ async function handleUseConsumable(ctx) {
 async function handleCombatBack(ctx) {
     const stored = await getFight(ctx);
     if (!stored) {
-        await ctx.answerCbQuery('Luta expirada.').catch(() => {});
-        return handleHunt(ctx);
+        return resolveExpiredFight(ctx);
     }
 
     const player = await getPlayer(ctx.from.id);
+    await ctx.answerCbQuery().catch(() => {});
     return updateBattleMessage(ctx, stored, player, combatMenu());
 }
 
