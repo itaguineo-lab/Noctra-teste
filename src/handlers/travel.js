@@ -17,9 +17,13 @@ const { navigateScreen, safeAnswer } = require('../utils/uiNavigator');
 
 /*
 =================================
-MENU
+HELPERS
 =================================
 */
+
+function getMapPowerText(map) {
+    return map?.recommendedPower ? `Poder sugerido: ${map.recommendedPower}` : 'Poder sugerido: —';
+}
 
 function buildTravelMenu(player) {
     const rows = [];
@@ -40,16 +44,13 @@ function buildTravelMenu(player) {
         ]);
     });
 
-    rows.push([Markup.button.callback('🏠 Menu', 'menu')]);
+    rows.push([
+        Markup.button.callback('🏰 Masmorra', 'dungeon'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
 
     return Markup.inlineKeyboard(rows);
 }
-
-/*
-=================================
-TEXT
-=================================
-*/
 
 function renderTravelCaption(player) {
     const currentMap = getMapById(player.currentMap) || maps[0];
@@ -58,22 +59,20 @@ function renderTravelCaption(player) {
     let text = `🗺️ *VIAGEM*\n\n`;
     text += `📍 Atual: *${currentMap.emoji} ${currentMap.name}*\n`;
     text += `🎖️ Nível: ${player.level}\n`;
+    text += `🔥 ${getMapPowerText(currentMap)}\n`;
     text += `📖 ${currentMap.description}\n\n`;
 
     if (nextMap) {
         text += `🎯 Próximo destino: *${nextMap.emoji} ${nextMap.name}*\n`;
-        text += `🔓 Desbloqueia no nível ${nextMap.levelReq}\n\n`;
+        text += `🔓 Desbloqueia no nível ${nextMap.levelReq}\n`;
+        text += `🔥 ${getMapPowerText(nextMap)}\n\n`;
+    } else {
+        text += `👑 Você já alcançou a região mais avançada disponível.\n\n`;
     }
 
     text += `Escolha seu destino:`;
     return text;
 }
-
-/*
-=================================
-SAFE SEND/EDIT
-=================================
-*/
 
 async function sendOrUpdateTravelMessage(ctx, player) {
     const caption = renderTravelCaption(player);
@@ -95,6 +94,8 @@ TRAVEL MENU
 */
 
 async function handleTravel(ctx) {
+    await safeAnswer(ctx);
+
     const player = await getPlayer(ctx.from.id);
 
     if (!player) {
@@ -121,12 +122,12 @@ async function handleTravelTo(ctx) {
 
         const mapId = ctx.match?.[1];
         if (!mapId) {
-            return safeAnswer(ctx, '❌ Destino inválido', { show_alert: true });
+            return safeAnswer(ctx, '❌ Destino inválido.', { show_alert: true });
         }
 
         const map = getMapById(mapId);
         if (!map) {
-            return safeAnswer(ctx, '❌ Mapa não encontrado', { show_alert: true });
+            return safeAnswer(ctx, '❌ Mapa não encontrado.', { show_alert: true });
         }
 
         const player = await getPlayer(ctx.from.id);
@@ -135,7 +136,11 @@ async function handleTravelTo(ctx) {
         }
 
         if (!canPlayerEnter(player, map.id)) {
-            return safeAnswer(ctx, `🔒 Requer nível ${map.levelReq}`, { show_alert: true });
+            return safeAnswer(ctx, `🔒 Requer nível ${map.levelReq}.`, { show_alert: true });
+        }
+
+        if (player.currentMap === map.id) {
+            return safeAnswer(ctx, `📍 Você já está em ${map.name}.`, { show_alert: true });
         }
 
         player.currentMap = map.id;
@@ -171,14 +176,22 @@ async function handleDungeon(ctx) {
     if (!player) {
         return ctx.reply('🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
-    const currentMap = getMapById(player.currentMap);
+
+    const currentMap = getMapById(player.currentMap) || maps[0];
+
+    const text = `🏰 *${currentMap?.dungeonName || 'Masmorra'}*\n\n` +
+        `📍 Região: ${currentMap.emoji} ${currentMap.name}\n` +
+        `🔥 ${getMapPowerText(currentMap)}\n\n` +
+        `Prepare-se para o desafio.\n` +
+        `A masmorra ainda será aprofundada nas próximas sprints.`;
 
     return navigateScreen(ctx, {
-        text: `🏰 *${currentMap?.dungeonName || 'Masmorra'}*\n\nPrepare-se para o desafio.`,
+        text,
         media: null,
-        options: {
-            ...Markup.inlineKeyboard([[Markup.button.callback('🏠 Menu', 'menu')]])
-        }
+        options: Markup.inlineKeyboard([
+            [Markup.button.callback('🗺️ Voltar para viagem', 'travel')],
+            [Markup.button.callback('🏠 Menu', 'menu')]
+        ])
     });
 }
 
