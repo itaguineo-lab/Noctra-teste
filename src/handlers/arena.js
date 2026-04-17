@@ -42,6 +42,11 @@ const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
 
+const {
+    navigateText,
+    safeAnswer
+} = require('../utils/uiNavigator');
+
 /*
 =================================
 HELPERS
@@ -52,23 +57,11 @@ function getChestConfigSafe(tier) {
     return ARENA_CHEST_CONFIG[tier] || ARENA_CHEST_CONFIG.wood;
 }
 
-function safeAnswer(ctx, text = undefined, options = {}) {
-    try {
-        return ctx.answerCbQuery(text, options);
-    } catch {
-        return null;
-    }
-}
-
 async function safeSend(ctx, text, options = {}) {
-    try {
-        if (ctx.callbackQuery) {
-            return await ctx.editMessageText(text, options);
-        }
-        return await ctx.reply(text, options);
-    } catch {
-        return await ctx.reply(text, options);
-    }
+    return navigateText(ctx, text, {
+        parse_mode: 'Markdown',
+        ...options
+    });
 }
 
 function battleKeyboard() {
@@ -134,10 +127,7 @@ async function finishBattle(ctx, stored, resultType) {
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         await removeStoredArenaBattle(ctx.from.id);
-        return safeSend(ctx, '❌ Jogador não encontrado.', {
-            parse_mode: 'Markdown',
-            ...hubKeyboard()
-        });
+        return safeSend(ctx, '❌ Jogador não encontrado.', hubKeyboard());
     }
 
     ensureArenaState(player);
@@ -206,10 +196,7 @@ async function finishBattle(ctx, stored, resultType) {
     await savePlayer(ctx.from.id, player);
     await removeStoredArenaBattle(ctx.from.id);
 
-    return safeSend(ctx, summaryText, {
-        parse_mode: 'Markdown',
-        ...keyboard
-    });
+    return safeSend(ctx, summaryText, keyboard);
 }
 
 /*
@@ -223,25 +210,17 @@ async function handleArena(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado. Use /start.', {
-            parse_mode: 'Markdown'
-        });
+        return safeSend(ctx, '❌ Jogador não encontrado. Use /start.');
     }
 
     ensureArenaState(player);
 
     const stored = await getBattle(ctx.from.id);
     if (stored?.battle) {
-        return safeSend(ctx, buildArenaBattleText(stored.battle), {
-            parse_mode: 'Markdown',
-            ...battleKeyboard()
-        });
+        return safeSend(ctx, buildArenaBattleText(stored.battle), battleKeyboard());
     }
 
-    return safeSend(ctx, buildArenaHubText(player), {
-        parse_mode: 'Markdown',
-        ...hubKeyboard()
-    });
+    return safeSend(ctx, buildArenaHubText(player), hubKeyboard());
 }
 
 /*
@@ -255,9 +234,7 @@ async function handleArenaFight(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado. Use /start.', {
-            parse_mode: 'Markdown'
-        });
+        return safeSend(ctx, '❌ Jogador não encontrado. Use /start.');
     }
 
     ensureArenaState(player);
@@ -280,10 +257,7 @@ async function handleArenaFight(ctx) {
         startingHp
     );
 
-    const sent = await safeSend(ctx, buildArenaBattleText(battle), {
-        parse_mode: 'Markdown',
-        ...battleKeyboard()
-    });
+    const sent = await safeSend(ctx, buildArenaBattleText(battle), battleKeyboard());
 
     if (sent?.message_id) {
         await persistArenaMessage(ctx.from.id, sent.message_id);
@@ -321,10 +295,7 @@ async function handleArenaAttack(ctx) {
         return finishBattle(ctx, updated, 'loss');
     }
 
-    return safeSend(ctx, buildArenaBattleText(updated.battle), {
-        parse_mode: 'Markdown',
-        ...battleKeyboard()
-    });
+    return safeSend(ctx, buildArenaBattleText(updated.battle), battleKeyboard());
 }
 
 /*
@@ -352,10 +323,7 @@ async function handleArenaDefend(ctx) {
         return finishBattle(ctx, updated, 'loss');
     }
 
-    return safeSend(ctx, buildArenaBattleText(updated.battle), {
-        parse_mode: 'Markdown',
-        ...battleKeyboard()
-    });
+    return safeSend(ctx, buildArenaBattleText(updated.battle), battleKeyboard());
 }
 
 /*
@@ -394,9 +362,7 @@ async function handleArenaConsumables(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.', {
-            parse_mode: 'Markdown'
-        });
+        return safeSend(ctx, '❌ Jogador não encontrado.');
     }
 
     ensureArenaState(player);
@@ -414,10 +380,7 @@ async function handleArenaConsumables(ctx) {
         return safeAnswer(ctx, '❌ Você não possui consumíveis.', { show_alert: true });
     }
 
-    return safeSend(ctx, '🧪 *Consumíveis da Arena*\nEscolha um item:', {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(rows)
-    });
+    return safeSend(ctx, '🧪 *Consumíveis da Arena*\nEscolha um item:', Markup.inlineKeyboard(rows));
 }
 
 async function handleArenaUseConsumable(ctx) {
@@ -429,9 +392,7 @@ async function handleArenaUseConsumable(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.', {
-            parse_mode: 'Markdown'
-        });
+        return safeSend(ctx, '❌ Jogador não encontrado.');
     }
 
     ensureArenaState(player);
@@ -467,10 +428,7 @@ async function handleArenaUseConsumable(ctx) {
         return finishBattle(ctx, updated, 'loss');
     }
 
-    return safeSend(ctx, buildArenaBattleText(updated.battle), {
-        parse_mode: 'Markdown',
-        ...battleKeyboard()
-    });
+    return safeSend(ctx, buildArenaBattleText(updated.battle), battleKeyboard());
 }
 
 /*
@@ -484,9 +442,7 @@ async function handleArenaChests(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.', {
-            parse_mode: 'Markdown'
-        });
+        return safeSend(ctx, '❌ Jogador não encontrado.');
     }
 
     ensureArenaState(player);
@@ -509,10 +465,7 @@ async function handleArenaChests(ctx) {
 
     rows.push([Markup.button.callback('🏠 Arena', 'arena')]);
 
-    return safeSend(ctx, buildArenaChestListText(player), {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(rows)
-    });
+    return safeSend(ctx, buildArenaChestListText(player), Markup.inlineKeyboard(rows));
 }
 
 /*
@@ -528,9 +481,7 @@ async function handleArenaOpenChest(ctx) {
     const player = await getPlayer(ctx.from.id);
 
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.', {
-            parse_mode: 'Markdown'
-        });
+        return safeSend(ctx, '❌ Jogador não encontrado.');
     }
 
     ensureArenaState(player);
@@ -553,10 +504,7 @@ async function handleArenaOpenChest(ctx) {
     if (result.rewards.glorias) msg += `🏅 +${result.rewards.glorias}\n`;
     if (result.rewards.consumable) msg += `🧪 +1 ${result.rewards.consumable}\n`;
 
-    return safeSend(ctx, msg, {
-        parse_mode: 'Markdown',
-        ...hubKeyboard()
-    });
+    return safeSend(ctx, msg, hubKeyboard());
 }
 
 /*
@@ -570,10 +518,7 @@ async function handleArenaRanking(ctx) {
 
     const playersMap = await getAllPlayers();
 
-    return safeSend(ctx, buildArenaLeaderboardText(playersMap), {
-        parse_mode: 'Markdown',
-        ...hubKeyboard()
-    });
+    return safeSend(ctx, buildArenaLeaderboardText(playersMap), hubKeyboard());
 }
 
 module.exports = {
