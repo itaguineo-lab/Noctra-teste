@@ -6,6 +6,7 @@ const http = require('http');
 const { connectToMongo, getPlayer, createPlayer } = require('./src/core/player/playerService');
 const { getMainMenuText } = require('./src/utils/helpers');
 const { mainMenu } = require('./src/menus/mainMenu');
+const { navigateScreen, tryDeleteCurrentMessage } = require('./src/utils/uiNavigator');
 const assets = require('./src/data/assets');
 
 /*
@@ -183,52 +184,25 @@ async function sendMainMenu(ctx, userId, username, editMode = false) {
     const keyboard = mainMenu();
 
     if (!editMode) {
-        if (mapImage) {
-            return ctx.replyWithPhoto(mapImage, {
-                caption: menuText,
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
-        }
-
-        return ctx.reply(menuText, {
-            parse_mode: 'Markdown',
-            ...keyboard
+        return navigateScreen(ctx, {
+            text: menuText,
+            media: mapImage || null,
+            options: keyboard
         });
     }
 
-    const chatId = ctx.chat.id;
-    const messageId = ctx.callbackQuery?.message?.message_id;
-
     try {
-        if (mapImage && messageId) {
-            await ctx.telegram.editMessageMedia(chatId, messageId, null, {
-                type: 'photo',
-                media: mapImage,
-                caption: menuText,
-                parse_mode: 'Markdown'
-            }, {
-                reply_markup: keyboard.reply_markup
-            });
-            return;
-        }
-
-        await ctx.editMessageText(menuText, {
-            parse_mode: 'Markdown',
-            ...keyboard
+        return await navigateScreen(ctx, {
+            text: menuText,
+            media: mapImage || null,
+            options: keyboard
         });
     } catch {
-        if (mapImage) {
-            return ctx.replyWithPhoto(mapImage, {
-                caption: menuText,
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
-        }
-
-        return ctx.reply(menuText, {
-            parse_mode: 'Markdown',
-            ...keyboard
+        await tryDeleteCurrentMessage(ctx);
+        return navigateScreen(ctx, {
+            text: menuText,
+            media: mapImage || null,
+            options: keyboard
         });
     }
 }
@@ -384,6 +358,8 @@ DAILY
 
 bindAction('daily_chest', daily.handleDailyChest);
 bindAction('daily_claim_missions', daily.handleClaimMissionRewards);
+bindAction('daily_chests', daily.handleTimedChests);
+bindAction(/^daily_open_chest:(.+)$/, daily.handleOpenTimedChest);
 
 /*
 =================================
