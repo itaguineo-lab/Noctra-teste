@@ -9,20 +9,51 @@ HELPERS
 */
 
 function trimLogs(logs, max = 8) {
-    return logs.slice(-max);
+    return Array.isArray(logs) ? logs.slice(-max) : [];
+}
+
+function ensureFightShape(fight) {
+    fight.logs ??= [];
+    fight.turn ??= 1;
+    fight.status ??= 'ongoing';
+    fight.rewards ??= null;
+    fight.lastDamageDealt ??= 0;
+    fight.lastDamageReceived ??= 0;
+
+    fight.player ??= {};
+    fight.enemy ??= {};
+
+    fight.player.shield ??= 0;
+    fight.player.buffs ??= [];
+    fight.player.defending ??= false;
+    fight.player.stunned ??= false;
+    fight.player.souls ??= [null, null];
+
+    fight.enemy.frozen ??= false;
+    fight.enemy.poisonTurns ??= 0;
+    fight.enemy.bleedTurns ??= 0;
+    fight.enemy.shield ??= 0;
+    fight.enemy.buffs ??= [];
+
+    return fight;
 }
 
 function setVictory(fight) {
     if (fight.status === 'win') return;
 
     fight.status = 'win';
-
     fight.rewards = {
         xp: fight.enemy.xp || 0,
         gold: fight.enemy.gold || 0
     };
-
     fight.logs.push(`💀 ${fight.enemy.name} tombou nas sombras!`);
+}
+
+function setLoss(fight) {
+    if (fight.status === 'loss') return;
+
+    fight.status = 'loss';
+    fight.logs.push('☠️ Você foi derrotado...');
 }
 
 function getPlayerAttackText(enemyName, damage, isCrit) {
@@ -37,6 +68,22 @@ function getEnemyAttackText(enemyName, damage, isCrit) {
     return text;
 }
 
+function applyShieldDamage(target, damage, fight, ownerName = 'Escudo') {
+    let remainingDamage = damage;
+
+    if ((target.shield || 0) > 0) {
+        const absorbed = Math.min(target.shield, remainingDamage);
+        target.shield -= absorbed;
+        remainingDamage -= absorbed;
+
+        if (absorbed > 0) {
+            fight.logs.push(`🛡️ ${ownerName} absorveu ${absorbed} de dano.`);
+        }
+    }
+
+    return remainingDamage;
+}
+
 /*
 =================================
 CREATE
@@ -44,7 +91,7 @@ CREATE
 */
 
 function createFight(player, enemy) {
-    return {
+    return ensureFightShape({
         player: {
             id: player.id,
             name: player.name,
@@ -90,7 +137,7 @@ function createFight(player, enemy) {
         logs: [`🌑 Um *${enemy.name}* surgiu das sombras!`],
         lastDamageDealt: 0,
         lastDamageReceived: 0
-    };
+    });
 }
 
 /*
@@ -100,11 +147,12 @@ PROCESSAMENTO DE EFEITOS DE STATUS
 */
 
 function processEnemyStatusEffects(fight) {
+    ensureFightShape(fight);
+
     if (fight.status !== 'ongoing') return false;
 
     let enemyDied = false;
 
-    // Veneno
     if (fight.enemy.poisonTurns > 0) {
         ENEMY_ABILITIES.POISON.tick(fight.enemy, fight);
         if (fight.enemy.hp <= 0) {
@@ -113,7 +161,6 @@ function processEnemyStatusEffects(fight) {
         }
     }
 
-    // Sangramento
     if (!enemyDied && fight.enemy.bleedTurns > 0) {
         ENEMY_ABILITIES.BLEED.tick(fight.enemy, fight);
         if (fight.enemy.hp <= 0) {
@@ -132,27 +179,20 @@ PLAYER TURN
 */
 
 function processPlayerTurn(fight) {
+    ensureFightShape(fight);
+
     if (fight.status !== 'ongoing') return null;
 
-    // Verifica se jogador está atordoado
     if (fight.player.stunned) {
-        fight.logs.push(`💫 Você está atordoado e perdeu o turno!`);
+        fight.logs.push('💫 Você está atordoado e perdeu o turno!');
         fight.player.stunned = false;
-        fight.turn++;
+        fight.turn += 1;
         fight.logs = trimLogs(fight.logs);
         return null;
     }
 
     const result = calculateDamage(fight.player, fight.enemy);
-    
-    // Reduz escudo primeiro
-    let actualDamage = result.damage;
-    if (fight.enemy.shield > 0) {
-        const absorbed = Math.min(fight.enemy.shield, actualDamage);
-        fight.enemy.shield -= absorbed;
-        actualDamage -= absorbed;
-        fight.logs.push(`🛡️ Escudo absorveu ${absorbed} de dano.`);
-    }
+    const actualDamage = applyShieldDamage(fight.enemy, result.damage, fight, 'Escudo inimigo');
 
     fight.enemy.hp = Math.max(0, fight.enemy.hp - actualDamage);
     fight.lastDamageDealt = actualDamage;
@@ -174,9 +214,10 @@ ENEMY TURN
 */
 
 function processEnemyTurn(fight) {
+    ensureFightShape(fight);
+
     if (fight.status !== 'ongoing') return null;
 
-    // Processa efeitos de status do inimigo no início do turno
     const enemyDied = processEnemyStatusEffects(fight);
     if (enemyDied) {
         fight.logs = trimLogs(fight.logs);
@@ -186,12 +227,11 @@ function processEnemyTurn(fight) {
     if (fight.enemy.frozen) {
         fight.logs.push(`❄️ ${fight.enemy.name} está congelado e perdeu o turno!`);
         fight.enemy.frozen = false;
-        fight.turn++;
+        fight.turn += 1;
         fight.logs = trimLogs(fight.logs);
         return null;
     }
 
-    // Chance de usar habilidade especial
     if (fight.enemy.ability) {
         const abilityDef = ENEMY_ABILITIES[fight.enemy.ability.type];
         if (abilityDef && Math.random() < (fight.enemy.ability.chance || 0.3)) {
@@ -199,8 +239,8 @@ function processEnemyTurn(fight) {
                 abilityDef.apply(fight.player, fight);
             } else if (fight.enemy.ability.type === 'HEAL' || fight.enemy.ability.type === 'SHIELD') {
                 abilityDef.apply(fight.enemy, fight);
-                // Habilidades de suporte não causam dano neste turno
-                fight.turn++;
+                fight.player.defending = false;
+                fight.turn += 1;
                 fight.logs = trimLogs(fight.logs);
                 return null;
             } else {
@@ -209,21 +249,22 @@ function processEnemyTurn(fight) {
         }
     }
 
-    let multiplier = fight.player.defending ? 0.5 : 1;
+    const multiplier = fight.player.defending ? 0.5 : 1;
     const result = calculateDamage(fight.enemy, fight.player, { multiplier });
 
-    fight.player.hp = Math.max(0, fight.player.hp - result.damage);
-    fight.lastDamageReceived = result.damage;
+    const actualDamage = applyShieldDamage(fight.player, result.damage, fight, 'Seu escudo');
 
-    fight.logs.push(getEnemyAttackText(fight.enemy.name, result.damage, result.isCrit));
+    fight.player.hp = Math.max(0, fight.player.hp - actualDamage);
+    fight.lastDamageReceived = actualDamage;
+
+    fight.logs.push(getEnemyAttackText(fight.enemy.name, actualDamage, result.isCrit));
 
     if (fight.player.hp <= 0) {
-        fight.status = 'loss';
-        fight.logs.push(`☠️ Você foi derrotado...`);
+        setLoss(fight);
     }
 
-    fight.player.defending = false; // Reset defesa após o turno
-    fight.turn++;
+    fight.player.defending = false;
+    fight.turn += 1;
     fight.logs = trimLogs(fight.logs);
     return result;
 }
@@ -235,26 +276,48 @@ SOUL
 */
 
 function useSoul(fight, soulIndex) {
-    const soul = fight.player.souls[soulIndex];
+    ensureFightShape(fight);
+
+    if (fight.status !== 'ongoing') return null;
+
+    const index = Number(soulIndex);
+    const soul = fight.player.souls[index];
+
     if (!soul) {
-        fight.logs.push('❌ Alma vazia');
+        fight.logs.push('❌ Alma vazia.');
+        fight.logs = trimLogs(fight.logs);
         return null;
     }
 
     const result = activateSoul(soul, fight);
-    if (result?.message) fight.logs.push(result.message);
-    if (fight.enemy.hp <= 0) setVictory(fight);
+    if (result?.message) {
+        fight.logs.push(result.message);
+    }
+
+    if (fight.enemy.hp <= 0) {
+        setVictory(fight);
+    }
+
     fight.logs = trimLogs(fight.logs);
     return result;
 }
 
 function applyDefend(fight) {
+    ensureFightShape(fight);
+
+    if (fight.status !== 'ongoing') return;
     fight.player.defending = true;
     fight.logs.push('🛡️ Você assume postura defensiva.');
+    fight.logs = trimLogs(fight.logs);
 }
 
 function attemptFlee(fight) {
+    ensureFightShape(fight);
+
+    if (fight.status !== 'ongoing') return false;
+
     const success = Math.random() <= 0.6;
+
     if (success) {
         fight.status = 'fled';
         fight.logs.push('🏃 Você fugiu.');
@@ -262,6 +325,7 @@ function attemptFlee(fight) {
         fight.logs.push('🚫 Falha na fuga!');
         processEnemyTurn(fight);
     }
+
     fight.logs = trimLogs(fight.logs);
     return success;
 }
