@@ -282,6 +282,8 @@ function registerCommands() {
     bindCommand('resetall', resetCommands.handleResetAll);
 
     bindCommand('adminhelp', adminCommands.handleAdminHelp);
+    bindCommand('findplayer', adminCommands.handleFindPlayer);
+    bindCommand('playerstate', adminCommands.handlePlayerState);
 
     bindCommand('give', (ctx) => {
         const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
