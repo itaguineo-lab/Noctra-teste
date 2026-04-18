@@ -290,6 +290,7 @@ function registerCommands() {
     bindCommand('ban', adminCommands.handleBan);
     bindCommand('unban', adminCommands.handleUnban);
     bindCommand('reload', adminCommands.handleReload);
+    bindCommand('metrics', adminCommands.handleMetrics);
 }
 
 /*
@@ -459,7 +460,9 @@ PHOTO CAPTURE
 */
 
 function registerPhotoCapture() {
-    bot.on('photo', adminCommands.handleCapturePhoto);
+    if (typeof adminCommands.handleCapturePhoto === 'function') {
+        bot.on('photo', adminCommands.handleCapturePhoto);
+    }
 }
 
 /*
