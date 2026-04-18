@@ -281,6 +281,8 @@ function registerCommands() {
     bindCommand('resetplayer', resetCommands.handleResetPlayer);
     bindCommand('resetall', resetCommands.handleResetAll);
 
+    bindCommand('adminhelp', adminCommands.handleAdminHelp);
+
     bindCommand('give', (ctx) => {
         const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
         if (subCommand === 'xp') return adminCommands.handleGiveXp(ctx);
