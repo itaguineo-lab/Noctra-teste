@@ -71,13 +71,11 @@ function battleKeyboard() {
             Markup.button.callback('🛡️ Defender', 'arena_defend')
         ],
         [
+            Markup.button.callback('🧪 Consumíveis', 'arena_consumables'),
             Markup.button.callback('🏳️ Fugir', 'arena_flee')
         ],
         [
-            Markup.button.callback('🧪 Consumíveis', 'arena_consumables')
-        ],
-        [
-            Markup.button.callback('🏠 Arena', 'arena')
+            Markup.button.callback('🏟️ Arena', 'arena')
         ]
     ]);
 }
@@ -85,7 +83,7 @@ function battleKeyboard() {
 function hubKeyboard() {
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback('⚔️ Lutar', 'arena_fight')
+            Markup.button.callback('⚔️ Procurar Oponente', 'arena_fight')
         ],
         [
             Markup.button.callback('🎁 Baús', 'arena_chests'),
@@ -123,6 +121,18 @@ async function persistBattleHp(playerId, stored) {
     return player;
 }
 
+function buildBattleResultKeyboard() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback('⚔️ Lutar de novo', 'arena_fight')],
+        [
+            Markup.button.callback('🎁 Baús', 'arena_chests'),
+            Markup.button.callback('🏆 Ranking', 'arena_ranking')
+        ],
+        [Markup.button.callback('🏪 Loja Arena', 'arena_shop')],
+        [Markup.button.callback('🏠 Menu', 'menu')]
+    ]);
+}
+
 async function finishBattle(ctx, stored, resultType) {
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -143,16 +153,7 @@ async function finishBattle(ctx, stored, resultType) {
     );
 
     let summaryText = '';
-
-    const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('⚔️ Lutar de novo', 'arena_fight')],
-        [
-            Markup.button.callback('🎁 Baús', 'arena_chests'),
-            Markup.button.callback('🏆 Ranking', 'arena_ranking')
-        ],
-        [Markup.button.callback('🏪 Loja', 'arena_shop')],
-        [Markup.button.callback('🏠 Menu', 'menu')]
-    ]);
+    const keyboard = buildBattleResultKeyboard();
 
     if (resultType === 'win') {
         updateMissionProgress(player, 'arena_win', 1);
@@ -160,36 +161,49 @@ async function finishBattle(ctx, stored, resultType) {
         const rewards = resolveArenaVictory(player, battle);
 
         summaryText =
-            `🏆 *VITÓRIA NA ARENA*\n\n` +
-            `🆚 ${battle.enemy.name}\n` +
-            `🎯 +${rewards.pointsGained} pontos\n` +
-            `🪙 +${rewards.coinsGained} moedas da arena\n`;
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🏆 *VITÓRIA NA ARENA*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `🆚 Adversário: *${battle.enemy.name}*\n` +
+            `🎯 Pontos ganhos: +${rewards.pointsGained}\n` +
+            `🪙 Moedas da arena: +${rewards.coinsGained}\n`;
 
         if (rewards.chest) {
-            summaryText += `🎁 ${rewards.chest.name}\n`;
+            summaryText += `🎁 Baú recebido: ${rewards.chest.name}\n`;
         }
 
         if (rewards.overflowCoins) {
-            summaryText += `💰 +${rewards.overflowCoins} moedas extras por slots de baú cheios\n`;
+            summaryText += `💰 Bônus por slot cheio: +${rewards.overflowCoins}\n`;
         }
 
         if (rewards.leagueChanged) {
-            summaryText += `\n⬆️ Nova liga!\n${rewards.newLeague.emoji} ${rewards.newLeague.name}\n`;
+            summaryText += `\n⬆️ *Nova Liga!*\n${rewards.newLeague.emoji} ${rewards.newLeague.name}\n`;
         }
+
+        summaryText += `\nA arena reconhece sua força.`;
     }
 
     if (resultType === 'loss') {
         const rewards = resolveArenaLoss(player);
+
         summaryText =
-            `💀 *DERROTA*\n\n` +
-            `📉 -${rewards.pointsLost} pontos\n`;
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💀 *DERROTA NA ARENA*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `🆚 Adversário: *${battle.enemy.name}*\n` +
+            `📉 Pontos perdidos: -${rewards.pointsLost}\n\n` +
+            `Volte mais forte e recupere sua posição.`;
     }
 
     if (resultType === 'fled') {
         const rewards = resolveArenaFlee(player);
+
         summaryText =
-            `🏳️ *FUGA*\n\n` +
-            `📉 -${rewards.pointsLost} pontos\n`;
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🏳️ *FUGA DA ARENA*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📉 Pontos perdidos: -${rewards.pointsLost}\n\n` +
+            `A arena pune hesitação.`;
     }
 
     normalizePlayerForSave(player);
@@ -220,7 +234,11 @@ async function handleArena(ctx) {
         return safeSend(ctx, buildArenaBattleText(stored.battle), battleKeyboard());
     }
 
-    return safeSend(ctx, buildArenaHubText(player), hubKeyboard());
+    let hubText = buildArenaHubText(player);
+    hubText += `\n\n🎯 *Objetivo*\n`;
+    hubText += `Suba de liga, conquiste baús e acumule moedas da arena.`;
+
+    return safeSend(ctx, hubText, hubKeyboard());
 }
 
 /*
@@ -257,7 +275,12 @@ async function handleArenaFight(ctx) {
         startingHp
     );
 
-    const sent = await safeSend(ctx, buildArenaBattleText(battle), battleKeyboard());
+    const introText =
+        `🏟️ *DESAFIO DA ARENA*\n\n` +
+        `Você encontrou um novo adversário.\n\n` +
+        buildArenaBattleText(battle);
+
+    const sent = await safeSend(ctx, introText, battleKeyboard());
 
     if (sent?.message_id) {
         await persistArenaMessage(ctx.from.id, sent.message_id);
@@ -380,7 +403,11 @@ async function handleArenaConsumables(ctx) {
         return safeAnswer(ctx, '❌ Você não possui consumíveis.', { show_alert: true });
     }
 
-    return safeSend(ctx, '🧪 *Consumíveis da Arena*\nEscolha um item:', Markup.inlineKeyboard(rows));
+    return safeSend(
+        ctx,
+        `🧪 *Consumíveis da Arena*\n\nEscolha um item para ganhar vantagem tática.`,
+        Markup.inlineKeyboard(rows)
+    );
 }
 
 async function handleArenaUseConsumable(ctx) {
@@ -463,9 +490,12 @@ async function handleArenaChests(ctx) {
         ];
     });
 
-    rows.push([Markup.button.callback('🏠 Arena', 'arena')]);
+    rows.push([Markup.button.callback('🏟️ Voltar Arena', 'arena')]);
 
-    return safeSend(ctx, buildArenaChestListText(player), Markup.inlineKeyboard(rows));
+    let text = buildArenaChestListText(player);
+    text += `\n\n🎁 *Baús da Arena*\nAbra seus baús para converter vitórias em progressão real.`;
+
+    return safeSend(ctx, text, Markup.inlineKeyboard(rows));
 }
 
 /*
@@ -496,13 +526,17 @@ async function handleArenaOpenChest(ctx) {
     await savePlayer(ctx.from.id, player);
 
     let msg =
-        `🎁 *BAÚ ABERTO*\n\n` +
-        `🪙 +${result.rewards.arenaCoins}\n` +
-        `💰 +${result.rewards.gold}\n`;
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🎁 *BAÚ DA ARENA ABERTO*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `🪙 Moedas da arena: +${result.rewards.arenaCoins}\n` +
+        `💰 Ouro: +${result.rewards.gold}\n`;
 
-    if (result.rewards.keys) msg += `🗝️ +${result.rewards.keys}\n`;
-    if (result.rewards.glorias) msg += `🏅 +${result.rewards.glorias}\n`;
-    if (result.rewards.consumable) msg += `🧪 +1 ${result.rewards.consumable}\n`;
+    if (result.rewards.keys) msg += `🗝️ Chaves: +${result.rewards.keys}\n`;
+    if (result.rewards.glorias) msg += `🏅 Glórias: +${result.rewards.glorias}\n`;
+    if (result.rewards.consumable) msg += `🧪 Consumível: +1 ${result.rewards.consumable}\n`;
+
+    msg += `\nRecompensas coletadas com sucesso.`;
 
     return safeSend(ctx, msg, hubKeyboard());
 }
@@ -517,8 +551,10 @@ async function handleArenaRanking(ctx) {
     await safeAnswer(ctx);
 
     const playersMap = await getAllPlayers();
+    let text = buildArenaLeaderboardText(playersMap);
+    text += `\n\n🏆 *Ranking Competitivo*\nSuba de liga, vença mais e dispute prestígio real.`;
 
-    return safeSend(ctx, buildArenaLeaderboardText(playersMap), hubKeyboard());
+    return safeSend(ctx, text, hubKeyboard());
 }
 
 module.exports = {
