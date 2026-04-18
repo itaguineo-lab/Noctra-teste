@@ -18,6 +18,10 @@ const {
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
 
+const {
+    recordDropMetrics
+} = require('../core/metrics/metricsService');
+
 /*
 =================================
 MAPA
@@ -114,7 +118,6 @@ CHAVE
 */
 
 function tryDropKey(player, enemy, loot) {
-    // Chave não cai de inimigo comum.
     let chance = 0;
 
     if (enemy?.isBoss) chance = 0.12;
@@ -228,7 +231,7 @@ PROCESSAMENTO DE RECOMPENSAS
 =================================
 */
 
-function processVictory(player, enemy) {
+async function processVictory(player, enemy) {
     ensureRewardState(player);
 
     const rewardBase = buildRewardBase(player, enemy);
@@ -247,6 +250,14 @@ function processVictory(player, enemy) {
     player.totalKills += 1;
 
     normalizePlayerForSave(player);
+
+    await recordDropMetrics({
+        items: itemResult.droppedItem ? 1 : 0,
+        souls: soulResult.soulDropped ? 1 : 0,
+        keys: keyDropped ? 1 : 0,
+        gold: rewardBase.gold,
+        xp: rewardBase.xp
+    });
 
     return {
         title: getVictoryTitle(enemy),
