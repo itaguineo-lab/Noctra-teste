@@ -26,6 +26,11 @@ const {
 const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
+const {
+    recordCombatStarted,
+    recordCombatResult,
+    recordConsumableUsed
+} = require('../core/metrics/metricsService');
 
 function getEnemyBadge(enemy) {
     if (enemy?.isBoss) return '👑 BOSS';
@@ -233,7 +238,7 @@ async function finishFight(ctx, stored) {
     await removeStoredFight(ctx.from.id);
 
     if (fight.status === 'win') {
-        const rewards = processVictory(player, fight.enemy);
+        const rewards = await processVictory(player, fight.enemy);
         updateMissionProgress(player, 'kill', 1);
 
         player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
@@ -241,6 +246,7 @@ async function finishFight(ctx, stored) {
 
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
+        await recordCombatResult('win');
 
         return sendPostCombatMessage(
             ctx,
@@ -254,6 +260,7 @@ async function finishFight(ctx, stored) {
         player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
+        await recordCombatResult('loss');
 
         return sendPostCombatMessage(
             ctx,
@@ -269,6 +276,7 @@ async function finishFight(ctx, stored) {
 
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
+        await recordCombatResult('fled');
 
         return sendPostCombatMessage(
             ctx,
@@ -302,6 +310,7 @@ async function handleHunt(ctx) {
     await savePlayer(ctx.from.id, player);
 
     const fight = await createAndStoreFight(ctx.from.id, player, enemy);
+    await recordCombatStarted();
 
     try {
         await ctx.deleteMessage();
@@ -487,6 +496,7 @@ async function handleUseConsumable(ctx) {
     }
 
     updateMissionProgress(player, 'use_consumable', 1);
+    await recordConsumableUsed();
 
     const updated = await runConsumableTurn(ctx.from.id, (fight) => {
         let log = '';
