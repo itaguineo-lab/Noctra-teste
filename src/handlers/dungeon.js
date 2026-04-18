@@ -73,6 +73,11 @@ function renderDungeonSummary(player) {
     text += `🏅 Glórias: ${sum.glorias || 0}\n`;
     text += `🎁 Itens: ${sum.items || 0}\n`;
 
+    if (sum.completionItem) {
+        text += `\n🏁 *Recompensa Final*\n`;
+        text += `• ${sum.completionItem.name} [${sum.completionItem.rarity}]\n`;
+    }
+
     if (sum.notes?.length) {
         text += `\n📜 *Destaques*\n${sum.notes.map(n => `• ${n}`).join('\n')}`;
     }
@@ -90,17 +95,18 @@ function renderDungeonText(player) {
             const map = getDungeonMap(player);
             return [
                 `━━━━━━━━━━━━━━━━━━━━━━`,
-                `🏰 *MASMORRA 2.0*`,
+                `🏰 *MASMORRA 3.0*`,
                 `━━━━━━━━━━━━━━━━━━━━━━`,
                 ``,
                 `🗺️ Destino: ${map.emoji} ${map.name}`,
                 `🗝️ Chaves disponíveis: ${player.keys || 0}`,
                 `⚡ Energia atual: ${player.energy}/${player.maxEnergy}`,
                 ``,
-                `Entre em uma expedição tática por salas:`,
+                `Expedição premium por salas:`,
                 `• Combate, Elite e Boss`,
-                `• Tesouro, Fonte e Maldição`,
-                `• Santuário Arcano com bônus de expedição`,
+                `• Tesouro, Fonte, Maldição e Santuário`,
+                `• Recompensa final superior ao farm`,
+                `• Conteúdo ideal para build e progresso real`,
                 ``,
                 `Toque em *Nova expedição* para começar.`
             ].join('\n');
@@ -159,8 +165,8 @@ function renderDungeonText(player) {
         }\n\n`;
     }
 
-    text += `📊 *Recompensas acumuladas*\n`;
-    text += `✨ XP: ${d.rewards.xp}  💰 Ouro: ${d.rewards.gold}  🗝️ Chaves: ${d.rewards.keys}\n`;
+    text += `📊 *Acumulado da Run*\n`;
+    text += `✨ XP: ${d.rewards.xp}  💰 Ouro: ${d.rewards.gold}  🗝️ Chaves: ${d.rewards.keys}  🎁 Itens: ${d.rewards.items}\n`;
 
     return text;
 }
@@ -265,7 +271,7 @@ async function handleDungeonAttack(ctx) {
     let result;
 
     if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
-        result = resolveCombatRoom(player, room);
+        result = await resolveCombatRoom(player, room);
     } else if (room.type === 'treasure') {
         result = resolveTreasureRoom(player, room);
     } else if (room.type === 'heal') {
