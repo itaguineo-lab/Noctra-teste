@@ -10,6 +10,9 @@ const {
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
 const {
+    applyDeathXpPenalty
+} = require('../core/player/progression');
+const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
 const {
@@ -282,8 +285,25 @@ async function handleDungeonAttack(ctx) {
     }
 
     if (result.playerDefeated) {
+        const penalty = applyDeathXpPenalty(player, 0.05);
+
+        d.summary = {
+            roomsCleared: d.rooms.filter(r => r.cleared).length,
+            xp: d.rewards.xp,
+            gold: d.rewards.gold,
+            keys: d.rewards.keys,
+            glorias: d.rewards.glorias,
+            items: d.rewards.items,
+            notes: [
+                '💀 Derrotado na masmorra.',
+                `📉 XP perdido: ${penalty.lostXp}`
+            ]
+        };
+
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
         await recordDungeonAbandoned();
+
         return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
