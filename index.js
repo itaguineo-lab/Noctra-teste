@@ -276,7 +276,10 @@ function registerCommands() {
     bindCommand('class', handleClass);
     bindCommand('equip', handleEquip);
     bindCommand('equipsoul', handleEquipSoulCommand);
+
     bindCommand('reset', resetCommands.handleReset);
+    bindCommand('resetplayer', resetCommands.handleResetPlayer);
+    bindCommand('resetall', resetCommands.handleResetAll);
 
     bindCommand('give', (ctx) => {
         const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
