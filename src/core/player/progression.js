@@ -14,12 +14,6 @@ function getXpToNextLevel(level) {
         Number(level) || 1
     );
 
-    /*
-    curva progressiva:
-    rápida no early,
-    mais forte no mid/late
-    */
-
     return Math.floor(
         100 *
         Math.pow(lv, 1.18) +
@@ -40,10 +34,6 @@ function getLevelUpRewards(player) {
         glorias: 0,
         keys: 0
     };
-
-    /*
-    milestones
-    */
 
     if (player.level % 5 === 0) {
         rewards.glorias = 1;
@@ -76,6 +66,34 @@ function addXp(player, amount) {
 
 /*
 =================================
+LOSE XP ON DEATH
+=================================
+*/
+
+function applyDeathXpPenalty(player, percent = 0.05) {
+    const currentXp = Math.max(0, Number(player.xp) || 0);
+    const penaltyRate = Math.max(0, Number(percent) || 0);
+
+    if (currentXp <= 0 || penaltyRate <= 0) {
+        return {
+            success: true,
+            lostXp: 0,
+            remainingXp: currentXp
+        };
+    }
+
+    const lostXp = Math.max(1, Math.floor(currentXp * penaltyRate));
+    player.xp = Math.max(0, currentXp - lostXp);
+
+    return {
+        success: true,
+        lostXp,
+        remainingXp: player.xp
+    };
+}
+
+/*
+=================================
 LEVEL UP
 =================================
 */
@@ -100,10 +118,6 @@ function checkLevelUp(player) {
 
     const oldDef =
         player.def || 0;
-
-    /*
-    múltiplos levels
-    */
 
     while (
         player.xp >=
@@ -146,15 +160,7 @@ function checkLevelUp(player) {
         };
     }
 
-    /*
-    recalcula stats
-    */
-
     recalculateStats(player);
-
-    /*
-    cura parcial
-    */
 
     const healAmount =
         Math.floor(
@@ -172,19 +178,11 @@ function checkLevelUp(player) {
             healAmount
     );
 
-    /*
-    energia
-    */
-
     player.energy = Math.min(
         player.maxEnergy,
         (player.energy || 0) +
             totalEnergy
     );
-
-    /*
-    milestones
-    */
 
     player.glorias =
         (player.glorias || 0) +
@@ -193,10 +191,6 @@ function checkLevelUp(player) {
     player.keys =
         (player.keys || 0) +
         totalKeys;
-
-    /*
-    compensa hp extra
-    */
 
     const hpIncrease =
         player.maxHp -
@@ -277,6 +271,7 @@ module.exports = {
     getXpToNextLevel,
     getLevelUpRewards,
     addXp,
+    applyDeathXpPenalty,
     checkLevelUp,
     getLevelProgress
 };
