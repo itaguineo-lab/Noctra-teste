@@ -3,15 +3,17 @@ const {
     addInventoryItem,
     addGold,
     removeGold,
-    addNox,
     removeNox,
-    addGlorias,
     removeGlorias,
     addKeys,
     restoreEnergy,
     normalizePlayerForSave,
     getItemKey
 } = require('../player/playerMutations');
+const {
+    recordPurchaseMetrics,
+    recordSaleMetrics
+} = require('../metrics/metricsService');
 
 function ensurePlayerEconomy(player) {
     if (!player) throw new Error('Player inválido.');
@@ -119,7 +121,7 @@ function applyVip(player, item) {
     player.vip = true;
     player.vipExpires = new Date(newExpire).toISOString();
     player.maxEnergy = 40;
-    player.maxInventory = 30;
+    player.maxInventory = Math.max(player.maxInventory || 20, 30);
     player.energy = Math.min(player.maxEnergy, player.energy || player.maxEnergy);
 
     normalizePlayerForSave(player);
@@ -153,13 +155,42 @@ function addKey(player, item) {
     return { success: true, message: `🗝️ +${amount} chave(s)` };
 }
 
-function processPurchase(player, item) {
+function executePurchaseEffect(player, item) {
+    switch (item.type) {
+        case 'consumable':
+            if (item.effect === 'energyRefill') return addEnergyRefill(player, item);
+            if (item.effect === 'keys') return addKey(player, item);
+            return addConsumable(player, item);
+
+        case 'equipment':
+            return addEquipment(player, item);
+
+        case 'vip':
+            return applyVip(player, item);
+
+        case 'cosmetic':
+            return addCosmetic(player, item);
+
+        default:
+            return { success: false, message: '❌ Tipo inválido.' };
+    }
+}
+
+async function processPurchase(player, item) {
     ensurePlayerEconomy(player);
 
     if (!item) return { success: false, message: '❌ Item inválido.' };
 
-    if (!canPay(player, item.currency, item.price)) {
-        return { success: false, message: `❌ Saldo insuficiente em ${currencyLabel(item.currency)}.` };
+    const price = Number(item.price || 0);
+    if (price < 0) {
+        return { success: false, message: '❌ Preço inválido.' };
+    }
+
+    if (!canPay(player, item.currency, price)) {
+        return {
+            success: false,
+            message: `❌ Saldo insuficiente em ${currencyLabel(item.currency)}.`
+        };
     }
 
     if (!canProcessItem(player, item)) {
@@ -171,40 +202,35 @@ function processPurchase(player, item) {
         };
     }
 
-    let result;
-    switch (item.type) {
-        case 'consumable':
-            if (item.effect === 'energyRefill') result = addEnergyRefill(player, item);
-            else if (item.effect === 'keys') result = addKey(player, item);
-            else result = addConsumable(player, item);
-            break;
-        case 'equipment':
-            result = addEquipment(player, item);
-            break;
-        case 'vip':
-            result = applyVip(player, item);
-            break;
-        case 'cosmetic':
-            result = addCosmetic(player, item);
-            break;
-        default:
-            return { success: false, message: '❌ Tipo inválido.' };
+    const paid = pay(player, item.currency, price);
+    if (!paid) {
+        return {
+            success: false,
+            message: `❌ Falha ao processar pagamento em ${currencyLabel(item.currency)}.`
+        };
     }
 
-    if (result.success) {
-        const paid = pay(player, item.currency, item.price);
-        if (!paid) {
-            return { success: false, message: `❌ Falha ao processar pagamento em ${currencyLabel(item.currency)}.` };
-        }
+    const result = executePurchaseEffect(player, item);
+    if (!result.success) {
+        if (item.currency === 'gold') addGold(player, price);
+        else if (item.currency === 'nox') player.nox = (player.nox || 0) + price;
+        else if (item.currency === 'glorias') player.glorias = (player.glorias || 0) + price;
+
         normalizePlayerForSave(player);
+        return result;
     }
+
+    normalizePlayerForSave(player);
+
+    await recordPurchaseMetrics({
+        currency: item.currency,
+        amount: price,
+        vip: item.type === 'vip'
+    });
 
     return result;
 }
 
-/**
- * Calcula o valor de venda de um item (50% do valor base)
- */
 function calculateSellPrice(item) {
     if (!item) return 0;
 
@@ -227,7 +253,7 @@ function calculateSellPrice(item) {
     const levelMult = 1 + (level - 1) * 0.2;
 
     const basePrice = Math.floor(power * rarityMult * levelMult * 2);
-    return Math.max(1, Math.floor(basePrice * 0.5));
+    return Math.max(1, Math.floor(basePrice * 0.45));
 }
 
 function sellItem(player, itemIndex) {
@@ -244,6 +270,11 @@ function sellItem(player, itemIndex) {
     addGold(player, sellPrice);
 
     normalizePlayerForSave(player);
+
+    recordSaleMetrics({
+        gold: sellPrice,
+        items: 1
+    }).catch(err => console.error('Erro ao registrar venda:', err));
 
     return {
         success: true,
