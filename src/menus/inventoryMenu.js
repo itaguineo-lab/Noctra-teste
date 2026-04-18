@@ -42,8 +42,8 @@ function inventoryMainMenu(player = {}) {
             Markup.button.callback(`👢 Botas (${boots})`, 'invcat:boots')
         ],
         [
-            Markup.button.callback(`📿 Amuletos (${necklaces})`, 'invcat:necklaces'),
-            Markup.button.callback(`💍 Anéis (${rings})`, 'invcat:rings')
+            Markup.button.callback(`💍 Anéis (${rings})`, 'invcat:rings'),
+            Markup.button.callback(`📿 Amuletos (${necklaces})`, 'invcat:necklaces')
         ],
         [
             Markup.button.callback(`🧪 Consumíveis (${consumables})`, 'invcat:consumables'),
