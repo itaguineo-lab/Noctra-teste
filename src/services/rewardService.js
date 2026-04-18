@@ -90,17 +90,29 @@ function buildRewardBase(player, enemy) {
     let baseXp = Math.max(1, Number(enemy?.xp || 0));
     let baseGold = Math.max(1, Number(enemy?.gold || 0));
 
+    /*
+    VIP deve ajudar, mas não acelerar demais a economia.
+    QoL > pay-to-progress exagerado.
+    */
     if (player.vip) {
-        baseXp = Math.floor(baseXp * 1.20);
-        baseGold = Math.floor(baseGold * 1.20);
+        baseXp = Math.floor(baseXp * 1.10);
+        baseGold = Math.floor(baseGold * 1.10);
     }
 
-    const streakBonus = (player.totalKills > 0 && player.totalKills % 10 === 0)
-        ? Math.floor(baseGold * 0.20)
+    /*
+    Streak existe para sensação de fluxo,
+    não para inflar economia.
+    */
+    const streakBonus = (player.totalKills > 0 && player.totalKills % 12 === 0)
+        ? Math.floor(baseGold * 0.10)
         : 0;
 
-    const occasionalBonusGold = Math.random() < 0.10
-        ? Math.floor(baseGold * 0.25)
+    /*
+    Pequeno bônus ocasional para emoção,
+    sem transformar a economia em cassino.
+    */
+    const occasionalBonusGold = Math.random() < 0.05
+        ? Math.floor(baseGold * 0.15)
         : 0;
 
     return {
@@ -120,9 +132,13 @@ CHAVE
 function tryDropKey(player, enemy, loot) {
     let chance = 0;
 
-    if (enemy?.isBoss) chance = 0.12;
-    else if (enemy?.isMiniBoss) chance = 0.05;
-    else if (enemy?.isElite) chance = 0.015;
+    /*
+    Dungeon deve continuar premium.
+    Chave não pode banalizar dungeon.
+    */
+    if (enemy?.isBoss) chance = 0.08;
+    else if (enemy?.isMiniBoss) chance = 0.035;
+    else if (enemy?.isElite) chance = 0.01;
     else chance = 0;
 
     const dropped = Math.random() < chance;
