@@ -426,7 +426,11 @@ function registerShopActions() {
     bindAction('shop_village', shop.handleShopVillage);
     bindAction('shop_castle', shop.handleShopCastle);
     bindAction('shop_arena', shop.handleShopArena);
-    bindAction(/buy_(.+)/, shop.handleBuy);
+
+    bindAction(/^shop_buyqty:(.+):(\d+)$/, shop.handleBuyQuantity);
+    bindAction(/^shop_backtab:(.+)$/, shop.handleShopBackTab);
+
+    bindAction(/^buy_(.+)$/, shop.handleBuy);
 }
 
 /*
