@@ -19,11 +19,11 @@ async function safeEdit(ctx, text, options = {}) {
 }
 
 function getWalletText(player) {
-    return `╔════════════════════════╗
-║ 💰 Ouro: ${player.gold || 0}
-║ 💎 Nox: ${player.nox || 0}
-║ 🏅 Glórias: ${player.glorias || 0}
-╚════════════════════════╝`;
+    return [
+        `💰 Ouro: ${player.gold || 0}`,
+        `💎 Nox: ${player.nox || 0}`,
+        `🏅 Glórias: ${player.glorias || 0}`
+    ].join('\n');
 }
 
 function getShopItemsByTab(tab) {
@@ -40,10 +40,27 @@ function getTabTitle(tab) {
     return titles[tab] || '🛒 *Loja*';
 }
 
+function getTabDescription(tab) {
+    const descriptions = {
+        village: 'Consumíveis e itens básicos para sustentar o começo da jornada.',
+        castle: 'Equipamentos mais fortes para builds e progressão mais sólida.',
+        arena: 'Itens ligados à disputa, prestígio e evolução competitiva.',
+        premium: 'Conveniência, cosméticos e vantagens de qualidade de vida.'
+    };
+
+    return descriptions[tab] || 'Escolha um item.';
+}
+
 async function renderTab(ctx, tab) {
     const player = await getPlayer(ctx.from.id);
     const items = getShopItemsByTab(tab);
-    const header = `${getTabTitle(tab)}\n\n${getWalletText(player)}\n\nEscolha um item:`;
+
+    const header =
+        `${getTabTitle(tab)}\n\n` +
+        `${getWalletText(player)}\n\n` +
+        `${getTabDescription(tab)}\n\n` +
+        `Escolha um item:`;
+
     const { text, keyboard } = renderShop(header, items, player);
     return safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
 }
@@ -71,6 +88,7 @@ function paginate(items, page, pageSize) {
     const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
     const safePage = Math.min(Math.max(1, page), totalPages);
     const start = (safePage - 1) * pageSize;
+
     return {
         page: safePage,
         totalPages,
@@ -146,13 +164,30 @@ async function renderSellPage(ctx, page = 1) {
 
 async function handleShop(ctx) {
     const player = await getPlayer(ctx.from.id);
-    const msg = `🛒 *LOJAS DE NOCTRA*\n\n${getWalletText(player)}\n\nEscolha uma opção:`;
+
+    const msg =
+        `🛒 *LOJAS DE NOCTRA*\n\n` +
+        `${getWalletText(player)}\n\n` +
+        `Escolha sua ação:\n` +
+        `• Comprar para evoluir\n` +
+        `• Vender para gerar caixa\n` +
+        `• Usar a economia a favor da sua build`;
+
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopMainMenu() });
 }
 
 async function handleShopBuyMenu(ctx) {
     const player = await getPlayer(ctx.from.id);
-    const msg = `🛒 *COMPRAR*\n\n${getWalletText(player)}\n\nEscolha uma loja:`;
+
+    const msg =
+        `🛍️ *COMPRAR ITENS*\n\n` +
+        `${getWalletText(player)}\n\n` +
+        `Escolha a categoria da loja conforme seu objetivo:\n` +
+        `• Vila = base\n` +
+        `• Castelo = progressão\n` +
+        `• Arena = competitivo\n` +
+        `• Premium = conveniência`;
+
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopTabsMenu() });
 }
 
