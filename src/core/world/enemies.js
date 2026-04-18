@@ -1,7 +1,8 @@
 /*
 =================================
-NOCTRA — ENEMY SYSTEM 3.0
+NOCTRA — ENEMY SYSTEM 4.0
 INIMIGOS TEMÁTICOS + HABILIDADES + PROGRESSÃO CONTROLADA
+FOCO EM LONGEVIDADE, IDENTIDADE DE MAPA E PACING
 =================================
 */
 
@@ -536,76 +537,101 @@ function cloneEnemy(enemy) {
     return JSON.parse(JSON.stringify(enemy));
 }
 
-function getSpawnProfileForLevel(playerLevel) {
-    const level = Number(playerLevel) || 1;
+function getMapBaseLevel(mapId = 'clareira_sombria') {
+    return {
+        clareira_sombria: 1,
+        cripta_em_ruinas: 8,
+        pantano_corrompido: 15,
+        deserto_incandescente: 24,
+        citadela_lunar: 32,
+        abismo_noctra: 42
+    }[mapId] || 1;
+}
 
+function getSpawnProfile(mapId, playerLevel = 1) {
+    const mapBaseLevel = getMapBaseLevel(mapId);
+    const level = Number(playerLevel) || 1;
+    const levelOffset = Math.max(0, level - mapBaseLevel);
+
+    const baseProfiles = {
+        clareira_sombria: { common: 0.92, elite: 0.08, miniboss: 0.00, boss: 0.00 },
+        cripta_em_ruinas: { common: 0.82, elite: 0.16, miniboss: 0.02, boss: 0.00 },
+        pantano_corrompido: { common: 0.75, elite: 0.20, miniboss: 0.05, boss: 0.00 },
+        deserto_incandescente: { common: 0.70, elite: 0.22, miniboss: 0.07, boss: 0.01 },
+        citadela_lunar: { common: 0.66, elite: 0.24, miniboss: 0.08, boss: 0.02 },
+        abismo_noctra: { common: 0.62, elite: 0.25, miniboss: 0.10, boss: 0.03 }
+    };
+
+    const profile = { ...(baseProfiles[mapId] || baseProfiles.clareira_sombria) };
+
+    /*
+    Ajuste suave por overlevel:
+    jogador forte encontra um pouco mais de elite/miniboss,
+    mas o mapa não perde identidade.
+    */
+    const overlevelBonus = Math.min(0.06, levelOffset * 0.006);
+
+    profile.elite += overlevelBonus * 0.65;
+    profile.miniboss += overlevelBonus * 0.25;
+    profile.boss += overlevelBonus * 0.10;
+    profile.common -= overlevelBonus;
+
+    /*
+    Early onboarding protegido:
+    até nível 4, nada além de common.
+    */
     if (level <= 4) {
         return {
-            common: 1.0,
+            common: 1,
             elite: 0,
             miniboss: 0,
             boss: 0
         };
     }
 
-    if (level <= 9) {
+    if (level <= 7 && mapId === 'clareira_sombria') {
         return {
-            common: 0.88,
-            elite: 0.12,
+            common: 0.90,
+            elite: 0.10,
             miniboss: 0,
             boss: 0
         };
     }
 
-    if (level <= 14) {
-        return {
-            common: 0.73,
-            elite: 0.22,
-            miniboss: 0.05,
-            boss: 0
-        };
-    }
-
-    if (level <= 24) {
-        return {
-            common: 0.65,
-            elite: 0.24,
-            miniboss: 0.09,
-            boss: 0.02
-        };
-    }
+    const total = profile.common + profile.elite + profile.miniboss + profile.boss;
 
     return {
-        common: 0.60,
-        elite: 0.25,
-        miniboss: 0.11,
-        boss: 0.04
+        common: profile.common / total,
+        elite: profile.elite / total,
+        miniboss: profile.miniboss / total,
+        boss: profile.boss / total
     };
 }
 
 function applyDangerProfile(profile, dangerLevel = 0, pool = {}) {
-    const bonus = Math.min(0.12, Math.max(0, dangerLevel) * 0.015);
+    const bonus = Math.min(0.08, Math.max(0, dangerLevel) * 0.012);
 
     const adjusted = { ...profile };
 
     if (pool.elite?.length) {
-        adjusted.elite += bonus;
-        adjusted.common -= bonus * 0.65;
+        adjusted.elite += bonus * 0.60;
+        adjusted.common -= bonus * 0.45;
     }
 
     if (pool.miniboss?.length) {
-        adjusted.miniboss += bonus * 0.45;
-        adjusted.common -= bonus * 0.25;
+        adjusted.miniboss += bonus * 0.28;
+        adjusted.common -= bonus * 0.18;
     }
 
     if (pool.boss?.length) {
-        adjusted.boss += bonus * 0.2;
-        adjusted.common -= bonus * 0.1;
+        adjusted.boss += bonus * 0.12;
+        adjusted.common -= bonus * 0.07;
     }
 
-    adjusted.common = Math.max(0.2, adjusted.common);
+    adjusted.common = Math.max(0.18, adjusted.common);
 
     const total = adjusted.common + adjusted.elite + adjusted.miniboss + adjusted.boss;
+
     return {
         common: adjusted.common / total,
         elite: adjusted.elite / total,
@@ -626,29 +652,31 @@ function rollEnemyTier(profile) {
 function scaleEnemyForPlayer(baseEnemy, playerLevel = 1, mapId = 'clareira_sombria') {
     const enemy = cloneEnemy(baseEnemy);
     const level = Number(playerLevel) || 1;
+    const mapBaseLevel = getMapBaseLevel(mapId);
 
-    const mapBaseLevel = {
-        clareira_sombria: 1,
-        cripta_em_ruinas: 6,
-        pantano_corrompido: 12,
-        deserto_incandescente: 18,
-        citadela_lunar: 25,
-        abismo_noctra: 35
-    }[mapId] || 1;
-
+    /*
+    Scaling mais controlado:
+    mapa mantém identidade e não vira “conteúdo do seu level”.
+    */
     const delta = Math.max(0, level - mapBaseLevel);
 
-    const statScale = Math.min(1 + delta * 0.035, 1.55);
-    const rewardScale = Math.min(1 + delta * 0.03, 1.45);
+    const statScale = Math.min(1 + delta * 0.026, 1.38);
+    const atkScale = Math.min(1 + delta * 0.022, 1.32);
+    const defScale = Math.min(1 + delta * 0.018, 1.28);
+    const rewardScale = Math.min(1 + delta * 0.022, 1.28);
 
     enemy.hp = Math.max(1, Math.round(enemy.hp * statScale));
-    enemy.atk = Math.max(1, Math.round(enemy.atk * (1 + delta * 0.025)));
-    enemy.def = Math.max(0, Math.round(enemy.def * (1 + delta * 0.02)));
-    enemy.crit = Math.min(35, Math.round((enemy.crit || 0) * (1 + delta * 0.01)));
+    enemy.atk = Math.max(1, Math.round(enemy.atk * atkScale));
+    enemy.def = Math.max(0, Math.round(enemy.def * defScale));
+    enemy.crit = Math.min(35, Math.round((enemy.crit || 0) * (1 + delta * 0.008)));
 
     enemy.xp = Math.max(1, Math.round((enemy.xp || 0) * rewardScale));
     enemy.gold = Math.max(1, Math.round((enemy.gold || 0) * rewardScale));
-    enemy.level = Math.max(enemy.level || mapBaseLevel, Math.min(level, mapBaseLevel + 10));
+
+    enemy.level = Math.max(
+        enemy.level || mapBaseLevel,
+        Math.min(level, mapBaseLevel + 8)
+    );
 
     return enemy;
 }
@@ -659,7 +687,7 @@ function scaleEnemyForPlayer(baseEnemy, playerLevel = 1, mapId = 'clareira_sombr
 
 function getRandomEnemy(mapId, playerLevel = 1, dangerLevel = 0) {
     const pool = getPool(mapId);
-    const baseProfile = getSpawnProfileForLevel(playerLevel);
+    const baseProfile = getSpawnProfile(mapId, playerLevel);
     const profile = applyDangerProfile(baseProfile, dangerLevel, pool);
 
     let tier = rollEnemyTier(profile);
