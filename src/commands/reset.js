@@ -30,17 +30,12 @@ function extractTarget(ctx) {
         };
     }
 
-    const mentionEntity = ctx.message?.entities?.find(e => e.type === 'mention');
-    if (mentionEntity) {
-        const mentionText = ctx.message.text.substring(
-            mentionEntity.offset,
-            mentionEntity.offset + mentionEntity.length
-        );
-
+    const parts = (ctx.message?.text || '').trim().split(/\s+/);
+    if (parts[1]) {
         return {
-            type: 'username',
-            value: mentionText.replace('@', ''),
-            label: mentionText
+            type: 'id',
+            value: String(parts[1]).replace('@', '').trim(),
+            label: parts[1]
         };
     }
 
@@ -70,27 +65,21 @@ async function resolveTargetPlayer(collection, target) {
 
 /*
 =================================
-RESET FLOW
+RESET SELF
 =================================
 */
 
 async function handleReset(ctx) {
-    const target = extractTarget(ctx);
-    const isSelf = target.type === 'id' && target.value === String(ctx.from.id);
-    const userIsAdmin = isAdmin(ctx);
+    const target = {
+        type: 'id',
+        value: String(ctx.from.id),
+        label: ctx.from.first_name || 'jogador'
+    };
 
-    if (!isSelf && userIsAdmin) {
-        return executeReset(ctx, target, true);
-    }
-
-    if (isSelf) {
-        return requestConfirmation(ctx);
-    }
-
-    return ctx.reply('❌ Apenas administradores podem resetar outros jogadores.');
+    return requestSelfResetConfirmation(ctx, target);
 }
 
-async function requestConfirmation(ctx) {
+async function requestSelfResetConfirmation(ctx) {
     const keyboard = Markup.inlineKeyboard([
         [
             Markup.button.callback('✅ Sim, resetar meu personagem', 'reset_confirm'),
@@ -101,7 +90,7 @@ async function requestConfirmation(ctx) {
     await ctx.reply(
         '⚠️ *ATENÇÃO*\n\n' +
         'Você está prestes a *resetar completamente* seu personagem.\n' +
-        'Todo o progresso, itens, ouro, NOX e almas serão *perdidos para sempre*.\n\n' +
+        'Todo o progresso, itens, ouro, NOX, almas e progresso de mapas serão *perdidos para sempre*.\n\n' +
         'Deseja realmente continuar?',
         {
             parse_mode: 'Markdown',
@@ -110,28 +99,28 @@ async function requestConfirmation(ctx) {
     );
 }
 
-async function executeReset(ctx, target, isAdminAction = false) {
+async function executeResetPlayer(ctx, target, isAdminAction = false) {
     try {
         const collection = await getPlayerCollection();
         const player = await resolveTargetPlayer(collection, target);
 
         if (!player) {
             return ctx.reply(
-                target.type === 'username'
-                    ? `❌ Jogador @${target.value} não encontrado.`
-                    : '❌ Jogador não encontrado.'
+                target.type === 'id'
+                    ? `❌ Jogador ${target.value} não encontrado.`
+                    : `❌ Jogador ${target.label} não encontrado.`
             );
         }
 
         await collection.deleteOne({ _id: player._id });
 
         const message = isAdminAction
-            ? `♻️ Personagem de ${player.name} foi resetado por um administrador.`
+            ? `♻️ Personagem de *${player.name}* foi resetado com sucesso.`
             : `♻️ Seu personagem foi resetado com sucesso.\n\nUse /start para começar novamente.`;
 
-        await ctx.reply(message);
+        await ctx.reply(message, { parse_mode: 'Markdown' });
     } catch (error) {
-        console.error('Erro reset:', error);
+        console.error('Erro reset player:', error);
         await ctx.reply('❌ Erro ao resetar personagem.');
     }
 }
@@ -139,7 +128,7 @@ async function executeReset(ctx, target, isAdminAction = false) {
 async function handleResetConfirm(ctx) {
     await ctx.answerCbQuery();
 
-    await executeReset(ctx, {
+    await executeResetPlayer(ctx, {
         type: 'id',
         value: String(ctx.from.id),
         label: ctx.from.first_name
@@ -158,8 +147,68 @@ async function handleResetCancel(ctx) {
     } catch {}
 }
 
+/*
+=================================
+RESET SPECIFIC PLAYER (ADMIN)
+=================================
+*/
+
+async function handleResetPlayer(ctx) {
+    if (!isAdmin(ctx)) {
+        return ctx.reply('❌ Apenas administradores podem resetar outros jogadores.');
+    }
+
+    const target = extractTarget(ctx);
+
+    if (!target?.value || target.value === String(ctx.from.id)) {
+        return ctx.reply('❌ Informe um ID válido de jogador para resetar.\nEx: /resetplayer 123456789');
+    }
+
+    return executeResetPlayer(ctx, target, true);
+}
+
+/*
+=================================
+RESET ALL PLAYERS (ADMIN)
+=================================
+*/
+
+async function handleResetAll(ctx) {
+    if (!isAdmin(ctx)) {
+        return ctx.reply('❌ Apenas administradores podem resetar o jogo todo.');
+    }
+
+    const text = (ctx.message?.text || '').trim();
+    const parts = text.split(/\s+/);
+    const confirmation = parts[1];
+
+    if (confirmation !== 'CONFIRMAR_RESET_TOTAL') {
+        return ctx.reply(
+            '⚠️ Comando extremamente destrutivo.\n\n' +
+            'Para resetar o jogo todo, use exatamente:\n' +
+            '`/resetall CONFIRMAR_RESET_TOTAL`',
+            { parse_mode: 'Markdown' }
+        );
+    }
+
+    try {
+        const collection = await getPlayerCollection();
+        const result = await collection.deleteMany({});
+
+        return ctx.reply(
+            `💥 Reset global concluído.\n\n` +
+            `Jogadores removidos: ${result.deletedCount || 0}`
+        );
+    } catch (error) {
+        console.error('Erro reset all:', error);
+        return ctx.reply('❌ Erro ao resetar o jogo todo.');
+    }
+}
+
 module.exports = {
     handleReset,
     handleResetConfirm,
-    handleResetCancel
+    handleResetCancel,
+    handleResetPlayer,
+    handleResetAll
 };
