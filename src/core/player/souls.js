@@ -52,7 +52,7 @@ const soulsList = [
     },
     {
         id: 'soul_guardian',
-        bossId: 'swamp_abomination',
+        bossId: 'swamp_guardian',
         name: 'Alma Guardiã',
         rarity: 'Épico',
         tier: 2,
@@ -133,9 +133,9 @@ PITY SYSTEM
 
 const pityLimits = {
     boostAt: 10,
-    epicAt: 18,
-    legendaryAt: 26,
-    mythicAt: 40
+    epicAt: 16,
+    legendaryAt: 24,
+    mythicAt: 36
 };
 
 /*
@@ -209,8 +209,8 @@ function getSoulDropChanceByEnemy(enemy, pityCounter = 0) {
     let chance = 0;
 
     if (enemy?.isBoss) chance = 0.03;
-    else if (enemy?.isMiniBoss) chance = 0.015;
-    else if (enemy?.isElite) chance = 0.006;
+    else if (enemy?.isMiniBoss) chance = 0.012;
+    else if (enemy?.isElite) chance = 0.004;
     else chance = 0;
 
     if (enemy?.isBoss && pityCounter >= pityLimits.boostAt) {
@@ -231,7 +231,7 @@ function resolveSoulDrop({ playerLevel, enemy, pityCounter = 0 }) {
 
     if (enemy?.id) {
         const bossSoul = available.find(soul => soul.bossId === enemy.id);
-        if (bossSoul && Math.random() <= 0.65) {
+        if (bossSoul && Math.random() <= 0.80) {
             return createSoulInstance(bossSoul);
         }
     }
