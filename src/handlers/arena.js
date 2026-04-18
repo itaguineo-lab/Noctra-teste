@@ -180,7 +180,7 @@ async function finishBattle(ctx, stored, resultType) {
             summaryText += `\n⬆️ *Nova Liga!*\n${rewards.newLeague.emoji} ${rewards.newLeague.name}\n`;
         }
 
-        summaryText += `\nA arena reconhece sua força.`;
+        summaryText += `\nA arena reconhece consistência e força.`;
     }
 
     if (resultType === 'loss') {
@@ -192,7 +192,7 @@ async function finishBattle(ctx, stored, resultType) {
             `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `🆚 Adversário: *${battle.enemy.name}*\n` +
             `📉 Pontos perdidos: -${rewards.pointsLost}\n\n` +
-            `Volte mais forte e recupere sua posição.`;
+            `A arena pune erros. Ajuste sua build e volte mais forte.`;
     }
 
     if (resultType === 'fled') {
@@ -236,7 +236,7 @@ async function handleArena(ctx) {
 
     let hubText = buildArenaHubText(player);
     hubText += `\n\n🎯 *Objetivo*\n`;
-    hubText += `Suba de liga, conquiste baús e acumule moedas da arena.`;
+    hubText += `Suba de liga, conquiste baús e acumule moedas da arena sem quebrar sua economia principal.`;
 
     return safeSend(ctx, hubText, hubKeyboard());
 }
@@ -405,7 +405,7 @@ async function handleArenaConsumables(ctx) {
 
     return safeSend(
         ctx,
-        `🧪 *Consumíveis da Arena*\n\nEscolha um item para ganhar vantagem tática.`,
+        `🧪 *Consumíveis da Arena*\n\nEscolha um item para obter vantagem tática, não para distorcer o meta.`,
         Markup.inlineKeyboard(rows)
     );
 }
@@ -432,18 +432,18 @@ async function handleArenaUseConsumable(ctx) {
 
     const updated = await runArenaConsumable(ctx.from.id, (battle) => {
         if (key === 'potionHp') {
-            const heal = Math.max(20, Math.floor(battle.player.maxHp * 0.4));
+            const heal = Math.max(20, Math.floor(battle.player.maxHp * 0.36));
             battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + heal);
             battle.logs.push('❤️ Você usou Poção de HP e se curou.');
         } else if (key === 'potionEnergy') {
             restoreEnergy(player, 1);
             battle.logs.push('⚡ Energia +1 com Poção de Energia.');
         } else if (key === 'tonicStrength') {
-            battle.player.atk += 8;
-            battle.logs.push('💪 Tônico de Força: ATK +8.');
+            battle.player.atk += 7;
+            battle.logs.push('💪 Tônico de Força: ATK +7.');
         } else if (key === 'tonicDefense') {
-            battle.player.def += 8;
-            battle.logs.push('🛡️ Tônico de Defesa: DEF +8.');
+            battle.player.def += 7;
+            battle.logs.push('🛡️ Tônico de Defesa: DEF +7.');
         }
     });
 
@@ -493,7 +493,7 @@ async function handleArenaChests(ctx) {
     rows.push([Markup.button.callback('🏟️ Voltar Arena', 'arena')]);
 
     let text = buildArenaChestListText(player);
-    text += `\n\n🎁 *Baús da Arena*\nAbra seus baús para converter vitórias em progressão real.`;
+    text += `\n\n🎁 *Baús da Arena*\nAbra seus baús para converter vitórias em progresso competitivo moderado.`;
 
     return safeSend(ctx, text, Markup.inlineKeyboard(rows));
 }
