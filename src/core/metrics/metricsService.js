@@ -11,7 +11,39 @@ async function ensureDailyMetrics(dateKey = getDateKey()) {
     let doc = await MetricsDaily.findOne({ dateKey });
 
     if (!doc) {
-        doc = await MetricsDaily.create({ dateKey });
+        doc = await MetricsDaily.create({
+            dateKey,
+            counters: {
+                playersCreated: 0,
+                menuLoads: 0,
+
+                combatsStarted: 0,
+                combatsWon: 0,
+                combatsLost: 0,
+                combatsFled: 0,
+
+                dungeonsStarted: 0,
+                dungeonsCompleted: 0,
+                dungeonsAbandoned: 0,
+                dungeonRoomsCleared: 0,
+
+                itemsDropped: 0,
+                soulsDropped: 0,
+                keysDropped: 0,
+
+                consumablesUsed: 0,
+
+                goldAwarded: 0,
+                xpAwarded: 0,
+
+                goldSpent: 0,
+                noxSpent: 0,
+                gloriasSpent: 0,
+                itemsSold: 0,
+                goldFromSales: 0,
+                vipPurchases: 0
+            }
+        });
     }
 
     return doc;
@@ -101,6 +133,24 @@ async function recordConsumableUsed() {
     return incrementMetric('consumablesUsed', 1);
 }
 
+async function recordPurchaseMetrics({ currency, amount = 0, vip = false } = {}) {
+    const increments = {};
+
+    if (currency === 'gold') increments.goldSpent = Number(amount || 0);
+    if (currency === 'nox') increments.noxSpent = Number(amount || 0);
+    if (currency === 'glorias') increments.gloriasSpent = Number(amount || 0);
+    if (vip) increments.vipPurchases = 1;
+
+    return addManyMetrics(increments);
+}
+
+async function recordSaleMetrics({ gold = 0, items = 1 } = {}) {
+    return addManyMetrics({
+        goldFromSales: Number(gold || 0),
+        itemsSold: Number(items || 0)
+    });
+}
+
 async function getTodayMetrics() {
     return ensureDailyMetrics(getDateKey());
 }
@@ -134,7 +184,14 @@ function normalizeCounters(doc) {
         consumablesUsed: Number(counters.consumablesUsed || 0),
 
         goldAwarded: Number(counters.goldAwarded || 0),
-        xpAwarded: Number(counters.xpAwarded || 0)
+        xpAwarded: Number(counters.xpAwarded || 0),
+
+        goldSpent: Number(counters.goldSpent || 0),
+        noxSpent: Number(counters.noxSpent || 0),
+        gloriasSpent: Number(counters.gloriasSpent || 0),
+        itemsSold: Number(counters.itemsSold || 0),
+        goldFromSales: Number(counters.goldFromSales || 0),
+        vipPurchases: Number(counters.vipPurchases || 0)
     };
 }
 
@@ -190,6 +247,8 @@ module.exports = {
 
     recordDropMetrics,
     recordConsumableUsed,
+    recordPurchaseMetrics,
+    recordSaleMetrics,
 
     getTodayMetrics,
     getMetricsByDate,
