@@ -6,11 +6,11 @@ const MAX_ACTIVE_CHESTS = 3;
 
 const ARENA_LEAGUES = [
     { id: 'bronze', name: 'Bronze', emoji: '🥉', minPoints: 0 },
-    { id: 'silver', name: 'Prata', emoji: '🥈', minPoints: 500 },
-    { id: 'gold', name: 'Ouro', emoji: '🥇', minPoints: 1200 },
-    { id: 'diamond', name: 'Diamante', emoji: '💎', minPoints: 2500 },
-    { id: 'master', name: 'Mestre', emoji: '👑', minPoints: 4500 },
-    { id: 'legend', name: 'Lendário', emoji: '🌌', minPoints: 7000 }
+    { id: 'silver', name: 'Prata', emoji: '🥈', minPoints: 650 },
+    { id: 'gold', name: 'Ouro', emoji: '🥇', minPoints: 1500 },
+    { id: 'diamond', name: 'Diamante', emoji: '💎', minPoints: 3000 },
+    { id: 'master', name: 'Mestre', emoji: '👑', minPoints: 5200 },
+    { id: 'legend', name: 'Lendário', emoji: '🌌', minPoints: 8200 }
 ];
 
 const ARENA_CHEST_CONFIG = {
@@ -18,22 +18,22 @@ const ARENA_CHEST_CONFIG = {
         id: 'wood',
         name: 'Baú de Madeira',
         emoji: '🪵',
-        unlockMs: 15 * 60 * 1000,
-        arenaCoins: [20, 35],
-        gold: [30, 60],
-        keyChance: 0.05,
-        gloriaChance: 0.02,
+        unlockMs: 20 * 60 * 1000,
+        arenaCoins: [14, 24],
+        gold: [20, 45],
+        keyChance: 0.03,
+        gloriaChance: 0.01,
         consumables: ['potionHp']
     },
     iron: {
         id: 'iron',
         name: 'Baú de Ferro',
         emoji: '🪙',
-        unlockMs: 60 * 60 * 1000,
-        arenaCoins: [40, 60],
-        gold: [50, 100],
-        keyChance: 0.08,
-        gloriaChance: 0.04,
+        unlockMs: 75 * 60 * 1000,
+        arenaCoins: [26, 40],
+        gold: [35, 75],
+        keyChance: 0.05,
+        gloriaChance: 0.02,
         consumables: ['potionEnergy']
     },
     silver: {
@@ -41,10 +41,10 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Prata',
         emoji: '🥈',
         unlockMs: 3 * 60 * 60 * 1000,
-        arenaCoins: [80, 120],
-        gold: [100, 180],
-        keyChance: 0.12,
-        gloriaChance: 0.08,
+        arenaCoins: [50, 78],
+        gold: [65, 130],
+        keyChance: 0.08,
+        gloriaChance: 0.04,
         consumables: ['tonicStrength']
     },
     gold: {
@@ -52,10 +52,10 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Ouro',
         emoji: '🥇',
         unlockMs: 8 * 60 * 60 * 1000,
-        arenaCoins: [150, 220],
-        gold: [180, 300],
-        keyChance: 0.18,
-        gloriaChance: 0.15,
+        arenaCoins: [95, 145],
+        gold: [120, 220],
+        keyChance: 0.12,
+        gloriaChance: 0.08,
         consumables: ['tonicDefense']
     },
     diamond: {
@@ -63,41 +63,41 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Diamante',
         emoji: '💎',
         unlockMs: 24 * 60 * 60 * 1000,
-        arenaCoins: [300, 500],
-        gold: [350, 600],
-        keyChance: 0.30,
-        gloriaChance: 0.30,
+        arenaCoins: [180, 280],
+        gold: [240, 420],
+        keyChance: 0.20,
+        gloriaChance: 0.15,
         consumables: ['potionHp', 'potionEnergy', 'tonicStrength', 'tonicDefense']
     }
 };
 
 const CHEST_WEIGHTS_BY_LEAGUE = {
     bronze: [
-        { tier: 'wood', weight: 75 },
-        { tier: 'iron', weight: 25 }
+        { tier: 'wood', weight: 82 },
+        { tier: 'iron', weight: 18 }
     ],
     silver: [
-        { tier: 'wood', weight: 30 },
-        { tier: 'iron', weight: 45 },
-        { tier: 'silver', weight: 25 }
+        { tier: 'wood', weight: 38 },
+        { tier: 'iron', weight: 47 },
+        { tier: 'silver', weight: 15 }
     ],
     gold: [
-        { tier: 'iron', weight: 25 },
-        { tier: 'silver', weight: 45 },
-        { tier: 'gold', weight: 30 }
+        { tier: 'iron', weight: 35 },
+        { tier: 'silver', weight: 48 },
+        { tier: 'gold', weight: 17 }
     ],
     diamond: [
-        { tier: 'silver', weight: 20 },
-        { tier: 'gold', weight: 50 },
-        { tier: 'diamond', weight: 30 }
+        { tier: 'silver', weight: 38 },
+        { tier: 'gold', weight: 47 },
+        { tier: 'diamond', weight: 15 }
     ],
     master: [
-        { tier: 'gold', weight: 35 },
-        { tier: 'diamond', weight: 65 }
+        { tier: 'gold', weight: 62 },
+        { tier: 'diamond', weight: 38 }
     ],
     legend: [
-        { tier: 'gold', weight: 20 },
-        { tier: 'diamond', weight: 80 }
+        { tier: 'gold', weight: 48 },
+        { tier: 'diamond', weight: 52 }
     ]
 };
 
@@ -278,7 +278,7 @@ function snapshotArenaPlayer(player) {
 
 function createFallbackArenaOpponent(playerSnapshot) {
     const league = getArenaLeagueByPoints(playerSnapshot.arenaPoints || 0);
-    const factor = 0.9 + Math.random() * 0.18;
+    const factor = 0.90 + Math.random() * 0.16;
 
     return {
         id: `arena_bot_${playerSnapshot.id}`,
@@ -320,8 +320,8 @@ async function selectArenaOpponentSnapshot(player) {
     const scored = candidates.map(opponent => {
         const leagueIndex = getArenaLeagueIndex(opponent.leagueId);
         const powerGap = Math.abs(opponent.power - playerPower);
-        const leaguePenalty = Math.abs(leagueIndex - playerLeagueIndex) * 120;
-        const freshnessPenalty = opponent.arenaPoints > playerSnapshot.arenaPoints * 1.8 ? 80 : 0;
+        const leaguePenalty = Math.abs(leagueIndex - playerLeagueIndex) * 140;
+        const freshnessPenalty = opponent.arenaPoints > playerSnapshot.arenaPoints * 1.8 ? 90 : 0;
 
         return {
             opponent,
@@ -332,8 +332,8 @@ async function selectArenaOpponentSnapshot(player) {
     const preferred = scored.filter(({ opponent }) => {
         const leagueIndex = getArenaLeagueIndex(opponent.leagueId);
         return (
-            opponent.power >= playerPower * 0.72 &&
-            opponent.power <= playerPower * 1.32 &&
+            opponent.power >= playerPower * 0.76 &&
+            opponent.power <= playerPower * 1.28 &&
             Math.abs(leagueIndex - playerLeagueIndex) <= 2
         );
     });
@@ -410,9 +410,9 @@ function getChestTierForVictory(playerLeagueId, enemyLeagueId, streak = 1) {
 
     let tier = baseTier;
 
-    if (leagueDiff > 0) tier = shiftChestTier(tier, 1);
-    if (streak >= 4) tier = shiftChestTier(tier, 1);
-    if (streak >= 8) tier = shiftChestTier(tier, 1);
+    if (leagueDiff >= 2) tier = shiftChestTier(tier, 1);
+    if (streak >= 5) tier = shiftChestTier(tier, 1);
+    if (streak >= 10) tier = shiftChestTier(tier, 1);
 
     return tier;
 }
@@ -454,12 +454,12 @@ function buildArenaHubText(player) {
     let text = `🏟️ *ARENA*\n\n`;
     text += `📛 Liga: ${league.emoji} ${league.name}\n`;
     text += `🎯 Pontos: ${formatNumber(player.arena.points)}\n`;
-    text += `🪙 Moeda da Arena: ${formatNumber(player.arena.coins)}\n`;
+    text += `🪙 Moedas da Arena: ${formatNumber(player.arena.coins)}\n`;
     text += `🏆 Vitórias: ${formatNumber(player.arena.wins)}\n`;
     text += `💀 Derrotas: ${formatNumber(player.arena.losses)}\n`;
     text += `🔥 Sequência: ${formatNumber(player.arena.streak)}\n`;
     text += `👑 Melhor sequência: ${formatNumber(player.arena.maxStreak)}\n`;
-    text += `💎 Baús ativos: ${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}\n\n`;
+    text += `🎁 Baús ativos: ${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}\n\n`;
 
     if (nextLeague) {
         text += `⬆️ Próxima liga: ${nextLeague.emoji} ${nextLeague.name}\n`;
@@ -542,7 +542,6 @@ function buildArenaChestListText(player) {
     });
 
     text += `\nBaús ativos: ${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}`;
-
     return text;
 }
 
@@ -627,23 +626,23 @@ function resolveArenaVictory(player, battle) {
 
     const powerGap = Math.max(0, battle.enemy.power - battle.player.power);
     const leagueGap = Math.max(0, enemyLeagueIndex - playerLeagueIndex);
-    const streakBonus = player.arena.streak >= 4 ? 3 : 0;
+    const streakBonus = player.arena.streak >= 4 ? 2 : 0;
 
     const pointsGained = Math.max(
-        8,
-        18 +
-        (enemyLeagueIndex * 4) +
-        Math.floor(powerGap / 120) +
-        (leagueGap * 8) +
+        9,
+        16 +
+        (enemyLeagueIndex * 3) +
+        Math.floor(powerGap / 170) +
+        (leagueGap * 6) +
         streakBonus
     );
 
     const coinsGained = Math.max(
         5,
-        12 +
-        (enemyLeagueIndex * 4) +
-        Math.floor(battle.enemy.power / 200) +
-        Math.min(10, player.arena.streak * 2)
+        10 +
+        (enemyLeagueIndex * 3) +
+        Math.floor(battle.enemy.power / 260) +
+        Math.min(8, player.arena.streak)
     );
 
     player.arena.points += pointsGained;
@@ -671,7 +670,7 @@ function resolveArenaVictory(player, battle) {
 
         player.arena.chests.push(chest);
     } else {
-        overflowCoins = 10 + (enemyLeagueIndex * 4);
+        overflowCoins = 8 + (enemyLeagueIndex * 3);
         player.arena.coins += overflowCoins;
     }
 
@@ -688,7 +687,8 @@ function resolveArenaVictory(player, battle) {
 function resolveArenaLoss(player) {
     ensureArenaState(player);
 
-    const loss = Math.max(5, Math.floor(player.arena.points * 0.03));
+    const baseLoss = 10 + getArenaLeagueIndex(player.arena.leagueId) * 4;
+    const loss = Math.max(baseLoss, Math.floor(player.arena.points * 0.022));
 
     player.arena.points = Math.max(0, player.arena.points - loss);
     player.arena.losses += 1;
@@ -705,7 +705,8 @@ function resolveArenaLoss(player) {
 function resolveArenaFlee(player) {
     ensureArenaState(player);
 
-    const loss = Math.max(2, Math.floor(player.arena.points * 0.01));
+    const baseLoss = 4 + getArenaLeagueIndex(player.arena.leagueId) * 2;
+    const loss = Math.max(baseLoss, Math.floor(player.arena.points * 0.010));
 
     player.arena.points = Math.max(0, player.arena.points - loss);
     player.arena.losses += 1;
