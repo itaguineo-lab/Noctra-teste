@@ -20,7 +20,7 @@ const ITEM_POOL = {
         ]
     },
 
-    level6: {
+    level8: {
         weapon: [
             { name: 'Espada da Névoa', class: 'guerreiro', emoji: '🗡️' },
             { name: 'Machado do Eco', class: 'guerreiro', emoji: '🪓' },
@@ -41,7 +41,7 @@ const ITEM_POOL = {
         ]
     },
 
-    level12: {
+    level15: {
         weapon: [
             { name: 'Espada Tumular', class: 'guerreiro', emoji: '🗡️' },
             { name: 'Machado Carniceiro', class: 'guerreiro', emoji: '🪓' },
@@ -57,12 +57,12 @@ const ITEM_POOL = {
             { name: 'Botas Sombrias', class: null, emoji: '👢', forcedSlot: 'boots' }
         ],
         jewelry: [
-            { name: 'Anel Incomum', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto Incomum', class: null, emoji: '📿', forcedSlot: 'necklace' }
+            { name: 'Anel Profanado', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto Funesto', class: null, emoji: '📿', forcedSlot: 'necklace' }
         ]
     },
 
-    level18: {
+    level24: {
         weapon: [
             { name: 'Espada do Eclipse', class: 'guerreiro', emoji: '🗡️' },
             { name: 'Machado do Caos', class: 'guerreiro', emoji: '🪓' },
@@ -78,12 +78,12 @@ const ITEM_POOL = {
             { name: 'Botas do Vazio', class: null, emoji: '👢', forcedSlot: 'boots' }
         ],
         jewelry: [
-            { name: 'Anel Épico', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto Lendário', class: null, emoji: '📿', forcedSlot: 'necklace' }
+            { name: 'Anel Solar Negro', class: null, emoji: '💍', forcedSlot: 'ring' },
+            { name: 'Amuleto da Tempestade', class: null, emoji: '📿', forcedSlot: 'necklace' }
         ]
     },
 
-    level26: {
+    level32: {
         weapon: [
             { name: 'Espada da Citadela', class: 'guerreiro', emoji: '🗡️' },
             { name: 'Machado do Cometa', class: 'guerreiro', emoji: '🪓' },
@@ -104,7 +104,7 @@ const ITEM_POOL = {
         ]
     },
 
-    level36: {
+    level42: {
         weapon: [
             { name: 'Espada de Noctra', class: 'guerreiro', emoji: '🗡️' },
             { name: 'Machado do Fim', class: 'guerreiro', emoji: '🪓' },
@@ -127,17 +127,17 @@ const ITEM_POOL = {
 };
 
 const BASE_RARITIES = [
-    { name: 'Comum', multiplier: 1.00, weight: 52 },
-    { name: 'Incomum', multiplier: 1.15, weight: 26 },
-    { name: 'Raro', multiplier: 1.32, weight: 13 },
-    { name: 'Épico', multiplier: 1.58, weight: 6 },
-    { name: 'Lendário', multiplier: 1.90, weight: 2 },
-    { name: 'Mítico', multiplier: 2.30, weight: 1 }
+    { name: 'Comum', multiplier: 1.00, weight: 58 },
+    { name: 'Incomum', multiplier: 1.14, weight: 24 },
+    { name: 'Raro', multiplier: 1.30, weight: 11 },
+    { name: 'Épico', multiplier: 1.54, weight: 5 },
+    { name: 'Lendário', multiplier: 1.86, weight: 1.7 },
+    { name: 'Mítico', multiplier: 2.22, weight: 0.3 }
 ];
 
 const CATEGORY_WEIGHTS = {
-    weapon: 45,
-    armor: 35,
+    weapon: 42,
+    armor: 38,
     jewelry: 20
 };
 
@@ -169,21 +169,21 @@ function weightedCategory() {
 
 function getTierByMap(mapId = 1) {
     if (mapId <= 1) return 'level1';
-    if (mapId === 2) return 'level6';
-    if (mapId === 3) return 'level12';
-    if (mapId === 4) return 'level18';
-    if (mapId === 5) return 'level26';
-    return 'level36';
+    if (mapId === 2) return 'level8';
+    if (mapId === 3) return 'level15';
+    if (mapId === 4) return 'level24';
+    if (mapId === 5) return 'level32';
+    return 'level42';
 }
 
 function getLevelFromTier(tier) {
     const levelMap = {
         level1: 1,
-        level6: 6,
-        level12: 12,
-        level18: 18,
-        level26: 26,
-        level36: 36
+        level8: 8,
+        level15: 15,
+        level24: 24,
+        level32: 32,
+        level42: 42
     };
     return levelMap[tier] || 1;
 }
@@ -222,11 +222,11 @@ function getPowerTier(power) {
 function buildStatsBySlot(tier, slot) {
     const scaleMap = {
         level1: 1.00,
-        level6: 1.45,
-        level12: 1.95,
-        level18: 2.55,
-        level26: 3.35,
-        level36: 4.35
+        level8: 1.52,
+        level15: 2.18,
+        level24: 3.05,
+        level32: 3.95,
+        level42: 5.05
     };
 
     const scale = scaleMap[tier] || 1;
@@ -234,9 +234,9 @@ function buildStatsBySlot(tier, slot) {
     if (slot === 'weapon') {
         return {
             atk: rand(4, 7) * scale,
-            def: rand(0, 2) * scale * 0.35,
-            hp: rand(0, 6) * scale * 0.45,
-            crit: rand(2, 5) * scale * 0.50
+            def: rand(0, 2) * scale * 0.30,
+            hp: rand(0, 6) * scale * 0.40,
+            crit: rand(2, 5) * scale * 0.46
         };
     }
 
@@ -254,7 +254,7 @@ function buildStatsBySlot(tier, slot) {
             atk: 0,
             def: rand(4, 7) * scale,
             hp: rand(6, 12) * scale,
-            crit: rand(0, 1) * scale * 0.20
+            crit: rand(0, 1) * scale * 0.18
         };
     }
 
@@ -263,16 +263,16 @@ function buildStatsBySlot(tier, slot) {
             atk: 0,
             def: rand(2, 4) * scale,
             hp: rand(4, 8) * scale,
-            crit: rand(2, 4) * scale * 0.40
+            crit: rand(2, 4) * scale * 0.34
         };
     }
 
     if (slot === 'ring' || slot === 'necklace') {
         return {
             atk: rand(1, 3) * scale,
-            def: rand(1, 2) * scale * 0.45,
+            def: rand(1, 2) * scale * 0.40,
             hp: rand(4, 8) * scale,
-            crit: rand(3, 6) * scale * 0.55
+            crit: rand(3, 6) * scale * 0.50
         };
     }
 
@@ -300,46 +300,47 @@ function buildItemId() {
 /*
 =================================
 PERFIS DE DROP
+FOCO EM LONGEVIDADE
 =================================
 */
 
 function getDropProfileByEnemy(mapId = 1, encounterTier = 'common') {
     const baseByMap = {
         1: {
-            common: { chance: 0.08, rarityBias: 'early_common' },
-            elite: { chance: 0.18, rarityBias: 'early_elite' },
-            miniboss: { chance: 0.32, rarityBias: 'early_boss' },
-            boss: { chance: 0.55, rarityBias: 'early_boss' }
+            common: { chance: 0.05, rarityBias: 'early_common' },
+            elite: { chance: 0.12, rarityBias: 'early_elite' },
+            miniboss: { chance: 0.22, rarityBias: 'early_boss' },
+            boss: { chance: 0.36, rarityBias: 'early_boss' }
         },
         2: {
-            common: { chance: 0.10, rarityBias: 'mid_common' },
-            elite: { chance: 0.20, rarityBias: 'mid_elite' },
-            miniboss: { chance: 0.35, rarityBias: 'mid_boss' },
-            boss: { chance: 0.60, rarityBias: 'mid_boss' }
+            common: { chance: 0.06, rarityBias: 'mid_common' },
+            elite: { chance: 0.14, rarityBias: 'mid_elite' },
+            miniboss: { chance: 0.24, rarityBias: 'mid_boss' },
+            boss: { chance: 0.40, rarityBias: 'mid_boss' }
         },
         3: {
-            common: { chance: 0.11, rarityBias: 'mid_common' },
-            elite: { chance: 0.22, rarityBias: 'mid_elite' },
-            miniboss: { chance: 0.38, rarityBias: 'mid_boss' },
-            boss: { chance: 0.65, rarityBias: 'mid_boss' }
+            common: { chance: 0.07, rarityBias: 'mid_common' },
+            elite: { chance: 0.15, rarityBias: 'mid_elite' },
+            miniboss: { chance: 0.27, rarityBias: 'mid_boss' },
+            boss: { chance: 0.44, rarityBias: 'mid_boss' }
         },
         4: {
-            common: { chance: 0.12, rarityBias: 'late_common' },
-            elite: { chance: 0.24, rarityBias: 'late_elite' },
-            miniboss: { chance: 0.42, rarityBias: 'late_boss' },
-            boss: { chance: 0.70, rarityBias: 'late_boss' }
+            common: { chance: 0.08, rarityBias: 'late_common' },
+            elite: { chance: 0.17, rarityBias: 'late_elite' },
+            miniboss: { chance: 0.30, rarityBias: 'late_boss' },
+            boss: { chance: 0.48, rarityBias: 'late_boss' }
         },
         5: {
-            common: { chance: 0.13, rarityBias: 'late_common' },
-            elite: { chance: 0.26, rarityBias: 'late_elite' },
-            miniboss: { chance: 0.45, rarityBias: 'late_boss' },
-            boss: { chance: 0.74, rarityBias: 'late_boss' }
+            common: { chance: 0.09, rarityBias: 'late_common' },
+            elite: { chance: 0.19, rarityBias: 'late_elite' },
+            miniboss: { chance: 0.33, rarityBias: 'late_boss' },
+            boss: { chance: 0.52, rarityBias: 'late_boss' }
         },
         6: {
-            common: { chance: 0.14, rarityBias: 'endgame_common' },
-            elite: { chance: 0.28, rarityBias: 'endgame_elite' },
-            miniboss: { chance: 0.48, rarityBias: 'endgame_boss' },
-            boss: { chance: 0.78, rarityBias: 'endgame_boss' }
+            common: { chance: 0.10, rarityBias: 'endgame_common' },
+            elite: { chance: 0.21, rarityBias: 'endgame_elite' },
+            miniboss: { chance: 0.36, rarityBias: 'endgame_boss' },
+            boss: { chance: 0.56, rarityBias: 'endgame_boss' }
         }
     };
 
@@ -350,78 +351,78 @@ function getDropProfileByEnemy(mapId = 1, encounterTier = 'common') {
 function getRarityTableByBias(rarityBias = 'early_common') {
     const tables = {
         early_common: [
-            { name: 'Comum', multiplier: 1.00, weight: 64 },
-            { name: 'Incomum', multiplier: 1.15, weight: 24 },
-            { name: 'Raro', multiplier: 1.32, weight: 9 },
-            { name: 'Épico', multiplier: 1.58, weight: 2 },
-            { name: 'Lendário', multiplier: 1.90, weight: 1 }
+            { name: 'Comum', multiplier: 1.00, weight: 68 },
+            { name: 'Incomum', multiplier: 1.14, weight: 22 },
+            { name: 'Raro', multiplier: 1.30, weight: 8 },
+            { name: 'Épico', multiplier: 1.54, weight: 1.7 },
+            { name: 'Lendário', multiplier: 1.86, weight: 0.3 }
         ],
         early_elite: [
-            { name: 'Comum', multiplier: 1.00, weight: 42 },
-            { name: 'Incomum', multiplier: 1.15, weight: 30 },
-            { name: 'Raro', multiplier: 1.32, weight: 18 },
-            { name: 'Épico', multiplier: 1.58, weight: 8 },
-            { name: 'Lendário', multiplier: 1.90, weight: 2 }
+            { name: 'Comum', multiplier: 1.00, weight: 48 },
+            { name: 'Incomum', multiplier: 1.14, weight: 28 },
+            { name: 'Raro', multiplier: 1.30, weight: 16 },
+            { name: 'Épico', multiplier: 1.54, weight: 6 },
+            { name: 'Lendário', multiplier: 1.86, weight: 2 }
         ],
         early_boss: [
-            { name: 'Incomum', multiplier: 1.15, weight: 38 },
-            { name: 'Raro', multiplier: 1.32, weight: 30 },
-            { name: 'Épico', multiplier: 1.58, weight: 18 },
-            { name: 'Lendário', multiplier: 1.90, weight: 10 },
-            { name: 'Mítico', multiplier: 2.30, weight: 4 }
+            { name: 'Incomum', multiplier: 1.14, weight: 42 },
+            { name: 'Raro', multiplier: 1.30, weight: 30 },
+            { name: 'Épico', multiplier: 1.54, weight: 18 },
+            { name: 'Lendário', multiplier: 1.86, weight: 8 },
+            { name: 'Mítico', multiplier: 2.22, weight: 2 }
         ],
         mid_common: [
-            { name: 'Comum', multiplier: 1.00, weight: 42 },
-            { name: 'Incomum', multiplier: 1.15, weight: 30 },
-            { name: 'Raro', multiplier: 1.32, weight: 18 },
-            { name: 'Épico', multiplier: 1.58, weight: 7 },
-            { name: 'Lendário', multiplier: 1.90, weight: 3 }
+            { name: 'Comum', multiplier: 1.00, weight: 44 },
+            { name: 'Incomum', multiplier: 1.14, weight: 30 },
+            { name: 'Raro', multiplier: 1.30, weight: 18 },
+            { name: 'Épico', multiplier: 1.54, weight: 6 },
+            { name: 'Lendário', multiplier: 1.86, weight: 2 }
         ],
         mid_elite: [
-            { name: 'Incomum', multiplier: 1.15, weight: 34 },
-            { name: 'Raro', multiplier: 1.32, weight: 28 },
-            { name: 'Épico', multiplier: 1.58, weight: 22 },
-            { name: 'Lendário', multiplier: 1.90, weight: 12 },
-            { name: 'Mítico', multiplier: 2.30, weight: 4 }
+            { name: 'Incomum', multiplier: 1.14, weight: 36 },
+            { name: 'Raro', multiplier: 1.30, weight: 30 },
+            { name: 'Épico', multiplier: 1.54, weight: 20 },
+            { name: 'Lendário', multiplier: 1.86, weight: 10 },
+            { name: 'Mítico', multiplier: 2.22, weight: 4 }
         ],
         mid_boss: [
-            { name: 'Raro', multiplier: 1.32, weight: 34 },
-            { name: 'Épico', multiplier: 1.58, weight: 28 },
-            { name: 'Lendário', multiplier: 1.90, weight: 24 },
-            { name: 'Mítico', multiplier: 2.30, weight: 14 }
+            { name: 'Raro', multiplier: 1.30, weight: 38 },
+            { name: 'Épico', multiplier: 1.54, weight: 30 },
+            { name: 'Lendário', multiplier: 1.86, weight: 22 },
+            { name: 'Mítico', multiplier: 2.22, weight: 10 }
         ],
         late_common: [
-            { name: 'Incomum', multiplier: 1.15, weight: 34 },
-            { name: 'Raro', multiplier: 1.32, weight: 30 },
-            { name: 'Épico', multiplier: 1.58, weight: 20 },
-            { name: 'Lendário', multiplier: 1.90, weight: 12 },
-            { name: 'Mítico', multiplier: 2.30, weight: 4 }
+            { name: 'Incomum', multiplier: 1.14, weight: 36 },
+            { name: 'Raro', multiplier: 1.30, weight: 30 },
+            { name: 'Épico', multiplier: 1.54, weight: 20 },
+            { name: 'Lendário', multiplier: 1.86, weight: 10 },
+            { name: 'Mítico', multiplier: 2.22, weight: 4 }
         ],
         late_elite: [
-            { name: 'Raro', multiplier: 1.32, weight: 32 },
-            { name: 'Épico', multiplier: 1.58, weight: 28 },
-            { name: 'Lendário', multiplier: 1.90, weight: 24 },
-            { name: 'Mítico', multiplier: 2.30, weight: 16 }
+            { name: 'Raro', multiplier: 1.30, weight: 34 },
+            { name: 'Épico', multiplier: 1.54, weight: 30 },
+            { name: 'Lendário', multiplier: 1.86, weight: 24 },
+            { name: 'Mítico', multiplier: 2.22, weight: 12 }
         ],
         late_boss: [
-            { name: 'Épico', multiplier: 1.58, weight: 36 },
-            { name: 'Lendário', multiplier: 1.90, weight: 34 },
-            { name: 'Mítico', multiplier: 2.30, weight: 30 }
+            { name: 'Épico', multiplier: 1.54, weight: 40 },
+            { name: 'Lendário', multiplier: 1.86, weight: 38 },
+            { name: 'Mítico', multiplier: 2.22, weight: 22 }
         ],
         endgame_common: [
-            { name: 'Raro', multiplier: 1.32, weight: 30 },
-            { name: 'Épico', multiplier: 1.58, weight: 28 },
-            { name: 'Lendário', multiplier: 1.90, weight: 24 },
-            { name: 'Mítico', multiplier: 2.30, weight: 18 }
+            { name: 'Raro', multiplier: 1.30, weight: 34 },
+            { name: 'Épico', multiplier: 1.54, weight: 30 },
+            { name: 'Lendário', multiplier: 1.86, weight: 24 },
+            { name: 'Mítico', multiplier: 2.22, weight: 12 }
         ],
         endgame_elite: [
-            { name: 'Épico', multiplier: 1.58, weight: 34 },
-            { name: 'Lendário', multiplier: 1.90, weight: 33 },
-            { name: 'Mítico', multiplier: 2.30, weight: 33 }
+            { name: 'Épico', multiplier: 1.54, weight: 38 },
+            { name: 'Lendário', multiplier: 1.86, weight: 36 },
+            { name: 'Mítico', multiplier: 2.22, weight: 26 }
         ],
         endgame_boss: [
-            { name: 'Lendário', multiplier: 1.90, weight: 50 },
-            { name: 'Mítico', multiplier: 2.30, weight: 50 }
+            { name: 'Lendário', multiplier: 1.86, weight: 64 },
+            { name: 'Mítico', multiplier: 2.22, weight: 36 }
         ]
     };
 
