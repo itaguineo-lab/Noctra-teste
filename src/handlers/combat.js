@@ -13,6 +13,9 @@ const {
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
 const {
+    applyDeathXpPenalty
+} = require('../core/player/progression');
+const {
     createAndStoreFight,
     getStoredFight,
     persistFightMessage,
@@ -201,11 +204,13 @@ function buildVictoryMessage(player, rewards) {
     return msg;
 }
 
-function buildLossMessage(player) {
+function buildLossMessage(player, penalty) {
     return `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `          💀 *DERROTA* 💀\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `Você foi derrotado...\n\n` +
+        `📉 XP perdido: ${penalty?.lostXp || 0}\n` +
+        `✨ XP atual: ${player.xp}\n\n` +
         `❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
         `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -257,7 +262,9 @@ async function finishFight(ctx, stored) {
     }
 
     if (fight.status === 'loss') {
+        const penalty = applyDeathXpPenalty(player, 0.05);
         player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
+
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
         await recordCombatResult('loss');
@@ -265,7 +272,7 @@ async function finishFight(ctx, stored) {
         return sendPostCombatMessage(
             ctx,
             meta,
-            buildLossMessage(player),
+            buildLossMessage(player, penalty),
             postCombatMenu()
         );
     }
