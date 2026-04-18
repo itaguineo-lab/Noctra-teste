@@ -3,6 +3,7 @@ const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { calculateDamage } = require('../core/combat/damageCalc');
 const {
     applyHeal,
+    applyDamage,
     restoreEnergy,
     consumeEnergy,
     consumeConsumable,
@@ -31,6 +32,13 @@ const {
     resolveCombatRoom,
     finalizeDungeonRun
 } = require('../core/dungeon/dungeonRewards');
+const {
+    recordDungeonStarted,
+    recordDungeonCompleted,
+    recordDungeonAbandoned,
+    recordDungeonRoomCleared,
+    recordConsumableUsed
+} = require('../core/metrics/metricsService');
 
 function escapeMarkdown(text = '') {
     return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -231,6 +239,7 @@ async function handleDungeonStart(ctx) {
     startDungeonRun(player);
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
+    await recordDungeonStarted();
 
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
@@ -268,8 +277,13 @@ async function handleDungeonAttack(ctx) {
 
     normalizePlayerForSave(player);
 
+    if (room.cleared) {
+        await recordDungeonRoomCleared(1);
+    }
+
     if (result.playerDefeated) {
         await savePlayer(ctx.from.id, player);
+        await recordDungeonAbandoned();
         return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
@@ -279,6 +293,7 @@ async function handleDungeonAttack(ctx) {
         finalizeDungeonRun(player, 'complete');
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
+        await recordDungeonCompleted();
         return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
@@ -309,6 +324,7 @@ async function handleDungeonNextRoom(ctx) {
         finalizeDungeonRun(player, 'complete');
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
+        await recordDungeonCompleted();
         return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
     }
 
@@ -353,6 +369,7 @@ async function handleDungeonFlee(ctx) {
     consumeEnergy(player, 1);
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
+    await recordDungeonAbandoned();
 
     return safeSend(ctx, renderDungeonSummary(player), buildDungeonKeyboard(player));
 }
@@ -409,6 +426,7 @@ async function handleDungeonUseConsumable(ctx) {
     }
 
     updateMissionProgress(player, 'use_consumable', 1);
+    await recordConsumableUsed();
 
     const room = getCurrentRoom(player);
     let log = '';
