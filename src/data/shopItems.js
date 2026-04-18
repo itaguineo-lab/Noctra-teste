@@ -13,7 +13,7 @@ const shopItems = [
         effect: 'potionHp',
         value: 1,
         currency: 'gold',
-        price: 60,
+        price: 70,
         description: 'Restaura 100% do HP máximo.'
     },
     {
@@ -24,7 +24,7 @@ const shopItems = [
         effect: 'tonicStrength',
         value: 1,
         currency: 'gold',
-        price: 140,
+        price: 160,
         description: '+10 ATK por 30 minutos.'
     },
     {
@@ -35,13 +35,13 @@ const shopItems = [
         effect: 'tonicDefense',
         value: 1,
         currency: 'gold',
-        price: 140,
+        price: 160,
         description: '+10 DEF por 30 minutos.'
     },
 
     /*
     =================================
-    CASTELO — PREMIUM / CONVENIÊNCIA (NOX)
+    CASTELO — CONVENIÊNCIA (NOX)
     =================================
     */
 
@@ -57,17 +57,6 @@ const shopItems = [
         description: 'Recupera 1 energia instantaneamente.'
     },
     {
-        id: 'dungeon_key',
-        name: 'Chave de Masmorra',
-        shop: 'castle',
-        type: 'consumable',
-        effect: 'keys',
-        value: 1,
-        currency: 'nox',
-        price: 5,
-        description: 'Entrada instantânea na masmorra.'
-    },
-    {
         id: 'energy_refill_10',
         name: 'Recarga de Energia (+10)',
         shop: 'castle',
@@ -75,9 +64,27 @@ const shopItems = [
         effect: 'energyRefill',
         value: 10,
         currency: 'nox',
-        price: 8,
+        price: 10,
         description: 'Recupera 10 de energia.'
     },
+    {
+        id: 'dungeon_key',
+        name: 'Chave de Masmorra',
+        shop: 'castle',
+        type: 'consumable',
+        effect: 'keys',
+        value: 1,
+        currency: 'nox',
+        price: 6,
+        description: 'Entrada instantânea na masmorra.'
+    },
+
+    /*
+    =================================
+    CASTELO — VIP / QOL (NOX)
+    =================================
+    */
+
     {
         id: 'vip_7d',
         name: 'VIP 7 Dias',
@@ -85,8 +92,8 @@ const shopItems = [
         type: 'vip',
         days: 7,
         currency: 'nox',
-        price: 25,
-        description: '⚡ Energia 40 | 🎒 +10 slots | 💰 +50% XP/Ouro'
+        price: 29,
+        description: '⚡ Energia 40 | 🎒 +10 slots | regeneração melhorada'
     },
     {
         id: 'vip_30d',
@@ -95,13 +102,13 @@ const shopItems = [
         type: 'vip',
         days: 30,
         currency: 'nox',
-        price: 80,
+        price: 89,
         description: '👑 Melhor custo-benefício mensal'
     },
 
     /*
     =================================
-    COSMÉTICOS PREMIUM
+    CASTELO — COSMÉTICOS PREMIUM
     =================================
     */
 
@@ -138,21 +145,10 @@ const shopItems = [
 
     /*
     =================================
-    ARENA — GLÓRIAS
+    ARENA — RECURSOS TÁTICOS (GLÓRIAS)
     =================================
     */
 
-    {
-        id: 'arena_key_bundle',
-        name: 'Pacote Arena x3',
-        shop: 'arena',
-        type: 'consumable',
-        effect: 'keys',
-        value: 3,
-        currency: 'glorias',
-        price: 2,
-        description: 'Pacote competitivo de chaves.'
-    },
     {
         id: 'arena_energy_single',
         name: 'Carga Tática',
@@ -174,6 +170,28 @@ const shopItems = [
         currency: 'glorias',
         price: 3,
         description: '2 Tônicos de Força.'
+    },
+    {
+        id: 'arena_defense_pack',
+        name: 'Kit de Defesa',
+        shop: 'arena',
+        type: 'consumable',
+        effect: 'tonicDefense',
+        value: 2,
+        currency: 'glorias',
+        price: 3,
+        description: '2 Tônicos de Defesa.'
+    },
+    {
+        id: 'arena_key_bundle',
+        name: 'Pacote Arena x2',
+        shop: 'arena',
+        type: 'consumable',
+        effect: 'keys',
+        value: 2,
+        currency: 'glorias',
+        price: 3,
+        description: 'Pacote competitivo de chaves.'
     }
 ];
 
