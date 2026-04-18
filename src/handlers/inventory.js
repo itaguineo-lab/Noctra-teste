@@ -149,6 +149,18 @@ function getRealSlot(item) {
     return item.slot;
 }
 
+function getSlotLabel(slot) {
+    const labels = {
+        weapon: 'Arma',
+        shield: 'Escudo',
+        armor: 'Armadura',
+        necklace: 'Amuleto',
+        ring: 'Anel',
+        boots: 'Botas'
+    };
+    return labels[slot] || slot;
+}
+
 function getComparisonDelta(item, player, slot) {
     const equipped = player?.equipment?.[slot];
     if (!equipped) return null;
@@ -160,6 +172,14 @@ function formatDelta(delta) {
     if (delta === null || delta === undefined) return '';
     if (delta === 0) return 'EQUIPADO';
     return delta > 0 ? `▲ +${delta}` : `▼ ${Math.abs(delta)}`;
+}
+
+function buildShortItemIdentity(item) {
+    const parts = [];
+    if (item.level) parts.push(`Lv${item.level}`);
+    if (item.rarity) parts.push(item.rarity);
+    parts.push(`P${calcItemPower(item)}`);
+    return parts.join(' • ');
 }
 
 function renderInventoryHeader(player) {
@@ -179,7 +199,7 @@ function renderInventoryHeader(player) {
 ║ 📦 ${inventory.length}/${maxInv}
 ║ ⚔️ ATK ${player.atk || 0}  🛡️ DEF ${player.def || 0}
 ║ ❤️ HP ${player.maxHp || 0}  💥 CRIT ${player.crit || 0}%
-║ 💰 NOX ${player.nox || 0}
+║ 💎 NOX ${player.nox || 0}
 ║ 🗝️ Chaves: ${player.keys || 0}
 ╠══════════════════════════════════╣
 ║ 🗡️ Arma: ${weapon}
@@ -193,7 +213,6 @@ function renderInventoryHeader(player) {
 
 function formatItemBlock(item, player = null) {
     const equipped = Boolean(item.__equipped);
-    const star = equipped ? '⭐ ' : '';
     const rarityBadge = RARITY_BADGES[item.rarity] || '⚪';
     const level = item.level ? ` [Lv${item.level}]` : '';
     const power = calcItemPower(item);
@@ -201,15 +220,26 @@ function formatItemBlock(item, player = null) {
     const powerBadge = getPowerBadge(power);
     const bar = getPowerBar(power);
     const slot = getRealSlot(item);
+    const slotLabel = getSlotLabel(slot);
     const delta = player ? getComparisonDelta(item, player, slot) : null;
     const deltaText = equipped ? 'EQUIPADO' : formatDelta(delta);
+    const equippedRef = player?.equipment?.[slot] || null;
 
-    const line1 = `${star}${rarityBadge} ${escapeMarkdown(item.name)}${level}`;
+    const line1 = `${equipped ? '⭐ ' : ''}${rarityBadge} ${escapeMarkdown(item.name)}${level}`;
     const line2 = `PODER ${power} ${powerBadge} ${bar} (${tier})${deltaText ? ` | ${deltaText}` : ''}`;
     const line3 = `ATK ${safeNumber(item.atk)} | DEF ${safeNumber(item.def)} | HP ${safeNumber(item.hp)} | CRIT ${safeNumber(item.crit)}%`;
-    const line4 = `SLOT ${String(slot).toUpperCase()}`;
+    const line4 = `SLOT ${String(slotLabel).toUpperCase()}`;
 
-    return [line1, line2, line3, line4];
+    let line5 = '';
+    if (!equipped && equippedRef) {
+        line5 = `Substitui: ${escapeMarkdown(equippedRef.name)} (${buildShortItemIdentity(equippedRef)})`;
+    } else if (equipped) {
+        line5 = `Atualmente equipado`;
+    } else {
+        line5 = `Slot vazio`;
+    }
+
+    return [line1, line2, line3, line4, line5];
 }
 
 function getCategoryItems(player = {}, category = 'weapons') {
@@ -259,6 +289,26 @@ function buildUnequipCallback(slot, category, page) {
     return `uneq:${slot}:${category}:${page}`;
 }
 
+function buildEquipButtonLabel(item, player) {
+    const slot = getRealSlot(item);
+    const delta = getComparisonDelta(item, player, slot);
+    const shortId = buildShortItemIdentity(item);
+
+    if (delta === null) {
+        return `🔹 Equipar (${shortId})`;
+    }
+
+    if (delta > 0) {
+        return `🔺 Equipar (+${delta})`;
+    }
+
+    if (delta < 0) {
+        return `🔻 Equipar (-${Math.abs(delta)})`;
+    }
+
+    return `🔹 Equipar (${shortId})`;
+}
+
 async function renderInventory(ctx, category = null, page = 1) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
 
@@ -283,28 +333,31 @@ async function renderInventory(ctx, category = null, page = 1) {
     if (pageItems.length === 0) {
         text += `║   Nenhum item encontrado.\n`;
     } else {
-        pageItems.forEach(item => {
+        pageItems.forEach((item, idx) => {
             const realSlot = getRealSlot(item);
             const isEquipped = Boolean(item.__equipped);
-            const [l1, l2, l3, l4] = formatItemBlock(item, player);
+            const [l1, l2, l3, l4, l5] = formatItemBlock(item, player);
+            const itemNumber = (safePage - 1) * PAGE_SIZE + idx + 1;
 
+            text += `║ *#${itemNumber}*\n`;
             text += `║ ${l1}\n`;
             text += `║ ${l2}\n`;
             text += `║ ${l3}\n`;
             text += `║ ${l4}\n`;
+            text += `║ ${l5}\n`;
             text += `║\n`;
 
             if (isEquipped) {
                 buttons.push([
                     Markup.button.callback(
-                        `⭐ Desequipar ${item.name}`,
+                        `⭐ #${itemNumber} Desequipar`,
                         buildUnequipCallback(realSlot, category, safePage)
                     )
                 ]);
             } else {
                 buttons.push([
                     Markup.button.callback(
-                        `🔹 Equipar ${item.name}`,
+                        `#${itemNumber} ${buildEquipButtonLabel(item, player)}`,
                         buildEquipCallback(item, category, safePage)
                     )
                 ]);
