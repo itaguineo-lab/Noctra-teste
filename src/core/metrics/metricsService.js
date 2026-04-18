@@ -105,6 +105,73 @@ async function getTodayMetrics() {
     return ensureDailyMetrics(getDateKey());
 }
 
+async function getMetricsByDate(dateKey) {
+    if (!dateKey) return null;
+    return ensureDailyMetrics(dateKey);
+}
+
+function normalizeCounters(doc) {
+    const counters = doc?.counters || {};
+
+    return {
+        playersCreated: Number(counters.playersCreated || 0),
+        menuLoads: Number(counters.menuLoads || 0),
+
+        combatsStarted: Number(counters.combatsStarted || 0),
+        combatsWon: Number(counters.combatsWon || 0),
+        combatsLost: Number(counters.combatsLost || 0),
+        combatsFled: Number(counters.combatsFled || 0),
+
+        dungeonsStarted: Number(counters.dungeonsStarted || 0),
+        dungeonsCompleted: Number(counters.dungeonsCompleted || 0),
+        dungeonsAbandoned: Number(counters.dungeonsAbandoned || 0),
+        dungeonRoomsCleared: Number(counters.dungeonRoomsCleared || 0),
+
+        itemsDropped: Number(counters.itemsDropped || 0),
+        soulsDropped: Number(counters.soulsDropped || 0),
+        keysDropped: Number(counters.keysDropped || 0),
+
+        consumablesUsed: Number(counters.consumablesUsed || 0),
+
+        goldAwarded: Number(counters.goldAwarded || 0),
+        xpAwarded: Number(counters.xpAwarded || 0)
+    };
+}
+
+function buildMetricsSummary(doc) {
+    const dateKey = doc?.dateKey || getDateKey();
+    const c = normalizeCounters(doc);
+
+    const totalCombatOutcomes = c.combatsWon + c.combatsLost + c.combatsFled;
+    const winRate = totalCombatOutcomes > 0
+        ? ((c.combatsWon / totalCombatOutcomes) * 100).toFixed(1)
+        : '0.0';
+
+    const dungeonFinishRate = c.dungeonsStarted > 0
+        ? ((c.dungeonsCompleted / c.dungeonsStarted) * 100).toFixed(1)
+        : '0.0';
+
+    const avgGoldPerCombat = c.combatsWon > 0
+        ? Math.round(c.goldAwarded / c.combatsWon)
+        : 0;
+
+    const avgXpPerCombat = c.combatsWon > 0
+        ? Math.round(c.xpAwarded / c.combatsWon)
+        : 0;
+
+    return {
+        dateKey,
+        counters: c,
+        derived: {
+            totalCombatOutcomes,
+            winRate,
+            dungeonFinishRate,
+            avgGoldPerCombat,
+            avgXpPerCombat
+        }
+    };
+}
+
 module.exports = {
     getDateKey,
     ensureDailyMetrics,
@@ -124,5 +191,8 @@ module.exports = {
     recordDropMetrics,
     recordConsumableUsed,
 
-    getTodayMetrics
+    getTodayMetrics,
+    getMetricsByDate,
+    normalizeCounters,
+    buildMetricsSummary
 };
