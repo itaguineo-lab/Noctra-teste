@@ -282,7 +282,10 @@ function registerCommands() {
     bindCommand('resetall', resetCommands.handleResetAll);
 
     bindCommand('adminhelp', adminCommands.handleAdminHelp);
+    bindCommand('myid', adminCommands.handleMyId);
+    bindCommand('id', adminCommands.handleId);
     bindCommand('findplayer', adminCommands.handleFindPlayer);
+    bindCommand('findplayername', adminCommands.handleFindPlayerName);
     bindCommand('playerstate', adminCommands.handlePlayerState);
     bindCommand('setplayer', adminCommands.handleSetPlayer);
 
@@ -292,7 +295,7 @@ function registerCommands() {
         if (subCommand === 'gold') return adminCommands.handleGiveGold(ctx);
         if (subCommand === 'nox') return adminCommands.handleGiveNox(ctx);
         if (subCommand === 'item') return adminCommands.handleGiveItem(ctx);
-        return ctx.reply('📝 Uso: /give [xp|gold|nox|item] @usuario <quantidade/nome>');
+        return ctx.reply('📝 Uso: /give [xp|gold|nox|item] ID_ou_nome <quantidade>\nTambém funciona respondendo a mensagem do jogador.');
     });
 
     bindCommand('ban', adminCommands.handleBan);
