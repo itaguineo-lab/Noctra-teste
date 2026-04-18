@@ -10,6 +10,9 @@ const {
     syncEnergyCapacity,
     updateEnergy
 } = require('../../services/energyService');
+const {
+    recordPlayerCreated
+} = require('../metrics/metricsService');
 
 let isConnected = false;
 
@@ -384,6 +387,8 @@ async function createPlayer(id, name, className) {
     playerObj.lastEnergyUpdate = new Date();
 
     await savePlayer(id, playerObj);
+    await recordPlayerCreated();
+
     return playerObj;
 }
 
