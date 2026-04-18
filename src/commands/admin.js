@@ -12,6 +12,12 @@ const {
     getMetricsByDate,
     buildMetricsSummary
 } = require('../core/metrics/metricsService');
+const {
+    getXpToNextLevel
+} = require('../core/player/progression');
+const {
+    recalculateStats
+} = require('../core/player/playerService');
 
 function isAdmin(ctx) {
     const adminIds = String(process.env.ADMIN_IDS || '')
@@ -49,6 +55,15 @@ function extractAmount(text = '', fallback = 0) {
 function extractFirstArg(text = '') {
     const parts = text.trim().split(/\s+/);
     return parts[1] || null;
+}
+
+function extractSetPlayerArgs(text = '') {
+    const parts = text.trim().split(/\s+/);
+    return {
+        targetId: parts[1] || null,
+        field: (parts[2] || '').toLowerCase(),
+        value: parts.slice(3).join(' ').trim()
+    };
 }
 
 async function resolvePlayerFromGiveCommand(ctx) {
@@ -135,6 +150,14 @@ function renderAdminHelp() {
 • \`/give gold ID 1000\`
 • \`/give nox ID 50\`
 • \`/give item ID\`
+
+*Set direto*
+• \`/setplayer ID level 10\`
+• \`/setplayer ID gold 5000\`
+• \`/setplayer ID nox 100\`
+• \`/setplayer ID energy 20\`
+• \`/setplayer ID map cripta_em_ruinas\`
+• \`/setplayer ID vipdays 30\`
 
 *Moderação*
 • \`/ban ID\`
@@ -240,6 +263,107 @@ async function handlePlayerState(ctx) {
     if (!player) return;
 
     return ctx.reply(renderPlayerState(player), { parse_mode: 'Markdown' });
+}
+
+/*
+=================================
+SET PLAYER
+=================================
+*/
+
+async function handleSetPlayer(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const text = ctx.message?.text || '';
+    const { targetId, field, value } = extractSetPlayerArgs(text);
+
+    if (!targetId || !field || !value) {
+        return ctx.reply(
+            '❌ Uso: /setplayer ID campo valor\n\n' +
+            'Campos suportados:\n' +
+            '• level\n• gold\n• nox\n• energy\n• map\n• vipdays'
+        );
+    }
+
+    const player = await getPlayer(extractTargetId(targetId));
+    if (!player) {
+        return ctx.reply('❌ Jogador não encontrado.');
+    }
+
+    try {
+        if (field === 'level') {
+            const level = Math.max(1, Number(value));
+            if (!Number.isFinite(level)) {
+                return ctx.reply('❌ Nível inválido.');
+            }
+
+            player.level = level;
+            player.xp = 0;
+            recalculateStats(player);
+        } else if (field === 'gold') {
+            const amount = Math.max(0, Number(value));
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para gold.');
+            }
+            player.gold = amount;
+        } else if (field === 'nox') {
+            const amount = Math.max(0, Number(value));
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para nox.');
+            }
+            player.nox = amount;
+        } else if (field === 'energy') {
+            const amount = Math.max(0, Number(value));
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para energy.');
+            }
+            player.energy = Math.min(amount, player.maxEnergy || amount);
+        } else if (field === 'map') {
+            player.currentMap = String(value).trim();
+        } else if (field === 'vipdays') {
+            const days = Math.max(0, Number(value));
+            if (!Number.isFinite(days)) {
+                return ctx.reply('❌ Valor inválido para vipdays.');
+            }
+
+            if (days === 0) {
+                player.vip = false;
+                player.vipExpires = null;
+                player.maxEnergy = 20;
+                player.maxInventory = 20;
+                player.energy = Math.min(player.energy || 20, 20);
+            } else {
+                const now = Date.now();
+                player.vip = true;
+                player.vipExpires = new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
+                player.maxEnergy = 40;
+                player.maxInventory = Math.max(player.maxInventory || 20, 30);
+                player.energy = Math.min(player.energy || 40, player.maxEnergy);
+            }
+        } else {
+            return ctx.reply('❌ Campo inválido. Use: level, gold, nox, energy, map, vipdays');
+        }
+
+        normalizePlayerForSave(player);
+        await savePlayer(player.id, player);
+
+        const xpNext = getXpToNextLevel(player.level || 1);
+
+        return ctx.reply(
+            `✅ Jogador atualizado com sucesso.\n\n` +
+            `👤 ${player.name}\n` +
+            `⭐ Nível: ${player.level}\n` +
+            `✨ XP: ${player.xp}/${xpNext}\n` +
+            `💰 Ouro: ${player.gold}\n` +
+            `💎 Nox: ${player.nox}\n` +
+            `⚡ Energia: ${player.energy}/${player.maxEnergy}\n` +
+            `🗺️ Mapa: ${player.currentMap}\n` +
+            `✨ VIP: ${player.vip ? 'Sim' : 'Não'}`
+        );
+    } catch (error) {
+        console.error('Erro em /setplayer:', error);
+        return ctx.reply('❌ Erro ao atualizar jogador.');
+    }
 }
 
 /*
@@ -463,6 +587,7 @@ module.exports = {
     handleAdminHelp,
     handleFindPlayer,
     handlePlayerState,
+    handleSetPlayer,
     handleGiveXp,
     handleGiveGold,
     handleGiveNox,
