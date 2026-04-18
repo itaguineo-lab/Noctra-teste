@@ -1,5 +1,12 @@
-const { getPlayer, savePlayer } = require('../core/player/playerService');
+const {
+    getPlayer,
+    savePlayer,
+    recalculateStats,
+    getPlayerCollection
+} = require('../core/player/playerService');
+
 const { generateDrop } = require('../data/items');
+
 const {
     addGold,
     addNox,
@@ -7,17 +14,22 @@ const {
     applyXpReward,
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
+
 const {
     getTodayMetrics,
     getMetricsByDate,
     buildMetricsSummary
 } = require('../core/metrics/metricsService');
+
 const {
     getXpToNextLevel
 } = require('../core/player/progression');
-const {
-    recalculateStats
-} = require('../core/player/playerService');
+
+/*
+=================================
+ADMIN CHECK
+=================================
+*/
 
 function isAdmin(ctx) {
     const adminIds = String(process.env.ADMIN_IDS || '')
@@ -36,74 +48,22 @@ async function requireAdmin(ctx) {
     return true;
 }
 
-function extractMentionOrId(text = '') {
-    const parts = text.trim().split(/\s+/);
-    return parts[2] || null;
+/*
+=================================
+UTILS
+=================================
+*/
+
+function splitText(text = '') {
+    return String(text || '').trim().split(/\s+/).filter(Boolean);
 }
 
-function extractTargetId(raw) {
-    if (!raw) return null;
-    return String(raw).replace('@', '').trim();
+function isNumericId(value = '') {
+    return /^\d+$/.test(String(value).trim());
 }
 
-function extractAmount(text = '', fallback = 0) {
-    const parts = text.trim().split(/\s+/);
-    const last = Number(parts[parts.length - 1]);
-    return Number.isFinite(last) ? last : fallback;
-}
-
-function extractFirstArg(text = '') {
-    const parts = text.trim().split(/\s+/);
-    return parts[1] || null;
-}
-
-function extractSetPlayerArgs(text = '') {
-    const parts = text.trim().split(/\s+/);
-    return {
-        targetId: parts[1] || null,
-        field: (parts[2] || '').toLowerCase(),
-        value: parts.slice(3).join(' ').trim()
-    };
-}
-
-async function resolvePlayerFromGiveCommand(ctx) {
-    const text = ctx.message?.text || '';
-    const rawTarget = extractMentionOrId(text);
-
-    if (!rawTarget) {
-        await ctx.reply('❌ Informe o alvo. Ex: /give gold 123456 500');
-        return null;
-    }
-
-    const targetId = extractTargetId(rawTarget);
-    const player = await getPlayer(targetId);
-
-    if (!player) {
-        await ctx.reply('❌ Jogador não encontrado.');
-        return null;
-    }
-
-    return player;
-}
-
-async function resolvePlayerBySingleArg(ctx, usageExample) {
-    const text = ctx.message?.text || '';
-    const rawTarget = extractFirstArg(text);
-
-    if (!rawTarget) {
-        await ctx.reply(`❌ Uso: ${usageExample}`);
-        return null;
-    }
-
-    const targetId = extractTargetId(rawTarget);
-    const player = await getPlayer(targetId);
-
-    if (!player) {
-        await ctx.reply('❌ Jogador não encontrado.');
-        return null;
-    }
-
-    return player;
+function normalizeRawTarget(raw) {
+    return String(raw || '').replace('@', '').trim();
 }
 
 function formatNumber(value) {
@@ -112,6 +72,10 @@ function formatNumber(value) {
 
 function safeName(value, fallback = '—') {
     return value ? String(value) : fallback;
+}
+
+function escapeRegex(text = '') {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function buildEquipmentLines(player) {
@@ -134,49 +98,301 @@ function buildSoulsLines(player) {
     ].join('\n');
 }
 
+function getReplyUserId(ctx) {
+    return ctx.message?.reply_to_message?.from
+        ? String(ctx.message.reply_to_message.from.id)
+        : null;
+}
+
+function getReplyUserLabel(ctx) {
+    const from = ctx.message?.reply_to_message?.from;
+    if (!from) return 'jogador';
+    return from.username
+        ? `@${from.username}`
+        : (from.first_name || 'jogador');
+}
+
+/*
+=================================
+PLAYER RESOLUTION
+=================================
+*/
+
+async function findPlayersByName(name, limit = 10) {
+    const collection = await getPlayerCollection();
+    const safe = String(name || '').trim();
+
+    if (!safe) return [];
+
+    const exactRegex = new RegExp(`^${escapeRegex(safe)}$`, 'i');
+    const partialRegex = new RegExp(escapeRegex(safe), 'i');
+
+    const exact = await collection
+        .find({ name: { $regex: exactRegex } })
+        .limit(limit)
+        .toArray();
+
+    if (exact.length) return exact;
+
+    return collection
+        .find({ name: { $regex: partialRegex } })
+        .limit(limit)
+        .toArray();
+}
+
+async function resolvePlayerFlexible(rawTarget) {
+    const target = normalizeRawTarget(rawTarget);
+    if (!target) return null;
+
+    if (isNumericId(target)) {
+        const byId = await getPlayer(target);
+        if (byId) return byId;
+    }
+
+    const matches = await findPlayersByName(target, 5);
+    if (!matches.length) return null;
+
+    return matches[0];
+}
+
+async function resolvePlayerForSingleTargetCommand(ctx, usageExample) {
+    const replyId = getReplyUserId(ctx);
+    if (replyId) {
+        const player = await getPlayer(replyId);
+        if (!player) {
+            await ctx.reply('❌ Jogador respondido não encontrado.');
+            return null;
+        }
+        return player;
+    }
+
+    const parts = splitText(ctx.message?.text || '');
+    const rawTarget = parts[1];
+
+    if (!rawTarget) {
+        await ctx.reply(`❌ Uso: ${usageExample}\n\nTambém funciona respondendo a mensagem do jogador.`);
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return player;
+}
+
+async function resolvePlayerFromGiveCommand(ctx) {
+    const parts = splitText(ctx.message?.text || '');
+    const replyId = getReplyUserId(ctx);
+
+    let player = null;
+    let amount = 0;
+
+    if (replyId) {
+        player = await getPlayer(replyId);
+        amount = Number(parts[2] || 0);
+    } else {
+        const rawTarget = parts[2];
+        amount = Number(parts[3] || 0);
+
+        if (!rawTarget) {
+            await ctx.reply('❌ Informe o alvo. Ex: /give gold 123456 500\nTambém funciona respondendo a mensagem do jogador.');
+            return null;
+        }
+
+        player = await resolvePlayerFlexible(rawTarget);
+    }
+
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return {
+        player,
+        amount: Number.isFinite(amount) ? amount : 0
+    };
+}
+
+async function resolvePlayerFromBanCommand(ctx, usageExample) {
+    const replyId = getReplyUserId(ctx);
+
+    if (replyId) {
+        const player = await getPlayer(replyId);
+        if (!player) {
+            await ctx.reply('❌ Jogador respondido não encontrado.');
+            return null;
+        }
+        return player;
+    }
+
+    const parts = splitText(ctx.message?.text || '');
+    const rawTarget = parts[1];
+
+    if (!rawTarget) {
+        await ctx.reply(`❌ Uso: ${usageExample}\nTambém funciona respondendo a mensagem do jogador.`);
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return player;
+}
+
+async function resolveSetPlayerPayload(ctx) {
+    const parts = splitText(ctx.message?.text || '');
+    const replyId = getReplyUserId(ctx);
+
+    let rawTarget = null;
+    let field = '';
+    let value = '';
+
+    if (replyId) {
+        field = (parts[1] || '').toLowerCase();
+        value = parts.slice(2).join(' ').trim();
+
+        const player = await getPlayer(replyId);
+        if (!player) {
+            await ctx.reply('❌ Jogador respondido não encontrado.');
+            return null;
+        }
+
+        return { player, field, value };
+    }
+
+    rawTarget = parts[1] || null;
+    field = (parts[2] || '').toLowerCase();
+    value = parts.slice(3).join(' ').trim();
+
+    if (!rawTarget || !field || !value) {
+        await ctx.reply(
+            '❌ Uso: /setplayer ID_ou_nome campo valor\n\n' +
+            'Exemplos:\n' +
+            '/setplayer 123456789 level 10\n' +
+            '/setplayer Italo gold 5000\n\n' +
+            'Também funciona respondendo a mensagem do jogador:\n' +
+            '/setplayer level 10'
+        );
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return { player, field, value };
+}
+
+/*
+=================================
+RENDER HELP
+=================================
+*/
+
 function renderAdminHelp() {
     return `🛠️ *PAINEL ADMIN — NOCTRA*
+
+*IDs e busca*
+• \`/myid\` → mostra seu ID
+• \`/id\` → mostra seu ID
+• \`/id\` respondendo alguém → mostra o ID da pessoa
+• \`/findplayer ID_ou_nome\`
+• \`/findplayername NOME\`
+• \`/playerstate ID_ou_nome\`
 
 *Consulta / Operação*
 • \`/adminhelp\` → mostra esta lista
 • \`/metrics\` → métricas de hoje
 • \`/metrics AAAA-MM-DD\` → métricas de uma data específica
-• \`/findplayer ID\` → resumo rápido da conta
-• \`/playerstate ID\` → inspeção detalhada da conta
 • \`/reload\` → reload lógico
 
 *Give / Ajuste de conta*
-• \`/give xp ID 500\`
-• \`/give gold ID 1000\`
-• \`/give nox ID 50\`
-• \`/give item ID\`
+• \`/give xp ID_ou_nome 500\`
+• \`/give gold ID_ou_nome 1000\`
+• \`/give nox ID_ou_nome 50\`
+• \`/give item ID_ou_nome\`
+• também funcionam respondendo a mensagem do jogador
 
 *Set direto*
-• \`/setplayer ID level 10\`
-• \`/setplayer ID gold 5000\`
-• \`/setplayer ID nox 100\`
-• \`/setplayer ID energy 20\`
-• \`/setplayer ID map cripta_em_ruinas\`
-• \`/setplayer ID vipdays 30\`
+• \`/setplayer ID_ou_nome level 10\`
+• \`/setplayer ID_ou_nome gold 5000\`
+• \`/setplayer ID_ou_nome nox 100\`
+• \`/setplayer ID_ou_nome energy 20\`
+• \`/setplayer ID_ou_nome map cripta_em_ruinas\`
+• \`/setplayer ID_ou_nome vipdays 30\`
+• também funciona respondendo a mensagem do jogador
 
 *Moderação*
-• \`/ban ID\`
-• \`/unban ID\`
+• \`/ban ID_ou_nome\`
+• \`/unban ID_ou_nome\`
+• também funciona respondendo a mensagem do jogador
 
 *Reset*
 • \`/reset\` → reseta o próprio personagem
-• \`/resetplayer ID\` → reseta um jogador específico
+• \`/resetplayer ID_ou_nome\` → reseta um jogador específico
+• \`/resetplayer\` respondendo a mensagem do jogador
 • \`/resetall CONFIRMAR_RESET_TOTAL\` → reseta o jogo todo
 
 *Observações*
-• comandos com *ID* exigem o ID do jogador
-• \`/resetall\` é destrutivo e apaga todos os jogadores
-• use com extremo cuidado`;
+• busca por nome tenta encontrar o jogador mais compatível
+• nomes únicos funcionam melhor
+• para evitar erro, reply continua sendo a forma mais segura`;
 }
+
+/*
+=================================
+ID COMMANDS
+=================================
+*/
 
 async function handleAdminHelp(ctx) {
     if (!(await requireAdmin(ctx))) return;
     return ctx.reply(renderAdminHelp(), { parse_mode: 'Markdown' });
+}
+
+async function handleMyId(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    return ctx.reply(
+        `🆔 *SEU ID ADMIN*\n\n` +
+        `Nome: *${safeName(ctx.from.first_name)}*\n` +
+        `ID: \`${String(ctx.from.id)}\``,
+        { parse_mode: 'Markdown' }
+    );
+}
+
+async function handleId(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const replyUser = ctx.message?.reply_to_message?.from;
+
+    if (replyUser) {
+        const label = replyUser.username
+            ? `@${replyUser.username}`
+            : (replyUser.first_name || 'jogador');
+
+        return ctx.reply(
+            `🆔 *ID DO JOGADOR*\n\n` +
+            `Jogador: *${safeName(label)}*\n` +
+            `ID: \`${String(replyUser.id)}\``,
+            { parse_mode: 'Markdown' }
+        );
+    }
+
+    return ctx.reply(
+        `🆔 *SEU ID*\n\n` +
+        `Nome: *${safeName(ctx.from.first_name)}*\n` +
+        `ID: \`${String(ctx.from.id)}\``,
+        { parse_mode: 'Markdown' }
+    );
 }
 
 /*
@@ -247,10 +463,27 @@ ${buildSoulsLines(player)}
 ⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
 }
 
+function renderPlayerNameMatches(matches, query) {
+    let text = `🔎 *RESULTADOS PARA:* ${safeName(query)}\n\n`;
+
+    if (!matches.length) {
+        return text + `Nenhum jogador encontrado.`;
+    }
+
+    matches.slice(0, 10).forEach((player, index) => {
+        text += `${index + 1}. *${safeName(player.name)}*\n`;
+        text += `   🆔 \`${safeName(player.id)}\`\n`;
+        text += `   ⭐ Nível ${formatNumber(player.level)} | 🗺️ ${safeName(player.currentMap)}\n`;
+        text += `   💰 ${formatNumber(player.gold)} ouro | 💎 ${formatNumber(player.nox)} nox\n\n`;
+    });
+
+    return text;
+}
+
 async function handleFindPlayer(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerBySingleArg(ctx, '/findplayer 123456789');
+    const player = await resolvePlayerForSingleTargetCommand(ctx, '/findplayer 123456789');
     if (!player) return;
 
     return ctx.reply(renderFindPlayer(player), { parse_mode: 'Markdown' });
@@ -259,10 +492,24 @@ async function handleFindPlayer(ctx) {
 async function handlePlayerState(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerBySingleArg(ctx, '/playerstate 123456789');
+    const player = await resolvePlayerForSingleTargetCommand(ctx, '/playerstate 123456789');
     if (!player) return;
 
     return ctx.reply(renderPlayerState(player), { parse_mode: 'Markdown' });
+}
+
+async function handleFindPlayerName(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const text = String(ctx.message?.text || '');
+    const query = text.replace(/^\/findplayername(@\w+)?\s*/i, '').trim();
+
+    if (!query) {
+        return ctx.reply('❌ Uso: /findplayername NomeDoJogador');
+    }
+
+    const matches = await findPlayersByName(query, 10);
+    return ctx.reply(renderPlayerNameMatches(matches, query), { parse_mode: 'Markdown' });
 }
 
 /*
@@ -274,21 +521,10 @@ SET PLAYER
 async function handleSetPlayer(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const text = ctx.message?.text || '';
-    const { targetId, field, value } = extractSetPlayerArgs(text);
+    const payload = await resolveSetPlayerPayload(ctx);
+    if (!payload) return;
 
-    if (!targetId || !field || !value) {
-        return ctx.reply(
-            '❌ Uso: /setplayer ID campo valor\n\n' +
-            'Campos suportados:\n' +
-            '• level\n• gold\n• nox\n• energy\n• map\n• vipdays'
-        );
-    }
-
-    const player = await getPlayer(extractTargetId(targetId));
-    if (!player) {
-        return ctx.reply('❌ Jogador não encontrado.');
-    }
+    const { player, field, value } = payload;
 
     try {
         if (field === 'level') {
@@ -352,6 +588,7 @@ async function handleSetPlayer(ctx) {
         return ctx.reply(
             `✅ Jogador atualizado com sucesso.\n\n` +
             `👤 ${player.name}\n` +
+            `🆔 ${player.id}\n` +
             `⭐ Nível: ${player.level}\n` +
             `✨ XP: ${player.xp}/${xpNext}\n` +
             `💰 Ouro: ${player.gold}\n` +
@@ -375,10 +612,11 @@ GIVE XP
 async function handleGiveXp(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromGiveCommand(ctx);
-    if (!player) return;
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
 
-    const amount = extractAmount(ctx.message.text, 0);
+    const { player, amount } = resolved;
+
     if (amount <= 0) {
         return ctx.reply('❌ Quantidade inválida.');
     }
@@ -399,10 +637,11 @@ GIVE GOLD
 async function handleGiveGold(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromGiveCommand(ctx);
-    if (!player) return;
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
 
-    const amount = extractAmount(ctx.message.text, 0);
+    const { player, amount } = resolved;
+
     if (amount <= 0) {
         return ctx.reply('❌ Quantidade inválida.');
     }
@@ -423,10 +662,11 @@ GIVE NOX
 async function handleGiveNox(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromGiveCommand(ctx);
-    if (!player) return;
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
 
-    const amount = extractAmount(ctx.message.text, 0);
+    const { player, amount } = resolved;
+
     if (amount <= 0) {
         return ctx.reply('❌ Quantidade inválida.');
     }
@@ -447,8 +687,23 @@ GIVE ITEM
 async function handleGiveItem(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromGiveCommand(ctx);
-    if (!player) return;
+    let player = null;
+    const replyId = getReplyUserId(ctx);
+    const parts = splitText(ctx.message?.text || '');
+
+    if (replyId) {
+        player = await getPlayer(replyId);
+    } else {
+        const rawTarget = parts[2];
+        if (!rawTarget) {
+            return ctx.reply('❌ Uso: /give item ID_ou_nome\nTambém funciona respondendo a mensagem do jogador.');
+        }
+        player = await resolvePlayerFlexible(rawTarget);
+    }
+
+    if (!player) {
+        return ctx.reply('❌ Jogador não encontrado.');
+    }
 
     const item = generateDrop(player.currentMap === 'clareira_sombria' ? 1 : 2, {
         encounterTier: 'boss',
@@ -475,16 +730,8 @@ BAN / UNBAN
 async function handleBan(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const text = ctx.message?.text || '';
-    const parts = text.trim().split(/\s+/);
-    const targetId = parts[1];
-
-    if (!targetId) {
-        return ctx.reply('❌ Uso: /ban 123456');
-    }
-
-    const player = await getPlayer(targetId);
-    if (!player) return ctx.reply('❌ Jogador não encontrado.');
+    const player = await resolvePlayerFromBanCommand(ctx, '/ban 123456');
+    if (!player) return;
 
     player.banned = true;
     await savePlayer(player.id, player);
@@ -495,16 +742,8 @@ async function handleBan(ctx) {
 async function handleUnban(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const text = ctx.message?.text || '';
-    const parts = text.trim().split(/\s+/);
-    const targetId = parts[1];
-
-    if (!targetId) {
-        return ctx.reply('❌ Uso: /unban 123456');
-    }
-
-    const player = await getPlayer(targetId);
-    if (!player) return ctx.reply('❌ Jogador não encontrado.');
+    const player = await resolvePlayerFromBanCommand(ctx, '/unban 123456');
+    if (!player) return;
 
     player.banned = false;
     await savePlayer(player.id, player);
@@ -572,7 +811,7 @@ async function handleMetrics(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
     const text = ctx.message?.text || '';
-    const parts = text.trim().split(/\s+/);
+    const parts = splitText(text);
     const dateKey = parts[1];
 
     const metricsDoc = dateKey
@@ -585,7 +824,10 @@ async function handleMetrics(ctx) {
 
 module.exports = {
     handleAdminHelp,
+    handleMyId,
+    handleId,
     handleFindPlayer,
+    handleFindPlayerName,
     handlePlayerState,
     handleSetPlayer,
     handleGiveXp,
