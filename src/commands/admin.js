@@ -68,6 +68,47 @@ async function resolvePlayerFromCommand(ctx) {
 
 /*
 =================================
+ADMIN HELP
+=================================
+*/
+
+function renderAdminHelp() {
+    return `🛠️ *PAINEL ADMIN — NOCTRA*
+
+*Consulta / Operação*
+• \`/adminhelp\` → mostra esta lista
+• \`/metrics\` → métricas de hoje
+• \`/metrics AAAA-MM-DD\` → métricas de uma data específica
+• \`/reload\` → reload lógico
+
+*Give / Ajuste de conta*
+• \`/give xp ID 500\`
+• \`/give gold ID 1000\`
+• \`/give nox ID 50\`
+• \`/give item ID\`
+
+*Moderação*
+• \`/ban ID\`
+• \`/unban ID\`
+
+*Reset*
+• \`/reset\` → reseta o próprio personagem
+• \`/resetplayer ID\` → reseta um jogador específico
+• \`/resetall CONFIRMAR_RESET_TOTAL\` → reseta o jogo todo
+
+*Observações*
+• comandos com *ID* exigem o ID do jogador
+• \`/resetall\` é destrutivo e apaga todos os jogadores
+• use com extremo cuidado`;
+}
+
+async function handleAdminHelp(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+    return ctx.reply(renderAdminHelp(), { parse_mode: 'Markdown' });
+}
+
+/*
+=================================
 GIVE XP
 =================================
 */
@@ -284,6 +325,7 @@ async function handleMetrics(ctx) {
 }
 
 module.exports = {
+    handleAdminHelp,
     handleGiveXp,
     handleGiveGold,
     handleGiveNox,
