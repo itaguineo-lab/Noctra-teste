@@ -46,7 +46,12 @@ function extractAmount(text = '', fallback = 0) {
     return Number.isFinite(last) ? last : fallback;
 }
 
-async function resolvePlayerFromCommand(ctx) {
+function extractFirstArg(text = '') {
+    const parts = text.trim().split(/\s+/);
+    return parts[1] || null;
+}
+
+async function resolvePlayerFromGiveCommand(ctx) {
     const text = ctx.message?.text || '';
     const rawTarget = extractMentionOrId(text);
 
@@ -66,11 +71,53 @@ async function resolvePlayerFromCommand(ctx) {
     return player;
 }
 
-/*
-=================================
-ADMIN HELP
-=================================
-*/
+async function resolvePlayerBySingleArg(ctx, usageExample) {
+    const text = ctx.message?.text || '';
+    const rawTarget = extractFirstArg(text);
+
+    if (!rawTarget) {
+        await ctx.reply(`❌ Uso: ${usageExample}`);
+        return null;
+    }
+
+    const targetId = extractTargetId(rawTarget);
+    const player = await getPlayer(targetId);
+
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return player;
+}
+
+function formatNumber(value) {
+    return Number(value || 0).toLocaleString('pt-BR');
+}
+
+function safeName(value, fallback = '—') {
+    return value ? String(value) : fallback;
+}
+
+function buildEquipmentLines(player) {
+    const eq = player.equipment || {};
+    return [
+        `⚔️ Arma: ${safeName(eq.weapon?.name)}`,
+        `🛡️ Escudo: ${safeName(eq.shield?.name)}`,
+        `🥋 Armadura: ${safeName(eq.armor?.name)}`,
+        `📿 Amuleto: ${safeName(eq.necklace?.name)}`,
+        `💍 Anel: ${safeName(eq.ring?.name)}`,
+        `👢 Botas: ${safeName(eq.boots?.name)}`
+    ].join('\n');
+}
+
+function buildSoulsLines(player) {
+    const souls = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [null, null];
+    return [
+        `💀 Alma 1: ${safeName(souls[0]?.name)}`,
+        `💀 Alma 2: ${safeName(souls[1]?.name)}`
+    ].join('\n');
+}
 
 function renderAdminHelp() {
     return `🛠️ *PAINEL ADMIN — NOCTRA*
@@ -79,6 +126,8 @@ function renderAdminHelp() {
 • \`/adminhelp\` → mostra esta lista
 • \`/metrics\` → métricas de hoje
 • \`/metrics AAAA-MM-DD\` → métricas de uma data específica
+• \`/findplayer ID\` → resumo rápido da conta
+• \`/playerstate ID\` → inspeção detalhada da conta
 • \`/reload\` → reload lógico
 
 *Give / Ajuste de conta*
@@ -109,6 +158,92 @@ async function handleAdminHelp(ctx) {
 
 /*
 =================================
+PLAYER INSPECTION
+=================================
+*/
+
+function renderFindPlayer(player) {
+    return `🔎 *PLAYER ENCONTRADO*
+
+👤 Nome: *${safeName(player.name)}*
+🆔 ID: \`${safeName(player.id)}\`
+🏷️ Classe: ${safeName(player.class)}
+⭐ Nível: ${formatNumber(player.level)}
+🗺️ Mapa: ${safeName(player.currentMap)}
+❤️ HP: ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}
+⚡ Energia: ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}
+
+💰 Ouro: ${formatNumber(player.gold)}
+💎 Nox: ${formatNumber(player.nox)}
+🏅 Glórias: ${formatNumber(player.glorias)}
+🗝️ Chaves: ${formatNumber(player.keys)}
+
+🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || 20)}
+💀 Almas no inventário: ${formatNumber((player.soulsInventory || []).length)}
+✨ VIP: ${player.vip ? 'Sim' : 'Não'}
+⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
+}
+
+function renderPlayerState(player) {
+    return `🧾 *PLAYER STATE*
+
+👤 Nome: *${safeName(player.name)}*
+🆔 ID: \`${safeName(player.id)}\`
+🏷️ Classe: ${safeName(player.class)}
+⭐ Nível: ${formatNumber(player.level)}
+✨ XP: ${formatNumber(player.xp)}
+🗺️ Mapa: ${safeName(player.currentMap)}
+
+*Status*
+❤️ HP: ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}
+⚡ Energia: ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}
+⚔️ ATK: ${formatNumber(player.atk)}
+🛡️ DEF: ${formatNumber(player.def)}
+💥 CRIT: ${formatNumber(player.crit)}%
+
+*Economia*
+💰 Ouro: ${formatNumber(player.gold)}
+💎 Nox: ${formatNumber(player.nox)}
+🏅 Glórias: ${formatNumber(player.glorias)}
+🗝️ Chaves: ${formatNumber(player.keys)}
+
+*Inventário / Progressão*
+🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || 20)}
+💀 Almas inventário: ${formatNumber((player.soulsInventory || []).length)}
+☠️ Total de kills: ${formatNumber(player.totalKills)}
+📉 Soul pity: ${formatNumber(player.soulPityCounter)}
+
+*Equipamentos*
+${buildEquipmentLines(player)}
+
+*Almas equipadas*
+${buildSoulsLines(player)}
+
+*Flags*
+✨ VIP: ${player.vip ? 'Sim' : 'Não'}
+⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
+}
+
+async function handleFindPlayer(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerBySingleArg(ctx, '/findplayer 123456789');
+    if (!player) return;
+
+    return ctx.reply(renderFindPlayer(player), { parse_mode: 'Markdown' });
+}
+
+async function handlePlayerState(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerBySingleArg(ctx, '/playerstate 123456789');
+    if (!player) return;
+
+    return ctx.reply(renderPlayerState(player), { parse_mode: 'Markdown' });
+}
+
+/*
+=================================
 GIVE XP
 =================================
 */
@@ -116,7 +251,7 @@ GIVE XP
 async function handleGiveXp(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromCommand(ctx);
+    const player = await resolvePlayerFromGiveCommand(ctx);
     if (!player) return;
 
     const amount = extractAmount(ctx.message.text, 0);
@@ -140,7 +275,7 @@ GIVE GOLD
 async function handleGiveGold(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromCommand(ctx);
+    const player = await resolvePlayerFromGiveCommand(ctx);
     if (!player) return;
 
     const amount = extractAmount(ctx.message.text, 0);
@@ -164,7 +299,7 @@ GIVE NOX
 async function handleGiveNox(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromCommand(ctx);
+    const player = await resolvePlayerFromGiveCommand(ctx);
     if (!player) return;
 
     const amount = extractAmount(ctx.message.text, 0);
@@ -188,7 +323,7 @@ GIVE ITEM
 async function handleGiveItem(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
-    const player = await resolvePlayerFromCommand(ctx);
+    const player = await resolvePlayerFromGiveCommand(ctx);
     if (!player) return;
 
     const item = generateDrop(player.currentMap === 'clareira_sombria' ? 1 : 2, {
@@ -326,6 +461,8 @@ async function handleMetrics(ctx) {
 
 module.exports = {
     handleAdminHelp,
+    handleFindPlayer,
+    handlePlayerState,
     handleGiveXp,
     handleGiveGold,
     handleGiveNox,
