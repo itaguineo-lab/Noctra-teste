@@ -3,7 +3,8 @@ const { getPlayer, savePlayer } = require('../core/player/playerService');
 const {
     processPurchase,
     sellItemByKey,
-    calculateSellPrice
+    calculateSellPrice,
+    canBuyMultiple
 } = require('../core/economy/shopLogic');
 const { shopItems } = require('../data/shopItems');
 const { shopMainMenu, shopTabsMenu, renderShop } = require('../menus/shopMenu');
@@ -12,6 +13,7 @@ const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 
 const activePurchases = new Set();
 const SELL_PAGE_SIZE = 8;
+const QUICK_BUY_AMOUNTS = [1, 5, 10];
 
 async function safeEdit(ctx, text, options = {}) {
     await safeAnswer(ctx).catch?.(() => {});
@@ -225,20 +227,87 @@ async function handleBuy(ctx) {
             return safeAnswer(ctx, '❌ Item não encontrado.', { show_alert: true });
         }
 
-        const result = processPurchase(player, item);
-        if (!result?.success) {
-            return safeAnswer(ctx, result?.message || '❌ Compra falhou.', { show_alert: true });
+        if (!canBuyMultiple(item)) {
+            const result = await processPurchase(player, item, 1);
+            if (!result?.success) {
+                return safeAnswer(ctx, result?.message || '❌ Compra falhou.', { show_alert: true });
+            }
+
+            await savePlayer(ctx.from.id, player);
+            await safeAnswer(ctx, result.message || `✅ ${item.name} comprado!`, { show_alert: true });
+            return redirectAfterPurchase(ctx, item.shop);
         }
 
-        await savePlayer(ctx.from.id, player);
-        await safeAnswer(ctx, result.message || `✅ ${item.name} comprado!`, { show_alert: true });
-        return redirectAfterPurchase(ctx, item.shop);
+        const buttons = QUICK_BUY_AMOUNTS.map(amount => {
+            const totalPrice = item.price * amount;
+            return [
+                Markup.button.callback(
+                    `Comprar x${amount} (${totalPrice})`,
+                    `shop_buyqty:${item.id}:${amount}`
+                )
+            ];
+        });
+
+        buttons.push([Markup.button.callback('◀️ Voltar', `shop_backtab:${item.shop}`)]);
+
+        const text =
+            `🛒 *${item.name}*\n\n` +
+            `${item.description || 'Sem descrição'}\n\n` +
+            `💰 Preço unitário: ${item.price} ${item.currency}\n` +
+            `Escolha a quantidade:`;
+
+        return safeEdit(ctx, text, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard(buttons)
+        });
     } catch (error) {
         console.error('Erro ao comprar:', error);
         return safeAnswer(ctx, '❌ Erro ao processar compra.', { show_alert: true });
     } finally {
         activePurchases.delete(playerId);
     }
+}
+
+async function handleBuyQuantity(ctx) {
+    const playerId = String(ctx.from.id);
+
+    if (activePurchases.has(playerId)) {
+        return safeAnswer(ctx, '⏳ Compra em andamento...', { show_alert: true });
+    }
+
+    activePurchases.add(playerId);
+
+    try {
+        const itemId = ctx.match?.[1];
+        const quantity = Number(ctx.match?.[2] || 1);
+
+        const player = await getPlayer(ctx.from.id);
+        const item = shopItems.find(i => i.id === itemId);
+
+        if (!item) {
+            return safeAnswer(ctx, '❌ Item não encontrado.', { show_alert: true });
+        }
+
+        const result = await processPurchase(player, item, quantity);
+        if (!result?.success) {
+            return safeAnswer(ctx, result?.message || '❌ Compra falhou.', { show_alert: true });
+        }
+
+        await savePlayer(ctx.from.id, player);
+        await safeAnswer(ctx, result.message || `✅ ${item.name} x${quantity} comprado!`, { show_alert: true });
+        return redirectAfterPurchase(ctx, item.shop);
+    } catch (error) {
+        console.error('Erro ao comprar quantidade:', error);
+        return safeAnswer(ctx, '❌ Erro ao processar compra.', { show_alert: true });
+    } finally {
+        activePurchases.delete(playerId);
+    }
+}
+
+async function handleShopBackTab(ctx) {
+    const tab = ctx.match?.[1];
+    await safeAnswer(ctx);
+    return renderTab(ctx, tab);
 }
 
 async function handleShopSell(ctx) {
@@ -295,6 +364,8 @@ module.exports = {
     handleShopCastle,
     handleShopArena,
     handleBuy,
+    handleBuyQuantity,
+    handleShopBackTab,
     handleShopSell,
     handleShopSellPage,
     handleSellConfirm,
