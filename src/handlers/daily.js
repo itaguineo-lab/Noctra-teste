@@ -29,11 +29,9 @@ HELPERS
 
 function getTodayKey() {
     const now = new Date();
-
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-
     return `${year}-${month}-${day}`;
 }
 
@@ -50,10 +48,14 @@ function getYesterdayKey() {
 
 function dailyKeyboard() {
     return Markup.inlineKeyboard([
-        [Markup.button.callback('🎁 Abrir Baú Diário', 'daily_chest')],
-        [Markup.button.callback('📜 Resgatar Missões', 'daily_claim_missions')],
-        [Markup.button.callback('📦 Meus Baús', 'daily_chests')],
-        [Markup.button.callback('🏠 Menu', 'menu')]
+        [
+            Markup.button.callback('🎁 Baú Diário', 'daily_chest'),
+            Markup.button.callback('📜 Resgatar Missões', 'daily_claim_missions')
+        ],
+        [
+            Markup.button.callback('📦 Meus Baús', 'daily_chests'),
+            Markup.button.callback('🏠 Menu', 'menu')
+        ]
     ]);
 }
 
@@ -62,6 +64,14 @@ async function sendDailyScreen(ctx, text, options = {}) {
         parse_mode: 'Markdown',
         ...options
     });
+}
+
+function getStreakTier(streak = 0) {
+    if (streak >= 14) return '🌟 Lendário';
+    if (streak >= 7) return '🏅 Semanal';
+    if (streak >= 3) return '⭐ Consistente';
+    if (streak >= 1) return '🔥 Em progresso';
+    return '🌑 Inativo';
 }
 
 /*
@@ -103,13 +113,24 @@ function giveDailyChest(player) {
 function renderDailyHub(player) {
     ensureDailyMissionState(player);
 
-    let text = `╔══════════════════════════════╗\n`;
-    text += `║        🎁 *CENTRO DIÁRIO*         ║\n`;
-    text += `╠══════════════════════════════╣\n`;
-    text += `║ 🔥 Streak atual: ${player.dailyStreak || 0}\n`;
-    text += `║ 📦 Baú diário: ${player.lastDailyChest === getTodayKey() ? 'ABERTO' : 'DISPONÍVEL'}\n`;
-    text += `║ 📜 Missões: ${areAllMissionsCompleted(player) ? 'CONCLUÍDAS' : 'EM ANDAMENTO'}\n`;
-    text += `╠══════════════════════════════╣\n`;
+    const streak = player.dailyStreak || 0;
+    const streakTier = getStreakTier(streak);
+    const chestStatus = player.lastDailyChest === getTodayKey() ? 'ABERTO' : 'DISPONÍVEL';
+    const missionStatus = areAllMissionsCompleted(player) ? 'CONCLUÍDAS' : 'EM ANDAMENTO';
+
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `🎁 *CENTRO DIÁRIO*\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    text += `🔥 *Streak Atual*: ${streak} dia(s)\n`;
+    text += `🏷️ Tier: ${streakTier}\n`;
+    text += `📦 Baú diário: ${chestStatus}\n`;
+    text += `📜 Missões: ${missionStatus}\n\n`;
+
+    text += `🎯 *Objetivo do dia*\n`;
+    text += `Abra seu baú, conclua missões e mantenha sua sequência ativa.\n\n`;
+
+    text += `📋 *Missões*\n`;
     text += `${renderDailyMissionsText(player)}\n`;
 
     return text;
@@ -170,27 +191,22 @@ async function handleDailyChest(ctx) {
         ensureDailyMissionState(player);
         await savePlayer(ctx.from.id, player);
 
-        let msg = `╔════════════════════════╗\n`;
-        msg += `║      🎁 *BAÚ DIÁRIO*      ║\n`;
-        msg += `╠════════════════════════╣\n`;
-        msg += `║ 📦 Recompensas\n`;
-        msg += `║\n`;
-        msg += `║ 💰 +${reward.gold} ouro`;
+        let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `🎁 *BAÚ DIÁRIO ABERTO*\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
+        msg += `💰 Ouro: +${reward.gold}\n`;
         if (reward.glorias > 0) {
-            msg += `\n║ 🏅 +${reward.glorias} glória`;
+            msg += `🏅 Glórias: +${reward.glorias}\n`;
         }
 
-        msg += `\n║\n`;
-        msg += `║ 🔥 Streak: ${reward.streak} dia(s)`;
+        msg += `🔥 Streak atual: ${reward.streak} dia(s)\n`;
 
-        if (reward.streak === 3) msg += `\n║ ⭐ Bônus 3 dias!`;
-        if (reward.streak === 7) msg += `\n║ 🏅 Bônus semanal!`;
-        if (reward.streak === 14) msg += `\n║ 🌟 Bônus lendário!`;
+        if (reward.streak === 3) msg += `⭐ Bônus de consistência desbloqueado\n`;
+        if (reward.streak === 7) msg += `🏅 Bônus semanal desbloqueado\n`;
+        if (reward.streak === 14) msg += `🌟 Bônus lendário desbloqueado\n`;
 
-        msg += `\n╠════════════════════════╣\n`;
-        msg += `║ Volte amanhã para manter o streak\n`;
-        msg += `╚════════════════════════╝`;
+        msg += `\nVolte amanhã para manter sua sequência ativa.`;
 
         return sendDailyScreen(ctx, msg, dailyKeyboard());
     } catch (error) {
@@ -221,21 +237,21 @@ async function handleClaimMissionRewards(ctx) {
 
         await savePlayer(ctx.from.id, player);
 
-        let msg = `╔══════════════════════════════╗\n`;
-        msg += `║    🎉 *MISSÕES CONCLUÍDAS*      ║\n`;
-        msg += `╠══════════════════════════════╣\n`;
-        msg += `║ 💰 +${result.rewards.gold} ouro\n`;
-        msg += `║ ✨ +${result.rewards.xp} XP\n`;
+        let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `🎉 *MISSÕES RESGATADAS*\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        msg += `💰 Ouro: +${result.rewards.gold}\n`;
+        msg += `✨ XP: +${result.rewards.xp}\n`;
 
         if (result.rewards.glorias > 0) {
-            msg += `║ 🏅 +${result.rewards.glorias} glória\n`;
+            msg += `🏅 Glórias: +${result.rewards.glorias}\n`;
         }
 
         if (result.rewards.keys > 0) {
-            msg += `║ 🗝️ +${result.rewards.keys} chave\n`;
+            msg += `🗝️ Chaves: +${result.rewards.keys}\n`;
         }
 
-        msg += `╚══════════════════════════════╝`;
+        msg += `\nContinue amanhã para manter o ritmo.`;
 
         return sendDailyScreen(ctx, msg, dailyKeyboard());
     } catch (error) {
@@ -293,15 +309,17 @@ async function handleOpenTimedChest(ctx) {
 
         await savePlayer(ctx.from.id, player);
 
-        let msg = `╔══════════════════════════════╗\n`;
-        msg += `║       📦 *BAÚ ABERTO*           ║\n`;
-        msg += `╠══════════════════════════════╣\n`;
-        msg += `║ 💰 +${result.rewards.gold} ouro\n`;
-        msg += `║ ✨ +${result.rewards.xp} XP\n`;
+        let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `📦 *BAÚ ABERTO*\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        msg += `💰 Ouro: +${result.rewards.gold}\n`;
+        msg += `✨ XP: +${result.rewards.xp}\n`;
+
         if (result.rewards.keys > 0) {
-            msg += `║ 🗝️ +${result.rewards.keys} chave\n`;
+            msg += `🗝️ Chaves: +${result.rewards.keys}\n`;
         }
-        msg += `╚══════════════════════════════╝`;
+
+        msg += `\nRecompensa coletada com sucesso.`;
 
         return sendDailyScreen(ctx, msg, dailyKeyboard());
     } catch (error) {
