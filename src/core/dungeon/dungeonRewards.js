@@ -34,32 +34,51 @@ function addSummaryNote(player, note) {
     d.summary.notes.push(note);
 }
 
+function getRoomRewardScalar(roomType) {
+    if (roomType === 'boss') return 1.28;
+    if (roomType === 'elite') return 1.16;
+    return 1.0;
+}
+
+/*
+=================================
+TREASURE ROOM
+=================================
+*/
+
 function resolveTreasureRoom(player, room) {
     const d = player.dungeonProgress;
     const mapNumber = getMapNumber(d.mapId);
-    const gold = 45 + player.level * 12 + room.index * 8;
 
+    const gold = Math.floor(60 + player.level * 14 + room.index * 12);
     applyGoldReward(player, gold);
     d.rewards.gold += gold;
 
     const notes = [`🎁 +${gold} ouro`];
 
-    if (Math.random() < 0.25) {
+    /*
+    Chave na dungeon deve existir, mas não banalizar o sistema.
+    */
+    if (Math.random() < 0.16) {
         applyKeyReward(player, 1);
         d.rewards.keys += 1;
         notes.push('🗝️ +1 chave');
     }
 
-    if (Math.random() < 0.35) {
+    /*
+    Tesouro pode dar item, mas não deve roubar o valor
+    da conclusão total da masmorra.
+    */
+    if (Math.random() < 0.24) {
         const drop = generateDrop(mapNumber, {
             encounterTier: 'miniboss',
-            rarityBias: 'mid_boss'
+            rarityBias: mapNumber >= 4 ? 'late_elite' : 'mid_elite'
         });
 
         const addResult = addInventoryItem(player, drop);
         if (addResult.success) {
             d.rewards.items += 1;
-            notes.push(`✨ ${drop.name}`);
+            notes.push(`✨ ${drop.name} [${drop.rarity}]`);
         }
     }
 
@@ -75,6 +94,12 @@ function resolveTreasureRoom(player, room) {
         notes
     };
 }
+
+/*
+=================================
+HEAL ROOM
+=================================
+*/
 
 function resolveHealRoom(player, room) {
     const heal = Math.floor(player.maxHp * 0.45);
@@ -96,11 +121,17 @@ function resolveHealRoom(player, room) {
     };
 }
 
+/*
+=================================
+CURSE ROOM
+=================================
+*/
+
 function resolveCurseRoom(player, room) {
     const d = player.dungeonProgress;
     const damage = Math.floor(player.maxHp * 0.18);
     const hpLoss = Math.min(damage, Math.max(0, player.hp - 1));
-    const gold = 90 + player.level * 15 + room.index * 10;
+    const gold = Math.floor(95 + player.level * 16 + room.index * 12);
 
     applyDamage(player, hpLoss);
     applyGoldReward(player, gold);
@@ -108,7 +139,7 @@ function resolveCurseRoom(player, room) {
 
     const notes = [`💀 -${hpLoss} HP`, `💰 +${gold} ouro`];
 
-    if (Math.random() < 0.2) {
+    if (Math.random() < 0.14) {
         applyKeyReward(player, 1);
         d.rewards.keys += 1;
         notes.push('🗝️ +1 chave');
@@ -122,10 +153,16 @@ function resolveCurseRoom(player, room) {
 
     return {
         success: true,
-        message: `💀 Maldição cobrou ${hpLoss} HP, mas rendeu ${gold} ouro.`,
+        message: `💀 A maldição cobrou ${hpLoss} HP, mas rendeu ${gold} ouro.`,
         notes
     };
 }
+
+/*
+=================================
+SHRINE ROOM
+=================================
+*/
 
 function resolveShrineRoom(player, room) {
     const d = player.dungeonProgress;
@@ -164,8 +201,15 @@ function resolveShrineRoom(player, room) {
     };
 }
 
-function resolveCombatRoom(player, room) {
+/*
+=================================
+COMBAT ROOM
+=================================
+*/
+
+async function resolveCombatRoom(player, room) {
     const d = player.dungeonProgress;
+    const roomScalar = getRoomRewardScalar(room.type);
 
     const effectivePlayer = {
         atk: Math.max(1, (player.atk || 1) + (d.combatBonus.atk || 0)),
@@ -191,19 +235,43 @@ function resolveCombatRoom(player, room) {
     };
 
     if (room.enemy.hp <= 0) {
-        const rewards = processVictory(player, room.enemy);
+        const rewards = await processVictory(player, room.enemy);
 
-        d.rewards.xp += safeNumber(rewards.xp);
-        d.rewards.gold += safeNumber(rewards.gold);
+        /*
+        Dungeon precisa ser melhor que hunt:
+        bônus adicional por vitória dentro da run.
+        */
+        const dungeonBonusXp = Math.floor(safeNumber(rewards.xp) * (roomScalar - 1));
+        const dungeonBonusGold = Math.floor(safeNumber(rewards.gold) * (roomScalar - 1));
+
+        if (dungeonBonusXp > 0) {
+            applyXpReward(player, dungeonBonusXp);
+        }
+
+        if (dungeonBonusGold > 0) {
+            applyGoldReward(player, dungeonBonusGold);
+        }
+
+        d.rewards.xp += safeNumber(rewards.xp) + dungeonBonusXp;
+        d.rewards.gold += safeNumber(rewards.gold) + dungeonBonusGold;
+
         if (rewards.keyDropped) d.rewards.keys += 1;
         if (rewards.loot?.length) d.rewards.items += rewards.loot.length;
+        if (rewards.soulDropped) d.rewards.items += 0;
 
         result.defeated = true;
         result.message = `🏆 ${room.enemy.name} derrotado!`;
-        result.notes = [`✨ +${rewards.xp} XP`, `💰 +${rewards.gold} ouro`];
+        result.notes = [
+            `✨ +${safeNumber(rewards.xp) + dungeonBonusXp} XP`,
+            `💰 +${safeNumber(rewards.gold) + dungeonBonusGold} ouro`
+        ];
 
         if (rewards.loot?.length) {
             result.notes.push(...rewards.loot.map(l => `🎁 ${l}`));
+        }
+
+        if (dungeonBonusXp > 0 || dungeonBonusGold > 0) {
+            result.notes.push(`🏰 Bônus da masmorra aplicado`);
         }
 
         room.cleared = true;
@@ -244,6 +312,12 @@ function resolveCombatRoom(player, room) {
     return result;
 }
 
+/*
+=================================
+FINALIZE DUNGEON RUN
+=================================
+*/
+
 function finalizeDungeonRun(player, reason) {
     const d = player.dungeonProgress;
 
@@ -256,10 +330,14 @@ function finalizeDungeonRun(player, reason) {
     d.aborted = reason === 'aborted';
 
     const cleared = d.rooms.filter(r => r.cleared).length;
-    const bonusXp = 20 + cleared * 10 + player.level * 2;
-    const bonusGold = 60 + cleared * 20 + player.level * 5;
+
+    /*
+    Conclusão precisa parecer premium.
+    */
+    const bonusXp = Math.floor(40 + cleared * 14 + player.level * 3.5);
+    const bonusGold = Math.floor(90 + cleared * 24 + player.level * 7);
     const bonusKeys = reason === 'complete' ? 1 : 0;
-    const bonusGlorias = reason === 'complete' ? 1 : 0;
+    const bonusGlorias = reason === 'complete' ? 2 : 0;
 
     d.summary = {
         roomsCleared: cleared,
@@ -271,8 +349,26 @@ function finalizeDungeonRun(player, reason) {
         notes: d.summary?.notes || []
     };
 
-    if (reason === 'complete') d.summary.notes.push('🏁 Expedição perfeita!');
-    else d.summary.notes.push('🚪 Expedição interrompida.');
+    let completionItem = null;
+
+    if (reason === 'complete') {
+        const mapNumber = getMapNumber(d.mapId);
+        const premiumDrop = generateDrop(mapNumber, {
+            encounterTier: 'boss',
+            rarityBias: mapNumber >= 4 ? 'late_boss' : 'mid_boss'
+        });
+
+        const addResult = addInventoryItem(player, premiumDrop);
+        if (addResult.success) {
+            completionItem = premiumDrop;
+            d.summary.items += 1;
+            d.summary.notes.push(`🎁 Recompensa final: ${premiumDrop.name} [${premiumDrop.rarity}]`);
+        }
+
+        d.summary.notes.push('🏁 Expedição perfeita!');
+    } else {
+        d.summary.notes.push('🚪 Expedição interrompida.');
+    }
 
     applyXpReward(player, bonusXp);
     applyGoldReward(player, bonusGold);
@@ -282,6 +378,13 @@ function finalizeDungeonRun(player, reason) {
     if (reason === 'complete') {
         updateMissionProgress(player, 'dungeon_complete', 1);
     }
+
+    d.summary.completionItem = completionItem
+        ? {
+            name: completionItem.name,
+            rarity: completionItem.rarity
+        }
+        : null;
 
     return d;
 }
