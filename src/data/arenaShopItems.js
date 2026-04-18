@@ -1,28 +1,18 @@
 const arenaShopItems = [
+    /*
+    =================================
+    TÁTICOS — USO IMEDIATO
+    =================================
+    */
+
     {
         id: 'arena_hp_potion',
         name: 'Poção de Vida Arena',
         type: 'consumable',
         effect: 'potionHp',
         value: 1,
-        price: 30,
-        description: 'Recupera HP em batalhas.'
-    },
-    {
-        id: 'arena_energy_refill',
-        name: 'Carga de Energia',
-        type: 'energy',
-        value: 5,
-        price: 50,
-        description: '+5 energia instantânea.'
-    },
-    {
-        id: 'arena_key',
-        name: 'Chave de Arena',
-        type: 'key',
-        value: 1,
-        price: 80,
-        description: 'Chave rara.'
+        price: 25,
+        description: 'Recupera HP em batalhas decisivas.'
     },
     {
         id: 'arena_strength_tonic',
@@ -30,8 +20,8 @@ const arenaShopItems = [
         type: 'consumable',
         effect: 'tonicStrength',
         value: 1,
-        price: 65,
-        description: '+ATK para batalhas decisivas.'
+        price: 40,
+        description: '+ATK para confrontos competitivos.'
     },
     {
         id: 'arena_defense_tonic',
@@ -39,9 +29,39 @@ const arenaShopItems = [
         type: 'consumable',
         effect: 'tonicDefense',
         value: 1,
-        price: 65,
+        price: 40,
         description: '+DEF para sobrevivência na arena.'
     },
+
+    /*
+    =================================
+    CONVENIÊNCIA — LIMITADA
+    =================================
+    */
+
+    {
+        id: 'arena_energy_refill',
+        name: 'Carga de Energia',
+        type: 'energy',
+        value: 5,
+        price: 60,
+        description: '+5 energia instantânea.'
+    },
+    {
+        id: 'arena_key',
+        name: 'Chave da Arena',
+        type: 'key',
+        value: 1,
+        price: 95,
+        description: 'Recurso raro convertido do mérito competitivo.'
+    },
+
+    /*
+    =================================
+    PRESTÍGIO — COSMÉTICOS
+    =================================
+    */
+
     {
         id: 'arena_title_gladiador',
         name: 'Título Gladiador',
@@ -52,22 +72,22 @@ const arenaShopItems = [
         description: 'Título exclusivo da arena.'
     },
     {
-        id: 'arena_aura_champion',
-        name: 'Aura do Campeão',
-        type: 'cosmetic',
-        cosmeticType: 'aura',
-        value: 'Aura do Campeão',
-        price: 180,
-        description: 'Cosmético exclusivo para campeões.'
-    },
-    {
         id: 'arena_badge_bloodmoon',
         name: 'Emblema Lua de Sangue',
         type: 'cosmetic',
         cosmeticType: 'badge',
         value: 'Lua de Sangue',
         price: 150,
-        description: 'Emblema raro de prestígio.'
+        description: 'Emblema raro de prestígio competitivo.'
+    },
+    {
+        id: 'arena_aura_champion',
+        name: 'Aura do Campeão',
+        type: 'cosmetic',
+        cosmeticType: 'aura',
+        value: 'Aura do Campeão',
+        price: 220,
+        description: 'Cosmético exclusivo para os mais consistentes.'
     }
 ];
 
