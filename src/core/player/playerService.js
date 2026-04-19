@@ -364,28 +364,29 @@ async function createPlayer(id, name, className) {
     }
 
     const allowedClasses = ['guerreiro', 'arqueiro', 'mago'];
-    if (!allowedClasses.includes(className)) {
-        className = 'guerreiro';
-    }
+    const safeClass = allowedClasses.includes(className) ? className : 'guerreiro';
 
-    const player = new Player({
+    const playerObj = {
         id,
         name,
-        class: className
-    });
+        class: safeClass
+    };
 
-    await player.save();
-
-    const playerObj = player.toObject();
     ensurePlayerState(playerObj);
     recalculateStats(playerObj);
     playerObj.hp = playerObj.maxHp;
     playerObj.energy = playerObj.maxEnergy;
     playerObj.lastEnergyUpdate = new Date();
+    playerObj.updatedAt = new Date();
 
-    await savePlayer(id, playerObj);
+    const sanitized = sanitizePlayerForPersistence(playerObj);
+    const created = await Player.create(sanitized);
 
-    return playerObj;
+    const finalPlayer = created.toObject();
+    ensurePlayerState(finalPlayer);
+    recalculateStats(finalPlayer);
+
+    return finalPlayer;
 }
 
 module.exports = {
