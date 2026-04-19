@@ -1,67 +1,124 @@
 const MetricsDaily = require('./MetricsModel');
 
+/*
+=================================
+DATE KEY
+=================================
+*/
+
 function getDateKey(date = new Date()) {
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
+    const safeDate = date instanceof Date ? date : new Date();
+    const year = safeDate.getUTCFullYear();
+    const month = String(safeDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(safeDate.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
 
-async function ensureDailyMetrics(dateKey = getDateKey()) {
-    let doc = await MetricsDaily.findOne({ dateKey });
-
-    if (!doc) {
-        doc = await MetricsDaily.create({
-            dateKey,
-            counters: {
-                playersCreated: 0,
-                menuLoads: 0,
-
-                combatsStarted: 0,
-                combatsWon: 0,
-                combatsLost: 0,
-                combatsFled: 0,
-
-                dungeonsStarted: 0,
-                dungeonsCompleted: 0,
-                dungeonsAbandoned: 0,
-                dungeonRoomsCleared: 0,
-
-                itemsDropped: 0,
-                soulsDropped: 0,
-                keysDropped: 0,
-
-                consumablesUsed: 0,
-
-                goldAwarded: 0,
-                xpAwarded: 0,
-
-                goldSpent: 0,
-                noxSpent: 0,
-                gloriasSpent: 0,
-                itemsSold: 0,
-                goldFromSales: 0,
-                vipPurchases: 0
-            }
-        });
+function sanitizeDateKey(dateKey) {
+    if (typeof dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateKey.trim())) {
+        return dateKey.trim();
     }
+
+    return getDateKey();
+}
+
+function buildDefaultCounters() {
+    return {
+        playersCreated: 0,
+        menuLoads: 0,
+
+        combatsStarted: 0,
+        combatsWon: 0,
+        combatsLost: 0,
+        combatsFled: 0,
+
+        dungeonsStarted: 0,
+        dungeonsCompleted: 0,
+        dungeonsAbandoned: 0,
+        dungeonRoomsCleared: 0,
+
+        itemsDropped: 0,
+        soulsDropped: 0,
+        keysDropped: 0,
+
+        consumablesUsed: 0,
+
+        goldAwarded: 0,
+        xpAwarded: 0,
+
+        goldSpent: 0,
+        noxSpent: 0,
+        gloriasSpent: 0,
+        itemsSold: 0,
+        goldFromSales: 0,
+        vipPurchases: 0
+    };
+}
+
+/*
+=================================
+ENSURE DAILY METRICS
+=================================
+*/
+
+async function ensureDailyMetrics(dateKeyInput) {
+    const dateKey = sanitizeDateKey(dateKeyInput);
+
+    const doc = await MetricsDaily.findOneAndUpdate(
+        { dateKey },
+        {
+            $setOnInsert: {
+                dateKey,
+                counters: buildDefaultCounters()
+            }
+        },
+        {
+            new: true,
+            upsert: true,
+            setDefaultsOnInsert: true
+        }
+    );
 
     return doc;
 }
 
-async function incrementMetric(metricName, amount = 1, dateKey = getDateKey()) {
+/*
+=================================
+INCREMENT ONE METRIC
+=================================
+*/
+
+async function incrementMetric(metricName, amount = 1, dateKeyInput) {
     if (!metricName) return null;
+
+    const dateKey = sanitizeDateKey(dateKeyInput);
+    const numericAmount = Number(amount);
+
+    if (!Number.isFinite(numericAmount) || numericAmount === 0) {
+        return null;
+    }
 
     await ensureDailyMetrics(dateKey);
 
     return MetricsDaily.findOneAndUpdate(
         { dateKey },
-        { $inc: { [`counters.${metricName}`]: amount } },
+        {
+            $inc: {
+                [`counters.${metricName}`]: numericAmount
+            }
+        },
         { new: true }
     );
 }
 
-async function addManyMetrics(increments = {}, dateKey = getDateKey()) {
+/*
+=================================
+INCREMENT MANY METRICS
+=================================
+*/
+
+async function addManyMetrics(increments = {}, dateKeyInput) {
+    const dateKey = sanitizeDateKey(dateKeyInput);
     const validIncrements = {};
 
     Object.entries(increments || {}).forEach(([key, value]) => {
@@ -83,6 +140,12 @@ async function addManyMetrics(increments = {}, dateKey = getDateKey()) {
         { new: true }
     );
 }
+
+/*
+=================================
+RECORD HELPERS
+=================================
+*/
 
 async function recordPlayerCreated() {
     return incrementMetric('playersCreated', 1);
@@ -119,7 +182,13 @@ async function recordDungeonRoomCleared(amount = 1) {
     return incrementMetric('dungeonRoomsCleared', amount);
 }
 
-async function recordDropMetrics({ items = 0, souls = 0, keys = 0, gold = 0, xp = 0 } = {}) {
+async function recordDropMetrics({
+    items = 0,
+    souls = 0,
+    keys = 0,
+    gold = 0,
+    xp = 0
+} = {}) {
     return addManyMetrics({
         itemsDropped: items,
         soulsDropped: souls,
@@ -133,7 +202,11 @@ async function recordConsumableUsed() {
     return incrementMetric('consumablesUsed', 1);
 }
 
-async function recordPurchaseMetrics({ currency, amount = 0, vip = false } = {}) {
+async function recordPurchaseMetrics({
+    currency,
+    amount = 0,
+    vip = false
+} = {}) {
     const increments = {};
 
     if (currency === 'gold') increments.goldSpent = Number(amount || 0);
@@ -144,19 +217,28 @@ async function recordPurchaseMetrics({ currency, amount = 0, vip = false } = {})
     return addManyMetrics(increments);
 }
 
-async function recordSaleMetrics({ gold = 0, items = 1 } = {}) {
+async function recordSaleMetrics({
+    gold = 0,
+    items = 1
+} = {}) {
     return addManyMetrics({
         goldFromSales: Number(gold || 0),
         itemsSold: Number(items || 0)
     });
 }
 
+/*
+=================================
+READ HELPERS
+=================================
+*/
+
 async function getTodayMetrics() {
     return ensureDailyMetrics(getDateKey());
 }
 
-async function getMetricsByDate(dateKey) {
-    if (!dateKey) return null;
+async function getMetricsByDate(dateKeyInput) {
+    const dateKey = sanitizeDateKey(dateKeyInput);
     return ensureDailyMetrics(dateKey);
 }
 
@@ -200,6 +282,7 @@ function buildMetricsSummary(doc) {
     const c = normalizeCounters(doc);
 
     const totalCombatOutcomes = c.combatsWon + c.combatsLost + c.combatsFled;
+
     const winRate = totalCombatOutcomes > 0
         ? ((c.combatsWon / totalCombatOutcomes) * 100).toFixed(1)
         : '0.0';
