@@ -138,7 +138,16 @@ const playerSchema = new mongoose.Schema(
         buffs: { type: [buffSchema], default: [] },
 
         soulsInventory: { type: [soulSchema], default: [] },
-        soulsEquipped: { type: [soulSchema], default: [null, null] },
+
+        /*
+        IMPORTANTE:
+        não usar [null, null] em array de subdocumentos.
+        Isso quebra com setDefaultsOnInsert / upsert.
+        */
+        soulsEquipped: {
+            type: mongoose.Schema.Types.Mixed,
+            default: () => [null, null]
+        },
 
         cosmetics: { type: [cosmeticSchema], default: [] },
         activeCosmetics: {
