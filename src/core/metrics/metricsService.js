@@ -57,36 +57,34 @@ function buildDefaultCounters() {
 
 /*
 =================================
-ENSURE DAILY METRICS
+SAFE CORE OPS
 =================================
 */
 
 async function ensureDailyMetrics(dateKeyInput) {
     const dateKey = sanitizeDateKey(dateKeyInput);
 
-    const doc = await MetricsDaily.findOneAndUpdate(
-        { dateKey },
-        {
-            $setOnInsert: {
-                dateKey,
-                counters: buildDefaultCounters()
+    try {
+        return await MetricsDaily.findOneAndUpdate(
+            { dateKey },
+            {
+                $setOnInsert: {
+                    dateKey,
+                    counters: buildDefaultCounters()
+                }
+            },
+            {
+                new: true,
+                upsert: true,
+                setDefaultsOnInsert: true,
+                runValidators: false
             }
-        },
-        {
-            new: true,
-            upsert: true,
-            setDefaultsOnInsert: true
-        }
-    );
-
-    return doc;
+        );
+    } catch (error) {
+        console.error('⚠️ ensureDailyMetrics falhou:', error);
+        return null;
+    }
 }
-
-/*
-=================================
-INCREMENT ONE METRIC
-=================================
-*/
 
 async function incrementMetric(metricName, amount = 1, dateKeyInput) {
     if (!metricName) return null;
@@ -98,24 +96,26 @@ async function incrementMetric(metricName, amount = 1, dateKeyInput) {
         return null;
     }
 
-    await ensureDailyMetrics(dateKey);
+    try {
+        await ensureDailyMetrics(dateKey);
 
-    return MetricsDaily.findOneAndUpdate(
-        { dateKey },
-        {
-            $inc: {
-                [`counters.${metricName}`]: numericAmount
+        return await MetricsDaily.findOneAndUpdate(
+            { dateKey },
+            {
+                $inc: {
+                    [`counters.${metricName}`]: numericAmount
+                }
+            },
+            {
+                new: true,
+                runValidators: false
             }
-        },
-        { new: true }
-    );
+        );
+    } catch (error) {
+        console.error(`⚠️ incrementMetric falhou (${metricName}):`, error);
+        return null;
+    }
 }
-
-/*
-=================================
-INCREMENT MANY METRICS
-=================================
-*/
 
 async function addManyMetrics(increments = {}, dateKeyInput) {
     const dateKey = sanitizeDateKey(dateKeyInput);
@@ -132,13 +132,21 @@ async function addManyMetrics(increments = {}, dateKeyInput) {
         return null;
     }
 
-    await ensureDailyMetrics(dateKey);
+    try {
+        await ensureDailyMetrics(dateKey);
 
-    return MetricsDaily.findOneAndUpdate(
-        { dateKey },
-        { $inc: validIncrements },
-        { new: true }
-    );
+        return await MetricsDaily.findOneAndUpdate(
+            { dateKey },
+            { $inc: validIncrements },
+            {
+                new: true,
+                runValidators: false
+            }
+        );
+    } catch (error) {
+        console.error('⚠️ addManyMetrics falhou:', error);
+        return null;
+    }
 }
 
 /*
@@ -234,12 +242,21 @@ READ HELPERS
 */
 
 async function getTodayMetrics() {
-    return ensureDailyMetrics(getDateKey());
+    const result = await ensureDailyMetrics(getDateKey());
+    return result || {
+        dateKey: getDateKey(),
+        counters: buildDefaultCounters()
+    };
 }
 
 async function getMetricsByDate(dateKeyInput) {
     const dateKey = sanitizeDateKey(dateKeyInput);
-    return ensureDailyMetrics(dateKey);
+    const result = await ensureDailyMetrics(dateKey);
+
+    return result || {
+        dateKey,
+        counters: buildDefaultCounters()
+    };
 }
 
 function normalizeCounters(doc) {
