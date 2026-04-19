@@ -1,14 +1,17 @@
 const { Markup } = require('telegraf');
+
 const {
     getPlayer,
     savePlayer
 } = require('../core/player/playerService');
+
 const {
     ensureCosmeticsState,
     equipCosmetic,
     unequipCosmetic,
     getActiveCosmetic
 } = require('../core/player/cosmetics');
+
 const {
     applyEquipmentChange,
     removeEquipment,
@@ -18,41 +21,31 @@ const {
     consumeConsumable,
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
+
 const {
     sameItem,
     getItemKey,
     findInventoryItemByKey
 } = require('../core/player/equipmentService');
-const { inventoryMainMenu } = require('../menus/inventoryMenu');
-const { navigateText, safeAnswer } = require('../utils/uiNavigator');
+
+const {
+    inventoryMainMenu
+} = require('../menus/inventoryMenu');
+
+const {
+    navigateText,
+    safeAnswer
+} = require('../utils/uiNavigator');
 
 const PAGE_SIZE = 5;
 
 const CATEGORY_CONFIG = {
-    weapons: {
-        title: '⚔️ Armas',
-        slots: ['weapon']
-    },
-    shields: {
-        title: '🛡️ Escudos',
-        slots: ['shield']
-    },
-    armors: {
-        title: '🥋 Armaduras',
-        slots: ['armor']
-    },
-    necklaces: {
-        title: '📿 Amuletos',
-        slots: ['necklace']
-    },
-    rings: {
-        title: '💍 Anéis',
-        slots: ['ring']
-    },
-    boots: {
-        title: '👢 Botas',
-        slots: ['boots']
-    }
+    weapons: { title: '⚔️ Armas', slots: ['weapon'] },
+    shields: { title: '🛡️ Escudos', slots: ['shield'] },
+    armors: { title: '🥋 Armaduras', slots: ['armor'] },
+    necklaces: { title: '📿 Amuletos', slots: ['necklace'] },
+    rings: { title: '💍 Anéis', slots: ['ring'] },
+    boots: { title: '👢 Botas', slots: ['boots'] }
 };
 
 const RARITY_BADGES = {
@@ -64,6 +57,21 @@ const RARITY_BADGES = {
     Mítico: '🔴'
 };
 
+/*
+=================================
+BASIC HELPERS
+=================================
+*/
+
+function escapeMarkdown(text = '') {
+    return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
+function safeNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+}
+
 function getClassNamePortuguese(className) {
     const map = {
         guerreiro: 'Guerreiros',
@@ -73,13 +81,34 @@ function getClassNamePortuguese(className) {
     return map[className] || className;
 }
 
-function escapeMarkdown(text = '') {
-    return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+function getCosmeticTypeLabel(type) {
+    if (type === 'title') return '🏷️ Título';
+    if (type === 'aura') return '✨ Aura';
+    return '🎖️ Emblema';
 }
 
-function safeNumber(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
+function getRealSlot(item) {
+    if (!item?.slot) return 'unknown';
+
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+    for (const validSlot of validSlots) {
+        if (String(item.slot).startsWith(validSlot)) return validSlot;
+    }
+
+    return item.slot;
+}
+
+function getSlotLabel(slot) {
+    const labels = {
+        weapon: 'Arma',
+        shield: 'Escudo',
+        armor: 'Armadura',
+        necklace: 'Amuleto',
+        ring: 'Anel',
+        boots: 'Botas'
+    };
+
+    return labels[slot] || slot;
 }
 
 function normalizePlayerState(player) {
@@ -92,15 +121,25 @@ function normalizePlayerState(player) {
     return player;
 }
 
-function getCosmeticTypeLabel(type) {
-    if (type === 'title') return '🏷️ Título';
-    if (type === 'aura') return '✨ Aura';
-    return '🎖️ Emblema';
+async function loadPlayer(ctx) {
+    const player = await getPlayer(ctx.from.id);
+    return normalizePlayerState(player);
+}
+
+async function saveNormalizedPlayer(ctx, player) {
+    normalizePlayerForSave(player);
+    await savePlayer(ctx.from.id, player);
 }
 
 async function sendScreen(ctx, text, options = {}) {
     return navigateText(ctx, text, options);
 }
+
+/*
+=================================
+ITEM POWER / PRESENTATION
+=================================
+*/
 
 function calcItemPower(item) {
     if (!item || typeof item !== 'object') return 0;
@@ -139,25 +178,12 @@ function getPowerBar(power, width = 10) {
     return '█'.repeat(filled) + '░'.repeat(width - filled);
 }
 
-function getRealSlot(item) {
-    if (!item?.slot) return 'unknown';
-    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
-    for (const validSlot of validSlots) {
-        if (String(item.slot).startsWith(validSlot)) return validSlot;
-    }
-    return item.slot;
-}
-
-function getSlotLabel(slot) {
-    const labels = {
-        weapon: 'Arma',
-        shield: 'Escudo',
-        armor: 'Armadura',
-        necklace: 'Amuleto',
-        ring: 'Anel',
-        boots: 'Botas'
-    };
-    return labels[slot] || slot;
+function buildShortItemIdentity(item) {
+    const parts = [];
+    if (item.level) parts.push(`Lv${item.level}`);
+    if (item.rarity) parts.push(item.rarity);
+    parts.push(`P${calcItemPower(item)}`);
+    return parts.join(' • ');
 }
 
 function getComparisonDelta(item, player, slot) {
@@ -171,43 +197,6 @@ function formatDelta(delta) {
     if (delta === null || delta === undefined) return '';
     if (delta === 0) return 'EQUIPADO';
     return delta > 0 ? `▲ +${delta}` : `▼ ${Math.abs(delta)}`;
-}
-
-function buildShortItemIdentity(item) {
-    const parts = [];
-    if (item.level) parts.push(`Lv${item.level}`);
-    if (item.rarity) parts.push(item.rarity);
-    parts.push(`P${calcItemPower(item)}`);
-    return parts.join(' • ');
-}
-
-function renderInventoryHeader(player) {
-    const inventory = player.inventory || [];
-    const maxInv = player.maxInventory || 20;
-
-    const weapon = escapeMarkdown(player.equipment?.weapon?.name || '—');
-    const shield = escapeMarkdown(player.equipment?.shield?.name || '—');
-    const armor = escapeMarkdown(player.equipment?.armor?.name || '—');
-    const necklace = escapeMarkdown(player.equipment?.necklace?.name || '—');
-    const ring = escapeMarkdown(player.equipment?.ring?.name || '—');
-    const boots = escapeMarkdown(player.equipment?.boots?.name || '—');
-
-    return `╔══════════════════════════════════╗
-║            🎒 *INVENTÁRIO*            ║
-╠══════════════════════════════════╣
-║ 📦 ${inventory.length}/${maxInv}
-║ ⚔️ ATK ${player.atk || 0}  🛡️ DEF ${player.def || 0}
-║ ❤️ HP ${player.hp || 0}/${player.maxHp || 0}  💥 CRIT ${player.crit || 0}%
-║ 💎 NOX ${player.nox || 0}
-║ 🗝️ Chaves: ${player.keys || 0}
-╠══════════════════════════════════╣
-║ 🗡️ Arma: ${weapon}
-║ 🛡️ Escudo: ${shield}
-║ 🥋 Armadura: ${armor}
-║ 📿 Amuleto: ${necklace}
-║ 💍 Anel: ${ring}
-║ 👢 Botas: ${boots}
-╚══════════════════════════════════╝`;
 }
 
 function formatItemBlock(item, player = null) {
@@ -239,6 +228,41 @@ function formatItemBlock(item, player = null) {
     }
 
     return [line1, line2, line3, line4, line5];
+}
+
+/*
+=================================
+INVENTORY DATA
+=================================
+*/
+
+function renderInventoryHeader(player) {
+    const inventory = player.inventory || [];
+    const maxInv = player.maxInventory || 20;
+
+    const weapon = escapeMarkdown(player.equipment?.weapon?.name || '—');
+    const shield = escapeMarkdown(player.equipment?.shield?.name || '—');
+    const armor = escapeMarkdown(player.equipment?.armor?.name || '—');
+    const necklace = escapeMarkdown(player.equipment?.necklace?.name || '—');
+    const ring = escapeMarkdown(player.equipment?.ring?.name || '—');
+    const boots = escapeMarkdown(player.equipment?.boots?.name || '—');
+
+    return `╔══════════════════════════════════╗
+║            🎒 *INVENTÁRIO*            ║
+╠══════════════════════════════════╣
+║ 📦 ${inventory.length}/${maxInv}
+║ ⚔️ ATK ${player.atk || 0}  🛡️ DEF ${player.def || 0}
+║ ❤️ HP ${player.hp || 0}/${player.maxHp || 0}  💥 CRIT ${player.crit || 0}%
+║ 💎 NOX ${player.nox || 0}
+║ 🗝️ Chaves: ${player.keys || 0}
+╠══════════════════════════════════╣
+║ 🗡️ Arma: ${weapon}
+║ 🛡️ Escudo: ${shield}
+║ 🥋 Armadura: ${armor}
+║ 📿 Amuleto: ${necklace}
+║ 💍 Anel: ${ring}
+║ 👢 Botas: ${boots}
+╚══════════════════════════════════╝`;
 }
 
 function getCategoryItems(player = {}, category = 'weapons') {
@@ -293,23 +317,20 @@ function buildEquipButtonLabel(item, player) {
     const delta = getComparisonDelta(item, player, slot);
     const shortId = buildShortItemIdentity(item);
 
-    if (delta === null) {
-        return `🔹 Equipar (${shortId})`;
-    }
-
-    if (delta > 0) {
-        return `🔺 Equipar (+${delta})`;
-    }
-
-    if (delta < 0) {
-        return `🔻 Equipar (-${Math.abs(delta)})`;
-    }
-
+    if (delta === null) return `🔹 Equipar (${shortId})`;
+    if (delta > 0) return `🔺 Equipar (+${delta})`;
+    if (delta < 0) return `🔻 Equipar (-${Math.abs(delta)})`;
     return `🔹 Equipar (${shortId})`;
 }
 
+/*
+=================================
+RENDERERS
+=================================
+*/
+
 async function renderInventory(ctx, category = null, page = 1) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
 
     if (!category) {
         return sendScreen(ctx, renderInventoryHeader(player), inventoryMainMenu(player));
@@ -329,7 +350,7 @@ async function renderInventory(ctx, category = null, page = 1) {
 
     const buttons = [];
 
-    if (pageItems.length === 0) {
+    if (!pageItems.length) {
         text += `║   Nenhum item encontrado.\n`;
     } else {
         pageItems.forEach((item, idx) => {
@@ -376,18 +397,11 @@ async function renderInventory(ctx, category = null, page = 1) {
     return sendScreen(ctx, text, Markup.inlineKeyboard(buttons));
 }
 
-async function handleInventory(ctx) {
-    await safeAnswer(ctx);
-    return renderInventory(ctx);
-}
-
-async function handleInvConsumables(ctx) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+function buildConsumablesText(player) {
     const c = player.consumables || {};
-
     const healAmount = Math.max(40, Math.floor((player.maxHp || 0) * 0.8));
 
-    const text = `╔══════════════════════════════════╗
+    return `╔══════════════════════════════════╗
 ║            🧪 *CONSUMÍVEIS*          ║
 ╠══════════════════════════════════╣
 ║ ❤️ Poção de HP: ${c.potionHp || 0}
@@ -398,18 +412,26 @@ async function handleInvConsumables(ctx) {
 ║ 🛡️ Tônico de Defesa: ${c.tonicDefense || 0}
 ║ 🗝️ Chaves: ${player.keys || 0}
 ╚══════════════════════════════════╝`;
+}
 
+function buildConsumablesKeyboard(player) {
+    const c = player.consumables || {};
     const buttons = [];
+
     if (c.potionHp > 0) buttons.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
     if (c.tonicStrength > 0) buttons.push([Markup.button.callback('💪 Usar Tônico de Força', 'use_tonic_strength')]);
     if (c.tonicDefense > 0) buttons.push([Markup.button.callback('🛡️ Usar Tônico de Defesa', 'use_tonic_defense')]);
-    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
 
-    return sendScreen(ctx, text, Markup.inlineKeyboard(buttons));
+    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    return Markup.inlineKeyboard(buttons);
 }
 
-async function handleInvSouls(ctx) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+async function handleInvConsumables(ctx) {
+    const player = await loadPlayer(ctx);
+    return sendScreen(ctx, buildConsumablesText(player), buildConsumablesKeyboard(player));
+}
+
+function buildSoulsText(player) {
     const souls = player.soulsInventory || [];
     const equipped = player.soulsEquipped || [null, null];
 
@@ -418,7 +440,7 @@ async function handleInvSouls(ctx) {
 ╠══════════════════════════════════╣
 ║ *Inventário* (${souls.length})\n`;
 
-    if (souls.length === 0) {
+    if (!souls.length) {
         text += `║   Nenhuma alma no inventário\n`;
     } else {
         souls.forEach(soul => {
@@ -439,7 +461,13 @@ async function handleInvSouls(ctx) {
 ║ 🗝️ Chaves: ${player.keys || 0}
 ╚══════════════════════════════════╝`;
 
+    return text;
+}
+
+function buildSoulsKeyboard(player) {
     const rows = [];
+    const souls = player.soulsInventory || [];
+    const equipped = player.soulsEquipped || [null, null];
 
     souls.forEach(soul => {
         rows.push([
@@ -462,8 +490,12 @@ async function handleInvSouls(ctx) {
     });
 
     rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    return Markup.inlineKeyboard(rows);
+}
 
-    return sendScreen(ctx, text, Markup.inlineKeyboard(rows));
+async function handleInvSouls(ctx) {
+    const player = await loadPlayer(ctx);
+    return sendScreen(ctx, buildSoulsText(player), buildSoulsKeyboard(player));
 }
 
 function renderSkinsText(player) {
@@ -499,10 +531,13 @@ function buildSkinsKeyboard(player) {
     cosmetics.forEach(cosmetic => {
         const equipped = player.activeCosmetics?.[cosmetic.type] === cosmetic.id;
         const prefix = equipped ? '✅' : '🎨';
+
         rows.push([
             Markup.button.callback(
                 `${prefix} ${cosmetic.name}`,
-                equipped ? `invskin:unequip:${cosmetic.type}` : `invskin:equip:${cosmetic.id}`
+                equipped
+                    ? `invskin:unequip:${cosmetic.type}`
+                    : `invskin:equip:${cosmetic.id}`
             )
         ]);
     });
@@ -512,12 +547,18 @@ function buildSkinsKeyboard(player) {
 }
 
 async function handleInvSkins(ctx) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
     return sendScreen(ctx, renderSkinsText(player), buildSkinsKeyboard(player));
 }
 
+/*
+=================================
+CONSUMABLE USAGE OUTSIDE COMBAT
+=================================
+*/
+
 async function handleUsePotionOutside(ctx, type) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
 
     if (type === 'hp') {
         if (player.hp >= player.maxHp) {
@@ -533,14 +574,14 @@ async function handleUsePotionOutside(ctx, type) {
         const beforeHp = player.hp;
         player.hp = Math.min(player.maxHp, player.hp + heal);
 
-        normalizePlayerForSave(player);
-        await savePlayer(ctx.from.id, player);
+        await saveNormalizedPlayer(ctx, player);
 
         await safeAnswer(
             ctx,
             `🧪 Poção de Vida usada! Você recuperou ${player.hp - beforeHp} HP.`,
             { show_alert: true }
         );
+
         return handleInvConsumables(ctx);
     }
 
@@ -556,10 +597,12 @@ async function handleUsePotionOutside(ctx, type) {
             expiresAt: Date.now() + 30 * 60 * 1000
         });
 
-        normalizePlayerForSave(player);
-        await savePlayer(ctx.from.id, player);
+        await saveNormalizedPlayer(ctx, player);
 
-        await safeAnswer(ctx, `💪 Tônico de Força usado! +10 ATK por 30 minutos.`, { show_alert: true });
+        await safeAnswer(ctx, '💪 Tônico de Força usado! +10 ATK por 30 minutos.', {
+            show_alert: true
+        });
+
         return handleInvConsumables(ctx);
     }
 
@@ -575,10 +618,12 @@ async function handleUsePotionOutside(ctx, type) {
             expiresAt: Date.now() + 30 * 60 * 1000
         });
 
-        normalizePlayerForSave(player);
-        await savePlayer(ctx.from.id, player);
+        await saveNormalizedPlayer(ctx, player);
 
-        await safeAnswer(ctx, `🛡️ Tônico de Defesa usado! +10 DEF por 30 minutos.`, { show_alert: true });
+        await safeAnswer(ctx, '🛡️ Tônico de Defesa usado! +10 DEF por 30 minutos.', {
+            show_alert: true
+        });
+
         return handleInvConsumables(ctx);
     }
 
@@ -593,12 +638,20 @@ async function handleUseDefenseTonic(ctx) {
     return handleUsePotionOutside(ctx, 'defense');
 }
 
+/*
+=================================
+EQUIPMENT ACTIONS
+=================================
+*/
+
 async function equipByItemKey(ctx, category, page, itemKey) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
 
     const item = findInventoryItemByKey(player, itemKey);
     if (!item) {
-        await safeAnswer(ctx, '⚠️ Item não encontrado. O inventário foi atualizado.', { show_alert: true });
+        await safeAnswer(ctx, '⚠️ Item não encontrado. O inventário foi atualizado.', {
+            show_alert: true
+        });
         return renderInventory(ctx, category, page);
     }
 
@@ -610,7 +663,9 @@ async function equipByItemKey(ctx, category, page, itemKey) {
 
     if (item.classRestriction && item.classRestriction !== player.class) {
         const restrictedClassName = getClassNamePortuguese(item.classRestriction);
-        await safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
+        await safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, {
+            show_alert: true
+        });
         return renderInventory(ctx, category, page);
     }
 
@@ -620,15 +675,13 @@ async function equipByItemKey(ctx, category, page, itemKey) {
         return renderInventory(ctx, category, page);
     }
 
-    normalizePlayerForSave(player);
-    await savePlayer(ctx.from.id, player);
-
+    await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `✅ ${item.name} equipado!`);
     return renderInventory(ctx, category, page);
 }
 
 async function unequipBySlot(ctx, slot, category, page) {
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
 
     const result = removeEquipment(player, slot);
     if (!result.success) {
@@ -636,9 +689,7 @@ async function unequipBySlot(ctx, slot, category, page) {
         return renderInventory(ctx, category, page);
     }
 
-    normalizePlayerForSave(player);
-    await savePlayer(ctx.from.id, player);
-
+    await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `✅ ${result.item.name} removido!`);
     return renderInventory(ctx, category, page);
 }
@@ -655,12 +706,14 @@ async function handleEquipItem(ctx) {
     const legacy = raw.match(/^eq:(weapons|shields|armors|necklaces|rings|boots):(\d+):(\d+)$/);
     if (legacy) {
         const [, category, pageStr, absoluteIndexStr] = legacy;
-        const player = normalizePlayerState(await getPlayer(ctx.from.id));
+        const player = await loadPlayer(ctx);
         const allItems = getCategoryItems(player, category);
         const item = allItems[Number(absoluteIndexStr)];
 
         if (!item) {
-            await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
+            await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', {
+                show_alert: true
+            });
             return renderInventory(ctx, category, Number(pageStr));
         }
 
@@ -670,16 +723,17 @@ async function handleEquipItem(ctx) {
     const legacyOld = raw.match(/^equip_(weapon|shield|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/);
     if (legacyOld) {
         const [, slot, itemIdRaw] = legacyOld;
-        const player = normalizePlayerState(await getPlayer(ctx.from.id));
-        const item = player.inventory.find(invItem => {
-            return (
-                getRealSlot(invItem) === slot &&
-                String(getItemKey(invItem)) === String(itemIdRaw)
-            );
-        });
+        const player = await loadPlayer(ctx);
+
+        const item = player.inventory.find(invItem => (
+            getRealSlot(invItem) === slot &&
+            String(getItemKey(invItem)) === String(itemIdRaw)
+        ));
 
         if (!item) {
-            return safeAnswer(ctx, '❌ Item não encontrado no inventário.', { show_alert: true });
+            return safeAnswer(ctx, '❌ Item não encontrado no inventário.', {
+                show_alert: true
+            });
         }
 
         let redirectCategory = 'weapons';
@@ -721,6 +775,17 @@ async function handleUnequipItem(ctx) {
     return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
 }
 
+/*
+=================================
+NAVIGATION
+=================================
+*/
+
+async function handleInventory(ctx) {
+    await safeAnswer(ctx);
+    return renderInventory(ctx);
+}
+
 async function handleInventoryPage(ctx) {
     const match = ctx.callbackQuery?.data?.match(/^invpage:(weapons|shields|armors|necklaces|rings|boots):(\d+)$/);
     if (!match) {
@@ -748,9 +813,15 @@ async function handleInventoryCategory(ctx) {
     return renderInventory(ctx, category, 1);
 }
 
+/*
+=================================
+SOUL ACTIONS
+=================================
+*/
+
 async function handleEquipSoul(ctx) {
     const soulId = ctx.match?.[1];
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
 
     const soul = player.soulsInventory.find(
         s => String(s.instanceId || s.id) === String(soulId)
@@ -765,34 +836,36 @@ async function handleEquipSoul(ctx) {
         return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
-    normalizePlayerForSave(player);
-    await savePlayer(ctx.from.id, player);
-
+    await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `💀 ${result.soul.name} equipada!`);
     return handleInvSouls(ctx);
 }
 
 async function handleUnequipSoul(ctx) {
     const slotIdx = parseInt(ctx.match?.[1], 10);
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
 
     const result = applySoulUnequip(player, slotIdx);
     if (!result.success) {
         return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
-    normalizePlayerForSave(player);
-    await savePlayer(ctx.from.id, player);
-
+    await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `💀 ${result.soul.name} removida e devolvida!`);
     return handleInvSouls(ctx);
 }
 
+/*
+=================================
+COSMETIC ACTIONS
+=================================
+*/
+
 async function handleEquipSkin(ctx) {
     const skinId = ctx.match?.[1];
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
-    const result = equipCosmetic(player, skinId);
+    const player = await loadPlayer(ctx);
 
+    const result = equipCosmetic(player, skinId);
     if (!result.success) {
         return safeAnswer(ctx, result.message, { show_alert: true });
     }
@@ -804,7 +877,8 @@ async function handleEquipSkin(ctx) {
 
 async function handleUnequipSkin(ctx) {
     const slot = ctx.match?.[1];
-    const player = normalizePlayerState(await getPlayer(ctx.from.id));
+    const player = await loadPlayer(ctx);
+
     const current = getActiveCosmetic(player, slot);
     const result = unequipCosmetic(player, slot);
 
@@ -817,6 +891,7 @@ async function handleUnequipSkin(ctx) {
         ctx,
         current ? `✅ ${current.name} removido(a).` : '✅ Slot cosmético limpo.'
     );
+
     return handleInvSkins(ctx);
 }
 
