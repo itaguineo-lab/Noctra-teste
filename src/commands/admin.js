@@ -106,14 +106,6 @@ function getReplyUserId(ctx) {
         : null;
 }
 
-function getReplyUserLabel(ctx) {
-    const from = ctx.message?.reply_to_message?.from;
-    if (!from) return 'jogador';
-    return from.username
-        ? `@${from.username}`
-        : (from.first_name || 'jogador');
-}
-
 /*
 =================================
 PLAYER RESOLUTION
@@ -349,7 +341,7 @@ function renderAdminHelp() {
 • depois envie uma foto com legenda
 • a legenda deve ser o id lógico do asset
 • exemplo: \`shadow_wolf\`
-• o bot devolverá a linha pronta para colar no \`assets.js\`
+• o bot devolverá a linha pronta para colar no assets.js
 
 *Observações*
 • busca por nome tenta encontrar o jogador mais compatível
@@ -785,14 +777,13 @@ async function handleCapture(ctx) {
     captureSessions.add(userId);
 
     return ctx.reply(
-        '📸 *MODO CAPTURA ATIVADO*\n\n' +
-        'Agora envie *uma imagem com legenda*.\n\n' +
+        '📸 MODO CAPTURA ATIVADO\n\n' +
+        'Agora envie uma imagem com legenda.\n\n' +
         'Exemplo de legenda:\n' +
-        '`shadow_wolf`\n\n' +
+        'shadow_wolf\n\n' +
         'Vou te devolver:\n' +
-        '• o file_id\n' +
-        '• a linha pronta para colar no assets.js',
-        { parse_mode: 'Markdown' }
+        '- o file_id\n' +
+        '- a linha pronta para colar no assets.js'
     );
 }
 
@@ -828,12 +819,11 @@ async function handleCapturePhoto(ctx) {
     captureSessions.delete(userId);
 
     return ctx.reply(
-        '✅ *ASSET CAPTURADO COM SUCESSO*\n\n' +
-        `🏷️ Legenda: \`${caption}\`\n` +
-        `🆔 file_id:\n\`${fileId}\`\n\n` +
-        `Linha pronta para o assets.js:\n` +
-        `\`${caption}: '${fileId}',\``,
-        { parse_mode: 'Markdown' }
+        '✅ ASSET CAPTURADO COM SUCESSO\n\n' +
+        `Legenda: ${caption}\n` +
+        `file_id: ${fileId}\n\n` +
+        'Linha pronta para o assets.js:\n' +
+        `${caption}: '${fileId}',`
     );
 }
 
