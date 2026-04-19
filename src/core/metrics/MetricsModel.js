@@ -1,8 +1,22 @@
 const mongoose = require('mongoose');
 
+function buildDateKey(date = new Date()) {
+    const safeDate = date instanceof Date ? date : new Date();
+    const year = safeDate.getUTCFullYear();
+    const month = String(safeDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(safeDate.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 const MetricsSchema = new mongoose.Schema(
     {
-        dateKey: { type: String, required: true, index: true },
+        dateKey: {
+            type: String,
+            required: true,
+            unique: true,
+            default: () => buildDateKey()
+        },
+
         counters: {
             playersCreated: { type: Number, default: 0 },
             menuLoads: { type: Number, default: 0 },
@@ -24,7 +38,14 @@ const MetricsSchema = new mongoose.Schema(
             consumablesUsed: { type: Number, default: 0 },
 
             goldAwarded: { type: Number, default: 0 },
-            xpAwarded: { type: Number, default: 0 }
+            xpAwarded: { type: Number, default: 0 },
+
+            goldSpent: { type: Number, default: 0 },
+            noxSpent: { type: Number, default: 0 },
+            gloriasSpent: { type: Number, default: 0 },
+            itemsSold: { type: Number, default: 0 },
+            goldFromSales: { type: Number, default: 0 },
+            vipPurchases: { type: Number, default: 0 }
         }
     },
     {
@@ -33,6 +54,6 @@ const MetricsSchema = new mongoose.Schema(
     }
 );
 
-MetricsSchema.index({ dateKey: 1 }, { unique: true });
-
-module.exports = mongoose.models.MetricsDaily || mongoose.model('MetricsDaily', MetricsSchema);
+module.exports =
+    mongoose.models.MetricsDaily ||
+    mongoose.model('MetricsDaily', MetricsSchema);
