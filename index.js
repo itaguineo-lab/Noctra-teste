@@ -110,20 +110,50 @@ async function sendMainMenu(ctx, userId, username, editMode = false) {
     }
 }
 
-async function finalizeCharacterCreation(ctx, userId, name, className) {
-    try {
-        const player = await createPlayer(userId, name, className);
-        creationSessions.delete(userId);
+/*
+=================================
+CHARACTER CREATION
+=================================
+*/
 
+async function finalizeCharacterCreation(ctx, userId, name, className) {
+    let player = null;
+
+    try {
+        player = await createPlayer(userId, name, className);
+    } catch (error) {
+        console.error('Erro ao criar personagem:', error);
+
+        try {
+            player = await getPlayer(userId);
+        } catch (recoveryError) {
+            console.error('Erro ao recuperar personagem após falha:', recoveryError);
+        }
+
+        if (!player) {
+            creationSessions.delete(userId);
+            await ctx.reply('❌ Ocorreu um erro ao criar seu personagem. Tente novamente com /start.');
+            return;
+        }
+    }
+
+    creationSessions.delete(userId);
+
+    try {
         await ctx.reply(`✨ Personagem criado com sucesso! Bem-vindo a Noctra, *${player.name}*!`, {
             parse_mode: 'Markdown'
         });
+    } catch (replyError) {
+        console.error('Erro ao responder criação de personagem:', replyError);
+    }
 
+    try {
         await sendMainMenu(ctx, userId, player.name, false);
-    } catch (error) {
-        console.error('Erro ao criar personagem:', error);
-        await ctx.reply('❌ Ocorreu um erro ao criar seu personagem. Tente novamente com /start.');
-        creationSessions.delete(userId);
+    } catch (menuError) {
+        console.error('Erro ao enviar menu após criação:', menuError);
+        try {
+            await ctx.reply('✅ Personagem criado. Use /start se o menu não aparecer.');
+        } catch {}
     }
 }
 
@@ -184,7 +214,7 @@ function registerAntiBanMiddleware() {
                     return ctx.reply('⛔ Você está banido do Noctra.');
                 }
             } catch {
-                // jogador ainda não existe
+                // ignora
             }
         }
 
@@ -197,7 +227,7 @@ function registerGlobalErrorHandler() {
         console.error('❌ ERRO GLOBAL:', err);
 
         if (ctx?.reply) {
-            ctx.reply('⚠️ Algo deu errado no mundo de Noctra.');
+            ctx.reply('⚠️ Algo deu errado no mundo de Noctra.').catch(() => {});
         }
     });
 }
@@ -288,7 +318,6 @@ function registerCommands() {
     bindCommand('findplayername', adminCommands.handleFindPlayerName);
     bindCommand('playerstate', adminCommands.handlePlayerState);
     bindCommand('setplayer', adminCommands.handleSetPlayer);
-    bindCommand('capture', adminCommands.handleCapture);
 
     bindCommand('give', (ctx) => {
         const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
@@ -521,13 +550,18 @@ async function startBot() {
         await bot.telegram.deleteWebhook({ drop_pending_updates: true });
         console.log('✅ Webhook removido');
 
-        await sleep(3000);
+        await sleep(5000);
         await connectToMongo();
         console.log('✅ MongoDB conectado');
 
         await bot.launch({ dropPendingUpdates: true });
         console.log('🌑 NOCTRA ONLINE');
     } catch (err) {
+        if (err?.response?.error_code === 409) {
+            console.error('⚠️ Conflito temporário de polling (409). Outra instância ainda está encerrando.');
+            return;
+        }
+
         console.error('❌ Erro ao iniciar bot:', err);
     }
 }
