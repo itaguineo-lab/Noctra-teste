@@ -25,6 +25,8 @@ const {
     getXpToNextLevel
 } = require('../core/player/progression');
 
+const captureSessions = new Set();
+
 /*
 =================================
 ADMIN CHECK
@@ -313,6 +315,7 @@ function renderAdminHelp() {
 • \`/metrics\` → métricas de hoje
 • \`/metrics AAAA-MM-DD\` → métricas de uma data específica
 • \`/reload\` → reload lógico
+• \`/capture\` → ativa captura de imagem para pegar file_id
 
 *Give / Ajuste de conta*
 • \`/give xp ID_ou_nome 500\`
@@ -340,6 +343,13 @@ function renderAdminHelp() {
 • \`/resetplayer ID_ou_nome\` → reseta um jogador específico
 • \`/resetplayer\` respondendo a mensagem do jogador
 • \`/resetall CONFIRMAR_RESET_TOTAL\` → reseta o jogo todo
+
+*Captura de asset*
+• use \`/capture\`
+• depois envie uma foto com legenda
+• a legenda deve ser o id lógico do asset
+• exemplo: \`shadow_wolf\`
+• o bot devolverá a linha pronta para colar no \`assets.js\`
 
 *Observações*
 • busca por nome tenta encontrar o jogador mais compatível
@@ -467,7 +477,7 @@ function renderPlayerNameMatches(matches, query) {
     let text = `🔎 *RESULTADOS PARA:* ${safeName(query)}\n\n`;
 
     if (!matches.length) {
-        return text + `Nenhum jogador encontrado.`;
+        return text + 'Nenhum jogador encontrado.';
     }
 
     matches.slice(0, 10).forEach((player, index) => {
@@ -764,6 +774,71 @@ async function handleReload(ctx) {
 
 /*
 =================================
+CAPTURE
+=================================
+*/
+
+async function handleCapture(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const userId = String(ctx.from.id);
+    captureSessions.add(userId);
+
+    return ctx.reply(
+        '📸 *MODO CAPTURA ATIVADO*\n\n' +
+        'Agora envie *uma imagem com legenda*.\n\n' +
+        'Exemplo de legenda:\n' +
+        '`shadow_wolf`\n\n' +
+        'Vou te devolver:\n' +
+        '• o file_id\n' +
+        '• a linha pronta para colar no assets.js',
+        { parse_mode: 'Markdown' }
+    );
+}
+
+async function handleCapturePhoto(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const userId = String(ctx.from.id);
+
+    if (!captureSessions.has(userId)) {
+        return;
+    }
+
+    const photos = ctx.message?.photo || [];
+    const caption = String(ctx.message?.caption || '').trim();
+
+    if (!photos.length) {
+        captureSessions.delete(userId);
+        return ctx.reply('❌ Nenhuma foto encontrada.');
+    }
+
+    if (!caption) {
+        captureSessions.delete(userId);
+        return ctx.reply(
+            '❌ A imagem foi enviada sem legenda.\n\n' +
+            'Envie novamente com a legenda igual ao id lógico do asset.\n' +
+            'Exemplo: shadow_wolf'
+        );
+    }
+
+    const bestPhoto = photos[photos.length - 1];
+    const fileId = bestPhoto.file_id;
+
+    captureSessions.delete(userId);
+
+    return ctx.reply(
+        '✅ *ASSET CAPTURADO COM SUCESSO*\n\n' +
+        `🏷️ Legenda: \`${caption}\`\n` +
+        `🆔 file_id:\n\`${fileId}\`\n\n` +
+        `Linha pronta para o assets.js:\n` +
+        `\`${caption}: '${fileId}',\``,
+        { parse_mode: 'Markdown' }
+    );
+}
+
+/*
+=================================
 METRICS
 =================================
 */
@@ -837,5 +912,7 @@ module.exports = {
     handleBan,
     handleUnban,
     handleReload,
+    handleCapture,
+    handleCapturePhoto,
     handleMetrics
 };
