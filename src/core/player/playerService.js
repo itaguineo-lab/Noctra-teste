@@ -10,9 +10,6 @@ const {
     syncEnergyCapacity,
     updateEnergy
 } = require('../../services/energyService');
-const {
-    recordPlayerCreated
-} = require('../metrics/metricsService');
 
 let isConnected = false;
 
@@ -387,14 +384,6 @@ async function createPlayer(id, name, className) {
     playerObj.lastEnergyUpdate = new Date();
 
     await savePlayer(id, playerObj);
-
-    /*
-    MÉTRICAS NUNCA PODEM DERRUBAR O ONBOARDING.
-    Se falhar, apenas loga.
-    */
-    recordPlayerCreated().catch((error) => {
-        console.error('⚠️ Falha ao registrar metrics de playerCreated:', error);
-    });
 
     return playerObj;
 }
