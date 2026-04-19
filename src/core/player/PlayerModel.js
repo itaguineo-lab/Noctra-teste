@@ -1,84 +1,185 @@
 const mongoose = require('mongoose');
 
-function buildDateKey(date = new Date()) {
-    const safeDate = date instanceof Date ? date : new Date();
-    const year = safeDate.getUTCFullYear();
-    const month = String(safeDate.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(safeDate.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-const countersSchema = new mongoose.Schema(
+const itemSchema = new mongoose.Schema(
     {
-        playersCreated: { type: Number, default: 0 },
-        menuLoads: { type: Number, default: 0 },
-
-        combatsStarted: { type: Number, default: 0 },
-        combatsWon: { type: Number, default: 0 },
-        combatsLost: { type: Number, default: 0 },
-        combatsFled: { type: Number, default: 0 },
-
-        dungeonsStarted: { type: Number, default: 0 },
-        dungeonsCompleted: { type: Number, default: 0 },
-        dungeonsAbandoned: { type: Number, default: 0 },
-        dungeonRoomsCleared: { type: Number, default: 0 },
-
-        itemsDropped: { type: Number, default: 0 },
-        soulsDropped: { type: Number, default: 0 },
-        keysDropped: { type: Number, default: 0 },
-
-        consumablesUsed: { type: Number, default: 0 },
-
-        goldAwarded: { type: Number, default: 0 },
-        xpAwarded: { type: Number, default: 0 },
-
-        goldSpent: { type: Number, default: 0 },
-        noxSpent: { type: Number, default: 0 },
-        gloriasSpent: { type: Number, default: 0 },
-        itemsSold: { type: Number, default: 0 },
-        goldFromSales: { type: Number, default: 0 },
-        vipPurchases: { type: Number, default: 0 }
+        id: { type: String, default: null },
+        instanceId: { type: String, default: null },
+        name: { type: String, required: true },
+        slot: { type: String, default: null },
+        rarity: { type: String, default: 'Comum' },
+        level: { type: Number, default: 1 },
+        atk: { type: Number, default: 0 },
+        def: { type: Number, default: 0 },
+        hp: { type: Number, default: 0 },
+        crit: { type: Number, default: 0 },
+        power: { type: Number, default: 0 },
+        classRestriction: { type: String, default: null },
+        price: { type: Number, default: 0 },
+        icon: { type: String, default: null }
     },
     { _id: false }
 );
 
-const MetricsSchema = new mongoose.Schema(
+const soulSchema = new mongoose.Schema(
     {
-        dateKey: {
-            type: String,
-            required: true,
-            unique: true,
-            default: buildDateKey,
-            set: (value) => {
-                if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
-                    return value.trim();
-                }
-                return buildDateKey();
-            }
-        },
-        counters: {
-            type: countersSchema,
-            default: () => ({})
+        id: { type: String, default: null },
+        instanceId: { type: String, default: null },
+        name: { type: String, required: true },
+        rarity: { type: String, default: 'Comum' },
+        classRestriction: { type: String, default: null },
+        effect: {
+            atkBonus: { type: Number, default: 0 },
+            defBonus: { type: Number, default: 0 },
+            hpBonus: { type: Number, default: 0 },
+            critBonus: { type: Number, default: 0 }
         }
+    },
+    { _id: false }
+);
+
+const buffSchema = new mongoose.Schema(
+    {
+        type: { type: String, required: true },
+        atk: { type: Number, default: 0 },
+        def: { type: Number, default: 0 },
+        hp: { type: Number, default: 0 },
+        crit: { type: Number, default: 0 },
+        expiresAt: { type: Number, default: null }
+    },
+    { _id: false }
+);
+
+const cosmeticSchema = new mongoose.Schema(
+    {
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        type: { type: String, required: true }
+    },
+    { _id: false }
+);
+
+const timedChestSchema = new mongoose.Schema(
+    {
+        id: { type: String, required: true },
+        tier: { type: String, required: true },
+        createdAt: { type: Number, default: Date.now },
+        readyAt: { type: Number, required: true }
+    },
+    { _id: false }
+);
+
+const missionSchema = new mongoose.Schema(
+    {
+        id: { type: String, required: true },
+        title: { type: String, required: true },
+        type: { type: String, required: true },
+        target: { type: Number, required: true },
+        progress: { type: Number, default: 0 },
+        completed: { type: Boolean, default: false },
+        reward: {
+            gold: { type: Number, default: 0 },
+            xp: { type: Number, default: 0 },
+            glorias: { type: Number, default: 0 },
+            keys: { type: Number, default: 0 }
+        }
+    },
+    { _id: false }
+);
+
+const playerSchema = new mongoose.Schema(
+    {
+        id: { type: String, required: true, unique: true, index: true },
+
+        name: { type: String, required: true },
+        class: { type: String, default: 'guerreiro' },
+
+        level: { type: Number, default: 1 },
+        xp: { type: Number, default: 0 },
+
+        gold: { type: Number, default: 100 },
+        nox: { type: Number, default: 0 },
+        glorias: { type: Number, default: 0 },
+        keys: { type: Number, default: 0 },
+
+        hp: { type: Number, default: 120 },
+        maxHp: { type: Number, default: 120 },
+        atk: { type: Number, default: 12 },
+        def: { type: Number, default: 10 },
+        crit: { type: Number, default: 5 },
+
+        energy: { type: Number, default: 20 },
+        maxEnergy: { type: Number, default: 20 },
+        lastEnergyUpdate: { type: Date, default: Date.now },
+
+        vip: { type: Boolean, default: false },
+        vipExpires: { type: Date, default: null },
+
+        bonusInventory: { type: Number, default: 0 },
+        maxInventory: { type: Number, default: 20 },
+
+        inventory: { type: [itemSchema], default: [] },
+
+        equipment: {
+            weapon: { type: itemSchema, default: null },
+            shield: { type: itemSchema, default: null },
+            armor: { type: itemSchema, default: null },
+            necklace: { type: itemSchema, default: null },
+            ring: { type: itemSchema, default: null },
+            boots: { type: itemSchema, default: null }
+        },
+
+        consumables: {
+            potionHp: { type: Number, default: 0 },
+            potionEnergy: { type: Number, default: 0 },
+            tonicStrength: { type: Number, default: 0 },
+            tonicDefense: { type: Number, default: 0 }
+        },
+
+        buffs: { type: [buffSchema], default: [] },
+
+        soulsInventory: { type: [soulSchema], default: [] },
+        soulsEquipped: { type: [soulSchema], default: [null, null] },
+
+        cosmetics: { type: [cosmeticSchema], default: [] },
+        activeCosmetics: {
+            title: { type: String, default: null },
+            aura: { type: String, default: null },
+            badge: { type: String, default: null }
+        },
+
+        currentMap: { type: String, default: 'clareira_sombria' },
+        dungeonProgress: { type: mongoose.Schema.Types.Mixed, default: null },
+        lastDungeonRun: { type: Number, default: 0 },
+        soulPityCounter: { type: Number, default: 0 },
+
+        arena: { type: mongoose.Schema.Types.Mixed, default: null },
+
+        totalKills: { type: Number, default: 0 },
+        achievements: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+        lastDailyChest: { type: String, default: null },
+        dailyStreak: { type: Number, default: 0 },
+        timedChests: { type: [timedChestSchema], default: [] },
+
+        dailyMissions: {
+            dateKey: { type: String, default: null },
+            missions: { type: [missionSchema], default: [] },
+            claimedAll: { type: Boolean, default: false }
+        },
+
+        renamed: { type: Boolean, default: false },
+        classChanged: { type: Boolean, default: false },
+        banned: { type: Boolean, default: false },
+
+        activeFight: { type: mongoose.Schema.Types.Mixed, default: null },
+        activeArenaBattle: { type: mongoose.Schema.Types.Mixed, default: null }
     },
     {
         timestamps: true,
-        collection: 'metrics_daily'
+        collection: 'players'
     }
 );
 
-MetricsSchema.pre('validate', function metricsPreValidate(next) {
-    if (!this.dateKey || typeof this.dateKey !== 'string') {
-        this.dateKey = buildDateKey();
-    }
-
-    if (!this.counters || typeof this.counters !== 'object') {
-        this.counters = {};
-    }
-
-    next();
-});
-
 module.exports =
-    mongoose.models.MetricsDaily ||
-    mongoose.model('MetricsDaily', MetricsSchema);
+    mongoose.models.Player ||
+    mongoose.model('Player', playerSchema);
