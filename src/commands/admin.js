@@ -339,9 +339,7 @@ function renderAdminHelp() {
 *Captura de asset*
 • use \`/capture\`
 • depois envie uma foto com legenda
-• a legenda deve ser o id lógico do asset
-• exemplo: \`shadow_wolf\`
-• o bot devolverá a linha pronta para colar no assets.js
+• o bot devolverá somente o file_id
 
 *Observações*
 • busca por nome tenta encontrar o jogador mais compatível
@@ -776,15 +774,7 @@ async function handleCapture(ctx) {
     const userId = String(ctx.from.id);
     captureSessions.add(userId);
 
-    return ctx.reply(
-        '📸 MODO CAPTURA ATIVADO\n\n' +
-        'Agora envie uma imagem com legenda.\n\n' +
-        'Exemplo de legenda:\n' +
-        'shadow_wolf\n\n' +
-        'Vou te devolver:\n' +
-        '- o file_id\n' +
-        '- a linha pronta para colar no assets.js'
-    );
+    return ctx.reply('📸 Modo captura ativado. Envie uma imagem.');
 }
 
 async function handleCapturePhoto(ctx) {
@@ -797,20 +787,10 @@ async function handleCapturePhoto(ctx) {
     }
 
     const photos = ctx.message?.photo || [];
-    const caption = String(ctx.message?.caption || '').trim();
 
     if (!photos.length) {
         captureSessions.delete(userId);
         return ctx.reply('❌ Nenhuma foto encontrada.');
-    }
-
-    if (!caption) {
-        captureSessions.delete(userId);
-        return ctx.reply(
-            '❌ A imagem foi enviada sem legenda.\n\n' +
-            'Envie novamente com a legenda igual ao id lógico do asset.\n' +
-            'Exemplo: shadow_wolf'
-        );
     }
 
     const bestPhoto = photos[photos.length - 1];
@@ -818,13 +798,7 @@ async function handleCapturePhoto(ctx) {
 
     captureSessions.delete(userId);
 
-    return ctx.reply(
-        '✅ ASSET CAPTURADO COM SUCESSO\n\n' +
-        `Legenda: ${caption}\n` +
-        `file_id: ${fileId}\n\n` +
-        'Linha pronta para o assets.js:\n' +
-        `${caption}: '${fileId}',`
-    );
+    return ctx.reply(fileId);
 }
 
 /*
