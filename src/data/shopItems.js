@@ -13,8 +13,8 @@ const shopItems = [
         effect: 'potionHp',
         value: 1,
         currency: 'gold',
-        price: 70,
-        description: 'Restaura 100% do HP máximo.'
+        price: 140,
+        description: 'Restaura 80% do HP máximo.'
     },
     {
         id: 'strength_tonic',
@@ -24,7 +24,7 @@ const shopItems = [
         effect: 'tonicStrength',
         value: 1,
         currency: 'gold',
-        price: 160,
+        price: 180,
         description: '+10 ATK por 30 minutos.'
     },
     {
@@ -35,7 +35,7 @@ const shopItems = [
         effect: 'tonicDefense',
         value: 1,
         currency: 'gold',
-        price: 160,
+        price: 180,
         description: '+10 DEF por 30 minutos.'
     },
 
@@ -190,7 +190,7 @@ const shopItems = [
         effect: 'keys',
         value: 2,
         currency: 'glorias',
-        price: 3,
+        price: 4,
         description: 'Pacote competitivo de chaves.'
     }
 ];
