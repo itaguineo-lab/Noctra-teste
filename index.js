@@ -1,563 +1,908 @@
-require('dotenv').config();
+const {
+    getPlayer,
+    savePlayer,
+    recalculateStats,
+    getPlayerCollection
+} = require('../core/player/playerService');
 
-const { Telegraf, Markup } = require('telegraf');
-const http = require('http');
+const { generateDrop } = require('../data/items');
 
 const {
-    connectToMongo,
-    getPlayer,
-    createPlayer
-} = require('./src/core/player/playerService');
+    addGold,
+    addNox,
+    addInventoryItem,
+    applyXpReward,
+    normalizePlayerForSave
+} = require('../core/player/playerMutations');
 
-const { getMainMenuText } = require('./src/utils/helpers');
-const { mainMenu } = require('./src/menus/mainMenu');
-const { navigateScreen, tryDeleteCurrentMessage } = require('./src/utils/uiNavigator');
-const assets = require('./src/data/assets');
+const {
+    getTodayMetrics,
+    getMetricsByDate,
+    buildMetricsSummary
+} = require('../core/metrics/metricsService');
 
-/*
-=================================
-IMPORTS HANDLERS
-=================================
-*/
+const {
+    getXpToNextLevel
+} = require('../core/player/progression');
 
-const profile = require('./src/handlers/profile');
-const inventory = require('./src/handlers/inventory');
-const combat = require('./src/handlers/combat');
-const travel = require('./src/handlers/travel');
-const energy = require('./src/handlers/energy');
-const vip = require('./src/handlers/vip');
-const daily = require('./src/handlers/daily');
-const online = require('./src/handlers/online');
-const ranking = require('./src/handlers/ranking');
-const dungeon = require('./src/handlers/dungeon');
-const shop = require('./src/handlers/shop');
-const arena = require('./src/handlers/arena');
-const arenaShop = require('./src/handlers/arenaShop');
+const captureSessions = new Set();
 
 /*
 =================================
-IMPORTS COMMANDS
+ADMIN CHECK
 =================================
 */
 
-const { handleRename } = require('./src/commands/rename');
-const { handleClass } = require('./src/commands/class');
-const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
-const resetCommands = require('./src/commands/reset');
-const adminCommands = require('./src/commands/admin');
+function isAdmin(ctx) {
+    const adminIds = String(process.env.ADMIN_IDS || '')
+        .split(',')
+        .map(id => id.trim())
+        .filter(Boolean);
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
-let launched = false;
-const creationSessions = new Map();
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-/*
-=================================
-HELPERS
-=================================
-*/
-
-function isValidName(name) {
-    const trimmed = String(name || '').trim();
-    return trimmed.length >= 3 && trimmed.length <= 20;
+    return adminIds.includes(String(ctx.from.id));
 }
 
-function bindCommand(name, handler) {
-    if (typeof handler !== 'function') {
-        console.log(`⚠️ Handler ausente para /${name}`);
-        return;
+async function requireAdmin(ctx) {
+    if (!isAdmin(ctx)) {
+        await ctx.reply('⛔ Comando restrito ao administrador.');
+        return false;
     }
-    bot.command(name, handler);
-}
-
-function bindAction(pattern, handler) {
-    if (typeof handler !== 'function') {
-        console.log(`⚠️ Handler ausente para action: ${pattern}`);
-        return;
-    }
-    bot.action(pattern, handler);
-}
-
-async function sendMainMenu(ctx, userId, username, editMode = false) {
-    const menuText = await getMainMenuText(userId, username);
-    const player = await getPlayer(userId);
-    const mapImage = player?.currentMap ? assets?.maps?.[player.currentMap] : null;
-    const keyboard = mainMenu();
-
-    if (!editMode) {
-        return navigateScreen(ctx, {
-            text: menuText,
-            media: mapImage || null,
-            options: keyboard
-        });
-    }
-
-    try {
-        return await navigateScreen(ctx, {
-            text: menuText,
-            media: mapImage || null,
-            options: keyboard
-        });
-    } catch {
-        await tryDeleteCurrentMessage(ctx);
-        return navigateScreen(ctx, {
-            text: menuText,
-            media: mapImage || null,
-            options: keyboard
-        });
-    }
-}
-
-async function finalizeCharacterCreation(ctx, userId, name, className) {
-    try {
-        const player = await createPlayer(userId, name, className);
-        creationSessions.delete(userId);
-
-        await ctx.reply(`✨ Personagem criado com sucesso! Bem-vindo a Noctra, *${player.name}*!`, {
-            parse_mode: 'Markdown'
-        });
-
-        await sendMainMenu(ctx, userId, player.name, false);
-    } catch (error) {
-        console.error('Erro ao criar personagem:', error);
-        await ctx.reply('❌ Ocorreu um erro ao criar seu personagem. Tente novamente com /start.');
-        creationSessions.delete(userId);
-    }
+    return true;
 }
 
 /*
 =================================
-MIDDLEWARES
+UTILS
 =================================
 */
 
-function registerCreationMiddleware() {
-    bot.use(async (ctx, next) => {
-        if (!ctx.message || !ctx.message.text) return next();
-
-        const userId = String(ctx.from.id);
-        const session = creationSessions.get(userId);
-
-        if (!session) return next();
-
-        if (session.step === 'awaiting_name') {
-            const rawName = ctx.message.text.trim();
-
-            if (!isValidName(rawName)) {
-                return ctx.reply('❌ O nome deve ter entre *3 e 20 caracteres*. Tente novamente:', {
-                    parse_mode: 'Markdown'
-                });
-            }
-
-            session.name = rawName;
-            session.step = 'awaiting_class';
-            creationSessions.set(userId, session);
-
-            const classKeyboard = Markup.inlineKeyboard([
-                [Markup.button.callback('⚔️ Guerreiro', 'choose_class_guerreiro')],
-                [Markup.button.callback('🏹 Arqueiro', 'choose_class_arqueiro')],
-                [Markup.button.callback('🔮 Mago', 'choose_class_mago')]
-            ]);
-
-            return ctx.reply(`Ótimo, *${rawName}*! Agora escolha sua classe:`, {
-                parse_mode: 'Markdown',
-                ...classKeyboard
-            });
-        }
-
-        if (session.step === 'awaiting_class') {
-            return ctx.reply('Por favor, escolha uma classe usando os botões acima.');
-        }
-
-        return next();
-    });
+function splitText(text = '') {
+    return String(text || '').trim().split(/\s+/).filter(Boolean);
 }
 
-function registerAntiBanMiddleware() {
-    bot.use(async (ctx, next) => {
-        if (ctx.from) {
-            try {
-                const player = await getPlayer(ctx.from.id);
-                if (player && player.banned) {
-                    return ctx.reply('⛔ Você está banido do Noctra.');
-                }
-            } catch {
-                // jogador ainda não existe
-            }
-        }
-
-        return next();
-    });
+function isNumericId(value = '') {
+    return /^\d+$/.test(String(value).trim());
 }
 
-function registerGlobalErrorHandler() {
-    bot.catch((err, ctx) => {
-        console.error('❌ ERRO GLOBAL:', err);
+function normalizeRawTarget(raw) {
+    return String(raw || '').replace('@', '').trim();
+}
 
-        if (ctx?.reply) {
-            ctx.reply('⚠️ Algo deu errado no mundo de Noctra.');
-        }
-    });
+function formatNumber(value) {
+    return Number(value || 0).toLocaleString('pt-BR');
+}
+
+function safeName(value, fallback = '—') {
+    return value ? String(value) : fallback;
+}
+
+function escapeRegex(text = '') {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildEquipmentLines(player) {
+    const eq = player.equipment || {};
+    return [
+        `⚔️ Arma: ${safeName(eq.weapon?.name)}`,
+        `🛡️ Escudo: ${safeName(eq.shield?.name)}`,
+        `🥋 Armadura: ${safeName(eq.armor?.name)}`,
+        `📿 Amuleto: ${safeName(eq.necklace?.name)}`,
+        `💍 Anel: ${safeName(eq.ring?.name)}`,
+        `👢 Botas: ${safeName(eq.boots?.name)}`
+    ].join('\n');
+}
+
+function buildSoulsLines(player) {
+    const souls = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [null, null];
+    return [
+        `💀 Alma 1: ${safeName(souls[0]?.name)}`,
+        `💀 Alma 2: ${safeName(souls[1]?.name)}`
+    ].join('\n');
+}
+
+function getReplyUserId(ctx) {
+    return ctx.message?.reply_to_message?.from
+        ? String(ctx.message.reply_to_message.from.id)
+        : null;
 }
 
 /*
 =================================
-START / CRIAÇÃO
+PLAYER RESOLUTION
 =================================
 */
 
-function registerStartFlow() {
-    bot.start(async (ctx) => {
-        const userId = String(ctx.from.id);
-        const firstName = ctx.from.first_name;
+async function findPlayersByName(name, limit = 10) {
+    const collection = await getPlayerCollection();
+    const safe = String(name || '').trim();
 
-        let player;
-        try {
-            player = await getPlayer(userId);
-        } catch {
-            player = null;
+    if (!safe) return [];
+
+    const exactRegex = new RegExp(`^${escapeRegex(safe)}$`, 'i');
+    const partialRegex = new RegExp(escapeRegex(safe), 'i');
+
+    const exact = await collection
+        .find({ name: { $regex: exactRegex } })
+        .limit(limit)
+        .toArray();
+
+    if (exact.length) return exact;
+
+    return collection
+        .find({ name: { $regex: partialRegex } })
+        .limit(limit)
+        .toArray();
+}
+
+async function resolvePlayerFlexible(rawTarget) {
+    const target = normalizeRawTarget(rawTarget);
+    if (!target) return null;
+
+    if (isNumericId(target)) {
+        const byId = await getPlayer(target);
+        if (byId) return byId;
+    }
+
+    const matches = await findPlayersByName(target, 5);
+    if (!matches.length) return null;
+
+    return matches[0];
+}
+
+async function resolvePlayerForSingleTargetCommand(ctx, usageExample) {
+    const replyId = getReplyUserId(ctx);
+    if (replyId) {
+        const player = await getPlayer(replyId);
+        if (!player) {
+            await ctx.reply('❌ Jogador respondido não encontrado.');
+            return null;
+        }
+        return player;
+    }
+
+    const parts = splitText(ctx.message?.text || '');
+    const rawTarget = parts[1];
+
+    if (!rawTarget) {
+        await ctx.reply(`❌ Uso: ${usageExample}\n\nTambém funciona respondendo a mensagem do jogador.`);
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return player;
+}
+
+async function resolvePlayerFromGiveCommand(ctx) {
+    const parts = splitText(ctx.message?.text || '');
+    const replyId = getReplyUserId(ctx);
+
+    let player = null;
+    let amount = 0;
+
+    if (replyId) {
+        player = await getPlayer(replyId);
+        amount = Number(parts[2] || 0);
+    } else {
+        const rawTarget = parts[2];
+        amount = Number(parts[3] || 0);
+
+        if (!rawTarget) {
+            await ctx.reply('❌ Informe o alvo. Ex: /give gold 123456 500\nTambém funciona respondendo a mensagem do jogador.');
+            return null;
         }
 
-        if (player) {
-            return sendMainMenu(ctx, userId, firstName, false);
+        player = await resolvePlayerFlexible(rawTarget);
+    }
+
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return {
+        player,
+        amount: Number.isFinite(amount) ? amount : 0
+    };
+}
+
+async function resolvePlayerFromBanCommand(ctx, usageExample) {
+    const replyId = getReplyUserId(ctx);
+
+    if (replyId) {
+        const player = await getPlayer(replyId);
+        if (!player) {
+            await ctx.reply('❌ Jogador respondido não encontrado.');
+            return null;
+        }
+        return player;
+    }
+
+    const parts = splitText(ctx.message?.text || '');
+    const rawTarget = parts[1];
+
+    if (!rawTarget) {
+        await ctx.reply(`❌ Uso: ${usageExample}\nTambém funciona respondendo a mensagem do jogador.`);
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return player;
+}
+
+async function resolveSetPlayerPayload(ctx) {
+    const parts = splitText(ctx.message?.text || '');
+    const replyId = getReplyUserId(ctx);
+
+    let rawTarget = null;
+    let field = '';
+    let value = '';
+
+    if (replyId) {
+        field = (parts[1] || '').toLowerCase();
+        value = parts.slice(2).join(' ').trim();
+
+        const player = await getPlayer(replyId);
+        if (!player) {
+            await ctx.reply('❌ Jogador respondido não encontrado.');
+            return null;
         }
 
-        creationSessions.set(userId, { step: 'awaiting_name' });
+        return { player, field, value };
+    }
 
+    rawTarget = parts[1] || null;
+    field = (parts[2] || '').toLowerCase();
+    value = parts.slice(3).join(' ').trim();
+
+    if (!rawTarget || !field || !value) {
         await ctx.reply(
-            `🌑 *Bem-vindo a Noctra!*\n\n` +
-            `Você é um Caçador da Noite, destinado a enfrentar a escuridão.\n\n` +
-            `Para começar, diga-me: *qual é o seu nome?*`,
+            '❌ Uso: /setplayer ID_ou_nome campo valor\n\n' +
+            'Exemplos:\n' +
+            '/setplayer 123456789 level 10\n' +
+            '/setplayer Italo gold 5000\n\n' +
+            'Também funciona respondendo a mensagem do jogador:\n' +
+            '/setplayer level 10'
+        );
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return { player, field, value };
+}
+
+/*
+=================================
+RENDER HELP
+=================================
+*/
+
+function renderAdminHelp() {
+    return `🛠️ *PAINEL ADMIN — NOCTRA*
+
+*IDs e busca*
+• \`/myid\` → mostra seu ID
+• \`/id\` → mostra seu ID
+• \`/id\` respondendo alguém → mostra o ID da pessoa
+• \`/findplayer ID_ou_nome\`
+• \`/findplayername NOME\`
+• \`/playerstate ID_ou_nome\`
+
+*Consulta / Operação*
+• \`/adminhelp\` → mostra esta lista
+• \`/metrics\` → métricas de hoje
+• \`/metrics AAAA-MM-DD\` → métricas de uma data específica
+• \`/reload\` → reload lógico
+• \`/capture\` → ativa captura de imagem para pegar file_id
+
+*Give / Ajuste de conta*
+• \`/give xp ID_ou_nome 500\`
+• \`/give gold ID_ou_nome 1000\`
+• \`/give nox ID_ou_nome 50\`
+• \`/give item ID_ou_nome\`
+• também funcionam respondendo a mensagem do jogador
+
+*Set direto*
+• \`/setplayer ID_ou_nome level 10\`
+• \`/setplayer ID_ou_nome gold 5000\`
+• \`/setplayer ID_ou_nome nox 100\`
+• \`/setplayer ID_ou_nome energy 20\`
+• \`/setplayer ID_ou_nome map cripta_em_ruinas\`
+• \`/setplayer ID_ou_nome vipdays 30\`
+• também funciona respondendo a mensagem do jogador
+
+*Moderação*
+• \`/ban ID_ou_nome\`
+• \`/unban ID_ou_nome\`
+• também funciona respondendo a mensagem do jogador
+
+*Reset*
+• \`/reset\` → reseta o próprio personagem
+• \`/resetplayer ID_ou_nome\` → reseta um jogador específico
+• \`/resetplayer\` respondendo a mensagem do jogador
+• \`/resetall CONFIRMAR_RESET_TOTAL\` → reseta o jogo todo
+
+*Captura de asset*
+• use \`/capture\`
+• depois envie uma foto com legenda
+• a legenda deve ser o id lógico do asset
+• exemplo: \`shadow_wolf\`
+• o bot devolverá a linha pronta para colar no assets.js
+
+*Observações*
+• busca por nome tenta encontrar o jogador mais compatível
+• nomes únicos funcionam melhor
+• para evitar erro, reply continua sendo a forma mais segura`;
+}
+
+/*
+=================================
+ID COMMANDS
+=================================
+*/
+
+async function handleAdminHelp(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+    return ctx.reply(renderAdminHelp(), { parse_mode: 'Markdown' });
+}
+
+async function handleMyId(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    return ctx.reply(
+        `🆔 *SEU ID ADMIN*\n\n` +
+        `Nome: *${safeName(ctx.from.first_name)}*\n` +
+        `ID: \`${String(ctx.from.id)}\``,
+        { parse_mode: 'Markdown' }
+    );
+}
+
+async function handleId(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const replyUser = ctx.message?.reply_to_message?.from;
+
+    if (replyUser) {
+        const label = replyUser.username
+            ? `@${replyUser.username}`
+            : (replyUser.first_name || 'jogador');
+
+        return ctx.reply(
+            `🆔 *ID DO JOGADOR*\n\n` +
+            `Jogador: *${safeName(label)}*\n` +
+            `ID: \`${String(replyUser.id)}\``,
             { parse_mode: 'Markdown' }
         );
-    });
-
-    bindAction(/choose_class_(.+)/, async (ctx) => {
-        const userId = String(ctx.from.id);
-        const session = creationSessions.get(userId);
-
-        if (!session || session.step !== 'awaiting_class') {
-            return ctx.answerCbQuery('Sessão expirada. Use /start novamente.');
-        }
-
-        const className = ctx.match[1];
-        const allowed = ['guerreiro', 'arqueiro', 'mago'];
-
-        if (!allowed.includes(className)) {
-            return ctx.answerCbQuery('Classe inválida.');
-        }
-
-        await ctx.answerCbQuery();
-        await finalizeCharacterCreation(ctx, userId, session.name, className);
-    });
-}
-
-/*
-=================================
-COMMANDS
-=================================
-*/
-
-function registerCommands() {
-    bindCommand('profile', profile.handleProfile);
-    bindCommand('inventory', inventory.handleInventory);
-    bindCommand('energy', energy.handleEnergy);
-    bindCommand('travel', travel.handleTravel);
-    bindCommand('shop', shop.handleShop);
-    bindCommand('daily', daily.handleDaily);
-    bindCommand('vip', vip.handleVip);
-    bindCommand('online', online.handleOnline);
-    bindCommand('ranking', ranking.handleRanking);
-    bindCommand('arena', arena.handleArena);
-
-    bindCommand('rename', handleRename);
-    bindCommand('class', handleClass);
-    bindCommand('equip', handleEquip);
-    bindCommand('equipsoul', handleEquipSoulCommand);
-
-    bindCommand('reset', resetCommands.handleReset);
-    bindCommand('resetplayer', resetCommands.handleResetPlayer);
-    bindCommand('resetall', resetCommands.handleResetAll);
-
-    bindCommand('adminhelp', adminCommands.handleAdminHelp);
-    bindCommand('myid', adminCommands.handleMyId);
-    bindCommand('id', adminCommands.handleId);
-    bindCommand('findplayer', adminCommands.handleFindPlayer);
-    bindCommand('findplayername', adminCommands.handleFindPlayerName);
-    bindCommand('playerstate', adminCommands.handlePlayerState);
-    bindCommand('setplayer', adminCommands.handleSetPlayer);
-    bindCommand('capture', adminCommands.handleCapture);
-
-    bindCommand('give', (ctx) => {
-        const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
-        if (subCommand === 'xp') return adminCommands.handleGiveXp(ctx);
-        if (subCommand === 'gold') return adminCommands.handleGiveGold(ctx);
-        if (subCommand === 'nox') return adminCommands.handleGiveNox(ctx);
-        if (subCommand === 'item') return adminCommands.handleGiveItem(ctx);
-        return ctx.reply('📝 Uso: /give [xp|gold|nox|item] ID_ou_nome <quantidade>\nTambém funciona respondendo a mensagem do jogador.');
-    });
-
-    bindCommand('ban', adminCommands.handleBan);
-    bindCommand('unban', adminCommands.handleUnban);
-    bindCommand('reload', adminCommands.handleReload);
-    bindCommand('metrics', adminCommands.handleMetrics);
-}
-
-/*
-=================================
-STATIC ACTIONS
-=================================
-*/
-
-function registerStaticActions() {
-    bindAction('rename_help', async (ctx) => {
-        await ctx.answerCbQuery('Use /rename novo_nome', { show_alert: true });
-    });
-
-    bindAction('class_help', async (ctx) => {
-        await ctx.answerCbQuery('Use /class guerreiro | arqueiro | mago', { show_alert: true });
-    });
-
-    bindAction('menu', async (ctx) => {
-        await ctx.answerCbQuery();
-        return sendMainMenu(ctx, ctx.from.id, ctx.from.first_name, true);
-    });
-}
-
-/*
-=================================
-MAIN MENU ACTIONS
-=================================
-*/
-
-function registerMainMenuActions() {
-    bindAction('profile', profile.handleProfile);
-    bindAction('inventory', inventory.handleInventory);
-    bindAction('energy', energy.handleEnergy);
-    bindAction('travel', travel.handleTravel);
-    bindAction('shop', shop.handleShop);
-    bindAction('daily', daily.handleDaily);
-    bindAction('vip', vip.handleVip);
-    bindAction('online', online.handleOnline);
-    bindAction('ranking', ranking.handleRanking);
-    bindAction('hunt', combat.handleHunt);
-    bindAction('dungeon', dungeon.handleDungeon);
-    bindAction('arena', arena.handleArena);
-}
-
-/*
-=================================
-DAILY ACTIONS
-=================================
-*/
-
-function registerDailyActions() {
-    bindAction('daily_chest', daily.handleDailyChest);
-    bindAction('daily_claim_missions', daily.handleClaimMissionRewards);
-    bindAction('daily_chests', daily.handleTimedChests);
-    bindAction(/^daily_open_chest:(.+)$/, daily.handleOpenTimedChest);
-}
-
-/*
-=================================
-ARENA ACTIONS
-=================================
-*/
-
-function registerArenaActions() {
-    bindAction('arena_fight', arena.handleArenaFight);
-    bindAction('arena_attack', arena.handleArenaAttack);
-    bindAction('arena_defend', arena.handleArenaDefend);
-    bindAction('arena_flee', arena.handleArenaFlee);
-    bindAction('arena_consumables', arena.handleArenaConsumables);
-    bindAction(/^arena_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, arena.handleArenaUseConsumable);
-    bindAction('arena_chests', arena.handleArenaChests);
-    bindAction(/^arena_open_chest:(.+)$/, arena.handleArenaOpenChest);
-    bindAction('arena_ranking', arena.handleArenaRanking);
-
-    bindAction('arena_shop', arenaShop.handleArenaShop);
-    bindAction(/^arena_shop_buy:(.+)$/, arenaShop.handleArenaShopBuy);
-}
-
-/*
-=================================
-COMBAT ACTIONS
-=================================
-*/
-
-function registerCombatActions() {
-    bindAction('combat_attack', combat.handleAttack);
-    bindAction('combat_defend', combat.handleDefend);
-    bindAction('combat_soul_menu', combat.handleSoulMenu);
-    bindAction(/combat_soul_([01])/, combat.handleSoul);
-    bindAction('combat_consumables', combat.handleConsumables);
-    bindAction(/^combat_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, combat.handleUseConsumable);
-    bindAction('combat_flee', combat.handleFlee);
-    bindAction('combat_back', combat.handleCombatBack);
-}
-
-/*
-=================================
-INVENTORY ACTIONS
-=================================
-*/
-
-function registerInventoryActions() {
-    bindAction(/^invcat:(.+)$/, inventory.handleInventoryCategory);
-    bindAction(/^invpage:(.+):(\d+)$/, inventory.handleInventoryPage);
-
-    bindAction(/^eqid:(.+):(\d+):(.+)$/, inventory.handleEquipItem);
-    bindAction(/^eq:(.+):(\d+):(\d+)$/, inventory.handleEquipItem);
-    bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
-
-    bindAction(/^equip_soul_(.+)$/, inventory.handleEquipSoul);
-    bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
-    bindAction(/^invskin:equip:(.+)$/, inventory.handleEquipSkin);
-    bindAction(/^invskin:unequip:(title|aura|badge)$/, inventory.handleUnequipSkin);
-
-    bindAction('use_potion_outside_hp', (ctx) => inventory.handleUsePotionOutside(ctx, 'hp'));
-    bindAction('use_tonic_strength', inventory.handleUseStrengthTonic);
-    bindAction('use_tonic_defense', inventory.handleUseDefenseTonic);
-}
-
-/*
-=================================
-SHOP ACTIONS
-=================================
-*/
-
-function registerShopActions() {
-    bindAction('shop_buy_menu', shop.handleShopBuyMenu);
-    bindAction('shop_sell', shop.handleShopSell);
-    bindAction(/^shop_sell_page_(\d+)$/, shop.handleShopSellPage);
-    bindAction(/^sell_confirm_key_(.+)$/, shop.handleSellConfirmByKey);
-    bindAction(/sell_confirm_(.+)/, shop.handleSellConfirm);
-
-    bindAction('shop_village', shop.handleShopVillage);
-    bindAction('shop_castle', shop.handleShopCastle);
-    bindAction('shop_arena', shop.handleShopArena);
-
-    bindAction(/^shop_buyqty:(.+):(\d+)$/, shop.handleBuyQuantity);
-    bindAction(/^shop_backtab:(.+)$/, shop.handleShopBackTab);
-
-    bindAction(/^buy_(.+)$/, shop.handleBuy);
-}
-
-/*
-=================================
-TRAVEL / DUNGEON / ENERGY ACTIONS
-=================================
-*/
-
-function registerTravelAndDungeonActions() {
-    bindAction(/travel_to_(.+)/, travel.handleTravelTo);
-    bindAction('travel_locked', travel.handleTravelLocked);
-
-    bindAction('dungeon_start', dungeon.handleDungeonStart);
-    bindAction('dungeon_attack', dungeon.handleDungeonAttack);
-    bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
-    bindAction('dungeon_flee', dungeon.handleDungeonFlee);
-    bindAction('dungeon_soul_menu', dungeon.handleDungeonSoulMenu);
-    bindAction('dungeon_consumables', dungeon.handleDungeonConsumables);
-    bindAction(/^dungeon_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, dungeon.handleDungeonUseConsumable);
-
-    bindAction('reset_confirm', resetCommands.handleResetConfirm);
-    bindAction('reset_cancel', resetCommands.handleResetCancel);
-
-    bindAction('rest_energy', energy.handleRestEnergy);
-}
-
-/*
-=================================
-PHOTO CAPTURE
-=================================
-*/
-
-function registerPhotoCapture() {
-    if (typeof adminCommands.handleCapturePhoto === 'function') {
-        bot.on('photo', adminCommands.handleCapturePhoto);
     }
+
+    return ctx.reply(
+        `🆔 *SEU ID*\n\n` +
+        `Nome: *${safeName(ctx.from.first_name)}*\n` +
+        `ID: \`${String(ctx.from.id)}\``,
+        { parse_mode: 'Markdown' }
+    );
 }
 
 /*
 =================================
-BOOTSTRAP
+PLAYER INSPECTION
 =================================
 */
 
-function registerBot() {
-    registerPhotoCapture();
+function renderFindPlayer(player) {
+    return `🔎 *PLAYER ENCONTRADO*
 
-    registerCreationMiddleware();
-    registerAntiBanMiddleware();
-    registerGlobalErrorHandler();
+👤 Nome: *${safeName(player.name)}*
+🆔 ID: \`${safeName(player.id)}\`
+🏷️ Classe: ${safeName(player.class)}
+⭐ Nível: ${formatNumber(player.level)}
+🗺️ Mapa: ${safeName(player.currentMap)}
+❤️ HP: ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}
+⚡ Energia: ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}
 
-    registerStartFlow();
-    registerCommands();
-    registerStaticActions();
+💰 Ouro: ${formatNumber(player.gold)}
+💎 Nox: ${formatNumber(player.nox)}
+🏅 Glórias: ${formatNumber(player.glorias)}
+🗝️ Chaves: ${formatNumber(player.keys)}
 
-    registerMainMenuActions();
-    registerDailyActions();
-    registerArenaActions();
-    registerCombatActions();
-    registerInventoryActions();
-    registerShopActions();
-    registerTravelAndDungeonActions();
+🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || 20)}
+💀 Almas no inventário: ${formatNumber((player.soulsInventory || []).length)}
+✨ VIP: ${player.vip ? 'Sim' : 'Não'}
+⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
+}
+
+function renderPlayerState(player) {
+    return `🧾 *PLAYER STATE*
+
+👤 Nome: *${safeName(player.name)}*
+🆔 ID: \`${safeName(player.id)}\`
+🏷️ Classe: ${safeName(player.class)}
+⭐ Nível: ${formatNumber(player.level)}
+✨ XP: ${formatNumber(player.xp)}
+🗺️ Mapa: ${safeName(player.currentMap)}
+
+*Status*
+❤️ HP: ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}
+⚡ Energia: ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}
+⚔️ ATK: ${formatNumber(player.atk)}
+🛡️ DEF: ${formatNumber(player.def)}
+💥 CRIT: ${formatNumber(player.crit)}%
+
+*Economia*
+💰 Ouro: ${formatNumber(player.gold)}
+💎 Nox: ${formatNumber(player.nox)}
+🏅 Glórias: ${formatNumber(player.glorias)}
+🗝️ Chaves: ${formatNumber(player.keys)}
+
+*Inventário / Progressão*
+🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || 20)}
+💀 Almas inventário: ${formatNumber((player.soulsInventory || []).length)}
+☠️ Total de kills: ${formatNumber(player.totalKills)}
+📉 Soul pity: ${formatNumber(player.soulPityCounter)}
+
+*Equipamentos*
+${buildEquipmentLines(player)}
+
+*Almas equipadas*
+${buildSoulsLines(player)}
+
+*Flags*
+✨ VIP: ${player.vip ? 'Sim' : 'Não'}
+⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
+}
+
+function renderPlayerNameMatches(matches, query) {
+    let text = `🔎 *RESULTADOS PARA:* ${safeName(query)}\n\n`;
+
+    if (!matches.length) {
+        return text + 'Nenhum jogador encontrado.';
+    }
+
+    matches.slice(0, 10).forEach((player, index) => {
+        text += `${index + 1}. *${safeName(player.name)}*\n`;
+        text += `   🆔 \`${safeName(player.id)}\`\n`;
+        text += `   ⭐ Nível ${formatNumber(player.level)} | 🗺️ ${safeName(player.currentMap)}\n`;
+        text += `   💰 ${formatNumber(player.gold)} ouro | 💎 ${formatNumber(player.nox)} nox\n\n`;
+    });
+
+    return text;
+}
+
+async function handleFindPlayer(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerForSingleTargetCommand(ctx, '/findplayer 123456789');
+    if (!player) return;
+
+    return ctx.reply(renderFindPlayer(player), { parse_mode: 'Markdown' });
+}
+
+async function handlePlayerState(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerForSingleTargetCommand(ctx, '/playerstate 123456789');
+    if (!player) return;
+
+    return ctx.reply(renderPlayerState(player), { parse_mode: 'Markdown' });
+}
+
+async function handleFindPlayerName(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const text = String(ctx.message?.text || '');
+    const query = text.replace(/^\/findplayername(@\w+)?\s*/i, '').trim();
+
+    if (!query) {
+        return ctx.reply('❌ Uso: /findplayername NomeDoJogador');
+    }
+
+    const matches = await findPlayersByName(query, 10);
+    return ctx.reply(renderPlayerNameMatches(matches, query), { parse_mode: 'Markdown' });
 }
 
 /*
 =================================
-BOT STARTUP
+SET PLAYER
 =================================
 */
 
-async function startBot() {
-    if (launched) return;
-    launched = true;
+async function handleSetPlayer(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const payload = await resolveSetPlayerPayload(ctx);
+    if (!payload) return;
+
+    const { player, field, value } = payload;
 
     try {
-        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-        console.log('✅ Webhook removido');
+        if (field === 'level') {
+            const level = Math.max(1, Number(value));
+            if (!Number.isFinite(level)) {
+                return ctx.reply('❌ Nível inválido.');
+            }
 
-        await sleep(3000);
-        await connectToMongo();
-        console.log('✅ MongoDB conectado');
+            player.level = level;
+            player.xp = 0;
+            recalculateStats(player);
+        } else if (field === 'gold') {
+            const amount = Math.max(0, Number(value));
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para gold.');
+            }
+            player.gold = amount;
+        } else if (field === 'nox') {
+            const amount = Math.max(0, Number(value));
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para nox.');
+            }
+            player.nox = amount;
+        } else if (field === 'energy') {
+            const amount = Math.max(0, Number(value));
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para energy.');
+            }
+            player.energy = Math.min(amount, player.maxEnergy || amount);
+        } else if (field === 'map') {
+            player.currentMap = String(value).trim();
+        } else if (field === 'vipdays') {
+            const days = Math.max(0, Number(value));
+            if (!Number.isFinite(days)) {
+                return ctx.reply('❌ Valor inválido para vipdays.');
+            }
 
-        await bot.launch({ dropPendingUpdates: true });
-        console.log('🌑 NOCTRA ONLINE');
-    } catch (err) {
-        console.error('❌ Erro ao iniciar bot:', err);
+            if (days === 0) {
+                player.vip = false;
+                player.vipExpires = null;
+                player.maxEnergy = 20;
+                player.maxInventory = 20;
+                player.energy = Math.min(player.energy || 20, 20);
+            } else {
+                const now = Date.now();
+                player.vip = true;
+                player.vipExpires = new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
+                player.maxEnergy = 40;
+                player.maxInventory = Math.max(player.maxInventory || 20, 30);
+                player.energy = Math.min(player.energy || 40, player.maxEnergy);
+            }
+        } else {
+            return ctx.reply('❌ Campo inválido. Use: level, gold, nox, energy, map, vipdays');
+        }
+
+        normalizePlayerForSave(player);
+        await savePlayer(player.id, player);
+
+        const xpNext = getXpToNextLevel(player.level || 1);
+
+        return ctx.reply(
+            `✅ Jogador atualizado com sucesso.\n\n` +
+            `👤 ${player.name}\n` +
+            `🆔 ${player.id}\n` +
+            `⭐ Nível: ${player.level}\n` +
+            `✨ XP: ${player.xp}/${xpNext}\n` +
+            `💰 Ouro: ${player.gold}\n` +
+            `💎 Nox: ${player.nox}\n` +
+            `⚡ Energia: ${player.energy}/${player.maxEnergy}\n` +
+            `🗺️ Mapa: ${player.currentMap}\n` +
+            `✨ VIP: ${player.vip ? 'Sim' : 'Não'}`
+        );
+    } catch (error) {
+        console.error('Erro em /setplayer:', error);
+        return ctx.reply('❌ Erro ao atualizar jogador.');
     }
 }
 
 /*
 =================================
-HTTP SERVER
+GIVE XP
 =================================
 */
 
-function startHttpServer() {
-    const PORT = process.env.PORT || 3000;
+async function handleGiveXp(ctx) {
+    if (!(await requireAdmin(ctx))) return;
 
-    http.createServer((req, res) => {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Noctra online');
-    }).listen(PORT, () => {
-        console.log(`🌐 Porta ${PORT}`);
-    });
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
+
+    const { player, amount } = resolved;
+
+    if (amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    applyXpReward(player, amount);
+    normalizePlayerForSave(player);
+    await savePlayer(player.id, player);
+
+    return ctx.reply(`✅ ${amount} XP concedido para ${player.name}.`);
 }
 
 /*
 =================================
-START
+GIVE GOLD
 =================================
 */
 
-registerBot();
-startHttpServer();
-startBot();
+async function handleGiveGold(ctx) {
+    if (!(await requireAdmin(ctx))) return;
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
+
+    const { player, amount } = resolved;
+
+    if (amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    addGold(player, amount);
+    normalizePlayerForSave(player);
+    await savePlayer(player.id, player);
+
+    return ctx.reply(`✅ ${amount} gold concedido para ${player.name}.`);
+}
+
+/*
+=================================
+GIVE NOX
+=================================
+*/
+
+async function handleGiveNox(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
+
+    const { player, amount } = resolved;
+
+    if (amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    addNox(player, amount);
+    normalizePlayerForSave(player);
+    await savePlayer(player.id, player);
+
+    return ctx.reply(`✅ ${amount} Nox concedido para ${player.name}.`);
+}
+
+/*
+=================================
+GIVE ITEM
+=================================
+*/
+
+async function handleGiveItem(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    let player = null;
+    const replyId = getReplyUserId(ctx);
+    const parts = splitText(ctx.message?.text || '');
+
+    if (replyId) {
+        player = await getPlayer(replyId);
+    } else {
+        const rawTarget = parts[2];
+        if (!rawTarget) {
+            return ctx.reply('❌ Uso: /give item ID_ou_nome\nTambém funciona respondendo a mensagem do jogador.');
+        }
+        player = await resolvePlayerFlexible(rawTarget);
+    }
+
+    if (!player) {
+        return ctx.reply('❌ Jogador não encontrado.');
+    }
+
+    const item = generateDrop(player.currentMap === 'clareira_sombria' ? 1 : 2, {
+        encounterTier: 'boss',
+        rarityBias: 'mid_boss'
+    });
+
+    const result = addInventoryItem(player, item);
+    if (!result.success) {
+        return ctx.reply(`❌ Falha ao adicionar item: ${result.message}`);
+    }
+
+    normalizePlayerForSave(player);
+    await savePlayer(player.id, player);
+
+    return ctx.reply(`✅ Item ${item.name} concedido para ${player.name}.`);
+}
+
+/*
+=================================
+BAN / UNBAN
+=================================
+*/
+
+async function handleBan(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerFromBanCommand(ctx, '/ban 123456');
+    if (!player) return;
+
+    player.banned = true;
+    await savePlayer(player.id, player);
+
+    return ctx.reply(`⛔ ${player.name} foi banido.`);
+}
+
+async function handleUnban(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerFromBanCommand(ctx, '/unban 123456');
+    if (!player) return;
+
+    player.banned = false;
+    await savePlayer(player.id, player);
+
+    return ctx.reply(`✅ ${player.name} foi desbanido.`);
+}
+
+/*
+=================================
+RELOAD
+=================================
+*/
+
+async function handleReload(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+    return ctx.reply('♻️ Reload lógico concluído. Reinicie manualmente se quiser rebuild total.');
+}
+
+/*
+=================================
+CAPTURE
+=================================
+*/
+
+async function handleCapture(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const userId = String(ctx.from.id);
+    captureSessions.add(userId);
+
+    return ctx.reply(
+        '📸 MODO CAPTURA ATIVADO\n\n' +
+        'Agora envie uma imagem com legenda.\n\n' +
+        'Exemplo de legenda:\n' +
+        'shadow_wolf\n\n' +
+        'Vou te devolver:\n' +
+        '- o file_id\n' +
+        '- a linha pronta para colar no assets.js'
+    );
+}
+
+async function handleCapturePhoto(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const userId = String(ctx.from.id);
+
+    if (!captureSessions.has(userId)) {
+        return;
+    }
+
+    const photos = ctx.message?.photo || [];
+    const caption = String(ctx.message?.caption || '').trim();
+
+    if (!photos.length) {
+        captureSessions.delete(userId);
+        return ctx.reply('❌ Nenhuma foto encontrada.');
+    }
+
+    if (!caption) {
+        captureSessions.delete(userId);
+        return ctx.reply(
+            '❌ A imagem foi enviada sem legenda.\n\n' +
+            'Envie novamente com a legenda igual ao id lógico do asset.\n' +
+            'Exemplo: shadow_wolf'
+        );
+    }
+
+    const bestPhoto = photos[photos.length - 1];
+    const fileId = bestPhoto.file_id;
+
+    captureSessions.delete(userId);
+
+    return ctx.reply(
+        '✅ ASSET CAPTURADO COM SUCESSO\n\n' +
+        `Legenda: ${caption}\n` +
+        `file_id: ${fileId}\n\n` +
+        'Linha pronta para o assets.js:\n' +
+        `${caption}: '${fileId}',`
+    );
+}
+
+/*
+=================================
+METRICS
+=================================
+*/
+
+function renderMetricsMessage(summary) {
+    const c = summary.counters;
+    const d = summary.derived;
+
+    return `📊 *NOCTRA METRICS — ${summary.dateKey}*
+
+*Aquisição / Atividade*
+• Players criados: ${c.playersCreated}
+• Menu loads: ${c.menuLoads}
+
+*Combate*
+• Iniciados: ${c.combatsStarted}
+• Vitórias: ${c.combatsWon}
+• Derrotas: ${c.combatsLost}
+• Fugas: ${c.combatsFled}
+• Win rate: ${d.winRate}%
+
+*Dungeon*
+• Iniciadas: ${c.dungeonsStarted}
+• Concluídas: ${c.dungeonsCompleted}
+• Abandonadas: ${c.dungeonsAbandoned}
+• Salas limpas: ${c.dungeonRoomsCleared}
+• Finish rate: ${d.dungeonFinishRate}%
+
+*Drops / Economia*
+• Itens dropados: ${c.itemsDropped}
+• Souls dropadas: ${c.soulsDropped}
+• Keys dropadas: ${c.keysDropped}
+• Ouro entregue: ${c.goldAwarded}
+• XP entregue: ${c.xpAwarded}
+
+*Uso*
+• Consumíveis usados: ${c.consumablesUsed}
+
+*Médias*
+• Ouro por vitória: ${d.avgGoldPerCombat}
+• XP por vitória: ${d.avgXpPerCombat}`;
+}
+
+async function handleMetrics(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const text = ctx.message?.text || '';
+    const parts = splitText(text);
+    const dateKey = parts[1];
+
+    const metricsDoc = dateKey
+        ? await getMetricsByDate(dateKey)
+        : await getTodayMetrics();
+
+    const summary = buildMetricsSummary(metricsDoc);
+    return ctx.reply(renderMetricsMessage(summary), { parse_mode: 'Markdown' });
+}
+
+module.exports = {
+    handleAdminHelp,
+    handleMyId,
+    handleId,
+    handleFindPlayer,
+    handleFindPlayerName,
+    handlePlayerState,
+    handleSetPlayer,
+    handleGiveXp,
+    handleGiveGold,
+    handleGiveNox,
+    handleGiveItem,
+    handleBan,
+    handleUnban,
+    handleReload,
+    handleCapture,
+    handleCapturePhoto,
+    handleMetrics
+};
