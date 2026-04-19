@@ -509,7 +509,7 @@ async function handleUseConsumable(ctx) {
         let log = '';
 
         if (key === 'potionHp') {
-            const heal = Math.max(20, Math.floor(fight.player.maxHp * 0.4));
+            const heal = Math.max(40, Math.floor(fight.player.maxHp * 0.8));
             const before = fight.player.hp;
             fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
             log = `❤️ Você recuperou ${fight.player.hp - before} HP com poção.`;
