@@ -2,7 +2,7 @@ const {
     resolveSoulDrop,
     registerSoulPityFailure,
     resetSoulPity,
-    getSoulDropChanceByEnemy
+    getSoulDropChance
 } = require('../core/player/souls');
 
 const {
@@ -55,6 +55,20 @@ function getEncounterTier(enemy) {
 
 /*
 =================================
+SOUL SOURCE
+=================================
+*/
+
+function getSoulSource(enemy, options = {}) {
+    if (options.isDungeonBoss) return 'dungeon_boss';
+    if (options.isWorldBoss) return 'world_boss';
+    if (options.isEventBoss) return 'event_boss';
+    if (enemy?.isBoss) return 'field_boss';
+    return null;
+}
+
+/*
+=================================
 TÍTULO DE VITÓRIA
 =================================
 */
@@ -91,61 +105,38 @@ function buildRewardBase(player, enemy) {
     let baseGold = Math.max(1, Number(enemy?.gold || 0));
 
     /*
-    VIP deve ajudar, mas não acelerar demais a economia.
-    QoL > pay-to-progress exagerado.
+    VIP ajuda de forma moderada.
+    QoL e aceleração leve, não distorção.
     */
     if (player.vip) {
         baseXp = Math.floor(baseXp * 1.10);
         baseGold = Math.floor(baseGold * 1.10);
     }
 
-    /*
-    Streak existe para sensação de fluxo,
-    não para inflar economia.
-    */
-    const streakBonus = (player.totalKills > 0 && player.totalKills % 12 === 0)
-        ? Math.floor(baseGold * 0.10)
-        : 0;
-
-    /*
-    Pequeno bônus ocasional para emoção,
-    sem transformar a economia em cassino.
-    */
-    const occasionalBonusGold = Math.random() < 0.05
-        ? Math.floor(baseGold * 0.15)
-        : 0;
-
     return {
         xp: baseXp,
-        gold: baseGold + streakBonus + occasionalBonusGold,
-        streakBonus,
-        bonusGold: occasionalBonusGold
+        gold: baseGold
     };
 }
 
 /*
 =================================
 CHAVE
+- Regra atual consolidada:
+- somente boss de campo
+- drop raro
 =================================
 */
 
-function tryDropKey(player, enemy, loot) {
-    let chance = 0;
-
-    /*
-    Dungeon deve continuar premium.
-    Chave não pode banalizar dungeon.
-    */
-    if (enemy?.isBoss) chance = 0.08;
-    else if (enemy?.isMiniBoss) chance = 0.035;
-    else if (enemy?.isElite) chance = 0.01;
-    else chance = 0;
+function tryDropKey(player, enemy, loot, options = {}) {
+    const isFieldBoss = Boolean(enemy?.isBoss) && !options.isDungeonBoss && !options.isWorldBoss && !options.isEventBoss;
+    const chance = isFieldBoss ? 0.05 : 0;
 
     const dropped = Math.random() < chance;
 
     if (dropped) {
         applyKeyReward(player, 1);
-        loot.push('🗝️ Chave Sombria');
+        loot.push('🗝️ Chave de Masmorra');
     }
 
     return dropped;
@@ -184,6 +175,7 @@ function tryDropItem(player, enemy, loot) {
     }
 
     loot.push(`🎁 ${droppedItem.name} [${droppedItem.rarity}]`);
+
     return {
         droppedItem,
         inventoryFull: false
@@ -193,51 +185,74 @@ function tryDropItem(player, enemy, loot) {
 /*
 =================================
 SOUL
+- Regra consolidada:
+- boss de campo: 3%
+- boss de dungeon: 8%
+- world boss: 15%
+- evento: 20%
+- pity: após 10 bosses de campo sem soul,
+  o próximo boss de campo fica com chance dobrada
 =================================
 */
 
-function tryDropSoul(player, enemy, loot) {
-    const soulChance = getSoulDropChanceByEnemy(enemy, player.soulPityCounter);
+function tryDropSoul(player, enemy, loot, options = {}) {
+    const source = getSoulSource(enemy, options);
 
-    if (Math.random() > soulChance) {
-        if (enemy?.isBoss) {
-            registerSoulPityFailure(player);
-        }
+    if (!source) {
         return {
             droppedSoul: null,
             soulDropped: false,
-            soulChance
+            soulChance: 0,
+            source: null
+        };
+    }
+
+    const soulChance = getSoulDropChance(source, player.soulPityCounter);
+
+    if (Math.random() > soulChance) {
+        if (source === 'field_boss') {
+            registerSoulPityFailure(player);
+        }
+
+        return {
+            droppedSoul: null,
+            soulDropped: false,
+            soulChance,
+            source
         };
     }
 
     const droppedSoul = resolveSoulDrop({
         playerLevel: player.level,
         enemy,
-        pityCounter: player.soulPityCounter
+        source
     });
 
     if (!droppedSoul) {
-        if (enemy?.isBoss) {
+        if (source === 'field_boss') {
             registerSoulPityFailure(player);
         }
+
         return {
             droppedSoul: null,
             soulDropped: false,
-            soulChance
+            soulChance,
+            source
         };
     }
 
     player.soulsInventory.push(droppedSoul);
     loot.push(`💀 ${droppedSoul.name} [${droppedSoul.rarity}]`);
 
-    if (enemy?.isBoss) {
+    if (source === 'field_boss') {
         resetSoulPity(player);
     }
 
     return {
         droppedSoul,
         soulDropped: true,
-        soulChance
+        soulChance,
+        source
     };
 }
 
@@ -247,7 +262,7 @@ PROCESSAMENTO DE RECOMPENSAS
 =================================
 */
 
-async function processVictory(player, enemy) {
+async function processVictory(player, enemy, options = {}) {
     ensureRewardState(player);
 
     const rewardBase = buildRewardBase(player, enemy);
@@ -260,8 +275,8 @@ async function processVictory(player, enemy) {
     const leveledUp = player.level > previousLevel;
 
     const itemResult = tryDropItem(player, enemy, loot);
-    const soulResult = tryDropSoul(player, enemy, loot);
-    const keyDropped = tryDropKey(player, enemy, loot);
+    const soulResult = tryDropSoul(player, enemy, loot, options);
+    const keyDropped = tryDropKey(player, enemy, loot, options);
 
     player.totalKills += 1;
 
@@ -279,14 +294,13 @@ async function processVictory(player, enemy) {
         title: getVictoryTitle(enemy),
         xp: rewardBase.xp,
         gold: rewardBase.gold,
-        bonusGold: rewardBase.bonusGold,
-        streakBonus: rewardBase.streakBonus,
         loot,
         droppedItem: itemResult.droppedItem,
         inventoryFull: itemResult.inventoryFull,
         droppedSoul: soulResult.droppedSoul,
         soulDropped: soulResult.soulDropped,
         soulChance: soulResult.soulChance,
+        soulSource: soulResult.source,
         keyDropped,
         leveledUp,
         totalKills: player.totalKills
