@@ -53,7 +53,7 @@ const shopItems = [
         effect: 'potionEnergy',
         value: 1,
         currency: 'nox',
-        price: 3,
+        price: 4,
         description: 'Recupera 1 energia instantaneamente.'
     },
     {
@@ -75,7 +75,7 @@ const shopItems = [
         effect: 'keys',
         value: 1,
         currency: 'nox',
-        price: 6,
+        price: 8,
         description: 'Entrada instantânea na masmorra.'
     },
 
@@ -157,7 +157,7 @@ const shopItems = [
         effect: 'energyRefill',
         value: 5,
         currency: 'glorias',
-        price: 2,
+        price: 3,
         description: 'Recupera 5 de energia.'
     },
     {
@@ -190,7 +190,7 @@ const shopItems = [
         effect: 'keys',
         value: 2,
         currency: 'glorias',
-        price: 4,
+        price: 5,
         description: 'Pacote competitivo de chaves.'
     }
 ];
