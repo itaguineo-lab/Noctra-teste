@@ -24,13 +24,13 @@ module.exports = {
         forest_guardian: 'AgACAgEAAyEFAATr8H9gAAMFad2Ivs6OiU71aduNeUIDCG6AbKYAAvgLaxtRfvBG45gznCG5hdYBAAMCAAN5AAM7BA',
 
         // Cripta em Ruínas
-        skeleton_warrior: '',
-        restless_spirit: '',
-        crypt_bat: '',
-        bone_knight: '',
-        wailing_banshee: '',
-        crypt_reaper: '',
-        lord_of_crypt: '',
+        skeleton_warrior: 'AgACAgEAAyEFAATr8H9gAANBaeLgzF_gkbk4ZT-X73nde1Uaa1wAAtgLaxt0ThhHkIIIJgFGcwcBAAMCAAN5AAM7BA',
+        restless_spirit: 'AgACAgEAAyEFAATr8H9gAANCaeLgzIwMgB7f57tZb_C5-tGS1a0AAtwLaxt0ThhH6V8z58EVh44BAAMCAAN5AAM7BA',
+        crypt_bat: 'AgACAgEAAyEFAATr8H9gAANDaeLgzHlf_2rCUcq9QIcIlouKqRoAAt8Laxt0ThhHI2nO2I3keCkBAAMCAAN5AAM7BA',
+        bone_knight: 'AgACAgEAAyEFAATr8H9gAANEaeLgz5mKaGXwvB0c8FbMRSOs-H8AArsLaxt0ThhHeJK0s0K3bu8BAAMCAAN5AAM7BA',
+        wailing_banshee: 'AgACAgEAAyEFAATr8H9gAANFaeLgz-LFoIpd-PiqAVwLVqOMVEUAAsALaxt0ThhHRiQ2jTFf37UBAAMCAAN5AAM7BA',
+        crypt_reaper: 'AgACAgEAAyEFAATr8H9gAANGaeLgz8UveuiYWbdzkvrCyo9nd6wAAsULaxt0ThhHZim6tCD3oxABAAMCAAN5AAM7BA',
+        lord_of_crypt: 'AgACAgEAAxkBAAIFJGnkRHqBa7_q8s2WgEV_mnXKT9Y2AAKpDGsbZ3IhR_JWlKSNBggzAQADAgADeQADOwQ',
 
         // Pântano Corrompido
         swamp_zombie: '',
