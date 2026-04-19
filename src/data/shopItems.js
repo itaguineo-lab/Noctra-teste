@@ -14,7 +14,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 140,
-        description: 'Restaura 80% do HP máximo.'
+        description: 'Restaura HP de forma significativa.'
     },
     {
         id: 'strength_tonic',
@@ -66,17 +66,6 @@ const shopItems = [
         currency: 'nox',
         price: 10,
         description: 'Recupera 10 de energia.'
-    },
-    {
-        id: 'dungeon_key',
-        name: 'Chave de Masmorra',
-        shop: 'castle',
-        type: 'consumable',
-        effect: 'keys',
-        value: 1,
-        currency: 'nox',
-        price: 8,
-        description: 'Entrada instantânea na masmorra.'
     },
 
     /*
@@ -181,18 +170,14 @@ const shopItems = [
         currency: 'glorias',
         price: 3,
         description: '2 Tônicos de Defesa.'
-    },
-    {
-        id: 'arena_key_bundle',
-        name: 'Pacote Arena x2',
-        shop: 'arena',
-        type: 'consumable',
-        effect: 'keys',
-        value: 2,
-        currency: 'glorias',
-        price: 5,
-        description: 'Pacote competitivo de chaves.'
     }
+
+    /*
+    Observação intencional:
+    chave de masmorra foi removida da loja.
+    A chave volta a ser recurso raro ligado ao loop de progressão,
+    não commodity premium.
+    */
 ];
 
 module.exports = {
