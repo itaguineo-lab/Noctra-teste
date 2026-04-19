@@ -387,7 +387,14 @@ async function createPlayer(id, name, className) {
     playerObj.lastEnergyUpdate = new Date();
 
     await savePlayer(id, playerObj);
-    await recordPlayerCreated();
+
+    /*
+    MÉTRICAS NUNCA PODEM DERRUBAR O ONBOARDING.
+    Se falhar, apenas loga.
+    */
+    recordPlayerCreated().catch((error) => {
+        console.error('⚠️ Falha ao registrar metrics de playerCreated:', error);
+    });
 
     return playerObj;
 }
