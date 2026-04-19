@@ -10,7 +10,6 @@ const {
     getActiveCosmetic
 } = require('../core/player/cosmetics');
 const {
-    restoreFullHp,
     applyEquipmentChange,
     removeEquipment,
     applySoulEquip,
@@ -198,7 +197,7 @@ function renderInventoryHeader(player) {
 ╠══════════════════════════════════╣
 ║ 📦 ${inventory.length}/${maxInv}
 ║ ⚔️ ATK ${player.atk || 0}  🛡️ DEF ${player.def || 0}
-║ ❤️ HP ${player.maxHp || 0}  💥 CRIT ${player.crit || 0}%
+║ ❤️ HP ${player.hp || 0}/${player.maxHp || 0}  💥 CRIT ${player.crit || 0}%
 ║ 💎 NOX ${player.nox || 0}
 ║ 🗝️ Chaves: ${player.keys || 0}
 ╠══════════════════════════════════╣
@@ -386,10 +385,14 @@ async function handleInvConsumables(ctx) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
     const c = player.consumables || {};
 
+    const healAmount = Math.max(40, Math.floor((player.maxHp || 0) * 0.8));
+
     const text = `╔══════════════════════════════════╗
 ║            🧪 *CONSUMÍVEIS*          ║
 ╠══════════════════════════════════╣
 ║ ❤️ Poção de HP: ${c.potionHp || 0}
+║    Cura: até 80% do HP máximo
+║    Valor atual por uso: ~${healAmount} HP
 ║ ⚡ Poção de Energia: ${c.potionEnergy || 0}
 ║ 💪 Tônico de Força: ${c.tonicStrength || 0}
 ║ 🛡️ Tônico de Defesa: ${c.tonicDefense || 0}
@@ -517,21 +520,27 @@ async function handleUsePotionOutside(ctx, type) {
     const player = normalizePlayerState(await getPlayer(ctx.from.id));
 
     if (type === 'hp') {
+        if (player.hp >= player.maxHp) {
+            return safeAnswer(ctx, '❤️ Seu HP já está cheio.', { show_alert: true });
+        }
+
         const consumeResult = consumeConsumable(player, 'potionHp', 1);
         if (!consumeResult.success) {
             return safeAnswer(ctx, '❌ Você não tem poções de vida.', { show_alert: true });
         }
 
-        if (player.hp >= player.maxHp) {
-            player.consumables.potionHp += 1;
-            return safeAnswer(ctx, '❤️ Seu HP já está cheio.', { show_alert: true });
-        }
+        const heal = Math.max(40, Math.floor(player.maxHp * 0.8));
+        const beforeHp = player.hp;
+        player.hp = Math.min(player.maxHp, player.hp + heal);
 
-        restoreFullHp(player);
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
-        await safeAnswer(ctx, `🧪 Poção de Vida usada! HP restaurado para ${player.maxHp}.`, { show_alert: true });
+        await safeAnswer(
+            ctx,
+            `🧪 Poção de Vida usada! Você recuperou ${player.hp - beforeHp} HP.`,
+            { show_alert: true }
+        );
         return handleInvConsumables(ctx);
     }
 
