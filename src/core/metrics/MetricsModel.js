@@ -8,44 +8,57 @@ function buildDateKey(date = new Date()) {
     return `${year}-${month}-${day}`;
 }
 
+const countersSchema = new mongoose.Schema(
+    {
+        playersCreated: { type: Number, default: 0 },
+        menuLoads: { type: Number, default: 0 },
+
+        combatsStarted: { type: Number, default: 0 },
+        combatsWon: { type: Number, default: 0 },
+        combatsLost: { type: Number, default: 0 },
+        combatsFled: { type: Number, default: 0 },
+
+        dungeonsStarted: { type: Number, default: 0 },
+        dungeonsCompleted: { type: Number, default: 0 },
+        dungeonsAbandoned: { type: Number, default: 0 },
+        dungeonRoomsCleared: { type: Number, default: 0 },
+
+        itemsDropped: { type: Number, default: 0 },
+        soulsDropped: { type: Number, default: 0 },
+        keysDropped: { type: Number, default: 0 },
+
+        consumablesUsed: { type: Number, default: 0 },
+
+        goldAwarded: { type: Number, default: 0 },
+        xpAwarded: { type: Number, default: 0 },
+
+        goldSpent: { type: Number, default: 0 },
+        noxSpent: { type: Number, default: 0 },
+        gloriasSpent: { type: Number, default: 0 },
+        itemsSold: { type: Number, default: 0 },
+        goldFromSales: { type: Number, default: 0 },
+        vipPurchases: { type: Number, default: 0 }
+    },
+    { _id: false }
+);
+
 const MetricsSchema = new mongoose.Schema(
     {
         dateKey: {
             type: String,
             required: true,
             unique: true,
-            default: () => buildDateKey()
+            default: buildDateKey,
+            set: (value) => {
+                if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+                    return value.trim();
+                }
+                return buildDateKey();
+            }
         },
-
         counters: {
-            playersCreated: { type: Number, default: 0 },
-            menuLoads: { type: Number, default: 0 },
-
-            combatsStarted: { type: Number, default: 0 },
-            combatsWon: { type: Number, default: 0 },
-            combatsLost: { type: Number, default: 0 },
-            combatsFled: { type: Number, default: 0 },
-
-            dungeonsStarted: { type: Number, default: 0 },
-            dungeonsCompleted: { type: Number, default: 0 },
-            dungeonsAbandoned: { type: Number, default: 0 },
-            dungeonRoomsCleared: { type: Number, default: 0 },
-
-            itemsDropped: { type: Number, default: 0 },
-            soulsDropped: { type: Number, default: 0 },
-            keysDropped: { type: Number, default: 0 },
-
-            consumablesUsed: { type: Number, default: 0 },
-
-            goldAwarded: { type: Number, default: 0 },
-            xpAwarded: { type: Number, default: 0 },
-
-            goldSpent: { type: Number, default: 0 },
-            noxSpent: { type: Number, default: 0 },
-            gloriasSpent: { type: Number, default: 0 },
-            itemsSold: { type: Number, default: 0 },
-            goldFromSales: { type: Number, default: 0 },
-            vipPurchases: { type: Number, default: 0 }
+            type: countersSchema,
+            default: () => ({})
         }
     },
     {
@@ -53,6 +66,18 @@ const MetricsSchema = new mongoose.Schema(
         collection: 'metrics_daily'
     }
 );
+
+MetricsSchema.pre('validate', function metricsPreValidate(next) {
+    if (!this.dateKey || typeof this.dateKey !== 'string') {
+        this.dateKey = buildDateKey();
+    }
+
+    if (!this.counters || typeof this.counters !== 'object') {
+        this.counters = {};
+    }
+
+    next();
+});
 
 module.exports =
     mongoose.models.MetricsDaily ||
