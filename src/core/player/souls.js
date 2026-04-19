@@ -127,15 +127,25 @@ const rarityWeights = {
 
 /*
 =================================
-PITY SYSTEM
+DROP SOURCES
+=================================
+- field_boss: boss de campo
+- dungeon_boss: boss de masmorra
+- world_boss: boss global
+- event_boss: boss de evento
 =================================
 */
 
-const pityLimits = {
+const SOUL_DROP_SOURCES = {
+    field_boss: 0.03,
+    dungeon_boss: 0.08,
+    world_boss: 0.15,
+    event_boss: 0.20
+};
+
+const PITY_RULES = {
     boostAt: 10,
-    epicAt: 16,
-    legendaryAt: 24,
-    mythicAt: 36
+    multiplier: 2
 };
 
 /*
@@ -163,7 +173,7 @@ function getRarityEmoji(rarity) {
     const map = {
         Raro: '🔵',
         Épico: '🟣',
-        Lendário: '🟡',
+        Lendário: '🟠',
         Mítico: '🔴'
     };
 
@@ -171,6 +181,8 @@ function getRarityEmoji(rarity) {
 }
 
 function weightedRandom(list) {
+    if (!Array.isArray(list) || !list.length) return null;
+
     const total = list.reduce((sum, soul) => sum + (rarityWeights[soul.rarity] || 1), 0);
     let roll = Math.random() * total;
 
@@ -179,64 +191,44 @@ function weightedRandom(list) {
         if (roll <= 0) return soul;
     }
 
-    return list[0];
+    return list[0] || null;
 }
 
 function getAvailableSoulsByLevel(playerLevel) {
-    return soulsList.filter(soul => soul.minLevel <= playerLevel);
+    const safeLevel = Math.max(1, Number(playerLevel) || 1);
+    return soulsList.filter(soul => soul.minLevel <= safeLevel);
 }
 
-function getGuaranteedSoulByPity(available, pityCounter) {
-    if (pityCounter >= pityLimits.mythicAt) {
-        const mythic = available.filter(s => s.rarity === 'Mítico');
-        if (mythic.length) return weightedRandom(mythic);
+function getSoulDropChance(source = 'field_boss', pityCounter = 0) {
+    let chance = SOUL_DROP_SOURCES[source] || 0;
+
+    if (source === 'field_boss' && pityCounter >= PITY_RULES.boostAt) {
+        chance *= PITY_RULES.multiplier;
     }
 
-    if (pityCounter >= pityLimits.legendaryAt) {
-        const legendary = available.filter(s => ['Lendário', 'Mítico'].includes(s.rarity));
-        if (legendary.length) return weightedRandom(legendary);
-    }
-
-    if (pityCounter >= pityLimits.epicAt) {
-        const epic = available.filter(s => ['Épico', 'Lendário', 'Mítico'].includes(s.rarity));
-        if (epic.length) return weightedRandom(epic);
-    }
-
-    return null;
+    return Math.min(1, chance);
 }
 
-function getSoulDropChanceByEnemy(enemy, pityCounter = 0) {
-    let chance = 0;
-
-    if (enemy?.isBoss) chance = 0.03;
-    else if (enemy?.isMiniBoss) chance = 0.012;
-    else if (enemy?.isElite) chance = 0.004;
-    else chance = 0;
-
-    if (enemy?.isBoss && pityCounter >= pityLimits.boostAt) {
-        chance *= 2;
-    }
-
-    return Math.min(0.25, chance);
-}
-
-function resolveSoulDrop({ playerLevel, enemy, pityCounter = 0 }) {
+function resolveSoulDrop({ playerLevel, enemy, source = 'field_boss' }) {
     const available = getAvailableSoulsByLevel(playerLevel);
     if (!available.length) return null;
 
-    const guaranteedByPity = getGuaranteedSoulByPity(available, pityCounter);
-    if (guaranteedByPity) {
-        return createSoulInstance(guaranteedByPity);
-    }
-
+    /*
+    Prioridade:
+    1) alma temática do boss/enemy, se existir
+    2) fallback ponderado por raridade dentro do nível
+    */
     if (enemy?.id) {
-        const bossSoul = available.find(soul => soul.bossId === enemy.id);
-        if (bossSoul && Math.random() <= 0.80) {
-            return createSoulInstance(bossSoul);
+        const themedSoul = available.find(soul => soul.bossId === enemy.id);
+        if (themedSoul) {
+            return createSoulInstance(themedSoul);
         }
     }
 
-    return createSoulInstance(weightedRandom(available));
+    const randomSoul = weightedRandom(available);
+    if (!randomSoul) return null;
+
+    return createSoulInstance(randomSoul);
 }
 
 function registerSoulPityFailure(player) {
@@ -256,24 +248,33 @@ FUSION
 */
 
 function fuseSouls(soulA, soulB) {
-    if (!soulA || !soulB) {
-        return null;
-    }
+    if (!soulA || !soulB) return null;
+    if (soulA.id !== soulB.id) return null;
 
-    if (soulA.id !== soulB.id) {
-        return null;
-    }
+    const newSoul = {
+        ...soulA,
+        awakenLevel: (soulA.awakenLevel || 0) + 1,
+        level: Math.max(soulA.level || 1, soulB.level || 1)
+    };
 
-    const newSoul = { ...soulA };
-    newSoul.awakenLevel = (soulA.awakenLevel || 0) + 1;
-    newSoul.level = Math.max(soulA.level, soulB.level);
-
-    if (newSoul.effect.multiplier) {
+    if (newSoul.effect?.multiplier) {
         newSoul.effect.multiplier = Number((newSoul.effect.multiplier + 0.10).toFixed(2));
     }
 
-    if (newSoul.effect.atkBonus) {
+    if (newSoul.effect?.atkBonus) {
         newSoul.effect.atkBonus += 5;
+    }
+
+    if (newSoul.effect?.defBonus) {
+        newSoul.effect.defBonus += 3;
+    }
+
+    if (newSoul.effect?.hpBonus) {
+        newSoul.effect.hpBonus += 10;
+    }
+
+    if (newSoul.effect?.critBonus) {
+        newSoul.effect.critBonus += 2;
     }
 
     return newSoul;
@@ -286,7 +287,7 @@ SHARDS
 */
 
 function dismantleSoul(soul) {
-    return soul.shardValue || 5;
+    return soul?.shardValue || 5;
 }
 
 /*
@@ -359,17 +360,30 @@ UPGRADE
 function levelUpSoul(soul, expGain = 1) {
     soul.exp = (soul.exp || 0) + expGain;
 
-    const needed = soul.level * 3;
+    const needed = Math.max(1, (soul.level || 1) * 3);
+
     if (soul.exp >= needed) {
         soul.exp -= needed;
-        soul.level++;
+        soul.level = (soul.level || 1) + 1;
 
-        if (soul.effect.multiplier) {
+        if (soul.effect?.multiplier) {
             soul.effect.multiplier = Number((soul.effect.multiplier + 0.05).toFixed(2));
         }
 
-        if (soul.effect.atkBonus) {
+        if (soul.effect?.atkBonus) {
             soul.effect.atkBonus += 2;
+        }
+
+        if (soul.effect?.defBonus) {
+            soul.effect.defBonus += 1;
+        }
+
+        if (soul.effect?.hpBonus) {
+            soul.effect.hpBonus += 4;
+        }
+
+        if (soul.effect?.critBonus) {
+            soul.effect.critBonus += 1;
         }
     }
 
@@ -378,9 +392,10 @@ function levelUpSoul(soul, expGain = 1) {
 
 module.exports = {
     soulsList,
-    pityLimits,
+    SOUL_DROP_SOURCES,
+    PITY_RULES,
     getSoulById,
-    getSoulDropChanceByEnemy,
+    getSoulDropChance,
     resolveSoulDrop,
     registerSoulPityFailure,
     resetSoulPity,
