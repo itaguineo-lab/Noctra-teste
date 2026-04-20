@@ -6,6 +6,7 @@ const { combatMenu, soulChoiceMenu, postCombatMenu } = require('../menus/combatM
 const { progressBar } = require('../utils/formatters');
 const { getRandomEnemy } = require('../core/world/enemies');
 const assets = require('../data/assets');
+const { BALANCE } = require('../data/balance');
 
 const {
     consumeEnergy,
@@ -198,7 +199,7 @@ function buildVictoryMessage(player, rewards) {
     const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
 
     let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `🏆 *VITÓRIA* \n`;
+    msg += `🏆 *VITÓRIA*\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
     msg += `🎖️ *${player.name}* • Nível ${player.level}\n\n`;
@@ -394,7 +395,7 @@ async function handleHunt(ctx) {
 
     updateEnergy(player);
 
-    if (player.energy < 1) {
+    if (player.energy < BALANCE.energy.huntCost) {
         return ctx.reply('⚡ Sem energia.');
     }
 
@@ -403,7 +404,7 @@ async function handleHunt(ctx) {
         return ctx.reply('❌ Nenhum inimigo neste mapa.');
     }
 
-    if (!consumeEnergy(player, 1)) {
+    if (!consumeEnergy(player, BALANCE.energy.huntCost)) {
         return ctx.reply('⚡ Sem energia.');
     }
 
@@ -618,21 +619,25 @@ async function handleUseConsumable(ctx) {
         let log = '';
 
         if (key === 'potionHp') {
-            const heal = Math.max(40, Math.floor(fight.player.maxHp * 0.8));
+            const healCfg = BALANCE.consumables.potionHp;
+            const heal = Math.max(
+                healCfg.minHealFlat,
+                Math.floor(fight.player.maxHp * healCfg.combatHealPercent)
+            );
             const before = fight.player.hp;
             fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
             log = `❤️ Você recuperou ${fight.player.hp - before} HP com poção.`;
         } else if (key === 'potionEnergy') {
             const before = player.energy;
-            restoreEnergy(player, 1);
+            restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
             fight.player.energy = player.energy;
             log = `⚡ Energia +${player.energy - before} com poção.`;
         } else if (key === 'tonicStrength') {
-            fight.player.atk += 10;
-            log = '💪 ATK +10 para esta batalha.';
+            fight.player.atk += BALANCE.consumables.tonicStrength.atkBonus;
+            log = `💪 ATK +${BALANCE.consumables.tonicStrength.atkBonus} para esta batalha.`;
         } else if (key === 'tonicDefense') {
-            fight.player.def += 10;
-            log = '🛡️ DEF +10 para esta batalha.';
+            fight.player.def += BALANCE.consumables.tonicDefense.defBonus;
+            log = `🛡️ DEF +${BALANCE.consumables.tonicDefense.defBonus} para esta batalha.`;
         } else {
             fight.logs.push('❌ Consumível inválido.');
             return { success: false };
