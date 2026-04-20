@@ -1,4 +1,4 @@
-const { getPlayer, savePlayer } = require('../player/playerService');
+const { getPlayerCollection } = require('../player/playerService');
 
 const DEFAULT_ARENA_TIMEOUT = 10 * 60 * 1000;
 
@@ -21,14 +21,33 @@ function isArenaBattleExpired(record) {
     return Date.now() > expiresAt;
 }
 
-async function saveActiveArenaBattle(userId, battle, metadata = {}) {
-    const player = await getPlayer(userId);
-    if (!player) return null;
+async function loadArenaRecordDoc(userId) {
+    const collection = await getPlayerCollection();
+    return collection.findOne(
+        { id: String(userId) },
+        { projection: { activeArenaBattle: 1 } }
+    );
+}
 
+async function saveArenaRecord(userId, record) {
+    const collection = await getPlayerCollection();
+    await collection.updateOne(
+        { id: String(userId) },
+        {
+            $set: {
+                activeArenaBattle: record,
+                updatedAt: new Date()
+            }
+        }
+    );
+    return record;
+}
+
+async function saveActiveArenaBattle(userId, battle, metadata = {}) {
     const createdAt = metadata.createdAt || Date.now();
     const timeoutMs = metadata.timeoutMs || DEFAULT_ARENA_TIMEOUT;
 
-    player.activeArenaBattle = normalizeArenaRecord({
+    const record = normalizeArenaRecord({
         mode: 'arena',
         createdAt,
         expiresAt: createdAt + timeoutMs,
@@ -36,15 +55,14 @@ async function saveActiveArenaBattle(userId, battle, metadata = {}) {
         payload: battle
     });
 
-    await savePlayer(userId, player);
-    return player.activeArenaBattle;
+    return saveArenaRecord(userId, record);
 }
 
 async function loadActiveArenaBattle(userId) {
-    const player = await getPlayer(userId);
-    if (!player || !player.activeArenaBattle) return null;
+    const doc = await loadArenaRecordDoc(userId);
+    if (!doc?.activeArenaBattle) return null;
 
-    const record = normalizeArenaRecord(player.activeArenaBattle);
+    const record = normalizeArenaRecord(doc.activeArenaBattle);
     if (isArenaBattleExpired(record)) {
         await clearActiveArenaBattle(userId);
         return null;
@@ -54,14 +72,12 @@ async function loadActiveArenaBattle(userId) {
 }
 
 async function updateActiveArenaBattle(userId, battle, metadata = {}) {
-    const player = await getPlayer(userId);
-    if (!player) return null;
-
-    const existing = normalizeArenaRecord(player.activeArenaBattle || {});
+    const doc = await loadArenaRecordDoc(userId);
+    const existing = normalizeArenaRecord(doc?.activeArenaBattle || {});
     const createdAt = existing?.createdAt || metadata.createdAt || Date.now();
     const timeoutMs = metadata.timeoutMs || DEFAULT_ARENA_TIMEOUT;
 
-    player.activeArenaBattle = normalizeArenaRecord({
+    const record = normalizeArenaRecord({
         mode: 'arena',
         createdAt,
         expiresAt: createdAt + timeoutMs,
@@ -69,27 +85,28 @@ async function updateActiveArenaBattle(userId, battle, metadata = {}) {
         payload: battle
     });
 
-    await savePlayer(userId, player);
-    return player.activeArenaBattle;
+    return saveArenaRecord(userId, record);
 }
 
 async function updateArenaMessageMetadata(userId, messageId) {
-    const player = await getPlayer(userId);
-    if (!player || !player.activeArenaBattle) return null;
+    const doc = await loadArenaRecordDoc(userId);
+    if (!doc?.activeArenaBattle) return null;
 
-    player.activeArenaBattle = normalizeArenaRecord(player.activeArenaBattle);
-    player.activeArenaBattle.messageId = messageId ?? null;
+    const record = normalizeArenaRecord(doc.activeArenaBattle);
+    record.messageId = messageId ?? null;
 
-    await savePlayer(userId, player);
-    return player.activeArenaBattle;
+    return saveArenaRecord(userId, record);
 }
 
 async function clearActiveArenaBattle(userId) {
-    const player = await getPlayer(userId);
-    if (!player) return null;
-
-    player.activeArenaBattle = null;
-    await savePlayer(userId, player);
+    const collection = await getPlayerCollection();
+    await collection.updateOne(
+        { id: String(userId) },
+        {
+            $unset: { activeArenaBattle: '' },
+            $set: { updatedAt: new Date() }
+        }
+    );
     return true;
 }
 
