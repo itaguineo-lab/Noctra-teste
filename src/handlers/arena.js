@@ -3,7 +3,8 @@ const { Markup } = require('telegraf');
 const {
     getPlayer,
     savePlayer,
-    getAllPlayers
+    getAllPlayers,
+    getPlayerCollection
 } = require('../core/player/playerService');
 
 const {
@@ -50,6 +51,46 @@ const {
 
 const { BALANCE } = require('../data/balance');
 
+const ARENA_BATTLE_KEYBOARD = Markup.inlineKeyboard([
+    [
+        Markup.button.callback('⚔️ Atacar', 'arena_attack'),
+        Markup.button.callback('🛡️ Defender', 'arena_defend')
+    ],
+    [
+        Markup.button.callback('🧪 Consumíveis', 'arena_consumables'),
+        Markup.button.callback('🏳️ Fugir', 'arena_flee')
+    ],
+    [
+        Markup.button.callback('🏟️ Arena', 'arena')
+    ]
+]);
+
+const ARENA_HUB_KEYBOARD = Markup.inlineKeyboard([
+    [
+        Markup.button.callback('⚔️ Procurar Oponente', 'arena_fight')
+    ],
+    [
+        Markup.button.callback('🎁 Baús', 'arena_chests'),
+        Markup.button.callback('🏆 Ranking', 'arena_ranking')
+    ],
+    [
+        Markup.button.callback('🏪 Loja Arena', 'arena_shop')
+    ],
+    [
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]
+]);
+
+const ARENA_RESULT_KEYBOARD = Markup.inlineKeyboard([
+    [Markup.button.callback('⚔️ Lutar de novo', 'arena_fight')],
+    [
+        Markup.button.callback('🎁 Baús', 'arena_chests'),
+        Markup.button.callback('🏆 Ranking', 'arena_ranking')
+    ],
+    [Markup.button.callback('🏪 Loja Arena', 'arena_shop')],
+    [Markup.button.callback('🏠 Menu', 'menu')]
+]);
+
 /*
 =================================
 HELPERS
@@ -67,73 +108,25 @@ async function safeSend(ctx, text, options = {}) {
     });
 }
 
-function battleKeyboard() {
-    return Markup.inlineKeyboard([
-        [
-            Markup.button.callback('⚔️ Atacar', 'arena_attack'),
-            Markup.button.callback('🛡️ Defender', 'arena_defend')
-        ],
-        [
-            Markup.button.callback('🧪 Consumíveis', 'arena_consumables'),
-            Markup.button.callback('🏳️ Fugir', 'arena_flee')
-        ],
-        [
-            Markup.button.callback('🏟️ Arena', 'arena')
-        ]
-    ]);
-}
-
-function hubKeyboard() {
-    return Markup.inlineKeyboard([
-        [
-            Markup.button.callback('⚔️ Procurar Oponente', 'arena_fight')
-        ],
-        [
-            Markup.button.callback('🎁 Baús', 'arena_chests'),
-            Markup.button.callback('🏆 Ranking', 'arena_ranking')
-        ],
-        [
-            Markup.button.callback('🏪 Loja Arena', 'arena_shop')
-        ],
-        [
-            Markup.button.callback('🏠 Menu', 'menu')
-        ]
-    ]);
-}
-
 async function getBattle(userId) {
     return getStoredArenaBattle(userId);
 }
 
-async function persistBattleHp(playerId, stored) {
-    const player = await getPlayer(playerId);
-    if (!player || !stored?.battle) return null;
+async function persistBattleHp(playerId, battle) {
+    if (!battle?.player) return null;
 
-    ensureArenaState(player);
-
-    player.hp = Math.max(
-        1,
-        Math.min(
-            stored.battle.player.hp,
-            player.maxHp || stored.battle.player.hp
-        )
+    const collection = await getPlayerCollection();
+    await collection.updateOne(
+        { id: String(playerId) },
+        {
+            $set: {
+                hp: Math.max(1, Number(battle.player.hp || 1)),
+                updatedAt: new Date()
+            }
+        }
     );
 
-    normalizePlayerForSave(player);
-    await savePlayer(playerId, player);
-    return player;
-}
-
-function buildBattleResultKeyboard() {
-    return Markup.inlineKeyboard([
-        [Markup.button.callback('⚔️ Lutar de novo', 'arena_fight')],
-        [
-            Markup.button.callback('🎁 Baús', 'arena_chests'),
-            Markup.button.callback('🏆 Ranking', 'arena_ranking')
-        ],
-        [Markup.button.callback('🏪 Loja Arena', 'arena_shop')],
-        [Markup.button.callback('🏠 Menu', 'menu')]
-    ]);
+    return true;
 }
 
 function getArenaPotionHeal(maxHp) {
@@ -155,7 +148,7 @@ async function finishBattle(ctx, stored, resultType) {
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         await removeStoredArenaBattle(ctx.from.id);
-        return safeSend(ctx, '❌ Jogador não encontrado.', hubKeyboard());
+        return safeSend(ctx, '❌ Jogador não encontrado.', ARENA_HUB_KEYBOARD);
     }
 
     ensureArenaState(player);
@@ -171,7 +164,6 @@ async function finishBattle(ctx, stored, resultType) {
     );
 
     let summaryText = '';
-    const keyboard = buildBattleResultKeyboard();
 
     if (resultType === 'win') {
         updateMissionProgress(player, 'arena_win', 1);
@@ -228,7 +220,7 @@ async function finishBattle(ctx, stored, resultType) {
     await savePlayer(ctx.from.id, player);
     await removeStoredArenaBattle(ctx.from.id);
 
-    return safeSend(ctx, summaryText, keyboard);
+    return safeSend(ctx, summaryText, ARENA_RESULT_KEYBOARD);
 }
 
 /*
@@ -249,14 +241,14 @@ async function handleArena(ctx) {
 
     const stored = await getBattle(ctx.from.id);
     if (stored?.battle) {
-        return safeSend(ctx, buildArenaBattleText(stored.battle), battleKeyboard());
+        return safeSend(ctx, buildArenaBattleText(stored.battle), ARENA_BATTLE_KEYBOARD);
     }
 
     let hubText = buildArenaHubText(player);
     hubText += `\n\n🎯 *Objetivo*\n`;
     hubText += `Suba de liga, conquiste baús e acumule moedas da arena sem quebrar sua economia principal.`;
 
-    return safeSend(ctx, hubText, hubKeyboard());
+    return safeSend(ctx, hubText, ARENA_HUB_KEYBOARD);
 }
 
 /*
@@ -298,7 +290,7 @@ async function handleArenaFight(ctx) {
         `Você encontrou um novo adversário.\n\n` +
         buildArenaBattleText(battle);
 
-    const sent = await safeSend(ctx, introText, battleKeyboard());
+    const sent = await safeSend(ctx, introText, ARENA_BATTLE_KEYBOARD);
 
     if (sent?.message_id) {
         await persistArenaMessage(ctx.from.id, sent.message_id);
@@ -321,12 +313,12 @@ async function handleArenaAttack(ctx) {
         return handleArena(ctx);
     }
 
-    const updated = await runArenaAttack(ctx.from.id);
+    const updated = await runArenaAttack(ctx.from.id, stored);
     if (!updated) {
         return handleArena(ctx);
     }
 
-    await persistBattleHp(ctx.from.id, updated);
+    await persistBattleHp(ctx.from.id, updated.battle);
 
     if (updated.battle.status === 'win') {
         return finishBattle(ctx, updated, 'win');
@@ -336,7 +328,7 @@ async function handleArenaAttack(ctx) {
         return finishBattle(ctx, updated, 'loss');
     }
 
-    return safeSend(ctx, buildArenaBattleText(updated.battle), battleKeyboard());
+    return safeSend(ctx, buildArenaBattleText(updated.battle), ARENA_BATTLE_KEYBOARD);
 }
 
 /*
@@ -353,18 +345,18 @@ async function handleArenaDefend(ctx) {
         return handleArena(ctx);
     }
 
-    const updated = await runArenaDefend(ctx.from.id);
+    const updated = await runArenaDefend(ctx.from.id, stored);
     if (!updated) {
         return handleArena(ctx);
     }
 
-    await persistBattleHp(ctx.from.id, updated);
+    await persistBattleHp(ctx.from.id, updated.battle);
 
     if (updated.battle.status === 'loss') {
         return finishBattle(ctx, updated, 'loss');
     }
 
-    return safeSend(ctx, buildArenaBattleText(updated.battle), battleKeyboard());
+    return safeSend(ctx, buildArenaBattleText(updated.battle), ARENA_BATTLE_KEYBOARD);
 }
 
 /*
@@ -381,7 +373,7 @@ async function handleArenaFlee(ctx) {
         return handleArena(ctx);
     }
 
-    const updated = await runArenaFlee(ctx.from.id);
+    const updated = await runArenaFlee(ctx.from.id, stored);
     if (!updated) {
         return handleArena(ctx);
     }
@@ -465,17 +457,17 @@ async function handleArenaUseConsumable(ctx) {
             battle.player.def += defBonus;
             battle.logs.push(`🛡️ ${BALANCE.consumables.tonicDefense.label}: DEF +${defBonus}.`);
         }
-    });
+    }, stored);
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    await persistBattleHp(ctx.from.id, updated);
+    await persistBattleHp(ctx.from.id, updated.battle);
 
     if (updated.battle.status === 'loss') {
         return finishBattle(ctx, updated, 'loss');
     }
 
-    return safeSend(ctx, buildArenaBattleText(updated.battle), battleKeyboard());
+    return safeSend(ctx, buildArenaBattleText(updated.battle), ARENA_BATTLE_KEYBOARD);
 }
 
 /*
@@ -558,7 +550,7 @@ async function handleArenaOpenChest(ctx) {
 
     msg += `\nRecompensas coletadas com sucesso.`;
 
-    return safeSend(ctx, msg, hubKeyboard());
+    return safeSend(ctx, msg, ARENA_HUB_KEYBOARD);
 }
 
 /*
@@ -570,11 +562,11 @@ RANKING
 async function handleArenaRanking(ctx) {
     await safeAnswer(ctx);
 
-    const playersMap = await getAllPlayers();
-    let text = buildArenaLeaderboardText(playersMap);
+    const players = await getAllPlayers();
+    let text = buildArenaLeaderboardText(players);
     text += `\n\n🏆 *Ranking Competitivo*\nSuba de liga, vença mais e dispute prestígio real.`;
 
-    return safeSend(ctx, text, hubKeyboard());
+    return safeSend(ctx, text, ARENA_HUB_KEYBOARD);
 }
 
 module.exports = {
