@@ -1,3 +1,5 @@
+const { BALANCE } = require('./balance');
+
 const arenaShopItems = [
     /*
     =================================
@@ -7,30 +9,30 @@ const arenaShopItems = [
 
     {
         id: 'arena_hp_potion',
-        name: 'Poção de Vida Arena',
+        name: `${BALANCE.consumables.potionHp.label} Arena`,
         type: 'consumable',
         effect: 'potionHp',
         value: 1,
         price: 25,
-        description: 'Recupera HP em batalhas decisivas.'
+        description: `Recupera HP com força moderada, sem quebrar o competitivo.`
     },
     {
         id: 'arena_strength_tonic',
-        name: 'Tônico de Força Arena',
+        name: `${BALANCE.consumables.tonicStrength.label} Arena`,
         type: 'consumable',
         effect: 'tonicStrength',
         value: 1,
         price: 40,
-        description: '+ATK para confrontos competitivos.'
+        description: `Bônus tático de ATK inspirado no tuning competitivo.`
     },
     {
         id: 'arena_defense_tonic',
-        name: 'Tônico de Defesa Arena',
+        name: `${BALANCE.consumables.tonicDefense.label} Arena`,
         type: 'consumable',
         effect: 'tonicDefense',
         value: 1,
         price: 40,
-        description: '+DEF para sobrevivência na arena.'
+        description: `Bônus tático de DEF inspirado no tuning competitivo.`
     },
 
     /*
@@ -45,15 +47,7 @@ const arenaShopItems = [
         type: 'energy',
         value: 5,
         price: 60,
-        description: '+5 energia instantânea.'
-    },
-    {
-        id: 'arena_key',
-        name: 'Chave da Arena',
-        type: 'key',
-        value: 1,
-        price: 95,
-        description: 'Recurso raro convertido do mérito competitivo.'
+        description: 'Recupera 5 de energia instantaneamente.'
     },
 
     /*
@@ -90,6 +84,16 @@ const arenaShopItems = [
         description: 'Cosmético exclusivo para os mais consistentes.'
     }
 ];
+
+/*
+=================================
+DECISÃO DE PRODUTO
+=================================
+- chave foi removida da loja da arena
+- arena não deve virar atalho lateral para dungeon
+- arena serve prestígio, baús, moeda competitiva e tático moderado
+=================================
+*/
 
 module.exports = {
     arenaShopItems
