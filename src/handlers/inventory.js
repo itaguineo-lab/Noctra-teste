@@ -37,6 +37,8 @@ const {
     safeAnswer
 } = require('../utils/uiNavigator');
 
+const { BALANCE, getRarityEmoji } = require('../data/balance');
+
 const PAGE_SIZE = 5;
 
 const CATEGORY_CONFIG = {
@@ -46,15 +48,6 @@ const CATEGORY_CONFIG = {
     necklaces: { title: '📿 Amuletos', slots: ['necklace'] },
     rings: { title: '💍 Anéis', slots: ['ring'] },
     boots: { title: '👢 Botas', slots: ['boots'] }
-};
-
-const RARITY_BADGES = {
-    Comum: '⚪',
-    Incomum: '🟢',
-    Raro: '🔵',
-    Épico: '🟣',
-    Lendário: '🟠',
-    Mítico: '🔴'
 };
 
 /*
@@ -201,7 +194,7 @@ function formatDelta(delta) {
 
 function formatItemBlock(item, player = null) {
     const equipped = Boolean(item.__equipped);
-    const rarityBadge = RARITY_BADGES[item.rarity] || '⚪';
+    const rarityBadge = getRarityEmoji(item.rarity);
     const level = item.level ? ` [Lv${item.level}]` : '';
     const power = calcItemPower(item);
     const tier = item.powerTier || getPowerTier(power);
@@ -238,7 +231,7 @@ INVENTORY DATA
 
 function renderInventoryHeader(player) {
     const inventory = player.inventory || [];
-    const maxInv = player.maxInventory || 20;
+    const maxInv = player.maxInventory || BALANCE.inventory.baseMax;
 
     const weapon = escapeMarkdown(player.equipment?.weapon?.name || '—');
     const shield = escapeMarkdown(player.equipment?.shield?.name || '—');
@@ -399,13 +392,17 @@ async function renderInventory(ctx, category = null, page = 1) {
 
 function buildConsumablesText(player) {
     const c = player.consumables || {};
-    const healAmount = Math.max(40, Math.floor((player.maxHp || 0) * 0.8));
+    const healCfg = BALANCE.consumables.potionHp;
+    const healAmount = Math.max(
+        healCfg.minHealFlat,
+        Math.floor((player.maxHp || 0) * healCfg.outsideCombatHealPercent)
+    );
 
     return `╔══════════════════════════════════╗
 ║            🧪 *CONSUMÍVEIS*          ║
 ╠══════════════════════════════════╣
 ║ ❤️ Poção de HP: ${c.potionHp || 0}
-║    Cura: até 80% do HP máximo
+║    Cura: até ${Math.round(healCfg.outsideCombatHealPercent * 100)}% do HP máximo
 ║    Valor atual por uso: ~${healAmount} HP
 ║ ⚡ Poção de Energia: ${c.potionEnergy || 0}
 ║ 💪 Tônico de Força: ${c.tonicStrength || 0}
@@ -570,7 +567,12 @@ async function handleUsePotionOutside(ctx, type) {
             return safeAnswer(ctx, '❌ Você não tem poções de vida.', { show_alert: true });
         }
 
-        const heal = Math.max(40, Math.floor(player.maxHp * 0.8));
+        const healCfg = BALANCE.consumables.potionHp;
+        const heal = Math.max(
+            healCfg.minHealFlat,
+            Math.floor(player.maxHp * healCfg.outsideCombatHealPercent)
+        );
+
         const beforeHp = player.hp;
         player.hp = Math.min(player.maxHp, player.hp + heal);
 
@@ -593,15 +595,17 @@ async function handleUsePotionOutside(ctx, type) {
 
         applyBuff(player, {
             type: 'strength',
-            atk: 10,
-            expiresAt: Date.now() + 30 * 60 * 1000
+            atk: BALANCE.consumables.tonicStrength.atkBonus,
+            expiresAt: Date.now() + (BALANCE.consumables.tonicStrength.durationMinutes * 60 * 1000)
         });
 
         await saveNormalizedPlayer(ctx, player);
 
-        await safeAnswer(ctx, '💪 Tônico de Força usado! +10 ATK por 30 minutos.', {
-            show_alert: true
-        });
+        await safeAnswer(
+            ctx,
+            `💪 Tônico de Força usado! +${BALANCE.consumables.tonicStrength.atkBonus} ATK por ${BALANCE.consumables.tonicStrength.durationMinutes} minutos.`,
+            { show_alert: true }
+        );
 
         return handleInvConsumables(ctx);
     }
@@ -614,15 +618,17 @@ async function handleUsePotionOutside(ctx, type) {
 
         applyBuff(player, {
             type: 'defense',
-            def: 10,
-            expiresAt: Date.now() + 30 * 60 * 1000
+            def: BALANCE.consumables.tonicDefense.defBonus,
+            expiresAt: Date.now() + (BALANCE.consumables.tonicDefense.durationMinutes * 60 * 1000)
         });
 
         await saveNormalizedPlayer(ctx, player);
 
-        await safeAnswer(ctx, '🛡️ Tônico de Defesa usado! +10 DEF por 30 minutos.', {
-            show_alert: true
-        });
+        await safeAnswer(
+            ctx,
+            `🛡️ Tônico de Defesa usado! +${BALANCE.consumables.tonicDefense.defBonus} DEF por ${BALANCE.consumables.tonicDefense.durationMinutes} minutos.`,
+            { show_alert: true }
+        );
 
         return handleInvConsumables(ctx);
     }
