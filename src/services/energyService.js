@@ -1,3 +1,5 @@
+const { BALANCE } = require('../data/balance');
+
 function toTimestamp(value, fallback = Date.now()) {
     if (value instanceof Date) return value.getTime();
 
@@ -10,13 +12,18 @@ function toTimestamp(value, fallback = Date.now()) {
     return fallback;
 }
 
+function getExpectedMaxEnergy(player) {
+    return player?.vip
+        ? BALANCE.energy.vipMax
+        : BALANCE.energy.baseMax;
+}
+
 function ensureEnergyFields(player) {
     if (!player || typeof player !== 'object') {
         throw new Error('Player inválido.');
     }
 
-    const vip = Boolean(player.vip);
-    const expectedMaxEnergy = vip ? 40 : 20;
+    const expectedMaxEnergy = getExpectedMaxEnergy(player);
 
     if (!Number.isFinite(Number(player.maxEnergy)) || Number(player.maxEnergy) <= 0) {
         player.maxEnergy = expectedMaxEnergy;
@@ -46,14 +53,17 @@ function ensureEnergyFields(player) {
 /*
 =================================
 INTERVALO DE REGENERAÇÃO
-Normal: 10 minutos
-VIP: 8 minutos
 =================================
 */
 
 function getRegenInterval(player) {
     ensureEnergyFields(player);
-    return player.vip ? 8 * 60 * 1000 : 10 * 60 * 1000;
+
+    const minutes = player.vip
+        ? BALANCE.energy.vipRegenMinutes
+        : BALANCE.energy.baseRegenMinutes;
+
+    return minutes * 60 * 1000;
 }
 
 /*
@@ -65,7 +75,7 @@ SINCRONIZA CAPACIDADE DE ENERGIA
 function syncEnergyCapacity(player, options = {}) {
     ensureEnergyFields(player);
 
-    const expectedMaxEnergy = player.vip ? 40 : 20;
+    const expectedMaxEnergy = getExpectedMaxEnergy(player);
     const oldMaxEnergy = Number(player.maxEnergy) || expectedMaxEnergy;
 
     if (oldMaxEnergy === expectedMaxEnergy) {
