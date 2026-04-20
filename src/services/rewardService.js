@@ -22,6 +22,17 @@ const {
     recordDropMetrics
 } = require('../core/metrics/metricsService');
 
+const { BALANCE } = require('../data/balance');
+
+const MAP_NUMBERS = {
+    clareira_sombria: 1,
+    cripta_em_ruinas: 2,
+    pantano_corrompido: 3,
+    deserto_incandescente: 4,
+    citadela_lunar: 5,
+    abismo_noctra: 6
+};
+
 /*
 =================================
 MAPA
@@ -29,15 +40,7 @@ MAPA
 */
 
 function getMapNumber(mapName) {
-    const maps = {
-        clareira_sombria: 1,
-        cripta_em_ruinas: 2,
-        pantano_corrompido: 3,
-        deserto_incandescente: 4,
-        citadela_lunar: 5,
-        abismo_noctra: 6
-    };
-    return maps[mapName] || 1;
+    return MAP_NUMBERS[mapName] || 1;
 }
 
 /*
@@ -87,7 +90,9 @@ function ensureRewardState(player) {
     player.soulPityCounter ??= 0;
     player.keys ??= 0;
     player.gold ??= 0;
-    player.maxInventory ??= 20;
+    player.maxInventory ??= player.vip
+        ? BALANCE.inventory.vipMax
+        : BALANCE.inventory.baseMax;
     player.currentMap ??= 'clareira_sombria';
     player.level ??= 1;
     player.vip ??= false;
@@ -104,13 +109,9 @@ function buildRewardBase(player, enemy) {
     let baseXp = Math.max(1, Number(enemy?.xp || 0));
     let baseGold = Math.max(1, Number(enemy?.gold || 0));
 
-    /*
-    VIP ajuda de forma moderada.
-    QoL e aceleração leve, não distorção.
-    */
     if (player.vip) {
-        baseXp = Math.floor(baseXp * 1.10);
-        baseGold = Math.floor(baseGold * 1.10);
+        baseXp = Math.floor(baseXp * (BALANCE.vip.xpMultiplier || 1));
+        baseGold = Math.floor(baseGold * (BALANCE.vip.goldMultiplier || 1));
     }
 
     return {
@@ -130,7 +131,7 @@ CHAVE
 
 function tryDropKey(player, enemy, loot, options = {}) {
     const isFieldBoss = Boolean(enemy?.isBoss) && !options.isDungeonBoss && !options.isWorldBoss && !options.isEventBoss;
-    const chance = isFieldBoss ? 0.05 : 0;
+    const chance = isFieldBoss ? (BALANCE.dungeon.fieldBossKeyDropChance || 0) : 0;
 
     const dropped = Math.random() < chance;
 
@@ -256,6 +257,12 @@ function tryDropSoul(player, enemy, loot, options = {}) {
     };
 }
 
+function recordVictoryMetricsAsync(payload) {
+    recordDropMetrics(payload).catch(error => {
+        console.error('⚠️ recordDropMetrics falhou:', error);
+    });
+}
+
 /*
 =================================
 PROCESSAMENTO DE RECOMPENSAS
@@ -282,7 +289,7 @@ async function processVictory(player, enemy, options = {}) {
 
     normalizePlayerForSave(player);
 
-    await recordDropMetrics({
+    recordVictoryMetricsAsync({
         items: itemResult.droppedItem ? 1 : 0,
         souls: soulResult.soulDropped ? 1 : 0,
         keys: keyDropped ? 1 : 0,
