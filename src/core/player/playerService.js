@@ -282,6 +282,50 @@ async function connectToMongo() {
 
 /*
 =================================
+CREATE PLAYER
+=================================
+*/
+
+async function createPlayer(id, name, className) {
+    const safeId = String(id);
+    const safeName = String(name || '').trim();
+    const safeClass = String(className || '').trim();
+
+    const allowedClasses = ['guerreiro', 'arqueiro', 'mago'];
+
+    if (!safeName || safeName.length < 3 || safeName.length > 20) {
+        throw new Error('Nome inválido.');
+    }
+
+    if (!allowedClasses.includes(safeClass)) {
+        throw new Error('Classe inválida.');
+    }
+
+    const existing = await Player.findOne({ id: safeId });
+    if (existing) {
+        ensurePlayerState(existing);
+        updateEnergy(existing);
+        recalculateStats(existing);
+        return existing;
+    }
+
+    const player = new Player({
+        id: safeId,
+        name: safeName,
+        class: safeClass
+    });
+
+    ensurePlayerState(player);
+    recalculateStats(player);
+    player.hp = player.maxHp;
+    player.energy = player.maxEnergy;
+
+    await player.save();
+    return player;
+}
+
+/*
+=================================
 GET / SAVE
 =================================
 */
@@ -333,11 +377,27 @@ async function getPlayerCollection() {
     return mongoose.connection.collection('players');
 }
 
+async function getAllPlayers() {
+    const players = await Player.find({});
+    const map = new Map();
+
+    for (const player of players) {
+        ensurePlayerState(player);
+        updateEnergy(player);
+        recalculateStats(player);
+        map.set(String(player.id), player);
+    }
+
+    return map;
+}
+
 module.exports = {
     connectToMongo,
+    createPlayer,
     getPlayer,
     savePlayer,
     getPlayerCollection,
+    getAllPlayers,
     ensurePlayerState,
     recalculateStats,
     updateBuffs,
