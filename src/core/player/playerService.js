@@ -270,9 +270,9 @@ MONGO
 async function connectToMongo() {
     if (isConnected) return;
 
-    const mongoUri = process.env.MONGO_URI;
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
     if (!mongoUri) {
-        throw new Error('MONGO_URI não configurado.');
+        throw new Error('MONGODB_URI/MONGO_URI não configurado.');
     }
 
     await mongoose.connect(mongoUri);
