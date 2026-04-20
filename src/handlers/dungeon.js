@@ -1,6 +1,7 @@
 const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { calculateDamage } = require('../core/combat/damageCalc');
+const { BALANCE } = require('../data/balance');
 
 const {
     applyHeal,
@@ -213,7 +214,7 @@ function buildDungeonKeyboard(player) {
 
     if (!d.active || d.completed || d.aborted) {
         return Markup.inlineKeyboard([
-            [Markup.button.callback('⚔️ Nova expedição (1🗝️)', 'dungeon_start')],
+            [Markup.button.callback(`⚔️ Nova expedição (${BALANCE.energy.dungeonEntryKeyCost}🗝️)`, 'dungeon_start')],
             [Markup.button.callback('🏠 Menu', 'menu')]
         ]);
     }
@@ -281,14 +282,16 @@ async function handleDungeonStart(ctx) {
         return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
 
-    if (!player.keys || player.keys < 1) {
-        await safeAnswer(ctx, '❌ Você precisa de 1 Chave de Masmorra para entrar.', {
+    const keyCost = BALANCE.energy.dungeonEntryKeyCost;
+
+    if (!player.keys || player.keys < keyCost) {
+        await safeAnswer(ctx, `❌ Você precisa de ${keyCost} Chave de Masmorra para entrar.`, {
             show_alert: true
         });
         return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
-    player.keys -= 1;
+    player.keys -= keyCost;
     startDungeonRun(player);
 
     normalizePlayerForSave(player);
@@ -449,11 +452,11 @@ async function handleDungeonFlee(ctx) {
         ]
     };
 
-    /*
-    REGRA OFICIAL:
-    dungeon consome chave, não energia.
-    Portanto fugir NÃO consome energia adicional.
-    */
+    if (BALANCE.dungeon.fleeConsumesEnergy) {
+        // hoje a regra oficial é false
+        // mantido apenas para permitir mudança central futura
+    }
+
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
     await recordDungeonAbandoned();
@@ -530,20 +533,24 @@ async function handleDungeonUseConsumable(ctx) {
     let log = '';
 
     if (key === 'potionHp') {
-        const heal = Math.max(20, Math.floor(player.maxHp * 0.35));
+        const healCfg = BALANCE.consumables.potionHp;
+        const heal = Math.max(
+            healCfg.dungeonMinHealFlat,
+            Math.floor(player.maxHp * healCfg.dungeonHealPercent)
+        );
         const before = player.hp;
         applyHeal(player, heal);
         log = `❤️ Poção restaurou ${player.hp - before} HP.`;
     } else if (key === 'potionEnergy') {
         const before = player.energy;
-        restoreEnergy(player, 1);
+        restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
         log = `⚡ Energia +${player.energy - before}.`;
     } else if (key === 'tonicStrength') {
-        d.combatBonus.atk += 8;
-        log = '💪 Bônus de expedição: ATK +8.';
+        d.combatBonus.atk += BALANCE.consumables.tonicStrength.dungeonAtkBonus;
+        log = `💪 Bônus de expedição: ATK +${BALANCE.consumables.tonicStrength.dungeonAtkBonus}.`;
     } else if (key === 'tonicDefense') {
-        d.combatBonus.def += 8;
-        log = '🛡️ Bônus de expedição: DEF +8.';
+        d.combatBonus.def += BALANCE.consumables.tonicDefense.dungeonDefBonus;
+        log = `🛡️ Bônus de expedição: DEF +${BALANCE.consumables.tonicDefense.dungeonDefBonus}.`;
     } else {
         return safeAnswer(ctx, '❌ Consumível inválido.', { show_alert: true });
     }
