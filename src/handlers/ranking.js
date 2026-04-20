@@ -47,8 +47,8 @@ async function handleRanking(ctx) {
     try {
         await safeAnswer(ctx);
 
-        const playersMap = await getAllPlayers();
-        const list = Object.values(playersMap || {})
+        const players = await getAllPlayers();
+        const list = players
             .filter(player => player && player.id)
             .map(player => ({
                 id: player.id,
