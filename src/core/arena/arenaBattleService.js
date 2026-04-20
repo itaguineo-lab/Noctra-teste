@@ -22,6 +22,20 @@ function buildArenaMeta(record) {
     };
 }
 
+async function resolveStoredArenaBattle(userId, storedOverride = null) {
+    if (storedOverride?.battle && storedOverride?.meta) {
+        return storedOverride;
+    }
+
+    const record = await loadActiveArenaBattle(userId);
+    if (!record) return null;
+
+    return {
+        battle: record.payload,
+        meta: buildArenaMeta(record)
+    };
+}
+
 async function createAndStoreArenaBattle(userId, playerSnapshot, enemySnapshot, startingHp) {
     const battle = createArenaBattle(playerSnapshot, enemySnapshot, startingHp);
     const createdAt = Date.now();
@@ -36,13 +50,7 @@ async function createAndStoreArenaBattle(userId, playerSnapshot, enemySnapshot, 
 }
 
 async function getStoredArenaBattle(userId) {
-    const record = await loadActiveArenaBattle(userId);
-    if (!record) return null;
-
-    return {
-        battle: record.payload,
-        meta: buildArenaMeta(record)
-    };
+    return resolveStoredArenaBattle(userId);
 }
 
 async function persistArenaBattle(userId, battle, meta = {}) {
@@ -61,8 +69,8 @@ async function removeStoredArenaBattle(userId) {
     await clearActiveArenaBattle(userId);
 }
 
-async function runArenaAttack(userId) {
-    const stored = await getStoredArenaBattle(userId);
+async function runArenaAttack(userId, storedOverride = null) {
+    const stored = await resolveStoredArenaBattle(userId, storedOverride);
     if (!stored) return null;
 
     const { battle, meta } = stored;
@@ -91,8 +99,8 @@ async function runArenaAttack(userId) {
     return { battle, meta };
 }
 
-async function runArenaDefend(userId) {
-    const stored = await getStoredArenaBattle(userId);
+async function runArenaDefend(userId, storedOverride = null) {
+    const stored = await resolveStoredArenaBattle(userId, storedOverride);
     if (!stored) return null;
 
     const { battle, meta } = stored;
@@ -111,8 +119,8 @@ async function runArenaDefend(userId) {
     return { battle, meta };
 }
 
-async function runArenaFlee(userId) {
-    const stored = await getStoredArenaBattle(userId);
+async function runArenaFlee(userId, storedOverride = null) {
+    const stored = await resolveStoredArenaBattle(userId, storedOverride);
     if (!stored) return null;
 
     const { battle, meta } = stored;
@@ -122,8 +130,8 @@ async function runArenaFlee(userId) {
     return { battle, meta };
 }
 
-async function runArenaConsumable(userId, mutator) {
-    const stored = await getStoredArenaBattle(userId);
+async function runArenaConsumable(userId, mutator, storedOverride = null) {
+    const stored = await resolveStoredArenaBattle(userId, storedOverride);
     if (!stored) return null;
 
     const { battle, meta } = stored;
