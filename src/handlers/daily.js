@@ -5,6 +5,7 @@ const {
 } = require('../core/player/playerService');
 
 const {
+    getTodayKey,
     ensureDailyMissionState,
     claimAllMissionRewards,
     renderDailyMissionsText,
@@ -27,13 +28,16 @@ HELPERS
 =================================
 */
 
-function getTodayKey() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
+const DAILY_KEYBOARD = Markup.inlineKeyboard([
+    [
+        Markup.button.callback('🎁 Baú Diário', 'daily_chest'),
+        Markup.button.callback('📜 Resgatar Missões', 'daily_claim_missions')
+    ],
+    [
+        Markup.button.callback('📦 Meus Baús', 'daily_chests'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]
+]);
 
 function getYesterdayKey() {
     const yesterday = new Date();
@@ -44,19 +48,6 @@ function getYesterdayKey() {
     const day = String(yesterday.getDate()).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
-}
-
-function dailyKeyboard() {
-    return Markup.inlineKeyboard([
-        [
-            Markup.button.callback('🎁 Baú Diário', 'daily_chest'),
-            Markup.button.callback('📜 Resgatar Missões', 'daily_claim_missions')
-        ],
-        [
-            Markup.button.callback('📦 Meus Baús', 'daily_chests'),
-            Markup.button.callback('🏠 Menu', 'menu')
-        ]
-    ]);
 }
 
 async function sendDailyScreen(ctx, text, options = {}) {
@@ -72,6 +63,16 @@ function getStreakTier(streak = 0) {
     if (streak >= 3) return '⭐ Consistente';
     if (streak >= 1) return '🔥 Em progresso';
     return '🌑 Inativo';
+}
+
+function ensureDailyHubState(player) {
+    const today = getTodayKey();
+    const hadState = !!player.dailyMissions;
+    const previousDate = player.dailyMissions?.dateKey || null;
+
+    ensureDailyMissionState(player);
+
+    return !hadState || previousDate !== today;
 }
 
 /*
@@ -155,10 +156,12 @@ async function handleDaily(ctx) {
             );
         }
 
-        ensureDailyMissionState(player);
-        await savePlayer(ctx.from.id, player);
+        const changed = ensureDailyHubState(player);
+        if (changed) {
+            await savePlayer(ctx.from.id, player);
+        }
 
-        return sendDailyScreen(ctx, renderDailyHub(player), dailyKeyboard());
+        return sendDailyScreen(ctx, renderDailyHub(player), DAILY_KEYBOARD);
     } catch (error) {
         console.error('Erro daily:', error);
         return safeAnswer(ctx, 'Erro ao abrir centro diário.', { show_alert: true });
@@ -208,7 +211,7 @@ async function handleDailyChest(ctx) {
 
         msg += `\nVolte amanhã para manter sua sequência ativa.`;
 
-        return sendDailyScreen(ctx, msg, dailyKeyboard());
+        return sendDailyScreen(ctx, msg, DAILY_KEYBOARD);
     } catch (error) {
         console.error('Erro daily chest:', error);
         return safeAnswer(ctx, 'Erro ao abrir baú.', { show_alert: true });
@@ -253,7 +256,7 @@ async function handleClaimMissionRewards(ctx) {
 
         msg += `\nContinue amanhã para manter o ritmo.`;
 
-        return sendDailyScreen(ctx, msg, dailyKeyboard());
+        return sendDailyScreen(ctx, msg, DAILY_KEYBOARD);
     } catch (error) {
         console.error('Erro mission rewards:', error);
         return safeAnswer(ctx, 'Erro ao resgatar recompensas.', { show_alert: true });
@@ -321,7 +324,7 @@ async function handleOpenTimedChest(ctx) {
 
         msg += `\nRecompensa coletada com sucesso.`;
 
-        return sendDailyScreen(ctx, msg, dailyKeyboard());
+        return sendDailyScreen(ctx, msg, DAILY_KEYBOARD);
     } catch (error) {
         console.error('Erro open timed chest:', error);
         return safeAnswer(ctx, 'Erro ao abrir baú.', { show_alert: true });
