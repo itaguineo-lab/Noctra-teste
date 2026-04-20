@@ -46,12 +46,24 @@ const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 const resetCommands = require('./src/commands/reset');
 const adminCommands = require('./src/commands/admin');
 
+function validateEnv() {
+    const requiredVars = ['BOT_TOKEN', 'MONGO_URI'];
+    const missing = requiredVars.filter((key) => !process.env[key]);
+
+    if (missing.length) {
+        throw new Error(`Variáveis obrigatórias ausentes: ${missing.join(', ')}`);
+    }
+}
+
+validateEnv();
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-let launched = false;
-const creationSessions = new Map();
+let handlersRegistered = false;
+let botStarted = false;
+let shuttingDown = false;
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const creationSessions = new Map();
 
 /*
 =================================
@@ -69,6 +81,7 @@ function bindCommand(name, handler) {
         console.log(`⚠️ Handler ausente para /${name}`);
         return;
     }
+
     bot.command(name, handler);
 }
 
@@ -77,6 +90,7 @@ function bindAction(pattern, handler) {
         console.log(`⚠️ Handler ausente para action: ${pattern}`);
         return;
     }
+
     bot.action(pattern, handler);
 }
 
@@ -153,7 +167,9 @@ async function finalizeCharacterCreation(ctx, userId, name, className) {
         console.error('Erro ao enviar menu após criação:', menuError);
         try {
             await ctx.reply('✅ Personagem criado. Use /start se o menu não aparecer.');
-        } catch {}
+        } catch {
+            // ignora
+        }
     }
 }
 
@@ -325,7 +341,10 @@ function registerCommands() {
         if (subCommand === 'gold') return adminCommands.handleGiveGold(ctx);
         if (subCommand === 'nox') return adminCommands.handleGiveNox(ctx);
         if (subCommand === 'item') return adminCommands.handleGiveItem(ctx);
-        return ctx.reply('📝 Uso: /give [xp|gold|nox|item] ID_ou_nome <quantidade>\nTambém funciona respondendo a mensagem do jogador.');
+
+        return ctx.reply(
+            '📝 Uso: /give [xp|gold|nox|item] ID_ou_nome <quantidade>\nTambém funciona respondendo a mensagem do jogador.'
+        );
     });
 
     bindCommand('ban', adminCommands.handleBan);
@@ -512,11 +531,14 @@ function registerPhotoCapture() {
 
 /*
 =================================
-BOOTSTRAP
+BOT REGISTRATION
 =================================
 */
 
 function registerBot() {
+    if (handlersRegistered) return;
+    handlersRegistered = true;
+
     registerPhotoCapture();
 
     registerCreationMiddleware();
@@ -543,20 +565,25 @@ BOT STARTUP
 */
 
 async function startBot() {
-    if (launched) return;
-    launched = true;
+    if (botStarted) {
+        console.log('ℹ️ Bot já está em execução.');
+        return;
+    }
 
     try {
         await bot.telegram.deleteWebhook({ drop_pending_updates: true });
         console.log('✅ Webhook removido');
 
-        await sleep(5000);
         await connectToMongo();
         console.log('✅ MongoDB conectado');
 
         await bot.launch({ dropPendingUpdates: true });
+        botStarted = true;
+
         console.log('🌑 NOCTRA ONLINE');
     } catch (err) {
+        botStarted = false;
+
         if (err?.response?.error_code === 409) {
             console.error('⚠️ Conflito temporário de polling (409). Outra instância ainda está encerrando.');
             return;
@@ -585,6 +612,32 @@ function startHttpServer() {
 
 /*
 =================================
+SHUTDOWN
+=================================
+*/
+
+async function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    console.log(`🛑 Recebido ${signal}. Encerrando aplicação...`);
+
+    try {
+        if (botStarted) {
+            await bot.stop(signal);
+            console.log('✅ Bot finalizado com sucesso');
+        } else {
+            console.log('ℹ️ Bot não estava em execução, encerrando sem stop');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao encerrar bot:', error);
+    } finally {
+        process.exit(0);
+    }
+}
+
+/*
+=================================
 START
 =================================
 */
@@ -593,5 +646,10 @@ registerBot();
 startHttpServer();
 startBot();
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => {
+    gracefulShutdown('SIGINT');
+});
+
+process.once('SIGTERM', () => {
+    gracefulShutdown('SIGTERM');
+});
