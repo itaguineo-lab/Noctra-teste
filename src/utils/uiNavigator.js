@@ -1,3 +1,30 @@
+function getTelegramErrorMessage(error) {
+    return String(
+        error?.description ||
+        error?.response?.description ||
+        error?.message ||
+        ''
+    ).toLowerCase();
+}
+
+function isMessageNotModified(error) {
+    const msg = getTelegramErrorMessage(error);
+    return msg.includes('message is not modified');
+}
+
+function shouldFallbackToReply(error) {
+    const msg = getTelegramErrorMessage(error);
+
+    return (
+        msg.includes('there is no text in the message to edit') ||
+        msg.includes("message can't be edited") ||
+        msg.includes('message to edit not found') ||
+        msg.includes('message identifier is not specified') ||
+        msg.includes('message media caption is too long') ||
+        msg.includes('wrong type of the web page content')
+    );
+}
+
 async function tryDeleteCurrentMessage(ctx) {
     try {
         if (ctx.callbackQuery?.message?.message_id) {
@@ -26,12 +53,18 @@ async function navigateText(ctx, text, options = {}) {
     if (ctx.callbackQuery?.message) {
         try {
             return await ctx.editMessageText(text, payload);
-        } catch {
-            const deleted = await tryDeleteCurrentMessage(ctx);
-            if (deleted) {
-                try {
-                    return await ctx.reply(text, payload);
-                } catch {}
+        } catch (error) {
+            if (isMessageNotModified(error)) {
+                return ctx.callbackQuery.message;
+            }
+
+            if (shouldFallbackToReply(error)) {
+                const deleted = await tryDeleteCurrentMessage(ctx);
+                if (deleted) {
+                    try {
+                        return await ctx.reply(text, payload);
+                    } catch {}
+                }
             }
         }
     }
@@ -65,17 +98,23 @@ async function navigatePhoto(ctx, media, caption, options = {}) {
                 }
             );
             return true;
-        } catch {
-            const deleted = await tryDeleteCurrentMessage(ctx);
-            if (deleted) {
-                try {
-                    await ctx.replyWithPhoto(media, {
-                        caption,
-                        parse_mode: 'Markdown',
-                        reply_markup: payload.reply_markup
-                    });
-                    return true;
-                } catch {}
+        } catch (error) {
+            if (isMessageNotModified(error)) {
+                return true;
+            }
+
+            if (shouldFallbackToReply(error)) {
+                const deleted = await tryDeleteCurrentMessage(ctx);
+                if (deleted) {
+                    try {
+                        await ctx.replyWithPhoto(media, {
+                            caption,
+                            parse_mode: 'Markdown',
+                            reply_markup: payload.reply_markup
+                        });
+                        return true;
+                    } catch {}
+                }
             }
         }
     }
