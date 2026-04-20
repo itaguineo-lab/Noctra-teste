@@ -6,6 +6,7 @@ const {
 } = require('../core/player/playerService');
 
 const { generateDrop } = require('../data/items');
+const { BALANCE } = require('../data/balance');
 
 const {
     addGold,
@@ -383,7 +384,7 @@ function renderFindPlayer(player) {
 🏅 Glórias: ${formatNumber(player.glorias)}
 🗝️ Chaves: ${formatNumber(player.keys)}
 
-🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || 20)}
+🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || BALANCE.inventory.baseMax)}
 💀 Almas no inventário: ${formatNumber((player.soulsInventory || []).length)}
 ✨ VIP: ${player.vip ? 'Sim' : 'Não'}
 ⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
@@ -413,7 +414,7 @@ function renderPlayerState(player) {
 🗝️ Chaves: ${formatNumber(player.keys)}
 
 *Inventário / Progressão*
-🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || 20)}
+🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || BALANCE.inventory.baseMax)}
 💀 Almas inventário: ${formatNumber((player.soulsInventory || []).length)}
 ☠️ Total de kills: ${formatNumber(player.totalKills)}
 📉 Soul pity: ${formatNumber(player.soulPityCounter)}
@@ -641,16 +642,16 @@ async function handleSetPlayer(ctx) {
             if (days === 0) {
                 player.vip = false;
                 player.vipExpires = null;
-                player.maxEnergy = 20;
-                player.maxInventory = 20;
-                player.energy = Math.min(player.energy || 20, 20);
+                player.maxEnergy = BALANCE.energy.baseMax;
+                player.maxInventory = BALANCE.inventory.baseMax;
+                player.energy = Math.min(player.energy || BALANCE.energy.baseMax, BALANCE.energy.baseMax);
             } else {
                 const now = Date.now();
                 player.vip = true;
                 player.vipExpires = new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
-                player.maxEnergy = 40;
-                player.maxInventory = Math.max(player.maxInventory || 20, 30);
-                player.energy = Math.min(player.energy || 40, player.maxEnergy);
+                player.maxEnergy = BALANCE.energy.vipMax;
+                player.maxInventory = Math.max(player.maxInventory || BALANCE.inventory.baseMax, BALANCE.inventory.vipMax);
+                player.energy = Math.min(player.energy || BALANCE.energy.vipMax, player.maxEnergy);
             }
         }
 
