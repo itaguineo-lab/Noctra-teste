@@ -1,4 +1,4 @@
-const { getPlayer, savePlayer } = require('../player/playerService');
+const { getPlayerCollection } = require('../player/playerService');
 
 const DEFAULT_FIGHT_TIMEOUT = 10 * 60 * 1000;
 
@@ -22,14 +22,33 @@ function isFightExpired(record) {
     return Date.now() > expiresAt;
 }
 
-async function saveActiveFight(userId, fight, metadata = {}) {
-    const player = await getPlayer(userId);
-    if (!player) return null;
+async function loadFightRecordDoc(userId) {
+    const collection = await getPlayerCollection();
+    return collection.findOne(
+        { id: String(userId) },
+        { projection: { activeFight: 1 } }
+    );
+}
 
+async function saveFightRecord(userId, record) {
+    const collection = await getPlayerCollection();
+    await collection.updateOne(
+        { id: String(userId) },
+        {
+            $set: {
+                activeFight: record,
+                updatedAt: new Date()
+            }
+        }
+    );
+    return record;
+}
+
+async function saveActiveFight(userId, fight, metadata = {}) {
     const createdAt = metadata.createdAt || Date.now();
     const timeoutMs = metadata.timeoutMs || DEFAULT_FIGHT_TIMEOUT;
 
-    player.activeFight = normalizeFightRecord({
+    const record = normalizeFightRecord({
         mode: metadata.mode || 'hunt',
         createdAt,
         expiresAt: createdAt + timeoutMs,
@@ -38,15 +57,14 @@ async function saveActiveFight(userId, fight, metadata = {}) {
         payload: fight
     });
 
-    await savePlayer(userId, player);
-    return player.activeFight;
+    return saveFightRecord(userId, record);
 }
 
 async function loadActiveFight(userId) {
-    const player = await getPlayer(userId);
-    if (!player || !player.activeFight) return null;
+    const doc = await loadFightRecordDoc(userId);
+    if (!doc?.activeFight) return null;
 
-    const record = normalizeFightRecord(player.activeFight);
+    const record = normalizeFightRecord(doc.activeFight);
     if (isFightExpired(record)) {
         await clearActiveFight(userId);
         return null;
@@ -56,14 +74,12 @@ async function loadActiveFight(userId) {
 }
 
 async function updateActiveFight(userId, fight, metadata = {}) {
-    const player = await getPlayer(userId);
-    if (!player) return null;
-
-    const existing = normalizeFightRecord(player.activeFight || {});
+    const doc = await loadFightRecordDoc(userId);
+    const existing = normalizeFightRecord(doc?.activeFight || {});
     const createdAt = existing?.createdAt || metadata.createdAt || Date.now();
     const timeoutMs = metadata.timeoutMs || DEFAULT_FIGHT_TIMEOUT;
 
-    player.activeFight = normalizeFightRecord({
+    const record = normalizeFightRecord({
         mode: metadata.mode || existing?.mode || 'hunt',
         createdAt,
         expiresAt: createdAt + timeoutMs,
@@ -72,28 +88,29 @@ async function updateActiveFight(userId, fight, metadata = {}) {
         payload: fight
     });
 
-    await savePlayer(userId, player);
-    return player.activeFight;
+    return saveFightRecord(userId, record);
 }
 
 async function updateFightMessageMetadata(userId, battleMessageId, isPhoto) {
-    const player = await getPlayer(userId);
-    if (!player || !player.activeFight) return null;
+    const doc = await loadFightRecordDoc(userId);
+    if (!doc?.activeFight) return null;
 
-    player.activeFight = normalizeFightRecord(player.activeFight);
-    player.activeFight.battleMessageId = battleMessageId ?? null;
-    player.activeFight.isPhoto = !!isPhoto;
+    const record = normalizeFightRecord(doc.activeFight);
+    record.battleMessageId = battleMessageId ?? null;
+    record.isPhoto = !!isPhoto;
 
-    await savePlayer(userId, player);
-    return player.activeFight;
+    return saveFightRecord(userId, record);
 }
 
 async function clearActiveFight(userId) {
-    const player = await getPlayer(userId);
-    if (!player) return null;
-
-    player.activeFight = null;
-    await savePlayer(userId, player);
+    const collection = await getPlayerCollection();
+    await collection.updateOne(
+        { id: String(userId) },
+        {
+            $unset: { activeFight: '' },
+            $set: { updatedAt: new Date() }
+        }
+    );
     return true;
 }
 
