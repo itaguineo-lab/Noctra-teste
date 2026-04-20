@@ -1,15 +1,18 @@
 const Player = require('./PlayerModel');
 const mongoose = require('mongoose');
+
 const { ensureCosmeticsState } = require('./cosmetics');
 const {
     preserveTransientStates,
     sanitizePlayerForPersistence
 } = require('./playerSaveGuard');
+
 const {
     ensureEnergyFields,
     syncEnergyCapacity,
     updateEnergy
 } = require('../../services/energyService');
+
 const { BALANCE } = require('../../data/balance');
 
 let isConnected = false;
@@ -27,6 +30,7 @@ function migrateItemSlot(item) {
     if (!originalSlot) return item;
 
     const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
     for (const validSlot of validSlots) {
         if (String(originalSlot).startsWith(validSlot) && originalSlot !== validSlot) {
             item.slot = validSlot;
@@ -92,6 +96,24 @@ function ensureActiveArenaBattleState(player) {
 
 /*
 =================================
+BALANCE HELPERS
+=================================
+*/
+
+function getBaseInventoryCapacity(player) {
+    return player.vip
+        ? BALANCE.inventory.vipMax
+        : BALANCE.inventory.baseMax;
+}
+
+function applyInventoryCapacity(player) {
+    player.bonusInventory ??= 0;
+    player.maxInventory = getBaseInventoryCapacity(player) + (player.bonusInventory || 0);
+    return player.maxInventory;
+}
+
+/*
+=================================
 ESTADO PADRÃO
 =================================
 */
@@ -120,9 +142,7 @@ function ensurePlayerState(player) {
     player.inventory ??= [];
     player.inventory = player.inventory.map(migrateItemSlot);
 
-    player.bonusInventory ??= 0;
-    const baseInventory = player.vip ? BALANCE.inventory.vipMax : BALANCE.inventory.baseMax;
-    player.maxInventory = baseInventory + (player.bonusInventory || 0);
+    applyInventoryCapacity(player);
 
     player.consumables ??= {
         potionHp: 0,
@@ -191,5 +211,135 @@ function recalculateStats(player) {
 
     ensurePlayerState(player);
     updateBuffs(player);
+    syncEnergyCapacity(player);
+    applyInventoryCapacity(player);
 
-    const currentHp
+    const currentHp = Math.max(1, Number(player.hp || 1));
+    const classBase = BASE_STATS[player.class] || BASE_STATS.guerreiro;
+    const level = Math.max(1, Number(player.level || 1));
+
+    let atk = classBase.atk + (level - 1) * 2;
+    let def = classBase.def + (level - 1);
+    let maxHp = classBase.hp + (level - 1) * 8;
+    let crit = classBase.crit + Math.floor((level - 1) * 0.5);
+
+    const eq = player.equipment || {};
+    for (const slot of Object.keys(eq)) {
+        const item = eq[slot];
+        if (!item) continue;
+
+        atk += Number(item.atk || 0);
+        def += Number(item.def || 0);
+        maxHp += Number(item.hp || 0);
+        crit += Number(item.crit || 0);
+    }
+
+    const buffs = Array.isArray(player.buffs) ? player.buffs : [];
+    for (const buff of buffs) {
+        atk += Number(buff.atk || 0);
+        def += Number(buff.def || 0);
+        maxHp += Number(buff.hp || 0);
+        crit += Number(buff.crit || 0);
+    }
+
+    const souls = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [];
+    for (const soul of souls) {
+        if (!soul?.effect || soul.effect.type !== 'passive') continue;
+
+        atk += Number(soul.effect.atkBonus || 0);
+        def += Number(soul.effect.defBonus || 0);
+        maxHp += Number(soul.effect.hpBonus || 0);
+        crit += Number(soul.effect.critBonus || 0);
+    }
+
+    player.atk = Math.max(1, Math.round(atk));
+    player.def = Math.max(0, Math.round(def));
+    player.maxHp = Math.max(1, Math.round(maxHp));
+    player.crit = Math.max(0, Math.round(crit));
+    player.hp = Math.max(1, Math.min(currentHp, player.maxHp));
+
+    return player;
+}
+
+/*
+=================================
+MONGO
+=================================
+*/
+
+async function connectToMongo() {
+    if (isConnected) return;
+
+    const mongoUri = process.env.MONGO_URI;
+    if (!mongoUri) {
+        throw new Error('MONGO_URI não configurado.');
+    }
+
+    await mongoose.connect(mongoUri);
+    isConnected = true;
+    console.log('✅ MongoDB conectado.');
+}
+
+/*
+=================================
+GET / SAVE
+=================================
+*/
+
+async function getPlayer(id) {
+    const player = await Player.findOne({ id: String(id) });
+    if (!player) return null;
+
+    ensurePlayerState(player);
+    updateEnergy(player);
+    recalculateStats(player);
+
+    return player;
+}
+
+async function savePlayer(id, playerData) {
+    const safeId = String(id);
+
+    const current = await Player.findOne({ id: safeId });
+    const transientState = preserveTransientStates(current, playerData);
+
+    ensurePlayerState(playerData);
+    updateBuffs(playerData);
+    updateEnergy(playerData);
+    recalculateStats(playerData);
+
+    playerData.updatedAt = new Date();
+
+    const sanitized = sanitizePlayerForPersistence({
+        ...playerData,
+        ...transientState,
+        id: safeId
+    });
+
+    await Player.findOneAndUpdate(
+        { id: safeId },
+        sanitized,
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+}
+
+/*
+=================================
+COLLECTION / UTILS
+=================================
+*/
+
+async function getPlayerCollection() {
+    return mongoose.connection.collection('players');
+}
+
+module.exports = {
+    connectToMongo,
+    getPlayer,
+    savePlayer,
+    getPlayerCollection,
+    ensurePlayerState,
+    recalculateStats,
+    updateBuffs,
+    applyInventoryCapacity
+};
