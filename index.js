@@ -47,8 +47,12 @@ const resetCommands = require('./src/commands/reset');
 const adminCommands = require('./src/commands/admin');
 
 function validateEnv() {
-    const requiredVars = ['BOT_TOKEN', 'MONGO_URI'];
-    const missing = requiredVars.filter((key) => !process.env[key]);
+    const hasBotToken = Boolean(process.env.BOT_TOKEN);
+    const hasMongo = Boolean(process.env.MONGODB_URI || process.env.MONGO_URI);
+
+    const missing = [];
+    if (!hasBotToken) missing.push('BOT_TOKEN');
+    if (!hasMongo) missing.push('MONGODB_URI/MONGO_URI');
 
     if (missing.length) {
         throw new Error(`Variáveis obrigatórias ausentes: ${missing.join(', ')}`);
