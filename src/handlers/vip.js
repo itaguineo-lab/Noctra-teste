@@ -1,12 +1,15 @@
 const { Markup } = require('telegraf');
 const { getPlayer } = require('../core/player/playerService');
 const { navigateText, safeAnswer } = require('../utils/uiNavigator');
+const { BALANCE } = require('../data/balance');
 
-function vipKeyboard() {
-    return Markup.inlineKeyboard([
-        [Markup.button.callback('🏰 Loja do Castelo', 'shop_castle')],
-        [Markup.button.callback('🏠 Menu', 'menu')]
-    ]);
+const VIP_KEYBOARD = Markup.inlineKeyboard([
+    [Markup.button.callback('🏰 Loja do Castelo', 'shop_castle')],
+    [Markup.button.callback('🏠 Menu', 'menu')]
+]);
+
+function formatPercentBonus(multiplier = 1) {
+    return Math.round((multiplier - 1) * 100);
 }
 
 async function handleVip(ctx) {
@@ -23,6 +26,10 @@ async function handleVip(ctx) {
             player.vipExpires &&
             new Date() < new Date(player.vipExpires);
 
+        const inventoryBonus = Math.max(0, BALANCE.inventory.vipMax - BALANCE.inventory.baseMax);
+        const xpBonus = formatPercentBonus(BALANCE.vip.xpMultiplier);
+        const goldBonus = formatPercentBonus(BALANCE.vip.goldMultiplier);
+
         let msg = `💎 *VIP*\n\n`;
 
         if (vipActive) {
@@ -32,12 +39,12 @@ async function handleVip(ctx) {
             msg += `❌ Você não é VIP.\n\n`;
         }
 
-        msg += `*Benefícios:*\n`;
-        msg += `⚡ Energia máxima: 40\n`;
-        msg += `⏱️ Regeneração: 1 a cada 8 minutos\n`;
-        msg += `💰 +50% recompensas (XP e ouro)\n`;
-        msg += `🎒 +10 slots de inventário\n`;
-        msg += `🎁 Baú extra diário\n\n`;
+        msg += `*Benefícios ativos no sistema:*\n`;
+        msg += `⚡ Energia máxima: ${BALANCE.energy.vipMax}\n`;
+        msg += `⏱️ Regeneração: 1 a cada ${BALANCE.energy.vipRegenMinutes} minutos\n`;
+        msg += `✨ +${xpBonus}% XP\n`;
+        msg += `💰 +${goldBonus}% ouro\n`;
+        msg += `🎒 +${inventoryBonus} slots de inventário\n\n`;
 
         if (!vipActive) {
             msg += `🛒 Adquira na loja do Castelo.`;
@@ -45,7 +52,7 @@ async function handleVip(ctx) {
 
         return navigateText(ctx, msg, {
             parse_mode: 'Markdown',
-            ...vipKeyboard()
+            ...VIP_KEYBOARD
         });
     } catch (error) {
         console.error('Erro VIP:', error);
