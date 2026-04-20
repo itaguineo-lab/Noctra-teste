@@ -26,6 +26,20 @@ function buildFightMeta(record) {
     };
 }
 
+async function resolveStoredFight(userId, storedOverride = null) {
+    if (storedOverride?.fight && storedOverride?.meta) {
+        return storedOverride;
+    }
+
+    const record = await loadActiveFight(userId);
+    if (!record) return null;
+
+    return {
+        fight: record.payload,
+        meta: buildFightMeta(record)
+    };
+}
+
 async function createAndStoreFight(userId, player, enemy) {
     const fight = createFight(player, enemy);
     const createdAt = Date.now();
@@ -42,13 +56,7 @@ async function createAndStoreFight(userId, player, enemy) {
 }
 
 async function getStoredFight(userId) {
-    const record = await loadActiveFight(userId);
-    if (!record) return null;
-
-    return {
-        fight: record.payload,
-        meta: buildFightMeta(record)
-    };
+    return resolveStoredFight(userId);
 }
 
 async function persistFightState(userId, fight, meta = {}) {
@@ -69,8 +77,8 @@ async function removeStoredFight(userId) {
     await clearActiveFight(userId);
 }
 
-async function runAttack(userId) {
-    const stored = await getStoredFight(userId);
+async function runAttack(userId, storedOverride = null) {
+    const stored = await resolveStoredFight(userId, storedOverride);
     if (!stored) return null;
 
     const { fight, meta } = stored;
@@ -85,8 +93,8 @@ async function runAttack(userId) {
     return { fight, meta };
 }
 
-async function runDefend(userId) {
-    const stored = await getStoredFight(userId);
+async function runDefend(userId, storedOverride = null) {
+    const stored = await resolveStoredFight(userId, storedOverride);
     if (!stored) return null;
 
     const { fight, meta } = stored;
@@ -101,8 +109,8 @@ async function runDefend(userId) {
     return { fight, meta };
 }
 
-async function runFlee(userId) {
-    const stored = await getStoredFight(userId);
+async function runFlee(userId, storedOverride = null) {
+    const stored = await resolveStoredFight(userId, storedOverride);
     if (!stored) return null;
 
     const { fight, meta } = stored;
@@ -112,8 +120,8 @@ async function runFlee(userId) {
     return { fight, meta, success };
 }
 
-async function runSoul(userId, soulIndex) {
-    const stored = await getStoredFight(userId);
+async function runSoul(userId, soulIndex, storedOverride = null) {
+    const stored = await resolveStoredFight(userId, storedOverride);
     if (!stored) return null;
 
     const { fight, meta } = stored;
@@ -132,8 +140,8 @@ async function runSoul(userId, soulIndex) {
     return { fight, meta, result };
 }
 
-async function runEnemyOnlyTurn(userId) {
-    const stored = await getStoredFight(userId);
+async function runEnemyOnlyTurn(userId, storedOverride = null) {
+    const stored = await resolveStoredFight(userId, storedOverride);
     if (!stored) return null;
 
     const { fight, meta } = stored;
@@ -146,8 +154,8 @@ async function runEnemyOnlyTurn(userId) {
     return { fight, meta };
 }
 
-async function runConsumableTurn(userId, applyConsumableEffect) {
-    const stored = await getStoredFight(userId);
+async function runConsumableTurn(userId, applyConsumableEffect, storedOverride = null) {
+    const stored = await resolveStoredFight(userId, storedOverride);
     if (!stored) return null;
 
     const { fight, meta } = stored;
