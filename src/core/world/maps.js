@@ -72,16 +72,22 @@ const maps = [
     }
 ];
 
+const MAPS_BY_ID = new Map(maps.map(map => [map.id, map]));
+const MAPS_BY_NAME = new Map(maps.map(map => [map.name, map]));
+const STARTING_MAP = maps[0] || null;
+
 function getMapById(id) {
-    return maps.find(map => map.id === id) || null;
+    if (!id) return null;
+    return MAPS_BY_ID.get(id) || null;
 }
 
 function getMapByName(name) {
-    return maps.find(map => map.name === name) || null;
+    if (!name) return null;
+    return MAPS_BY_NAME.get(name) || null;
 }
 
 function getStartingMap() {
-    return maps[0];
+    return STARTING_MAP;
 }
 
 function canPlayerEnter(player, mapId) {
@@ -95,22 +101,26 @@ function canPlayerEnter(player, mapId) {
 }
 
 function getAvailableMaps(playerLevel = 1) {
-    return maps.filter(
-        map => playerLevel >= map.levelReq
-    );
+    const safeLevel = Number(playerLevel) || 1;
+    return maps.filter(map => safeLevel >= map.levelReq);
 }
 
 function getNextLockedMap(playerLevel = 1) {
-    return maps.find(
-        map => playerLevel < map.levelReq
-    ) || null;
+    const safeLevel = Number(playerLevel) || 1;
+    for (const map of maps) {
+        if (safeLevel < map.levelReq) {
+            return map;
+        }
+    }
+    return null;
 }
 
 function getRecommendedMapForPlayer(playerPower = 0) {
-    let best = maps[0];
+    const safePower = Number(playerPower) || 0;
+    let best = STARTING_MAP;
 
     for (const map of maps) {
-        if (playerPower >= map.recommendedPower) {
+        if (safePower >= map.recommendedPower) {
             best = map;
         }
     }
