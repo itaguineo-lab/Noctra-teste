@@ -9,11 +9,17 @@ const {
     maps,
     getMapById,
     canPlayerEnter,
-    getNextLockedMap
+    getNextLockedMap,
+    getStartingMap
 } = require('../core/world/maps');
 
 const assets = require('../data/assets');
 const { navigateScreen, safeAnswer } = require('../utils/uiNavigator');
+
+const DUNGEON_NAV_KEYBOARD = Markup.inlineKeyboard([
+    [Markup.button.callback('🗺️ Voltar para viagem', 'travel')],
+    [Markup.button.callback('🏠 Menu', 'menu')]
+]);
 
 /*
 =================================
@@ -28,7 +34,7 @@ function getMapPowerText(map) {
 function buildTravelMenu(player) {
     const rows = [];
 
-    maps.forEach(map => {
+    for (const map of maps) {
         const unlocked = canPlayerEnter(player, map.id);
         const isCurrent = player.currentMap === map.id;
 
@@ -42,7 +48,7 @@ function buildTravelMenu(player) {
                 unlocked ? `travel_to_${map.id}` : 'travel_locked'
             )
         ]);
-    });
+    }
 
     rows.push([
         Markup.button.callback('🏰 Masmorra', 'dungeon'),
@@ -53,7 +59,7 @@ function buildTravelMenu(player) {
 }
 
 function renderTravelCaption(player) {
-    const currentMap = getMapById(player.currentMap) || maps[0];
+    const currentMap = getMapById(player.currentMap) || getStartingMap();
     const nextMap = getNextLockedMap(player.level);
 
     let text = `🗺️ *VIAGEM*\n\n`;
@@ -77,8 +83,8 @@ function renderTravelCaption(player) {
 async function sendOrUpdateTravelMessage(ctx, player) {
     const caption = renderTravelCaption(player);
     const keyboard = buildTravelMenu(player);
-    const currentMap = player.currentMap || maps[0].id;
-    const mapImage = assets?.maps?.[currentMap];
+    const currentMapId = player.currentMap || getStartingMap()?.id;
+    const mapImage = currentMapId ? assets?.maps?.[currentMapId] : null;
 
     return navigateScreen(ctx, {
         text: caption,
@@ -103,8 +109,7 @@ async function handleTravel(ctx) {
     }
 
     if (!player.currentMap) {
-        player.currentMap = maps[0].id;
-        await savePlayer(ctx.from.id, player);
+        player.currentMap = getStartingMap()?.id || maps[0]?.id;
     }
 
     return sendOrUpdateTravelMessage(ctx, player);
@@ -177,7 +182,7 @@ async function handleDungeon(ctx) {
         return ctx.reply('🧭 Você ainda não criou um personagem. Use /start para começar.');
     }
 
-    const currentMap = getMapById(player.currentMap) || maps[0];
+    const currentMap = getMapById(player.currentMap) || getStartingMap();
 
     const text = `🏰 *${currentMap?.dungeonName || 'Masmorra'}*\n\n` +
         `📍 Região: ${currentMap.emoji} ${currentMap.name}\n` +
@@ -188,10 +193,7 @@ async function handleDungeon(ctx) {
     return navigateScreen(ctx, {
         text,
         media: null,
-        options: Markup.inlineKeyboard([
-            [Markup.button.callback('🗺️ Voltar para viagem', 'travel')],
-            [Markup.button.callback('🏠 Menu', 'menu')]
-        ])
+        options: DUNGEON_NAV_KEYBOARD
     });
 }
 
