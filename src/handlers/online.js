@@ -11,40 +11,38 @@ const MAP_NAMES = {
     abismo_noctra: '🌑 Abismo de Noctra'
 };
 
-function onlineKeyboard() {
-    return Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Atualizar', 'online')],
-        [Markup.button.callback('🏠 Menu', 'menu')]
-    ]);
-}
+const ONLINE_KEYBOARD = Markup.inlineKeyboard([
+    [Markup.button.callback('🔄 Atualizar', 'online')],
+    [Markup.button.callback('🏠 Menu', 'menu')]
+]);
 
 async function handleOnline(ctx) {
     try {
         await safeAnswer(ctx);
 
-        const now = Date.now();
-        const activeThreshold = now - 20 * 60 * 1000;
-
+        const activeThreshold = Date.now() - (20 * 60 * 1000);
         const players = await getAllPlayers();
-        let onlineCount = 0;
-        const playersByMap = {};
 
-        players.forEach((p) => {
-            if (p.lastActive && new Date(p.lastActive).getTime() > activeThreshold) {
-                onlineCount++;
-                const map = p.currentMap || 'clareira_sombria';
-                playersByMap[map] = (playersByMap[map] || 0) + 1;
-            }
-        });
+        let onlineCount = 0;
+        const playersByMap = Object.create(null);
+
+        for (const player of players) {
+            const lastActive = player?.lastActive ? new Date(player.lastActive).getTime() : 0;
+            if (!lastActive || lastActive <= activeThreshold) continue;
+
+            onlineCount += 1;
+            const mapId = player.currentMap || 'clareira_sombria';
+            playersByMap[mapId] = (playersByMap[mapId] || 0) + 1;
+        }
 
         let msg = `👥 *JOGADORES ONLINE*\n\n`;
         msg += `Ativos nos últimos 20 min: *${onlineCount}*\n\n`;
 
-        if (Object.keys(playersByMap).length) {
+        const mapEntries = Object.entries(playersByMap);
+        if (mapEntries.length) {
             msg += `📍 *Por mapa:*\n`;
-            for (const [mapId, count] of Object.entries(playersByMap)) {
-                const mapName = MAP_NAMES[mapId] || mapId;
-                msg += `• ${mapName}: ${count}\n`;
+            for (const [mapId, count] of mapEntries) {
+                msg += `• ${MAP_NAMES[mapId] || mapId}: ${count}\n`;
             }
         } else {
             msg += `Nenhum jogador ativo no momento.`;
@@ -52,7 +50,7 @@ async function handleOnline(ctx) {
 
         return navigateText(ctx, msg, {
             parse_mode: 'Markdown',
-            ...onlineKeyboard()
+            ...ONLINE_KEYBOARD
         });
     } catch (error) {
         console.error('Erro online:', error);
