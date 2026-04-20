@@ -11,6 +11,11 @@ const {
 } = require('../services/energyService');
 
 const {
+    consumeEnergy,
+    normalizePlayerForSave
+} = require('../core/player/playerMutations');
+
+const {
     progressBar,
     formatTime,
     formatDuration
@@ -18,25 +23,20 @@ const {
 
 const { Markup } = require('telegraf');
 const { navigateText, safeAnswer } = require('../utils/uiNavigator');
+const { BALANCE } = require('../data/balance');
 
-/*
-=================================
-HELPERS
-=================================
-*/
+const ENERGY_KEYBOARD = Markup.inlineKeyboard([
+    [
+        Markup.button.callback('🛌 Descansar', 'rest_energy'),
+        Markup.button.callback('💎 VIP', 'vip')
+    ],
+    [
+        Markup.button.callback('🛒 Loja', 'shop'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]
+]);
 
-function buildEnergyKeyboard() {
-    return Markup.inlineKeyboard([
-        [
-            Markup.button.callback('🛌 Descansar', 'rest_energy'),
-            Markup.button.callback('💎 VIP', 'vip')
-        ],
-        [
-            Markup.button.callback('🛒 Loja', 'shop'),
-            Markup.button.callback('🏠 Menu', 'menu')
-        ]
-    ]);
-}
+const REST_ENERGY_COST = 1;
 
 /*
 =================================
@@ -51,8 +51,11 @@ async function renderEnergy(ctx) {
         return navigateText(ctx, '❌ Perfil não encontrado.');
     }
 
-    updateEnergy(player);
-    await savePlayer(ctx.from.id, player);
+    const changed = updateEnergy(player);
+    if (changed) {
+        normalizePlayerForSave(player);
+        await savePlayer(ctx.from.id, player);
+    }
 
     const nextIn = getTimeToNextEnergy(player);
     const fullIn = getTimeToFullEnergy(player);
@@ -75,6 +78,7 @@ async function renderEnergy(ctx) {
     );
 
     const energyPercent = Math.floor((player.energy / player.maxEnergy) * 100);
+    const regenMinutes = Math.floor(interval / 60000);
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `⚡ *ENERGIA & DESCANSO*\n`;
@@ -87,7 +91,7 @@ async function renderEnergy(ctx) {
     text += `${player.hp}/${player.maxHp}  ${hpBar}\n\n`;
 
     text += `⏱️ *Regeneração*\n`;
-    text += `+1 energia a cada ${player.vip ? '8 min' : '10 min'}\n`;
+    text += `+1 energia a cada ${regenMinutes} min\n`;
 
     if (player.energy < player.maxEnergy) {
         text += `⏳ Próxima energia: ${formatTime(nextIn)}\n`;
@@ -97,19 +101,19 @@ async function renderEnergy(ctx) {
     }
 
     text += `🛌 *Descanso*\n`;
-    text += `Restaura seu HP total por 1 energia.\n\n`;
+    text += `Restaura seu HP total por ${REST_ENERGY_COST} energia.\n\n`;
 
     if (player.vip) {
         text += `✨ *Status VIP ativo*\n`;
         text += `Energia máxima aumentada e regeneração acelerada.\n`;
     } else {
         text += `💎 *Sem VIP*\n`;
-        text += `Ative VIP para ter 40 de energia e regeneração em 8 min.\n`;
+        text += `Ative VIP para ter ${BALANCE.energy.vipMax} de energia e regeneração em ${BALANCE.energy.vipRegenMinutes} min.\n`;
     }
 
     return navigateText(ctx, text, {
         parse_mode: 'Markdown',
-        ...buildEnergyKeyboard()
+        ...ENERGY_KEYBOARD
     });
 }
 
@@ -144,15 +148,14 @@ async function handleRestEnergy(ctx) {
             });
         }
 
-        if (player.energy < 1) {
+        if (!consumeEnergy(player, REST_ENERGY_COST)) {
             return safeAnswer(ctx, '⚡ Energia insuficiente para descansar.', {
                 show_alert: true
             });
         }
 
-        player.energy -= 1;
         player.hp = player.maxHp;
-
+        normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
 
         await safeAnswer(ctx, '🛌 Você descansou e recuperou todo o HP.', {
