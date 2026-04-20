@@ -1,6 +1,5 @@
 const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
-const { updateEnergy } = require('../services/energyService');
 const { processVictory } = require('../services/rewardService');
 const { combatMenu, soulChoiceMenu, postCombatMenu } = require('../menus/combatMenu');
 const { progressBar } = require('../utils/formatters');
@@ -73,16 +72,17 @@ function buildEnemyStatusIcons(fight) {
     return icons;
 }
 
-function renderFightCaption(fight, player) {
+function renderFightCaption(fight, playerLevel = null) {
     const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟩', '⬛');
     const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬛');
     const enemyStatusIcons = buildEnemyStatusIcons(fight);
+    const level = playerLevel ?? fight.player.level ?? 1;
 
     let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `⚔️ *BATALHA*\n`;
     text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-    text += `👤 *${fight.player.name}* [Lv ${player.level}]\n`;
+    text += `👤 *${fight.player.name}* [Lv ${level}]\n`;
     text += `❤️ ${fight.player.hp}/${fight.player.maxHp}  ${playerBar}\n`;
     text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
     text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def}`;
@@ -104,9 +104,8 @@ function renderFightCaption(fight, player) {
     return text;
 }
 
-async function sendNewBattleMessage(ctx, fight, keyboard = null) {
-    const player = await getPlayer(ctx.from.id);
-    const caption = renderFightCaption(fight, player);
+async function sendNewBattleMessage(ctx, fight, keyboard = null, playerLevel = null) {
+    const caption = renderFightCaption(fight, playerLevel);
     const enemyImage = assets?.enemies?.[fight.enemy.id];
 
     if (enemyImage) {
@@ -128,14 +127,14 @@ async function sendNewBattleMessage(ctx, fight, keyboard = null) {
     await persistFightMessage(ctx.from.id, sent.message_id, false);
 }
 
-async function updateBattleMessage(ctx, stored, player, keyboard = null) {
+async function updateBattleMessage(ctx, stored, keyboard = null, playerLevel = null) {
     const { fight, meta } = stored;
-    const caption = renderFightCaption(fight, player);
+    const caption = renderFightCaption(fight, playerLevel);
     const messageId = meta.battleMessageId;
     const chatId = ctx.chat.id;
 
     if (!messageId) {
-        return sendNewBattleMessage(ctx, fight, keyboard);
+        return sendNewBattleMessage(ctx, fight, keyboard, playerLevel);
     }
 
     try {
@@ -151,7 +150,7 @@ async function updateBattleMessage(ctx, stored, player, keyboard = null) {
             });
         } catch (error) {
             console.error('Erro ao editar mensagem de batalha:', error);
-            return sendNewBattleMessage(ctx, fight, keyboard);
+            return sendNewBattleMessage(ctx, fight, keyboard, playerLevel);
         }
     }
 }
@@ -294,8 +293,6 @@ async function resolveExpiredFight(ctx) {
     try {
         await ctx.editMessageReplyMarkup(postCombatMenu().reply_markup);
     } catch {}
-
-    return;
 }
 
 async function resolveWin(ctx, stored, player) {
@@ -363,7 +360,6 @@ async function finishFight(ctx, stored) {
         return ctx.reply('❌ Jogador não encontrado.');
     }
 
-    updateEnergy(player);
     await removeStoredFight(ctx.from.id);
 
     if (fight.status === 'win') {
@@ -393,19 +389,14 @@ async function handleHunt(ctx) {
         return ctx.reply('🧭 Você ainda não criou um personagem. Use /start.');
     }
 
-    updateEnergy(player);
-
-    if (player.energy < BALANCE.energy.huntCost) {
+    if (!consumeEnergy(player, BALANCE.energy.huntCost)) {
         return ctx.reply('⚡ Sem energia.');
     }
 
     const enemy = getRandomEnemy(player.currentMap, player.level);
     if (!enemy) {
+        player.energy = Math.min(player.maxEnergy, player.energy + BALANCE.energy.huntCost);
         return ctx.reply('❌ Nenhum inimigo neste mapa.');
-    }
-
-    if (!consumeEnergy(player, BALANCE.energy.huntCost)) {
-        return ctx.reply('⚡ Sem energia.');
     }
 
     normalizePlayerForSave(player);
@@ -418,7 +409,7 @@ async function handleHunt(ctx) {
         await ctx.deleteMessage();
     } catch {}
 
-    return sendNewBattleMessage(ctx, fight, combatMenu());
+    return sendNewBattleMessage(ctx, fight, combatMenu(), player.level);
 }
 
 async function handleAttack(ctx) {
@@ -432,15 +423,14 @@ async function handleAttack(ctx) {
         return finishFight(ctx, stored);
     }
 
-    const updated = await runAttack(ctx.from.id);
-    const player = await getPlayer(ctx.from.id);
+    const updated = await runAttack(ctx.from.id, stored);
 
     if (!updated || updated.fight.status !== 'ongoing') {
         return finishFight(ctx, updated || stored);
     }
 
     await ctx.answerCbQuery().catch(() => {});
-    return updateBattleMessage(ctx, updated, player, combatMenu());
+    return updateBattleMessage(ctx, updated, combatMenu());
 }
 
 async function handleDefend(ctx) {
@@ -454,15 +444,14 @@ async function handleDefend(ctx) {
         return finishFight(ctx, stored);
     }
 
-    const updated = await runDefend(ctx.from.id);
-    const player = await getPlayer(ctx.from.id);
+    const updated = await runDefend(ctx.from.id, stored);
 
     if (!updated || updated.fight.status !== 'ongoing') {
         return finishFight(ctx, updated || stored);
     }
 
     await ctx.answerCbQuery().catch(() => {});
-    return updateBattleMessage(ctx, updated, player, combatMenu());
+    return updateBattleMessage(ctx, updated, combatMenu());
 }
 
 async function handleFlee(ctx) {
@@ -476,7 +465,7 @@ async function handleFlee(ctx) {
         return finishFight(ctx, stored);
     }
 
-    const updated = await runFlee(ctx.from.id);
+    const updated = await runFlee(ctx.from.id, stored);
     if (!updated) {
         return resolveExpiredFight(ctx);
     }
@@ -485,9 +474,8 @@ async function handleFlee(ctx) {
         return finishFight(ctx, updated);
     }
 
-    const player = await getPlayer(ctx.from.id);
     await ctx.answerCbQuery().catch(() => {});
-    return updateBattleMessage(ctx, updated, player, combatMenu());
+    return updateBattleMessage(ctx, updated, combatMenu());
 }
 
 async function handleSoulMenu(ctx) {
@@ -528,21 +516,19 @@ async function handleSoul(ctx) {
     }
 
     const soulIndex = parseInt(ctx.match[1], 10);
-    const updated = await runSoul(ctx.from.id, soulIndex);
+    const updated = await runSoul(ctx.from.id, soulIndex, stored);
 
     if (!updated || !updated.result) {
         await ctx.answerCbQuery('❌ Alma inválida ou vazia.', { show_alert: true }).catch(() => {});
         return;
     }
 
-    const player = await getPlayer(ctx.from.id);
-
     if (updated.fight.status !== 'ongoing') {
         return finishFight(ctx, updated);
     }
 
     await ctx.answerCbQuery().catch(() => {});
-    return updateBattleMessage(ctx, updated, player, combatMenu());
+    return updateBattleMessage(ctx, updated, combatMenu());
 }
 
 async function handleConsumables(ctx) {
@@ -645,7 +631,7 @@ async function handleUseConsumable(ctx) {
 
         fight.logs.push(log);
         return { success: true };
-    });
+    }, stored);
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
@@ -655,14 +641,12 @@ async function handleUseConsumable(ctx) {
         return;
     }
 
-    const refreshedPlayer = await getPlayer(ctx.from.id);
-
     if (updated.fight.status !== 'ongoing') {
         return finishFight(ctx, updated);
     }
 
     await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
-    return updateBattleMessage(ctx, updated, refreshedPlayer, combatMenu());
+    return updateBattleMessage(ctx, updated, combatMenu(), player.level);
 }
 
 async function handleCombatBack(ctx) {
@@ -672,9 +656,8 @@ async function handleCombatBack(ctx) {
         return resolveExpiredFight(ctx);
     }
 
-    const player = await getPlayer(ctx.from.id);
     await ctx.answerCbQuery().catch(() => {});
-    return updateBattleMessage(ctx, stored, player, combatMenu());
+    return updateBattleMessage(ctx, stored, combatMenu());
 }
 
 module.exports = {
