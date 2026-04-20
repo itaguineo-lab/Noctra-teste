@@ -9,7 +9,7 @@ const {
     createPlayer
 } = require('./src/core/player/playerService');
 
-const { getMainMenuText } = require('./src/utils/helpers');
+const { getMainMenuText, buildMainMenuText, getPlayerSafe } = require('./src/utils/helpers');
 const { mainMenu } = require('./src/menus/mainMenu');
 const { navigateScreen, tryDeleteCurrentMessage } = require('./src/utils/uiNavigator');
 const assets = require('./src/data/assets');
@@ -99,8 +99,10 @@ function bindAction(pattern, handler) {
 }
 
 async function sendMainMenu(ctx, userId, username, editMode = false) {
-    const menuText = await getMainMenuText(userId, username);
-    const player = await getPlayer(userId);
+    const player = await getPlayerSafe(userId);
+    const menuText = player
+        ? buildMainMenuText(player, username)
+        : await getMainMenuText(userId, username);
     const mapImage = player?.currentMap ? assets?.maps?.[player.currentMap] : null;
     const keyboard = mainMenu();
 
