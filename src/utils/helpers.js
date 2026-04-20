@@ -108,9 +108,7 @@ MENU TEXT
 =================================
 */
 
-async function getMainMenuText(playerId, username) {
-    const player = await getPlayerSafe(playerId);
-
+function buildMainMenuText(player, username) {
     if (!player) {
         return premiumFrame(
             '🌑 NOCTRA RPG',
@@ -156,11 +154,17 @@ async function getMainMenuText(playerId, username) {
     return premiumFrame('🌑 NOCTRA RPG', lines.join('\n'));
 }
 
+async function getMainMenuText(playerId, username) {
+    const player = await getPlayerSafe(playerId);
+    return buildMainMenuText(player, username);
+}
+
 module.exports = {
     getPlayerSafe,
     getPlayerLocation,
     getClassLabel,
     getBuildName,
     premiumFrame,
+    buildMainMenuText,
     getMainMenuText
 };
