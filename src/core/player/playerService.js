@@ -17,6 +17,41 @@ const { BALANCE } = require('../../data/balance');
 
 let isConnected = false;
 
+const PLAYER_LIST_PROJECTION = {
+    id: 1,
+    name: 1,
+    class: 1,
+    level: 1,
+    xp: 1,
+    hp: 1,
+    maxHp: 1,
+    atk: 1,
+    def: 1,
+    crit: 1,
+    maxEnergy: 1,
+    energy: 1,
+    gold: 1,
+    nox: 1,
+    glorias: 1,
+    keys: 1,
+    currentMap: 1,
+    totalKills: 1,
+    buffs: 1,
+    equipment: 1,
+    soulsEquipped: 1,
+    arena: 1,
+    vip: 1,
+    vipExpires: 1,
+    bonusInventory: 1,
+    maxInventory: 1,
+    lastActive: 1,
+    activeFight: 1,
+    activeArenaBattle: 1,
+    consumables: 1,
+    cosmetics: 1,
+    activeCosmetics: 1
+};
+
 /*
 =================================
 MIGRAÇÃO DE ITENS ANTIGOS
@@ -344,7 +379,14 @@ async function getPlayer(id) {
 async function savePlayer(id, playerData) {
     const safeId = String(id);
 
-    const current = await Player.findOne({ id: safeId });
+    let current = null;
+    if (!playerData?.activeFight || !playerData?.activeArenaBattle) {
+        current = await Player.findOne(
+            { id: safeId },
+            { activeFight: 1, activeArenaBattle: 1 }
+        ).lean();
+    }
+
     const transientState = preserveTransientStates(current, playerData);
 
     ensurePlayerState(playerData);
@@ -378,17 +420,17 @@ async function getPlayerCollection() {
 }
 
 async function getAllPlayers() {
-    const players = await Player.find({});
-    const map = new Map();
+    const players = await Player.find({}, PLAYER_LIST_PROJECTION).lean();
+    const roster = [];
 
     for (const player of players) {
         ensurePlayerState(player);
         updateEnergy(player);
         recalculateStats(player);
-        map.set(String(player.id), player);
+        roster.push(player);
     }
 
-    return map;
+    return roster;
 }
 
 module.exports = {
