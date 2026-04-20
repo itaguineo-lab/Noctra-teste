@@ -1,4 +1,5 @@
 const { Markup } = require('telegraf');
+
 const {
     getPlayer,
     savePlayer,
@@ -46,6 +47,8 @@ const {
     navigateText,
     safeAnswer
 } = require('../utils/uiNavigator');
+
+const { BALANCE } = require('../data/balance');
 
 /*
 =================================
@@ -131,6 +134,21 @@ function buildBattleResultKeyboard() {
         [Markup.button.callback('🏪 Loja Arena', 'arena_shop')],
         [Markup.button.callback('🏠 Menu', 'menu')]
     ]);
+}
+
+function getArenaPotionHeal(maxHp) {
+    return Math.max(
+        BALANCE.consumables.potionHp.dungeonMinHealFlat,
+        Math.floor(maxHp * BALANCE.consumables.potionHp.dungeonHealPercent)
+    );
+}
+
+function getArenaStrengthBonus() {
+    return Math.max(1, BALANCE.consumables.tonicStrength.dungeonAtkBonus);
+}
+
+function getArenaDefenseBonus() {
+    return Math.max(1, BALANCE.consumables.tonicDefense.dungeonDefBonus);
 }
 
 async function finishBattle(ctx, stored, resultType) {
@@ -432,18 +450,20 @@ async function handleArenaUseConsumable(ctx) {
 
     const updated = await runArenaConsumable(ctx.from.id, (battle) => {
         if (key === 'potionHp') {
-            const heal = Math.max(20, Math.floor(battle.player.maxHp * 0.36));
+            const heal = getArenaPotionHeal(battle.player.maxHp);
             battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + heal);
-            battle.logs.push('❤️ Você usou Poção de HP e se curou.');
+            battle.logs.push(`❤️ Você usou ${BALANCE.consumables.potionHp.label} e se curou.`);
         } else if (key === 'potionEnergy') {
-            restoreEnergy(player, 1);
-            battle.logs.push('⚡ Energia +1 com Poção de Energia.');
+            restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
+            battle.logs.push(`⚡ Energia +${BALANCE.consumables.potionEnergy.restoreAmount} com ${BALANCE.consumables.potionEnergy.label}.`);
         } else if (key === 'tonicStrength') {
-            battle.player.atk += 7;
-            battle.logs.push('💪 Tônico de Força: ATK +7.');
+            const atkBonus = getArenaStrengthBonus();
+            battle.player.atk += atkBonus;
+            battle.logs.push(`💪 ${BALANCE.consumables.tonicStrength.label}: ATK +${atkBonus}.`);
         } else if (key === 'tonicDefense') {
-            battle.player.def += 7;
-            battle.logs.push('🛡️ Tônico de Defesa: DEF +7.');
+            const defBonus = getArenaDefenseBonus();
+            battle.player.def += defBonus;
+            battle.logs.push(`🛡️ ${BALANCE.consumables.tonicDefense.label}: DEF +${defBonus}.`);
         }
     });
 
