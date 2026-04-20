@@ -2,6 +2,7 @@ const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
 const {
     processPurchase,
+    sellItem,
     sellItemByKey,
     calculateSellPrice,
     canBuyMultiple
@@ -14,6 +15,16 @@ const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 const activePurchases = new Set();
 const SELL_PAGE_SIZE = 8;
 const QUICK_BUY_AMOUNTS = [1, 5, 10];
+
+const SHOP_ITEMS_BY_ID = new Map();
+const SHOP_ITEMS_BY_TAB = new Map();
+for (const item of shopItems) {
+    SHOP_ITEMS_BY_ID.set(item.id, item);
+    if (!SHOP_ITEMS_BY_TAB.has(item.shop)) {
+        SHOP_ITEMS_BY_TAB.set(item.shop, []);
+    }
+    SHOP_ITEMS_BY_TAB.get(item.shop).push(item);
+}
 
 async function safeEdit(ctx, text, options = {}) {
     await safeAnswer(ctx).catch?.(() => {});
@@ -29,7 +40,11 @@ function getWalletText(player) {
 }
 
 function getShopItemsByTab(tab) {
-    return shopItems.filter(item => item.shop === tab);
+    return SHOP_ITEMS_BY_TAB.get(tab) || [];
+}
+
+function getShopItemById(itemId) {
+    return SHOP_ITEMS_BY_ID.get(itemId) || null;
 }
 
 function getTabTitle(tab) {
@@ -53,8 +68,8 @@ function getTabDescription(tab) {
     return descriptions[tab] || 'Escolha um item.';
 }
 
-async function renderTab(ctx, tab) {
-    const player = await getPlayer(ctx.from.id);
+async function renderTab(ctx, tab, playerOverride = null) {
+    const player = playerOverride || await getPlayer(ctx.from.id);
     const items = getShopItemsByTab(tab);
 
     const header =
@@ -67,9 +82,9 @@ async function renderTab(ctx, tab) {
     return safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
 }
 
-async function redirectAfterPurchase(ctx, shopName) {
-    if (!shopName) return handleShop(ctx);
-    return renderTab(ctx, shopName);
+async function redirectAfterPurchase(ctx, shopName, playerOverride = null) {
+    if (!shopName) return handleShop(ctx, playerOverride);
+    return renderTab(ctx, shopName, playerOverride);
 }
 
 function buildSellInventory(player) {
@@ -145,13 +160,13 @@ function buildSellKeyboard(pageData) {
     return Markup.inlineKeyboard(keyboard);
 }
 
-async function renderSellPage(ctx, page = 1) {
-    const player = await getPlayer(ctx.from.id);
+async function renderSellPage(ctx, page = 1, playerOverride = null) {
+    const player = playerOverride || await getPlayer(ctx.from.id);
     const sellable = buildSellInventory(player);
 
     if (!sellable.length) {
         await safeAnswer(ctx, '❌ Você não tem itens para vender.', { show_alert: true });
-        return handleShop(ctx);
+        return handleShop(ctx, player);
     }
 
     const pageData = paginate(sellable, page, SELL_PAGE_SIZE);
@@ -164,8 +179,8 @@ async function renderSellPage(ctx, page = 1) {
     });
 }
 
-async function handleShop(ctx) {
-    const player = await getPlayer(ctx.from.id);
+async function handleShop(ctx, playerOverride = null) {
+    const player = playerOverride || await getPlayer(ctx.from.id);
 
     const msg =
         `🛒 *LOJAS DE NOCTRA*\n\n` +
@@ -178,8 +193,8 @@ async function handleShop(ctx) {
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopMainMenu() });
 }
 
-async function handleShopBuyMenu(ctx) {
-    const player = await getPlayer(ctx.from.id);
+async function handleShopBuyMenu(ctx, playerOverride = null) {
+    const player = playerOverride || await getPlayer(ctx.from.id);
 
     const msg =
         `🛍️ *COMPRAR ITENS*\n\n` +
@@ -221,7 +236,7 @@ async function handleBuy(ctx) {
         }
 
         const player = await getPlayer(ctx.from.id);
-        const item = shopItems.find(i => i.id === itemId);
+        const item = getShopItemById(itemId);
 
         if (!item) {
             return safeAnswer(ctx, '❌ Item não encontrado.', { show_alert: true });
@@ -235,7 +250,7 @@ async function handleBuy(ctx) {
 
             await savePlayer(ctx.from.id, player);
             await safeAnswer(ctx, result.message || `✅ ${item.name} comprado!`, { show_alert: true });
-            return redirectAfterPurchase(ctx, item.shop);
+            return redirectAfterPurchase(ctx, item.shop, player);
         }
 
         const buttons = QUICK_BUY_AMOUNTS.map(amount => {
@@ -282,7 +297,7 @@ async function handleBuyQuantity(ctx) {
         const quantity = Number(ctx.match?.[2] || 1);
 
         const player = await getPlayer(ctx.from.id);
-        const item = shopItems.find(i => i.id === itemId);
+        const item = getShopItemById(itemId);
 
         if (!item) {
             return safeAnswer(ctx, '❌ Item não encontrado.', { show_alert: true });
@@ -295,7 +310,7 @@ async function handleBuyQuantity(ctx) {
 
         await savePlayer(ctx.from.id, player);
         await safeAnswer(ctx, result.message || `✅ ${item.name} x${quantity} comprado!`, { show_alert: true });
-        return redirectAfterPurchase(ctx, item.shop);
+        return redirectAfterPurchase(ctx, item.shop, player);
     } catch (error) {
         console.error('Erro ao comprar quantidade:', error);
         return safeAnswer(ctx, '❌ Erro ao processar compra.', { show_alert: true });
@@ -328,14 +343,14 @@ async function handleSellConfirm(ctx) {
     const itemIndex = parseInt(match, 10);
     const player = await getPlayer(ctx.from.id);
 
-    const result = require('../core/economy/shopLogic').sellItem(player, itemIndex);
+    const result = sellItem(player, itemIndex);
     if (!result.success) {
         return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
     await savePlayer(ctx.from.id, player);
     await safeAnswer(ctx, result.message, { show_alert: true });
-    return handleShop(ctx);
+    return handleShop(ctx, player);
 }
 
 async function handleSellConfirmByKey(ctx) {
@@ -354,7 +369,7 @@ async function handleSellConfirmByKey(ctx) {
 
     await savePlayer(ctx.from.id, player);
     await safeAnswer(ctx, result.message, { show_alert: true });
-    return renderSellPage(ctx, 1);
+    return renderSellPage(ctx, 1, player);
 }
 
 module.exports = {
