@@ -26,6 +26,20 @@ const {
 const { navigateScreen, safeAnswer } = require('../utils/uiNavigator');
 const assets = require('../data/assets');
 
+const PROFILE_KEYBOARD = Markup.inlineKeyboard([
+    [
+        Markup.button.callback('🎒 Inventário', 'inventory'),
+        Markup.button.callback('🗺️ Viajar', 'travel')
+    ],
+    [
+        Markup.button.callback('📝 Renomear', 'rename_help'),
+        Markup.button.callback('🔄 Classe', 'class_help')
+    ],
+    [
+        Markup.button.callback('◀️ Voltar', 'menu')
+    ]
+]);
+
 /*
 =================================
 HELPERS
@@ -108,6 +122,15 @@ function buildSoulsText(player) {
     }).join('\n');
 }
 
+function toTimestamp(value) {
+    if (!value) return 0;
+    if (value instanceof Date) return value.getTime();
+    const parsed = new Date(value).getTime();
+    if (Number.isFinite(parsed)) return parsed;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+}
+
 function buildBuffsText(player) {
     if (!Array.isArray(player.buffs) || player.buffs.length === 0) {
         return '—';
@@ -115,8 +138,9 @@ function buildBuffsText(player) {
 
     const now = Date.now();
     const activeBuffs = player.buffs.filter(buff => {
-        if (!buff.expiresAt) return true;
-        return buff.expiresAt > now;
+        const expiresAt = toTimestamp(buff.expiresAt);
+        if (!expiresAt) return true;
+        return expiresAt > now;
     });
 
     if (activeBuffs.length === 0) return '—';
@@ -129,8 +153,9 @@ function buildBuffsText(player) {
         if (buff.crit) parts.push(`💥+${buff.crit}%`);
 
         let suffix = '';
-        if (buff.expiresAt) {
-            suffix = ` • ⏳ ${formatEnergyTime(Math.max(0, buff.expiresAt - now))}`;
+        const expiresAt = toTimestamp(buff.expiresAt);
+        if (expiresAt) {
+            suffix = ` • ⏳ ${formatEnergyTime(Math.max(0, expiresAt - now))}`;
         }
 
         return `• ${parts.join(' ')}${suffix}`;
@@ -234,26 +259,12 @@ async function handleProfile(ctx) {
     }
 
     const caption = renderProfileCaption(player);
-    const keyboard = Markup.inlineKeyboard([
-        [
-            Markup.button.callback('🎒 Inventário', 'inventory'),
-            Markup.button.callback('🗺️ Viajar', 'travel')
-        ],
-        [
-            Markup.button.callback('📝 Renomear', 'rename_help'),
-            Markup.button.callback('🔄 Classe', 'class_help')
-        ],
-        [
-            Markup.button.callback('◀️ Voltar', 'menu')
-        ]
-    ]);
-
     const profileImage = assets?.profile?.[player.class];
 
     return navigateScreen(ctx, {
         text: caption,
         media: profileImage || null,
-        options: keyboard
+        options: PROFILE_KEYBOARD
     });
 }
 
