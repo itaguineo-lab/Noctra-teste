@@ -1,4 +1,6 @@
 const { addCosmeticToPlayer, ensureCosmeticsState } = require('../player/cosmetics');
+const { BALANCE } = require('../../data/balance');
+
 const {
     addInventoryItem,
     addGold,
@@ -10,10 +12,23 @@ const {
     normalizePlayerForSave,
     getItemKey
 } = require('../player/playerMutations');
+
 const {
     recordPurchaseMetrics,
     recordSaleMetrics
 } = require('../metrics/metricsService');
+
+function getExpectedMaxInventory(player) {
+    return player?.vip
+        ? BALANCE.inventory.vipMax
+        : BALANCE.inventory.baseMax;
+}
+
+function getExpectedMaxEnergy(player) {
+    return player?.vip
+        ? BALANCE.energy.vipMax
+        : BALANCE.energy.baseMax;
+}
 
 function ensurePlayerEconomy(player) {
     if (!player) throw new Error('Player inválido.');
@@ -31,19 +46,35 @@ function ensurePlayerEconomy(player) {
     };
 
     ensureCosmeticsState(player);
+
     player.vip ??= false;
     player.vipExpires ??= null;
 
-    player.maxInventory ??= player.vip ? 30 : 20;
+    player.maxInventory ??= getExpectedMaxInventory(player);
     player.keys ??= 0;
-    player.energy ??= 20;
-    player.maxEnergy ??= player.vip ? 40 : 20;
+    player.energy ??= getExpectedMaxEnergy(player);
+    player.maxEnergy ??= getExpectedMaxEnergy(player);
+
+    if (player.maxInventory < getExpectedMaxInventory(player)) {
+        player.maxInventory = getExpectedMaxInventory(player);
+    }
+
+    if (player.maxEnergy !== getExpectedMaxEnergy(player)) {
+        player.maxEnergy = getExpectedMaxEnergy(player);
+    }
+
+    player.energy = Math.max(0, Math.min(player.energy, player.maxEnergy));
 
     return player;
 }
 
 function currencyLabel(currency) {
-    const map = { gold: 'ouro', nox: 'Nox', glorias: 'glórias' };
+    const map = {
+        gold: 'ouro',
+        nox: 'Nox',
+        glorias: 'glórias'
+    };
+
     return map[currency] || currency;
 }
 
@@ -59,20 +90,43 @@ function pay(player, currency, price) {
     const value = Number(price) || 0;
     if (!canPay(player, currency, value)) return false;
 
-    if (currency === 'gold') removeGold(player, value);
-    else if (currency === 'nox') removeNox(player, value);
-    else if (currency === 'glorias') removeGlorias(player, value);
-    else player[currency] = Math.max(0, (player[currency] || 0) - value);
+    if (currency === 'gold') {
+        removeGold(player, value);
+    } else if (currency === 'nox') {
+        removeNox(player, value);
+    } else if (currency === 'glorias') {
+        removeGlorias(player, value);
+    } else {
+        player[currency] = Math.max(0, (player[currency] || 0) - value);
+    }
 
     return true;
+}
+
+function refund(player, currency, amount) {
+    const value = Number(amount) || 0;
+
+    if (currency === 'gold') {
+        addGold(player, value);
+    } else if (currency === 'nox') {
+        player.nox = (player.nox || 0) + value;
+    } else if (currency === 'glorias') {
+        player.glorias = (player.glorias || 0) + value;
+    } else {
+        player[currency] = (player[currency] || 0) + value;
+    }
+
+    return player;
 }
 
 function canProcessItem(player, item, quantity = 1) {
     switch (item.type) {
         case 'equipment':
             return player.inventory.length + quantity <= player.maxInventory;
+
         case 'cosmetic':
             return !player.cosmetics.some(c => c.id === item.id);
+
         default:
             return true;
     }
@@ -80,10 +134,13 @@ function canProcessItem(player, item, quantity = 1) {
 
 function addConsumable(player, item, quantity = 1) {
     const key = item.effect;
-    if (!key) return { success: false, message: '❌ Consumível inválido.' };
+    if (!key) {
+        return { success: false, message: '❌ Consumível inválido.' };
+    }
 
     const total = (item.value || 1) * quantity;
     player.consumables[key] = (player.consumables[key] || 0) + total;
+
     normalizePlayerForSave(player);
 
     return {
@@ -115,6 +172,7 @@ function addEquipment(player, item, quantity = 1) {
     }
 
     normalizePlayerForSave(player);
+
     return {
         success: true,
         message: `✅ ${item.name} x${quantity} comprado!`
@@ -129,12 +187,16 @@ function applyVip(player, item) {
 
     player.vip = true;
     player.vipExpires = new Date(newExpire).toISOString();
-    player.maxEnergy = 40;
-    player.maxInventory = Math.max(player.maxInventory || 20, 30);
+    player.maxEnergy = BALANCE.energy.vipMax;
+    player.maxInventory = Math.max(player.maxInventory || BALANCE.inventory.baseMax, BALANCE.inventory.vipMax);
     player.energy = Math.min(player.maxEnergy, player.energy || player.maxEnergy);
 
     normalizePlayerForSave(player);
-    return { success: true, message: `✨ VIP ativado por ${item.days} dias!` };
+
+    return {
+        success: true,
+        message: `✨ VIP ativado por ${item.days} dias!`
+    };
 }
 
 function addCosmetic(player, item) {
@@ -147,21 +209,35 @@ function addCosmetic(player, item) {
     if (!result.success) return result;
 
     normalizePlayerForSave(player);
-    return { success: true, message: `✨ ${item.name} desbloqueado!` };
+
+    return {
+        success: true,
+        message: `✨ ${item.name} desbloqueado!`
+    };
 }
 
 function addEnergyRefill(player, item, quantity = 1) {
     const amount = (item.value || 10) * quantity;
     restoreEnergy(player, amount);
+
     normalizePlayerForSave(player);
-    return { success: true, message: `⚡ +${amount} energia` };
+
+    return {
+        success: true,
+        message: `⚡ +${amount} energia`
+    };
 }
 
 function addKey(player, item, quantity = 1) {
     const amount = (item.value || 1) * quantity;
     addKeys(player, amount);
+
     normalizePlayerForSave(player);
-    return { success: true, message: `🗝️ +${amount} chave(s)` };
+
+    return {
+        success: true,
+        message: `🗝️ +${amount} chave(s)`
+    };
 }
 
 function executePurchaseEffect(player, item, quantity = 1) {
@@ -192,12 +268,17 @@ function canBuyMultiple(item) {
 async function processPurchase(player, item, quantity = 1) {
     ensurePlayerEconomy(player);
 
-    if (!item) return { success: false, message: '❌ Item inválido.' };
+    if (!item) {
+        return { success: false, message: '❌ Item inválido.' };
+    }
 
     const safeQuantity = Math.max(1, Number(quantity) || 1);
 
     if (safeQuantity > 1 && !canBuyMultiple(item)) {
-        return { success: false, message: '❌ Este item não pode ser comprado em quantidade.' };
+        return {
+            success: false,
+            message: '❌ Este item não pode ser comprado em quantidade.'
+        };
     }
 
     const unitPrice = Number(item.price || 0);
@@ -232,11 +313,9 @@ async function processPurchase(player, item, quantity = 1) {
     }
 
     const result = executePurchaseEffect(player, item, safeQuantity);
-    if (!result.success) {
-        if (item.currency === 'gold') addGold(player, totalPrice);
-        else if (item.currency === 'nox') player.nox = (player.nox || 0) + totalPrice;
-        else if (item.currency === 'glorias') player.glorias = (player.glorias || 0) + totalPrice;
 
+    if (!result.success) {
+        refund(player, item.currency, totalPrice);
         normalizePlayerForSave(player);
         return result;
     }
