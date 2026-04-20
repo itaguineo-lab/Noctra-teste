@@ -1,3 +1,10 @@
+const { BALANCE } = require('./balance');
+
+const hpCfg = BALANCE.consumables.potionHp;
+const strCfg = BALANCE.consumables.tonicStrength;
+const defCfg = BALANCE.consumables.tonicDefense;
+const energyCfg = BALANCE.consumables.potionEnergy;
+
 const shopItems = [
     /*
     =================================
@@ -7,36 +14,36 @@ const shopItems = [
 
     {
         id: 'hp_potion',
-        name: 'Poção de Vida',
+        name: hpCfg.label,
         shop: 'village',
         type: 'consumable',
         effect: 'potionHp',
         value: 1,
         currency: 'gold',
         price: 140,
-        description: 'Restaura HP de forma significativa.'
+        description: `Restaura até ${Math.round(hpCfg.outsideCombatHealPercent * 100)}% do HP máximo.`
     },
     {
         id: 'strength_tonic',
-        name: 'Tônico de Força',
+        name: strCfg.label,
         shop: 'village',
         type: 'consumable',
         effect: 'tonicStrength',
         value: 1,
         currency: 'gold',
         price: 180,
-        description: '+10 ATK por 30 minutos.'
+        description: `+${strCfg.atkBonus} ATK por ${strCfg.durationMinutes} minutos.`
     },
     {
         id: 'defense_tonic',
-        name: 'Tônico de Defesa',
+        name: defCfg.label,
         shop: 'village',
         type: 'consumable',
         effect: 'tonicDefense',
         value: 1,
         currency: 'gold',
         price: 180,
-        description: '+10 DEF por 30 minutos.'
+        description: `+${defCfg.defBonus} DEF por ${defCfg.durationMinutes} minutos.`
     },
 
     /*
@@ -47,14 +54,14 @@ const shopItems = [
 
     {
         id: 'energy_potion',
-        name: 'Poção de Energia',
+        name: energyCfg.label,
         shop: 'castle',
         type: 'consumable',
         effect: 'potionEnergy',
-        value: 1,
+        value: energyCfg.restoreAmount,
         currency: 'nox',
         price: 4,
-        description: 'Recupera 1 energia instantaneamente.'
+        description: `Recupera ${energyCfg.restoreAmount} energia instantaneamente.`
     },
     {
         id: 'energy_refill_10',
@@ -82,7 +89,7 @@ const shopItems = [
         days: 7,
         currency: 'nox',
         price: 29,
-        description: '⚡ Energia 40 | 🎒 +10 slots | regeneração melhorada'
+        description: `⚡ Energia ${BALANCE.energy.vipMax} | 🎒 +${BALANCE.inventory.vipMax - BALANCE.inventory.baseMax} slots | regeneração melhorada`
     },
     {
         id: 'vip_30d',
@@ -158,7 +165,7 @@ const shopItems = [
         value: 2,
         currency: 'glorias',
         price: 3,
-        description: '2 Tônicos de Força.'
+        description: `2 ${strCfg.label}s.`
     },
     {
         id: 'arena_defense_pack',
@@ -169,14 +176,12 @@ const shopItems = [
         value: 2,
         currency: 'glorias',
         price: 3,
-        description: '2 Tônicos de Defesa.'
+        description: `2 ${defCfg.label}s.`
     }
 
     /*
-    Observação intencional:
-    chave de masmorra foi removida da loja.
-    A chave volta a ser recurso raro ligado ao loop de progressão,
-    não commodity premium.
+    Chave de masmorra segue fora da loja:
+    recurso raro de progressão, não commodity premium.
     */
 ];
 
