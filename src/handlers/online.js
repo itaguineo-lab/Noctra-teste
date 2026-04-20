@@ -29,7 +29,7 @@ async function handleOnline(ctx) {
         let onlineCount = 0;
         const playersByMap = {};
 
-        Object.values(players).forEach((p) => {
+        players.forEach((p) => {
             if (p.lastActive && new Date(p.lastActive).getTime() > activeThreshold) {
                 onlineCount++;
                 const map = p.currentMap || 'clareira_sombria';
