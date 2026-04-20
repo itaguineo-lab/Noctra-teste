@@ -23,6 +23,7 @@ function ensureFightShape(fight) {
     fight.player ??= {};
     fight.enemy ??= {};
 
+    fight.player.level ??= 1;
     fight.player.shield ??= 0;
     fight.player.buffs ??= [];
     fight.player.defending ??= false;
@@ -96,6 +97,7 @@ function createFight(player, enemy) {
             id: player.id,
             name: player.name,
             className: player.class,
+            level: player.level || 1,
             hp: player.hp,
             maxHp: player.maxHp,
             atk: player.atk,
