@@ -170,8 +170,6 @@ async function handleDaily(ctx) {
 
 async function handleDailyChest(ctx) {
     try {
-        await safeAnswer(ctx);
-
         const player = await getPlayer(ctx.from.id);
         if (!player) {
             return safeAnswer(
@@ -193,6 +191,7 @@ async function handleDailyChest(ctx) {
 
         ensureDailyMissionState(player);
         await savePlayer(ctx.from.id, player);
+        await safeAnswer(ctx);
 
         let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
         msg += `🎁 *BAÚ DIÁRIO ABERTO*\n`;
