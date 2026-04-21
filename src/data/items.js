@@ -141,6 +141,15 @@ const CATEGORY_WEIGHTS = {
     jewelry: 20
 };
 
+const SLOT_TO_UI_CATEGORY = {
+    weapon: 'weapons',
+    shield: 'armors',
+    armor: 'armors',
+    boots: 'armors',
+    ring: 'jewels',
+    necklace: 'jewels'
+};
+
 function rand(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -208,6 +217,23 @@ function getSlotFromItem(category, itemData) {
     }
 
     return 'weapon';
+}
+
+function getUiCategoryFromSlot(slot) {
+    return SLOT_TO_UI_CATEGORY[slot] || 'weapons';
+}
+
+function getDisplayCategoryLabel(slot) {
+    const labels = {
+        weapon: 'Arma',
+        shield: 'Armadura',
+        armor: 'Armadura',
+        boots: 'Armadura',
+        ring: 'Joia',
+        necklace: 'Joia'
+    };
+
+    return labels[slot] || 'Item';
 }
 
 function getPowerTier(power) {
@@ -294,15 +320,8 @@ function roundStats(stats) {
 }
 
 function buildItemId() {
-    return `${Date.now()}_${rand(1000, 9999)}`;
+    return `drop_${Date.now()}_${rand(1000, 9999)}`;
 }
-
-/*
-=================================
-PERFIS DE DROP
-FOCO EM LONGEVIDADE
-=================================
-*/
 
 function getDropProfileByEnemy(mapId = 1, encounterTier = 'common') {
     const baseByMap = {
@@ -439,6 +458,7 @@ function generateDrop(mapId = 1, options = {}) {
     const itemData = randomFrom(ITEM_POOL[tier][category]);
     const rarity = selectRarity(options.rarityBias);
     const slot = getSlotFromItem(category, itemData);
+    const itemId = buildItemId();
 
     const base = buildStatsBySlot(tier, slot);
     const finalStats = roundStats({
@@ -448,14 +468,17 @@ function generateDrop(mapId = 1, options = {}) {
         crit: base.crit * rarity.multiplier
     });
 
-    const power =
+    const power = Math.max(
+        1,
         finalStats.atk * 2 +
         finalStats.def * 2 +
         Math.floor(finalStats.hp / 2) +
-        finalStats.crit * 3;
+        finalStats.crit * 3
+    );
 
     return {
-        id: buildItemId(),
+        id: itemId,
+        instanceId: itemId,
         name: itemData.name,
         emoji: itemData.emoji || '⚪',
         rarity: rarity.name,
@@ -468,13 +491,18 @@ function generateDrop(mapId = 1, options = {}) {
         powerTier: getPowerTier(power),
         slot,
         category,
-        classRestriction: itemData.class || null
+        uiCategory: getUiCategoryFromSlot(slot),
+        displayCategory: getDisplayCategoryLabel(slot),
+        classRestriction: itemData.class || null,
+        sourceTier: options.encounterTier || 'common'
     };
 }
 
 module.exports = {
     generateDrop,
     getDropProfileByEnemy,
+    getUiCategoryFromSlot,
+    getDisplayCategoryLabel,
     ITEM_POOL,
     RARITIES: BASE_RARITIES
 };
