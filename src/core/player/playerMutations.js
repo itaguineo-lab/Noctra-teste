@@ -37,50 +37,117 @@ function buildSyntheticItemId() {
     return `itm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function getDefaultWeaponEmoji(name = '') {
+    const lower = String(name).toLowerCase();
+    if (lower.includes('machado')) return '🪓';
+    if (lower.includes('arco') || lower.includes('besta')) return '🏹';
+    if (lower.includes('lança')) return '🔱';
+    if (lower.includes('cajado') || lower.includes('varinha')) return '🪄';
+    if (lower.includes('grimório') || lower.includes('grimoire')) return '📘';
+    if (lower.includes('orbe')) return '🔮';
+    if (lower.includes('adaga')) return '🗡️';
+    return '🗡️';
+}
+
+function getDefaultEmojiForSlot(slot, name = '') {
+    if (slot === 'weapon') return getDefaultWeaponEmoji(name);
+    if (slot === 'shield') return '🛡️';
+    if (slot === 'armor') return '🥋';
+    if (slot === 'boots') return '👢';
+    if (slot === 'ring') return '💍';
+    if (slot === 'necklace') return '📿';
+    return '⚪';
+}
+
+function inferSlotFromName(rawName = '') {
+    const name = String(rawName).trim().toLowerCase();
+    if (!name) return null;
+
+    if (name.includes('escudo') || name.includes('broquel') || name.includes('algibeira')) return 'shield';
+    if (name.includes('bota') || name.includes('greva') || name.includes('sandália')) return 'boots';
+    if (name.includes('anel') || name.includes('aliança')) return 'ring';
+    if (name.includes('amuleto') || name.includes('colar') || name.includes('pingente') || name.includes('gargantilha')) return 'necklace';
+    if (
+        name.includes('armadura') ||
+        name.includes('gibão') ||
+        name.includes('couraça') ||
+        name.includes('túnica') ||
+        name.includes('tunica') ||
+        name.includes('manto') ||
+        name.includes('veste') ||
+        name.includes('peitoral') ||
+        name.includes('robe')
+    ) return 'armor';
+    if (
+        name.includes('espada') ||
+        name.includes('machado') ||
+        name.includes('arco') ||
+        name.includes('besta') ||
+        name.includes('lança') ||
+        name.includes('cajado') ||
+        name.includes('grimório') ||
+        name.includes('orbe') ||
+        name.includes('varinha') ||
+        name.includes('adaga') ||
+        name.includes('foice')
+    ) return 'weapon';
+
+    return null;
+}
+
 function getCanonicalSlot(item = {}) {
     const rawSlot = String(item.slot || '').trim();
-    if (!rawSlot) return 'weapon';
-
-    for (const validSlot of VALID_EQUIPMENT_SLOTS) {
-        if (rawSlot.startsWith(validSlot)) {
-            return validSlot;
+    if (rawSlot) {
+        for (const validSlot of VALID_EQUIPMENT_SLOTS) {
+            if (rawSlot.startsWith(validSlot)) {
+                return validSlot;
+            }
         }
     }
 
     const rawCategory = String(item.category || '').trim().toLowerCase();
+    const rawUiCategory = String(item.uiCategory || '').trim().toLowerCase();
     const rawName = String(item.name || '').trim().toLowerCase();
 
     if (rawCategory === 'weapon') return 'weapon';
     if (rawCategory === 'jewelry') {
-        if (rawName.includes('anel')) return 'ring';
-        if (rawName.includes('amuleto') || rawName.includes('colar')) return 'necklace';
-        return 'ring';
+        return inferSlotFromName(rawName) || 'ring';
     }
     if (rawCategory === 'armor') {
-        if (rawName.includes('escudo') || rawName.includes('broquel') || rawName.includes('algibeira')) return 'shield';
-        if (rawName.includes('bota')) return 'boots';
-        return 'armor';
+        return inferSlotFromName(rawName) || 'armor';
     }
 
-    return 'weapon';
+    if (rawUiCategory === 'weapons') return 'weapon';
+    if (rawUiCategory === 'armors') return inferSlotFromName(rawName) || 'armor';
+    if (rawUiCategory === 'jewels') return inferSlotFromName(rawName) || 'ring';
+
+    return inferSlotFromName(rawName) || 'weapon';
 }
 
 function getUiCategoryFromSlot(slot) {
     return SLOT_TO_UI_CATEGORY[slot] || 'weapons';
 }
 
+function getDisplayCategoryFromSlot(slot) {
+    if (slot === 'weapon') return 'Arma';
+    if (slot === 'ring' || slot === 'necklace') return 'Joia';
+    return 'Armadura';
+}
+
 function normalizeInventoryItem(item) {
     if (!item || typeof item !== 'object') return null;
 
     const slot = getCanonicalSlot(item);
-    const instanceId = String(item.instanceId || item._id || item.id || buildSyntheticItemId());
-    const id = String(item.id || item._id || instanceId);
+    const existingInstanceId = String(item.instanceId || '').trim();
+    const instanceId = existingInstanceId || buildSyntheticItemId();
+    const id = String(item.id || instanceId);
+    const name = String(item.name || 'Item sem nome');
 
     return {
         ...item,
         id,
         instanceId,
-        name: String(item.name || 'Item sem nome'),
+        name,
         slot,
         category: String(item.category || '').trim().toLowerCase() || (
             slot === 'weapon' ? 'weapon' :
@@ -88,6 +155,8 @@ function normalizeInventoryItem(item) {
             'armor'
         ),
         uiCategory: String(item.uiCategory || getUiCategoryFromSlot(slot)),
+        displayCategory: String(item.displayCategory || getDisplayCategoryFromSlot(slot)),
+        emoji: String(item.emoji || item.icon || getDefaultEmojiForSlot(slot, name)),
         rarity: String(item.rarity || 'Comum'),
         level: Math.max(1, toSafeNumber(item.level, 1)),
         atk: Math.max(0, toSafeNumber(item.atk, 0)),
@@ -95,6 +164,8 @@ function normalizeInventoryItem(item) {
         hp: Math.max(0, toSafeNumber(item.hp, 0)),
         crit: Math.max(0, toSafeNumber(item.crit, 0)),
         power: Math.max(0, toSafeNumber(item.power, 0)),
+        powerTier: item.powerTier || null,
+        sourceTier: item.sourceTier || null,
         classRestriction: item.classRestriction || item.class || null,
         __equipped: Boolean(item.__equipped)
     };
