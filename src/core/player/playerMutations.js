@@ -73,8 +73,8 @@ function normalizeInventoryItem(item) {
     if (!item || typeof item !== 'object') return null;
 
     const slot = getCanonicalSlot(item);
-    const id = String(item.id || item.instanceId || item._id || buildSyntheticItemId());
-    const instanceId = String(item.instanceId || id);
+    const instanceId = String(item.instanceId || item._id || item.id || buildSyntheticItemId());
+    const id = String(item.id || item._id || instanceId);
 
     return {
         ...item,
