@@ -33,6 +33,7 @@ const {
 
 const {
     inventoryMainMenu,
+    buildInventoryCategoryRows,
     getRealSlot
 } = require('../menus/inventoryMenu');
 
@@ -98,6 +99,12 @@ function getSlotLabel(slot) {
 
 function getMacroCategory(category) {
     return LEGACY_CATEGORY_ALIAS[category] || category;
+}
+
+function truncateText(text = '', max = 26) {
+    const value = String(text || '');
+    if (value.length <= max) return value;
+    return `${value.slice(0, max - 1)}…`;
 }
 
 function normalizePlayerState(player) {
@@ -181,52 +188,62 @@ function buildShortStatLine(item) {
     return parts.join(', ') || 'Sem bônus';
 }
 
+function buildFullItemLine(item, equipped = false) {
+    const emoji = item.emoji || '⚪';
+    const rarityEmoji = getRarityEmoji(item.rarity);
+    const stats = buildShortStatLine(item);
+    const equippedSuffix = equipped ? ' ⭐' : '';
+    return `${emoji} ${rarityEmoji} ${escapeMarkdown(item.name)} [Lv${item.level || 1}] (${escapeMarkdown(stats)})${equippedSuffix}`;
+}
+
 function buildItemSummaryLine(item, player) {
     const slot = getRealSlot(item);
     const delta = getComparisonDelta(item, player, slot);
-    const rarityEmoji = getRarityEmoji(item.rarity);
-    const name = `${rarityEmoji} ${item.name} [Lv${item.level || 1}]`;
-    const statLine = buildShortStatLine(item);
-    const deltaLine = item.__equipped ? '⭐ Equipado' : formatDelta(delta);
 
     return {
-        title: `${item.__equipped ? '⭐ ' : ''}${escapeMarkdown(name)}`,
-        stats: escapeMarkdown(statLine),
-        delta: escapeMarkdown(deltaLine),
+        line: buildFullItemLine(item, item.__equipped),
+        delta: escapeMarkdown(item.__equipped ? '⭐ Equipado' : formatDelta(delta)),
         slotLabel: escapeMarkdown(getSlotLabel(slot))
     };
 }
 
 function buildEquipButtonLabel(item, player) {
     const delta = getComparisonDelta(item, player, getRealSlot(item));
-    if (delta === null) return '🔹 Equipar';
-    if (delta > 0) return `🔺 Equipar (+${delta})`;
-    if (delta < 0) return `🔻 Equipar (-${Math.abs(delta)})`;
-    return '🔹 Equipar';
+    const shortName = truncateText(item.name, 22);
+
+    if (delta === null) return `🔹 Equipar ${shortName}`;
+    if (delta > 0) return `🔺 Equipar ${shortName}`;
+    if (delta < 0) return `🔻 Equipar ${shortName}`;
+    return `🔹 Equipar ${shortName}`;
+}
+
+function buildUnequipButtonLabel(item) {
+    return `⭐ Desequipar ${truncateText(item.name, 22)}`;
+}
+
+function renderEquippedSlotLine(label, item) {
+    if (!item) {
+        return `${label}: —`;
+    }
+
+    return `${label}: ${buildFullItemLine(item, true)}`;
 }
 
 function renderInventoryHeader(player) {
     const inventory = player.inventory || [];
     const maxInv = player.maxInventory || BALANCE.inventory.baseMax;
 
-    const weapon = escapeMarkdown(player.equipment?.weapon?.name || '—');
-    const shield = escapeMarkdown(player.equipment?.shield?.name || '—');
-    const armor = escapeMarkdown(player.equipment?.armor?.name || '—');
-    const boots = escapeMarkdown(player.equipment?.boots?.name || '—');
-    const necklace = escapeMarkdown(player.equipment?.necklace?.name || '—');
-    const ring = escapeMarkdown(player.equipment?.ring?.name || '—');
-
     return (
-        `🎒 *INVENTÁRIO*  ${inventory.length}/${maxInv}\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n` +
-        `⚔️ ${player.atk || 0}   🛡️ ${player.def || 0}   ❤️ ${player.hp || 0}/${player.maxHp || 0}   💥 ${player.crit || 0}%\n\n` +
+        `🎒 *Inventário* (${inventory.length}/${maxInv})\n\n` +
+        `⚔️ ATK ${player.atk || 0}   🛡️ DEF ${player.def || 0}\n` +
+        `❤️ HP ${player.hp || 0}/${player.maxHp || 0}   💥 CRIT ${player.crit || 0}%\n\n` +
         `*Equipado*\n` +
-        `⚔️ ${weapon}\n` +
-        `🛡️ ${shield}\n` +
-        `🥋 ${armor}\n` +
-        `👢 ${boots}\n` +
-        `📿 ${necklace}\n` +
-        `💍 ${ring}`
+        `${renderEquippedSlotLine('Arma', player.equipment?.weapon)}\n` +
+        `${renderEquippedSlotLine('Escudo', player.equipment?.shield)}\n` +
+        `${renderEquippedSlotLine('Armadura', player.equipment?.armor)}\n` +
+        `${renderEquippedSlotLine('Bota', player.equipment?.boots)}\n` +
+        `${renderEquippedSlotLine('Colar', player.equipment?.necklace)}\n` +
+        `${renderEquippedSlotLine('Anel', player.equipment?.ring)}`
     );
 }
 
@@ -254,7 +271,11 @@ function getCategoryItems(player = {}, rawCategory = 'weapons') {
         .map(item => ({ ...normalizeInventoryItem(item), __equipped: false }))
         .filter(item => config.slots.includes(getRealSlot(item)))
         .filter(item => !equippedKeys.has(getItemKey(item)))
-        .sort((a, b) => calcItemPower(b) - calcItemPower(a));
+        .sort((a, b) => {
+            const powerDiff = calcItemPower(b) - calcItemPower(a);
+            if (powerDiff !== 0) return powerDiff;
+            return safeNumber(b.level) - safeNumber(a.level);
+        });
 
     return [...equippedItems, ...inventoryItems];
 }
@@ -271,12 +292,45 @@ function getPageItems(items, page) {
     };
 }
 
-function buildCompactEquipCallback(category, page, pageIndex) {
-    return `eqp:${category}:${page}:${pageIndex}`;
+function buildEquipCallback(category, page, item) {
+    return `eqid:${category}:${page}:${encodeURIComponent(getItemKey(item))}`;
 }
 
 function buildUnequipCallback(slot, category, page) {
     return `uneq:${slot}:${category}:${page}`;
+}
+
+function buildInventoryActionKeyboard(player, activeCategory, pageData, pageRows) {
+    const rows = [...buildInventoryCategoryRows(player, activeCategory, false)];
+
+    if (pageRows.length) {
+        rows.push(pageRows);
+    }
+
+    pageData.items.forEach(item => {
+        if (item.__equipped) {
+            rows.push([
+                Markup.button.callback(
+                    buildUnequipButtonLabel(item),
+                    buildUnequipCallback(getRealSlot(item), activeCategory, pageData.page)
+                )
+            ]);
+        } else {
+            rows.push([
+                Markup.button.callback(
+                    buildEquipButtonLabel(item, player),
+                    buildEquipCallback(activeCategory, pageData.page, item)
+                )
+            ]);
+        }
+    });
+
+    rows.push([
+        Markup.button.callback('◀️ Inventário', 'inventory'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
+
+    return Markup.inlineKeyboard(rows);
 }
 
 async function renderInventory(ctx, rawCategory = null, page = 1) {
@@ -300,53 +354,39 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
 
     const config = MACRO_CATEGORY_CONFIG[category];
     const allItems = getCategoryItems(player, category);
-    const { totalPages, page: safePage, items: pageItems } = getPageItems(allItems, page);
+    const pageData = getPageItems(allItems, page);
 
     let text = `${renderInventoryHeader(player)}\n\n`;
-    text += `*${config.title}*  •  página ${safePage}/${totalPages}\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+    text += `📦 *${config.title}* — página ${pageData.page}/${pageData.totalPages}\n`;
+    text += `💡 Itens equipados aparecem com ⭐ e não ocupam slots do inventário.\n\n`;
 
-    const buttons = [];
-
-    if (!pageItems.length) {
+    if (!pageData.items.length) {
         text += `Nenhum item encontrado nesta categoria.`;
     } else {
-        pageItems.forEach((item, idx) => {
-            const itemNumber = (safePage - 1) * PAGE_SIZE + idx + 1;
+        pageData.items.forEach((item, idx) => {
+            const itemNumber = (pageData.page - 1) * PAGE_SIZE + idx + 1;
             const summary = buildItemSummaryLine(item, player);
 
-            text += `*#${itemNumber}* ${summary.title}\n`;
-            text += `• ${summary.stats}\n`;
-            text += `• ${summary.slotLabel}`;
-            if (summary.delta) text += `  ${summary.delta}`;
+            text += `${itemNumber}. ${summary.line}\n`;
+            text += `   ${summary.slotLabel}`;
+            if (summary.delta) text += ` • ${summary.delta}`;
             text += `\n\n`;
-
-            if (item.__equipped) {
-                buttons.push([
-                    Markup.button.callback(
-                        `⭐ #${itemNumber} Desequipar`,
-                        buildUnequipCallback(getRealSlot(item), category, safePage)
-                    )
-                ]);
-            } else {
-                buttons.push([
-                    Markup.button.callback(
-                        `#${itemNumber} ${buildEquipButtonLabel(item, player)}`,
-                        buildCompactEquipCallback(category, safePage, idx)
-                    )
-                ]);
-            }
         });
     }
 
     const navRow = [];
-    if (safePage > 1) navRow.push(Markup.button.callback('⬅️', `invpage:${category}:${safePage - 1}`));
-    if (safePage < totalPages) navRow.push(Markup.button.callback('➡️', `invpage:${category}:${safePage + 1}`));
-    if (navRow.length) buttons.push(navRow);
+    if (pageData.page > 1) navRow.push(Markup.button.callback('⬅️', `invpage:${category}:${pageData.page - 1}`));
+    if (pageData.page < pageData.totalPages) navRow.push(Markup.button.callback('➡️', `invpage:${category}:${pageData.page + 1}`));
 
-    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    return sendScreen(
+        ctx,
+        text.trim(),
+        buildInventoryActionKeyboard(player, category, pageData, navRow)
+    );
+}
 
-    return sendScreen(ctx, text.trim(), Markup.inlineKeyboard(buttons));
+function buildSectionHeader(player, title) {
+    return `${renderInventoryHeader(player)}\n\n${title}\n`;
 }
 
 function buildConsumablesText(player) {
@@ -358,9 +398,8 @@ function buildConsumablesText(player) {
     );
 
     return (
-        `🧪 *Consumíveis*\n\n` +
-        `❤️ Poção de HP: ${c.potionHp || 0}\n` +
-        `   Cura aproximada por uso: ${healAmount} HP\n` +
+        `${buildSectionHeader(player, '🧪 *Consumíveis*')}\n` +
+        `❤️ Poção de HP: ${c.potionHp || 0} (cura aprox. ${healAmount})\n` +
         `⚡ Poção de Energia: ${c.potionEnergy || 0}\n` +
         `💪 Tônico de Força: ${c.tonicStrength || 0}\n` +
         `🛡️ Tônico de Defesa: ${c.tonicDefense || 0}\n` +
@@ -370,14 +409,18 @@ function buildConsumablesText(player) {
 
 function buildConsumablesKeyboard(player) {
     const c = player.consumables || {};
-    const buttons = [];
+    const rows = [...buildInventoryCategoryRows(player, 'consumables', false)];
 
-    if (c.potionHp > 0) buttons.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
-    if (c.tonicStrength > 0) buttons.push([Markup.button.callback('💪 Usar Tônico de Força', 'use_tonic_strength')]);
-    if (c.tonicDefense > 0) buttons.push([Markup.button.callback('🛡️ Usar Tônico de Defesa', 'use_tonic_defense')]);
+    if (c.potionHp > 0) rows.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
+    if (c.tonicStrength > 0) rows.push([Markup.button.callback('💪 Usar Tônico de Força', 'use_tonic_strength')]);
+    if (c.tonicDefense > 0) rows.push([Markup.button.callback('🛡️ Usar Tônico de Defesa', 'use_tonic_defense')]);
 
-    buttons.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
-    return Markup.inlineKeyboard(buttons);
+    rows.push([
+        Markup.button.callback('◀️ Inventário', 'inventory'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
+
+    return Markup.inlineKeyboard(rows);
 }
 
 async function handleInvConsumables(ctx) {
@@ -392,14 +435,14 @@ function buildSoulsText(player) {
     const souls = player.soulsInventory || [];
     const equipped = player.soulsEquipped || [null, null];
 
-    let text = `💀 *Almas*\n\n`;
+    let text = `${buildSectionHeader(player, '💀 *Almas*')}\n`;
     text += `Inventário (${souls.length})\n`;
 
     if (!souls.length) {
         text += `• Nenhuma alma no inventário\n`;
     } else {
-        souls.forEach(soul => {
-            text += `• ${escapeMarkdown(soul.name)} (${escapeMarkdown(soul.rarity || 'Comum')})\n`;
+        souls.forEach((soul, index) => {
+            text += `${index + 1}. ${escapeMarkdown(soul.name)} (${escapeMarkdown(soul.rarity || 'Comum')})\n`;
         });
     }
 
@@ -410,18 +453,18 @@ function buildSoulsText(player) {
             : `⬜ Slot ${idx + 1}: vazio\n`;
     });
 
-    return text;
+    return text.trim();
 }
 
 function buildSoulsKeyboard(player) {
-    const rows = [];
+    const rows = [...buildInventoryCategoryRows(player, 'souls', false)];
     const souls = player.soulsInventory || [];
     const equipped = player.soulsEquipped || [null, null];
 
     souls.forEach(soul => {
         rows.push([
             Markup.button.callback(
-                `💀 Equipar ${soul.name}`,
+                `💀 Equipar ${truncateText(soul.name, 22)}`,
                 `equip_soul_${soul.instanceId || soul.id}`
             )
         ]);
@@ -438,7 +481,10 @@ function buildSoulsKeyboard(player) {
         }
     });
 
-    rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    rows.push([
+        Markup.button.callback('◀️ Inventário', 'inventory'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
     return Markup.inlineKeyboard(rows);
 }
 
@@ -456,7 +502,7 @@ function renderSkinsText(player) {
     const activeAura = getActiveCosmetic(player, 'aura');
     const activeBadge = getActiveCosmetic(player, 'badge');
 
-    let text = `🎨 *Skins & Cosméticos*\n\n`;
+    let text = `${buildSectionHeader(player, '🎨 *Skins & Cosméticos*')}\n`;
     text += `Ativos\n`;
     text += `• 🏷️ Título: ${activeTitle ? activeTitle.name : 'Nenhum'}\n`;
     text += `• ✨ Aura: ${activeAura ? activeAura.name : 'Nenhuma'}\n`;
@@ -473,20 +519,20 @@ function renderSkinsText(player) {
         text += `${idx + 1}. ${getCosmeticTypeLabel(skin.type)} — *${escapeMarkdown(skin.name)}*${equipped}\n`;
     });
 
-    return text;
+    return text.trim();
 }
 
 function buildSkinsKeyboard(player) {
-    const rows = [];
+    const rows = [...buildInventoryCategoryRows(player, 'skins', false)];
     const cosmetics = Array.isArray(player.cosmetics) ? player.cosmetics : [];
 
     cosmetics.forEach(cosmetic => {
         const equipped = player.activeCosmetics?.[cosmetic.type] === cosmetic.id;
-        const prefix = equipped ? '✅' : '🎨';
-
         rows.push([
             Markup.button.callback(
-                `${prefix} ${cosmetic.name}`,
+                equipped
+                    ? `✅ Remover ${truncateText(cosmetic.name, 20)}`
+                    : `🎨 Equipar ${truncateText(cosmetic.name, 20)}`,
                 equipped
                     ? `invskin:unequip:${cosmetic.type}`
                     : `invskin:equip:${cosmetic.id}`
@@ -494,7 +540,10 @@ function buildSkinsKeyboard(player) {
         ]);
     });
 
-    rows.push([Markup.button.callback('◀️ Voltar', 'inventory')]);
+    rows.push([
+        Markup.button.callback('◀️ Inventário', 'inventory'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
     return Markup.inlineKeyboard(rows);
 }
 
@@ -613,7 +662,7 @@ async function equipByItemKey(ctx, rawCategory, page, itemKey) {
     }
 
     await saveNormalizedPlayer(ctx, player);
-    await safeAnswer(ctx, `✅ ${item.name} equipado!`);
+    await safeAnswer(ctx, `✅ ${item.name} equipado!`, { show_alert: true });
     return renderInventory(ctx, category, page);
 }
 
@@ -631,12 +680,18 @@ async function unequipBySlot(ctx, slot, rawCategory, page) {
     }
 
     await saveNormalizedPlayer(ctx, player);
-    await safeAnswer(ctx, `✅ ${result.item.name} removido!`);
+    await safeAnswer(ctx, `✅ ${result.item.name} removido!`, { show_alert: true });
     return renderInventory(ctx, category, page);
 }
 
 async function handleEquipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
+
+    const byId = raw.match(/^eqid:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(.+)$/);
+    if (byId) {
+        const [, category, pageStr, encodedKey] = byId;
+        return equipByItemKey(ctx, getMacroCategory(category), Number(pageStr), decodeURIComponent(encodedKey));
+    }
 
     const compact = raw.match(/^eqp:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(\d+)$/);
     if (compact) {
@@ -656,12 +711,6 @@ async function handleEquipItem(ctx) {
         }
 
         return equipByItemKey(ctx, macroCategory, Number(pageStr), getItemKey(item));
-    }
-
-    const byId = raw.match(/^eqid:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(.+)$/);
-    if (byId) {
-        const [, category, pageStr, encodedKey] = byId;
-        return equipByItemKey(ctx, getMacroCategory(category), Number(pageStr), decodeURIComponent(encodedKey));
     }
 
     const legacy = raw.match(/^eq:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(\d+)$/);
@@ -770,7 +819,7 @@ async function handleEquipSoul(ctx) {
     }
 
     await saveNormalizedPlayer(ctx, player);
-    await safeAnswer(ctx, `💀 ${result.soul.name} equipada!`);
+    await safeAnswer(ctx, `💀 ${result.soul.name} equipada!`, { show_alert: true });
     return handleInvSouls(ctx);
 }
 
@@ -787,7 +836,7 @@ async function handleUnequipSoul(ctx) {
     }
 
     await saveNormalizedPlayer(ctx, player);
-    await safeAnswer(ctx, `💀 ${result.soul.name} removida e devolvida!`);
+    await safeAnswer(ctx, `💀 ${result.soul.name} removida e devolvida!`, { show_alert: true });
     return handleInvSouls(ctx);
 }
 
@@ -804,7 +853,7 @@ async function handleEquipSkin(ctx) {
     }
 
     await savePlayer(ctx.from.id, player);
-    await safeAnswer(ctx, `✅ ${result.cosmetic.name} equipado(a)!`);
+    await safeAnswer(ctx, `✅ ${result.cosmetic.name} equipado(a)!`, { show_alert: true });
     return handleInvSkins(ctx);
 }
 
@@ -823,7 +872,7 @@ async function handleUnequipSkin(ctx) {
     }
 
     await savePlayer(ctx.from.id, player);
-    await safeAnswer(ctx, current ? `✅ ${current.name} removido(a).` : '✅ Slot cosmético limpo.');
+    await safeAnswer(ctx, current ? `✅ ${current.name} removido(a).` : '✅ Slot cosmético limpo.', { show_alert: true });
     return handleInvSkins(ctx);
 }
 
