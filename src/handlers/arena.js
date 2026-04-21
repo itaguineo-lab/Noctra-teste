@@ -148,7 +148,7 @@ async function finishBattle(ctx, stored, resultType) {
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         await removeStoredArenaBattle(ctx.from.id);
-        return safeSend(ctx, '❌ Jogador não encontrado.', ARENA_HUB_KEYBOARD);
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     ensureArenaState(player);
@@ -234,7 +234,7 @@ async function handleArena(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado. Use /start.');
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     ensureArenaState(player);
@@ -258,11 +258,9 @@ START FIGHT
 */
 
 async function handleArenaFight(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado. Use /start.');
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     ensureArenaState(player);
@@ -284,6 +282,8 @@ async function handleArenaFight(ctx) {
         opponent,
         startingHp
     );
+
+    await safeAnswer(ctx);
 
     const introText =
         `🏟️ *DESAFIO DA ARENA*\n\n` +
@@ -388,14 +388,12 @@ CONSUMABLES
 */
 
 async function handleArenaConsumables(ctx) {
-    await safeAnswer(ctx);
-
     const stored = await getBattle(ctx.from.id);
     if (!stored?.battle) return handleArena(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.');
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     ensureArenaState(player);
@@ -413,6 +411,8 @@ async function handleArenaConsumables(ctx) {
         return safeAnswer(ctx, '❌ Você não possui consumíveis.', { show_alert: true });
     }
 
+    await safeAnswer(ctx);
+
     return safeSend(
         ctx,
         `🧪 *Consumíveis da Arena*\n\nEscolha um item para obter vantagem tática, não para distorcer o meta.`,
@@ -421,15 +421,13 @@ async function handleArenaConsumables(ctx) {
 }
 
 async function handleArenaUseConsumable(ctx) {
-    await safeAnswer(ctx);
-
     const key = ctx.match?.[1];
     const stored = await getBattle(ctx.from.id);
     if (!stored?.battle) return handleArena(ctx);
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.');
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     ensureArenaState(player);
@@ -439,6 +437,8 @@ async function handleArenaUseConsumable(ctx) {
     if (!consumeResult.success) {
         return safeAnswer(ctx, '❌ Item indisponível.', { show_alert: true });
     }
+
+    await safeAnswer(ctx);
 
     const updated = await runArenaConsumable(ctx.from.id, (battle) => {
         if (key === 'potionHp') {
@@ -477,14 +477,13 @@ CHESTS
 */
 
 async function handleArenaChests(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.');
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     ensureArenaState(player);
+    await safeAnswer(ctx);
 
     const rows = player.arena.chests.map(chest => {
         const config = getChestConfigSafe(chest.tier);
@@ -517,13 +516,11 @@ OPEN CHEST
 */
 
 async function handleArenaOpenChest(ctx) {
-    await safeAnswer(ctx);
-
     const chestId = ctx.match?.[1];
     const player = await getPlayer(ctx.from.id);
 
     if (!player) {
-        return safeSend(ctx, '❌ Jogador não encontrado.');
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     ensureArenaState(player);
@@ -536,6 +533,7 @@ async function handleArenaOpenChest(ctx) {
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
+    await safeAnswer(ctx);
 
     let msg =
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
