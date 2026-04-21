@@ -1,3 +1,7 @@
+function buildSyntheticItemId() {
+    return `itm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function buildSemanticKey(item = {}) {
     return [
         item.slot || 'unknown',
@@ -13,19 +17,39 @@ function buildSemanticKey(item = {}) {
     ].join('|');
 }
 
+function ensureItemIdentity(item) {
+    if (!item || typeof item !== 'object') return item;
+
+    const instanceId = String(item.instanceId || '').trim();
+    if (instanceId) {
+        if (!item.id) item.id = instanceId;
+        return item;
+    }
+
+    const rawId = String(item.id || '').trim();
+    if (rawId && (rawId.startsWith('drop_') || rawId.startsWith('itm_'))) {
+        item.instanceId = rawId;
+        item.id = rawId;
+        return item;
+    }
+
+    const syntheticId = buildSyntheticItemId();
+    item.instanceId = syntheticId;
+    item.id = syntheticId;
+    item.__legacyKey = buildSemanticKey(item);
+    return item;
+}
+
 function getItemKey(item) {
     if (!item || typeof item !== 'object') return '';
+
+    ensureItemIdentity(item);
 
     const instanceId = String(item.instanceId || '').trim();
     if (instanceId) return instanceId;
 
     const mongoId = String(item._id || '').trim();
     if (mongoId && mongoId !== '[object Object]') return mongoId;
-
-    const rawId = String(item.id || '').trim();
-    if (rawId && (rawId.startsWith('drop_') || rawId.startsWith('itm_'))) {
-        return rawId;
-    }
 
     return buildSemanticKey(item);
 }
@@ -47,17 +71,27 @@ function ensureEquipmentState(player) {
     for (const slot of slots) {
         if (!(slot in player.equipment)) {
             player.equipment[slot] = null;
+            continue;
+        }
+
+        if (player.equipment[slot]) {
+            ensureItemIdentity(player.equipment[slot]);
         }
     }
+
+    player.inventory = player.inventory.map(item => ensureItemIdentity(item));
 
     return player;
 }
 
 function cloneItem(item = {}, equipped = false) {
-    return {
+    const cloned = {
         ...item,
         __equipped: equipped
     };
+
+    ensureItemIdentity(cloned);
+    return cloned;
 }
 
 function removeDuplicatesByKey(items = []) {
@@ -65,6 +99,7 @@ function removeDuplicatesByKey(items = []) {
     const result = [];
 
     for (const item of items) {
+        ensureItemIdentity(item);
         const key = getItemKey(item);
         if (!key || seen.has(key)) continue;
         seen.add(key);
@@ -119,6 +154,7 @@ function unequipItem(player, slot) {
     const item = player.equipment[slot];
     if (!item) return null;
 
+    ensureItemIdentity(item);
     const itemKey = getItemKey(item);
     const alreadyInInventory = player.inventory.some(invItem => getItemKey(invItem) === itemKey);
 
