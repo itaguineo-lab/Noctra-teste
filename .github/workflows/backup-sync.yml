@@ -1,0 +1,24 @@
+name: Backup repo sync
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push mirror to backup repo
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add backup https://x-access-token:${BACKUP_TOKEN}@github.com/itaguineo-lab/noctra-rpg-bot.git
+          git push backup main --force
