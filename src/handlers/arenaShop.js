@@ -33,12 +33,6 @@ const {
     safeAnswer
 } = require('../utils/uiNavigator');
 
-/*
-=================================
-HELPERS
-=================================
-*/
-
 async function safeSend(ctx, text, keyboard) {
     return navigateText(ctx, text, {
         parse_mode: 'Markdown',
@@ -52,30 +46,71 @@ function getArenaItemGroup(item) {
     return 'Tático';
 }
 
-function buildArenaShopText(player) {
-    let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `🏪 *LOJA DA ARENA*\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    text += `🪙 Moedas da Arena: *${player.arena.coins}*\n\n`;
-    text += `Itens competitivos, utilidades táticas e prestígio visual.\n\n`;
+function getArenaItemIcon(item) {
+    if (item.type === 'cosmetic') return '✨';
+    if (item.type === 'energy') return '⚡';
+    if (item.type === 'key') return '🗝️';
+    if (item.effect === 'potionHp') return '❤️';
+    if (item.effect === 'tonicStrength') return '💪';
+    if (item.effect === 'tonicDefense') return '🛡️';
+    return '🛒';
+}
 
-    arenaShopItems.forEach((item, index) => {
-        text += `${index + 1}. *${item.name}*\n`;
-        text += `🏷️ ${getArenaItemGroup(item)}\n`;
-        text += `💰 ${item.price} moedas\n`;
-        text += `📜 ${item.description}\n\n`;
+function buildArenaSections() {
+    const order = ['Tático', 'Conveniência', 'Prestígio'];
+    const grouped = new Map(order.map(group => [group, []]));
+
+    for (const item of arenaShopItems) {
+        const group = getArenaItemGroup(item);
+        if (!grouped.has(group)) grouped.set(group, []);
+        grouped.get(group).push(item);
+    }
+
+    return order
+        .map(group => ({ group, items: grouped.get(group) || [] }))
+        .filter(section => section.items.length > 0);
+}
+
+function buildArenaShopText(player) {
+    const sections = buildArenaSections();
+
+    let text = `🏪 *LOJA DA ARENA*\n\n`;
+    text += `🪙 Moedas da Arena: *${player.arena.coins}*\n\n`;
+    text += `Itens para utilidade competitiva, conveniência moderada e prestígio visual.\n\n`;
+
+    sections.forEach(section => {
+        text += `*${section.group}*\n`;
+
+        section.items.forEach((item, index) => {
+            const icon = getArenaItemIcon(item);
+            text += `${icon} *${item.name}*\n`;
+            text += `💰 ${item.price} moedas\n`;
+            text += `📜 ${item.description}\n`;
+            if (index !== section.items.length - 1) {
+                text += `\n`;
+            }
+        });
+
+        text += `\n\n`;
     });
 
     return text.trim();
 }
 
 function buildArenaShopKeyboard() {
-    const rows = arenaShopItems.map(item => [
-        Markup.button.callback(
-            `🛒 ${item.name} (${item.price})`,
-            `arena_shop_buy:${item.id}`
-        )
-    ]);
+    const rows = [];
+    const sections = buildArenaSections();
+
+    sections.forEach(section => {
+        section.items.forEach(item => {
+            rows.push([
+                Markup.button.callback(
+                    `${getArenaItemIcon(item)} ${item.name} • ${item.price}🪙`,
+                    `arena_shop_buy:${item.id}`
+                )
+            ]);
+        });
+    });
 
     rows.push([
         Markup.button.callback('🏟️ Arena', 'arena')
@@ -83,12 +118,6 @@ function buildArenaShopKeyboard() {
 
     return Markup.inlineKeyboard(rows);
 }
-
-/*
-=================================
-MENU
-=================================
-*/
 
 async function handleArenaShop(ctx) {
     await safeAnswer(ctx);
@@ -108,12 +137,6 @@ async function handleArenaShop(ctx) {
         buildArenaShopKeyboard()
     );
 }
-
-/*
-=================================
-BUY
-=================================
-*/
 
 async function handleArenaShopBuy(ctx) {
     await safeAnswer(ctx);
