@@ -462,6 +462,7 @@ function registerInventoryActions() {
     bindAction(/^invcat:(.+)$/, inventory.handleInventoryCategory);
     bindAction(/^invpage:(.+):(\d+)$/, inventory.handleInventoryPage);
 
+    bindAction(/^eqp:(.+):(\d+):(\d+)$/, inventory.handleEquipItem);
     bindAction(/^eqid:(.+):(\d+):(.+)$/, inventory.handleEquipItem);
     bindAction(/^eq:(.+):(\d+):(\d+)$/, inventory.handleEquipItem);
     bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
