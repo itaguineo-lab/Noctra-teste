@@ -68,6 +68,25 @@ function getTabDescription(tab) {
     return descriptions[tab] || 'Escolha um item.';
 }
 
+function getSellCategoryLabel(item = {}) {
+    if (item.displayCategory) return item.displayCategory;
+
+    const slot = String(item.slot || '');
+    if (slot === 'weapon') return 'Arma';
+    if (slot === 'shield' || slot === 'armor' || slot === 'boots') return 'Armadura';
+    if (slot === 'ring' || slot === 'necklace') return 'Joia';
+    return 'Item';
+}
+
+function getSellShortStats(item = {}) {
+    const parts = [];
+    if (Number(item.atk || 0) > 0) parts.push(`ATK+${item.atk}`);
+    if (Number(item.def || 0) > 0) parts.push(`DEF+${item.def}`);
+    if (Number(item.hp || 0) > 0) parts.push(`HP+${item.hp}`);
+    if (Number(item.crit || 0) > 0) parts.push(`CRIT+${item.crit}%`);
+    return parts.join(', ') || 'Sem bônus';
+}
+
 async function renderTab(ctx, tab, playerOverride = null) {
     const player = playerOverride || await getPlayer(ctx.from.id);
     const items = getShopItemsByTab(tab);
@@ -95,6 +114,9 @@ function buildSellInventory(player) {
             key: getItemKey(item),
             name: item.name,
             rarity: item.rarity || 'Comum',
+            categoryLabel: getSellCategoryLabel(item),
+            level: item.level || 1,
+            stats: getSellShortStats(item),
             price: calculateSellPrice(item),
             item
         }))
@@ -114,7 +136,7 @@ function paginate(items, page, pageSize) {
 }
 
 function renderSellText(player, pageData) {
-    let text = `💰 *VENDER EQUIPAMENTOS*\n\n`;
+    let text = `💰 *VENDER ITENS*\n\n`;
     text += `${getWalletText(player)}\n\n`;
 
     if (!pageData.items.length) {
@@ -125,8 +147,10 @@ function renderSellText(player, pageData) {
     text += `Página ${pageData.page}/${pageData.totalPages}\n\n`;
 
     pageData.items.forEach((entry, index) => {
-        text += `${index + 1}. *${entry.name}*\n`;
+        text += `${index + 1}. *${entry.name}* [Lv${entry.level}]\n`;
+        text += `   Tipo: ${entry.categoryLabel}\n`;
         text += `   Raridade: ${entry.rarity}\n`;
+        text += `   Bônus: ${entry.stats}\n`;
         text += `   Valor: ${entry.price} ouro\n\n`;
     });
 
@@ -140,7 +164,7 @@ function buildSellKeyboard(pageData) {
     pageData.items.forEach(entry => {
         keyboard.push([
             Markup.button.callback(
-                `${entry.name} (${entry.price}💰)`,
+                `${entry.name} (${entry.categoryLabel}) • ${entry.price}💰`,
                 `sell_confirm_key_${encodeURIComponent(entry.key)}`
             )
         ]);
