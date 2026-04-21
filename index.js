@@ -340,6 +340,7 @@ function registerCommands() {
     bindCommand('findplayername', adminCommands.handleFindPlayerName);
     bindCommand('playerstate', adminCommands.handlePlayerState);
     bindCommand('setplayer', adminCommands.handleSetPlayer);
+    bindCommand('capture', adminCommands.handleCapture);
 
     bindCommand('give', (ctx) => {
         const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
@@ -444,8 +445,8 @@ COMBAT ACTIONS
 function registerCombatActions() {
     bindAction('combat_attack', combat.handleAttack);
     bindAction('combat_defend', combat.handleDefend);
-    bindAction('combat_soul_menu', combat.handleSoulMenu);
     bindAction(/combat_soul_([01])/, combat.handleSoul);
+    bindAction('combat_soul_menu', combat.handleSoulMenu);
     bindAction('combat_consumables', combat.handleConsumables);
     bindAction(/^combat_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, combat.handleUseConsumable);
     bindAction('combat_flee', combat.handleFlee);
