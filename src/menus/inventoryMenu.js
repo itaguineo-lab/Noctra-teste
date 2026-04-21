@@ -1,9 +1,28 @@
 const { Markup } = require('telegraf');
 
-function sumConsumables(player = {}) {
-    const consumables = player.consumables || {};
-    return Object.values(consumables).reduce((acc, value) => acc + (Number(value) || 0), 0);
-}
+const UI_CATEGORIES = {
+    weapons: {
+        label: '⚔️ Armas',
+        slots: ['weapon']
+    },
+    armors: {
+        label: '🛡️ Armaduras',
+        slots: ['shield', 'armor', 'boots']
+    },
+    jewels: {
+        label: '💎 Joias',
+        slots: ['ring', 'necklace']
+    },
+    consumables: {
+        label: '🧪 Consumíveis'
+    },
+    skins: {
+        label: '🎨 Skins'
+    },
+    souls: {
+        label: '💀 Almas'
+    }
+};
 
 function getRealSlot(item = {}) {
     const slot = String(item.slot || '');
@@ -31,38 +50,50 @@ function countItemsBySlots(player = {}, slots = []) {
     return total;
 }
 
-function inventoryMainMenu(player = {}) {
-    const weapons = countItemsBySlots(player, ['weapon']);
-    const shields = countItemsBySlots(player, ['shield']);
-    const armors = countItemsBySlots(player, ['armor']);
-    const necklaces = countItemsBySlots(player, ['necklace']);
-    const rings = countItemsBySlots(player, ['ring']);
-    const boots = countItemsBySlots(player, ['boots']);
-    const skins = (player.cosmetics || []).length;
-    const consumables = sumConsumables(player);
-    const souls = (player.soulsInventory || []).length + (player.soulsEquipped || []).filter(Boolean).length;
+function sumConsumables(player = {}) {
+    const consumables = player.consumables || {};
+    return Object.values(consumables).reduce((acc, value) => acc + (Number(value) || 0), 0);
+}
 
+function countSouls(player = {}) {
+    return (player.soulsInventory || []).length + (player.soulsEquipped || []).filter(Boolean).length;
+}
+
+function countSkins(player = {}) {
+    return (player.cosmetics || []).length;
+}
+
+function getCategoryCount(player, categoryKey) {
+    if (categoryKey === 'consumables') return sumConsumables(player);
+    if (categoryKey === 'souls') return countSouls(player);
+    if (categoryKey === 'skins') return countSkins(player);
+
+    const category = UI_CATEGORIES[categoryKey];
+    if (!category?.slots) return 0;
+    return countItemsBySlots(player, category.slots);
+}
+
+function buildCategoryButton(player, categoryKey) {
+    const category = UI_CATEGORIES[categoryKey];
+    const count = getCategoryCount(player, categoryKey);
+    return Markup.button.callback(`${category.label} (${count})`, `invcat:${categoryKey}`);
+}
+
+function inventoryMainMenu(player = {}) {
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback(`⚔️ Armas (${weapons})`, 'invcat:weapons'),
-            Markup.button.callback(`🛡️ Escudos (${shields})`, 'invcat:shields')
+            buildCategoryButton(player, 'weapons'),
+            buildCategoryButton(player, 'armors')
         ],
         [
-            Markup.button.callback(`🥋 Armaduras (${armors})`, 'invcat:armors'),
-            Markup.button.callback(`👢 Botas (${boots})`, 'invcat:boots')
+            buildCategoryButton(player, 'jewels'),
+            buildCategoryButton(player, 'consumables')
         ],
         [
-            Markup.button.callback(`💍 Anéis (${rings})`, 'invcat:rings'),
-            Markup.button.callback(`📿 Amuletos (${necklaces})`, 'invcat:necklaces')
+            buildCategoryButton(player, 'skins'),
+            buildCategoryButton(player, 'souls')
         ],
-        [
-            Markup.button.callback(`🧪 Consumíveis (${consumables})`, 'invcat:consumables'),
-            Markup.button.callback(`💀 Almas (${souls})`, 'invcat:souls')
-        ],
-        [
-            Markup.button.callback(`🎨 Skins (${skins})`, 'invcat:skins'),
-            Markup.button.callback('🏠 Menu', 'menu')
-        ]
+        [Markup.button.callback('🏠 Menu', 'menu')]
     ]);
 }
 
@@ -71,6 +102,10 @@ function inventoryCategoryMenu(player = {}) {
 }
 
 module.exports = {
+    UI_CATEGORIES,
     inventoryMainMenu,
-    inventoryCategoryMenu
+    inventoryCategoryMenu,
+    getRealSlot,
+    countItemsBySlots,
+    getCategoryCount
 };
