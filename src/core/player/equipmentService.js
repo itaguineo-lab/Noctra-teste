@@ -1,12 +1,33 @@
+function buildSemanticKey(item = {}) {
+    return [
+        item.slot || 'unknown',
+        item.name || 'item',
+        item.level || 0,
+        item.rarity || 'common',
+        item.atk || 0,
+        item.def || 0,
+        item.hp || 0,
+        item.crit || 0,
+        item.category || 'none',
+        item.uiCategory || 'none'
+    ].join('|');
+}
+
 function getItemKey(item) {
     if (!item || typeof item !== 'object') return '';
 
-    return String(
-        item.instanceId ??
-        item._id ??
-        item.id ??
-        `${item.slot || 'unknown'}|${item.name || 'item'}|${item.level || 0}|${item.rarity || 'common'}`
-    );
+    const instanceId = String(item.instanceId || '').trim();
+    if (instanceId) return instanceId;
+
+    const mongoId = String(item._id || '').trim();
+    if (mongoId && mongoId !== '[object Object]') return mongoId;
+
+    const rawId = String(item.id || '').trim();
+    if (rawId && (rawId.startsWith('drop_') || rawId.startsWith('itm_'))) {
+        return rawId;
+    }
+
+    return buildSemanticKey(item);
 }
 
 function sameItem(a, b) {
@@ -30,6 +51,13 @@ function ensureEquipmentState(player) {
     }
 
     return player;
+}
+
+function cloneItem(item = {}, equipped = false) {
+    return {
+        ...item,
+        __equipped: equipped
+    };
 }
 
 function removeDuplicatesByKey(items = []) {
@@ -68,16 +96,16 @@ function removeInventoryItemByKey(player, itemKey) {
 function equipItem(player, slot, item) {
     ensureEquipmentState(player);
 
-    const normalizedItem = { ...item, __equipped: true };
+    const normalizedItem = cloneItem(item, true);
     const targetKey = getItemKey(normalizedItem);
 
     const current = player.equipment[slot];
 
     if (current && !sameItem(current, normalizedItem)) {
-        player.inventory.push({ ...current, __equipped: false });
+        player.inventory.push(cloneItem(current, false));
     }
 
-    player.inventory = player.inventory.filter(invItem => getItemKey(invItem) !== targetKey);
+    removeInventoryItemByKey(player, targetKey);
     player.inventory = removeDuplicatesByKey(player.inventory);
 
     player.equipment[slot] = normalizedItem;
@@ -95,13 +123,13 @@ function unequipItem(player, slot) {
     const alreadyInInventory = player.inventory.some(invItem => getItemKey(invItem) === itemKey);
 
     if (!alreadyInInventory) {
-        player.inventory.push({ ...item, __equipped: false });
+        player.inventory.push(cloneItem(item, false));
     }
 
     player.equipment[slot] = null;
     player.inventory = removeDuplicatesByKey(player.inventory);
 
-    return item;
+    return cloneItem(item, false);
 }
 
 module.exports = {
