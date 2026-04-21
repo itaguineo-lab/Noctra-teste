@@ -341,16 +341,22 @@ function registerCommands() {
     bindCommand('playerstate', adminCommands.handlePlayerState);
     bindCommand('setplayer', adminCommands.handleSetPlayer);
     bindCommand('capture', adminCommands.handleCapture);
+    bindCommand('heal', adminCommands.handleHeal);
+    bindCommand('teleport', adminCommands.handleTeleport);
+    bindCommand('playerfix', adminCommands.handlePlayerFix);
 
     bindCommand('give', (ctx) => {
         const subCommand = ctx.message.text.split(' ')[1]?.toLowerCase();
         if (subCommand === 'xp') return adminCommands.handleGiveXp(ctx);
         if (subCommand === 'gold') return adminCommands.handleGiveGold(ctx);
         if (subCommand === 'nox') return adminCommands.handleGiveNox(ctx);
+        if (subCommand === 'keys') return adminCommands.handleGiveKeys(ctx);
+        if (subCommand === 'glorias') return adminCommands.handleGiveGlorias(ctx);
         if (subCommand === 'item') return adminCommands.handleGiveItem(ctx);
+        if (subCommand === 'soul') return adminCommands.handleGiveSoul(ctx);
 
         return ctx.reply(
-            '📝 Uso: /give [xp|gold|nox|item] ID_ou_nome <quantidade>\nTambém funciona respondendo a mensagem do jogador.'
+            '📝 Uso: /give [xp|gold|nox|keys|glorias|item|soul] ID_ou_nome <quantidade|soul_id>\nTambém funciona respondendo a mensagem do jogador.'
         );
     });
 
