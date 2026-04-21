@@ -255,7 +255,7 @@ async function handleProfile(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return ctx.reply('❌ Jogador não encontrado. Use /start.');
+        return safeAnswer(ctx, '❌ Jogador não encontrado. Use /start.', { show_alert: true });
     }
 
     const caption = renderProfileCaption(player);
