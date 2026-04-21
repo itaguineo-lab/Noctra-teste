@@ -2,9 +2,9 @@ function getItemKey(item) {
     if (!item || typeof item !== 'object') return '';
 
     return String(
-        item.id ??
-        item._id ??
         item.instanceId ??
+        item._id ??
+        item.id ??
         `${item.slot || 'unknown'}|${item.name || 'item'}|${item.level || 0}|${item.rarity || 'common'}`
     );
 }
@@ -98,8 +98,8 @@ function unequipItem(player, slot) {
         player.inventory.push({ ...item, __equipped: false });
     }
 
-    player.inventory = removeDuplicatesByKey(player.inventory);
     player.equipment[slot] = null;
+    player.inventory = removeDuplicatesByKey(player.inventory);
 
     return item;
 }
