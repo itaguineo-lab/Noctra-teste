@@ -15,6 +15,7 @@ const {
 const {
     applyEquipmentChange,
     removeEquipment,
+    addInventoryItem,
     applySoulEquip,
     applySoulUnequip,
     applyBuff,
@@ -124,9 +125,16 @@ function normalizePlayerState(player) {
     for (const slot of ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots']) {
         if (!(slot in player.equipment)) {
             player.equipment[slot] = null;
-        } else if (player.equipment[slot]) {
-            player.equipment[slot] = { ...normalizeInventoryItem(player.equipment[slot]), __equipped: true };
+            continue;
         }
+
+        if (!player.equipment[slot]) {
+            player.equipment[slot] = null;
+            continue;
+        }
+
+        const normalized = normalizeInventoryItem(player.equipment[slot]);
+        player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 
     ensureCosmeticsState(player);
@@ -262,13 +270,18 @@ function getCategoryItems(player = {}, rawCategory = 'weapons') {
         const equipped = equipment[slot];
         if (!equipped) continue;
 
-        const normalized = { ...normalizeInventoryItem(equipped), __equipped: true };
+        const normalizedBase = normalizeInventoryItem(equipped);
+        if (!normalizedBase) continue;
+
+        const normalized = { ...normalizedBase, __equipped: true };
         equippedItems.push(normalized);
         equippedKeys.add(getItemKey(normalized));
     }
 
     const inventoryItems = inventory
-        .map(item => ({ ...normalizeInventoryItem(item), __equipped: false }))
+        .map(item => normalizeInventoryItem(item))
+        .filter(Boolean)
+        .map(item => ({ ...item, __equipped: false }))
         .filter(item => config.slots.includes(getRealSlot(item)))
         .filter(item => !equippedKeys.has(getItemKey(item)))
         .sort((a, b) => {
@@ -673,14 +686,29 @@ async function unequipBySlot(ctx, slot, rawCategory, page) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
 
+    const currentItem = player.equipment?.[slot] ? normalizeInventoryItem(player.equipment[slot]) : null;
     const result = removeEquipment(player, slot);
     if (!result.success) {
         await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
         return renderInventory(ctx, category, page);
     }
 
+    const returnedItem = normalizeInventoryItem(result.item) || currentItem;
+
     await saveNormalizedPlayer(ctx, player);
-    await safeAnswer(ctx, `✅ ${result.item.name} removido!`, { show_alert: true });
+
+    if (returnedItem) {
+        const reloaded = await loadPlayer(ctx);
+        const alreadyReturned = reloaded?.inventory?.some(item => getItemKey(item) === getItemKey(returnedItem));
+
+        if (!alreadyReturned && reloaded) {
+            addInventoryItem(reloaded, returnedItem);
+            await saveNormalizedPlayer(ctx, reloaded);
+        }
+    }
+
+    const itemName = returnedItem?.name || 'item';
+    await safeAnswer(ctx, `✅ ${itemName} removido!`, { show_alert: true });
     return renderInventory(ctx, category, page);
 }
 
