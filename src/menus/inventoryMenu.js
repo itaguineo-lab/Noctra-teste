@@ -73,38 +73,53 @@ function getCategoryCount(player, categoryKey) {
     return countItemsBySlots(player, category.slots);
 }
 
-function buildCategoryButton(player, categoryKey) {
+function buildCategoryButton(player, categoryKey, activeCategory = null) {
     const category = UI_CATEGORIES[categoryKey];
     const count = getCategoryCount(player, categoryKey);
-    return Markup.button.callback(`${category.label} (${count})`, `invcat:${categoryKey}`);
+    const isActive = activeCategory === categoryKey;
+    const label = isActive
+        ? `⭐ ${category.label}`
+        : `${category.label}`;
+
+    return Markup.button.callback(`${label}`, `invcat:${categoryKey}`);
 }
 
-function inventoryMainMenu(player = {}) {
-    return Markup.inlineKeyboard([
+function buildInventoryCategoryRows(player = {}, activeCategory = null, includeMenuButton = true) {
+    const rows = [
         [
-            buildCategoryButton(player, 'weapons'),
-            buildCategoryButton(player, 'armors')
+            buildCategoryButton(player, 'weapons', activeCategory),
+            buildCategoryButton(player, 'armors', activeCategory)
         ],
         [
-            buildCategoryButton(player, 'jewels'),
-            buildCategoryButton(player, 'consumables')
+            buildCategoryButton(player, 'jewels', activeCategory),
+            buildCategoryButton(player, 'consumables', activeCategory)
         ],
         [
-            buildCategoryButton(player, 'skins'),
-            buildCategoryButton(player, 'souls')
-        ],
-        [Markup.button.callback('🏠 Menu', 'menu')]
-    ]);
+            buildCategoryButton(player, 'skins', activeCategory),
+            buildCategoryButton(player, 'souls', activeCategory)
+        ]
+    ];
+
+    if (includeMenuButton) {
+        rows.push([Markup.button.callback('🏠 Menu', 'menu')]);
+    }
+
+    return rows;
 }
 
-function inventoryCategoryMenu(player = {}) {
-    return inventoryMainMenu(player);
+function inventoryMainMenu(player = {}, activeCategory = null) {
+    return Markup.inlineKeyboard(buildInventoryCategoryRows(player, activeCategory, true));
+}
+
+function inventoryCategoryMenu(player = {}, activeCategory = null) {
+    return inventoryMainMenu(player, activeCategory);
 }
 
 module.exports = {
     UI_CATEGORIES,
     inventoryMainMenu,
     inventoryCategoryMenu,
+    buildInventoryCategoryRows,
     getRealSlot,
     countItemsBySlots,
     getCategoryCount
