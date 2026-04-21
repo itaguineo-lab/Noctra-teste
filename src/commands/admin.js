@@ -1,3 +1,5 @@
+const { randomUUID } = require('crypto');
+
 const {
     getPlayer,
     savePlayer,
@@ -11,8 +13,12 @@ const { BALANCE } = require('../data/balance');
 const {
     addGold,
     addNox,
+    addKeys,
+    addGlorias,
     addInventoryItem,
     applyXpReward,
+    restoreFullHp,
+    restoreFullEnergy,
     normalizePlayerForSave
 } = require('../core/player/playerMutations');
 
@@ -26,6 +32,11 @@ const {
     getXpToNextLevel
 } = require('../core/player/progression');
 
+const {
+    getSoulById,
+    soulsList
+} = require('../core/player/souls');
+
 const captureSessions = new Set();
 
 const VALID_SETPLAYER_FIELDS = new Set([
@@ -33,6 +44,9 @@ const VALID_SETPLAYER_FIELDS = new Set([
     'gold',
     'nox',
     'energy',
+    'hp',
+    'keys',
+    'glorias',
     'map',
     'vipdays'
 ]);
@@ -140,6 +154,25 @@ function validateMapValue(value) {
     ]);
 
     return allowedMaps.has(String(value).trim());
+}
+
+function buildSoulInstance(template) {
+    return {
+        ...template,
+        effect: JSON.parse(JSON.stringify(template.effect || {})),
+        level: 1,
+        exp: 0,
+        shards: 0,
+        awakenLevel: 0,
+        instanceId: randomUUID()
+    };
+}
+
+function pickRandomSoulForPlayer(player) {
+    const playerLevel = Math.max(1, Number(player?.level || 1));
+    const available = soulsList.filter(soul => soul.minLevel <= playerLevel);
+    if (!available.length) return null;
+    return available[Math.floor(Math.random() * available.length)] || null;
 }
 
 /*
@@ -296,7 +329,11 @@ async function resolveSetPlayerPayload(ctx) {
             'Exemplos:\n' +
             '/setplayer 123456789 level 10\n' +
             '/setplayer Italo gold 5000\n' +
-            '/setplayer Italo map cripta_em_ruinas\n\n' +
+            '/setplayer Italo hp 200\n' +
+            '/setplayer Italo keys 10\n' +
+            '/setplayer Italo glorias 15\n' +
+            '/setplayer Italo map cripta_em_ruinas\n' +
+            '/setplayer Italo vipdays 30\n\n' +
             'Também funciona respondendo a mensagem do jogador:\n' +
             '/setplayer level 10'
         );
@@ -310,6 +347,62 @@ async function resolveSetPlayerPayload(ctx) {
     }
 
     return { player, field, value };
+}
+
+async function resolveTeleportPayload(ctx) {
+    const parts = splitText(ctx.message?.text || '');
+    const replyPlayer = await resolvePlayerFromReply(ctx);
+
+    if (replyPlayer) {
+        const map = parts[1];
+        if (!map) {
+            await ctx.reply('❌ Uso respondendo a mensagem: /teleport mapa_id');
+            return null;
+        }
+        return { player: replyPlayer, map: String(map).trim() };
+    }
+
+    const rawTarget = parts[1];
+    const map = parts[2];
+
+    if (!rawTarget || !map) {
+        await ctx.reply('❌ Uso: /teleport ID_ou_nome mapa_id\nEx: /teleport Italo cripta_em_ruinas');
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return { player, map: String(map).trim() };
+}
+
+async function resolveGiveSoulPayload(ctx) {
+    const parts = splitText(ctx.message?.text || '');
+    const replyPlayer = await resolvePlayerFromReply(ctx);
+
+    if (replyPlayer) {
+        const soulId = String(parts[2] || 'random').trim();
+        return { player: replyPlayer, soulId };
+    }
+
+    const rawTarget = parts[2];
+    const soulId = String(parts[3] || 'random').trim();
+
+    if (!rawTarget) {
+        await ctx.reply('❌ Uso: /give soul ID_ou_nome soul_id\nEx: /give soul Italo soul_wolf\nUse random para alma aleatória.');
+        return null;
+    }
+
+    const player = await resolvePlayerFlexible(rawTarget);
+    if (!player) {
+        await ctx.reply('❌ Jogador não encontrado.');
+        return null;
+    }
+
+    return { player, soulId };
 }
 
 /*
@@ -335,22 +428,33 @@ function renderAdminHelp() {
 • \`/metrics AAAA-MM-DD\` → métricas de uma data específica
 • \`/reload\` → reload lógico
 • \`/capture\` → ativa captura de imagem para pegar file_id
+• \`/playerfix ID_ou_nome\` → saneia estado do player
 
 *Give / Ajuste de conta*
 • \`/give xp ID_ou_nome 500\`
 • \`/give gold ID_ou_nome 1000\`
 • \`/give nox ID_ou_nome 50\`
+• \`/give keys ID_ou_nome 5\`
+• \`/give glorias ID_ou_nome 10\`
 • \`/give item ID_ou_nome\`
+• \`/give soul ID_ou_nome soul_wolf\`
 • também funcionam respondendo a mensagem do jogador
 
 *Set direto*
 • \`/setplayer ID_ou_nome level 10\`
 • \`/setplayer ID_ou_nome gold 5000\`
 • \`/setplayer ID_ou_nome nox 100\`
+• \`/setplayer ID_ou_nome hp 200\`
 • \`/setplayer ID_ou_nome energy 20\`
+• \`/setplayer ID_ou_nome keys 10\`
+• \`/setplayer ID_ou_nome glorias 15\`
 • \`/setplayer ID_ou_nome map cripta_em_ruinas\`
 • \`/setplayer ID_ou_nome vipdays 30\`
 • também funciona respondendo a mensagem do jogador
+
+*Ferramentas rápidas*
+• \`/heal ID_ou_nome\` → cura HP e energia
+• \`/teleport ID_ou_nome mapa_id\`
 
 *Moderação*
 • \`/ban ID_ou_nome\`
@@ -587,7 +691,7 @@ async function handleSetPlayer(ctx) {
     const { player, field, value } = payload;
 
     if (!VALID_SETPLAYER_FIELDS.has(field)) {
-        return ctx.reply('❌ Campo inválido. Use: level, gold, nox, energy, map, vipdays');
+        return ctx.reply('❌ Campo inválido. Use: level, gold, nox, energy, hp, keys, glorias, map, vipdays');
     }
 
     try {
@@ -624,6 +728,30 @@ async function handleSetPlayer(ctx) {
                 return ctx.reply('❌ Valor inválido para energy.');
             }
             player.energy = Math.min(amount, player.maxEnergy || amount);
+        }
+
+        if (field === 'hp') {
+            const amount = toPositiveNumber(value);
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para hp.');
+            }
+            player.hp = Math.min(Math.max(1, amount), player.maxHp || amount);
+        }
+
+        if (field === 'keys') {
+            const amount = toPositiveNumber(value);
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para keys.');
+            }
+            player.keys = amount;
+        }
+
+        if (field === 'glorias') {
+            const amount = toPositiveNumber(value);
+            if (!Number.isFinite(amount)) {
+                return ctx.reply('❌ Valor inválido para glorias.');
+            }
+            player.glorias = amount;
         }
 
         if (field === 'map') {
@@ -665,8 +793,11 @@ async function handleSetPlayer(ctx) {
             `🆔 ${player.id}\n` +
             `⭐ Nível: ${player.level}\n` +
             `✨ XP: ${player.xp}/${xpNext}\n` +
+            `❤️ HP: ${player.hp}/${player.maxHp}\n` +
             `💰 Ouro: ${player.gold}\n` +
             `💎 Nox: ${player.nox}\n` +
+            `🏅 Glórias: ${player.glorias}\n` +
+            `🗝️ Chaves: ${player.keys}\n` +
             `⚡ Energia: ${player.energy}/${player.maxEnergy}\n` +
             `🗺️ Mapa: ${player.currentMap}\n` +
             `✨ VIP: ${player.vip ? 'Sim' : 'Não'}`
@@ -737,6 +868,42 @@ async function handleGiveNox(ctx) {
     return ctx.reply(`✅ ${amount} Nox concedido para ${player.name}.`);
 }
 
+async function handleGiveKeys(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
+
+    const { player, amount } = resolved;
+
+    if (amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    addKeys(player, amount);
+    await saveAdminPlayer(player);
+
+    return ctx.reply(`✅ ${amount} chave(s) concedida(s) para ${player.name}.`);
+}
+
+async function handleGiveGlorias(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const resolved = await resolvePlayerFromGiveCommand(ctx);
+    if (!resolved) return;
+
+    const { player, amount } = resolved;
+
+    if (amount <= 0) {
+        return ctx.reply('❌ Quantidade inválida.');
+    }
+
+    addGlorias(player, amount);
+    await saveAdminPlayer(player);
+
+    return ctx.reply(`✅ ${amount} glória(s) concedida(s) para ${player.name}.`);
+}
+
 async function handleGiveItem(ctx) {
     if (!(await requireAdmin(ctx))) return;
 
@@ -778,6 +945,109 @@ async function handleGiveItem(ctx) {
 
     await saveAdminPlayer(player);
     return ctx.reply(`✅ Item ${item.name} concedido para ${player.name}.`);
+}
+
+async function handleGiveSoul(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const resolved = await resolveGiveSoulPayload(ctx);
+    if (!resolved) return;
+
+    const { player, soulId } = resolved;
+    let soulTemplate = null;
+
+    if (soulId === 'random') {
+        soulTemplate = pickRandomSoulForPlayer(player);
+    } else {
+        soulTemplate = getSoulById(soulId);
+    }
+
+    if (!soulTemplate) {
+        return ctx.reply('❌ Alma inválida. Use um id válido ou random.');
+    }
+
+    player.soulsInventory ??= [];
+    const soulInstance = buildSoulInstance(soulTemplate);
+    player.soulsInventory.push(soulInstance);
+    await saveAdminPlayer(player);
+
+    return ctx.reply(`✅ Alma ${soulTemplate.name} concedida para ${player.name}.`);
+}
+
+/*
+=================================
+UTILITY COMMANDS
+=================================
+*/
+
+async function handleHeal(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerForSingleTargetCommand(ctx, '/heal 123456789');
+    if (!player) return;
+
+    restoreFullHp(player);
+    restoreFullEnergy(player);
+    await saveAdminPlayer(player);
+
+    return ctx.reply(`✅ ${player.name} foi curado(a) totalmente. HP e energia restaurados.`);
+}
+
+async function handleTeleport(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const payload = await resolveTeleportPayload(ctx);
+    if (!payload) return;
+
+    const { player, map } = payload;
+
+    if (!validateMapValue(map)) {
+        return ctx.reply('❌ Mapa inválido.');
+    }
+
+    player.currentMap = map;
+    await saveAdminPlayer(player);
+
+    return ctx.reply(`✅ ${player.name} teleportado para ${map}.`);
+}
+
+async function handlePlayerFix(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const player = await resolvePlayerForSingleTargetCommand(ctx, '/playerfix 123456789');
+    if (!player) return;
+
+    const beforeInventory = Array.isArray(player.inventory) ? player.inventory.length : 0;
+    const beforeSouls = Array.isArray(player.soulsInventory) ? player.soulsInventory.length : 0;
+
+    if (!validateMapValue(player.currentMap)) {
+        player.currentMap = 'clareira_sombria';
+    }
+
+    player.inventory ??= [];
+    player.soulsInventory ??= [];
+    player.soulsEquipped ??= [null, null];
+    player.consumables ??= {
+        potionHp: 0,
+        potionEnergy: 0,
+        tonicStrength: 0,
+        tonicDefense: 0
+    };
+
+    await saveAdminPlayer(player);
+
+    const afterInventory = Array.isArray(player.inventory) ? player.inventory.length : 0;
+    const afterSouls = Array.isArray(player.soulsInventory) ? player.soulsInventory.length : 0;
+
+    return ctx.reply(
+        `🧹 Player saneado com sucesso.\n\n` +
+        `👤 ${player.name}\n` +
+        `🎒 Inventário: ${beforeInventory} → ${afterInventory}\n` +
+        `💀 Almas: ${beforeSouls} → ${afterSouls}\n` +
+        `🗺️ Mapa: ${player.currentMap}\n` +
+        `⚡ Energia: ${player.energy}/${player.maxEnergy}\n` +
+        `❤️ HP: ${player.hp}/${player.maxHp}`
+    );
 }
 
 /*
@@ -892,7 +1162,13 @@ module.exports = {
     handleGiveXp,
     handleGiveGold,
     handleGiveNox,
+    handleGiveKeys,
+    handleGiveGlorias,
     handleGiveItem,
+    handleGiveSoul,
+    handleHeal,
+    handleTeleport,
+    handlePlayerFix,
     handleBan,
     handleUnban,
     handleReload,
