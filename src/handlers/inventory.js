@@ -105,6 +105,7 @@ function getSlotLabel(slot) {
 }
 
 function normalizePlayerState(player) {
+    if (!player) return null;
     if (!player.equipment) player.equipment = {};
     if (!Array.isArray(player.inventory)) player.inventory = [];
     if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
@@ -126,6 +127,14 @@ async function saveNormalizedPlayer(ctx, player) {
 
 async function sendScreen(ctx, text, options = {}) {
     return navigateText(ctx, text, options);
+}
+
+function ensureValidCategory(category) {
+    return Boolean(CATEGORY_CONFIG[category]);
+}
+
+function buildCompactEquipCallback(category, page, pageIndex) {
+    return `eqp:${category}:${page}:${pageIndex}`;
 }
 
 /*
@@ -297,10 +306,6 @@ function getPageItems(items, page) {
     };
 }
 
-function buildEquipCallback(item, category, page) {
-    return `eqid:${category}:${page}:${encodeURIComponent(getItemKey(item))}`;
-}
-
 function buildUnequipCallback(slot, category, page) {
     return `uneq:${slot}:${category}:${page}`;
 }
@@ -324,12 +329,15 @@ RENDERERS
 
 async function renderInventory(ctx, category = null, page = 1) {
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return sendScreen(ctx, '❌ Perfil não encontrado. Use /start.', {});
+    }
 
     if (!category) {
         return sendScreen(ctx, renderInventoryHeader(player), inventoryMainMenu(player));
     }
 
-    if (!CATEGORY_CONFIG[category]) {
+    if (!ensureValidCategory(category)) {
         return sendScreen(ctx, 'Categoria inválida.', {});
     }
 
@@ -371,7 +379,7 @@ async function renderInventory(ctx, category = null, page = 1) {
                 buttons.push([
                     Markup.button.callback(
                         `#${itemNumber} ${buildEquipButtonLabel(item, player)}`,
-                        buildEquipCallback(item, category, safePage)
+                        buildCompactEquipCallback(category, safePage, idx)
                     )
                 ]);
             }
@@ -425,6 +433,9 @@ function buildConsumablesKeyboard(player) {
 
 async function handleInvConsumables(ctx) {
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
     return sendScreen(ctx, buildConsumablesText(player), buildConsumablesKeyboard(player));
 }
 
@@ -492,6 +503,9 @@ function buildSoulsKeyboard(player) {
 
 async function handleInvSouls(ctx) {
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
     return sendScreen(ctx, buildSoulsText(player), buildSoulsKeyboard(player));
 }
 
@@ -545,6 +559,9 @@ function buildSkinsKeyboard(player) {
 
 async function handleInvSkins(ctx) {
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
     return sendScreen(ctx, renderSkinsText(player), buildSkinsKeyboard(player));
 }
 
@@ -556,6 +573,9 @@ CONSUMABLE USAGE OUTSIDE COMBAT
 
 async function handleUsePotionOutside(ctx, type) {
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
 
     if (type === 'hp') {
         if (player.hp >= player.maxHp) {
@@ -652,6 +672,9 @@ EQUIPMENT ACTIONS
 
 async function equipByItemKey(ctx, category, page, itemKey) {
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
 
     const item = findInventoryItemByKey(player, itemKey);
     if (!item) {
@@ -688,6 +711,9 @@ async function equipByItemKey(ctx, category, page, itemKey) {
 
 async function unequipBySlot(ctx, slot, category, page) {
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
 
     const result = removeEquipment(player, slot);
     if (!result.success) {
@@ -703,6 +729,27 @@ async function unequipBySlot(ctx, slot, category, page) {
 async function handleEquipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
 
+    const compact = raw.match(/^eqp:(weapons|shields|armors|necklaces|rings|boots):(\d+):(\d+)$/);
+    if (compact) {
+        const [, category, pageStr, pageIndexStr] = compact;
+        const player = await loadPlayer(ctx);
+        if (!player) {
+            return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+        }
+
+        const { items } = getPageItems(getCategoryItems(player, category), Number(pageStr));
+        const item = items[Number(pageIndexStr)];
+
+        if (!item || item.__equipped) {
+            await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', {
+                show_alert: true
+            });
+            return renderInventory(ctx, category, Number(pageStr));
+        }
+
+        return equipByItemKey(ctx, category, Number(pageStr), getItemKey(item));
+    }
+
     const byId = raw.match(/^eqid:(weapons|shields|armors|necklaces|rings|boots):(\d+):(.+)$/);
     if (byId) {
         const [, category, pageStr, encodedKey] = byId;
@@ -713,8 +760,11 @@ async function handleEquipItem(ctx) {
     if (legacy) {
         const [, category, pageStr, absoluteIndexStr] = legacy;
         const player = await loadPlayer(ctx);
-        const allItems = getCategoryItems(player, category);
-        const item = allItems[Number(absoluteIndexStr)];
+        if (!player) {
+            return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+        }
+
+        const item = getCategoryItems(player, category)[Number(absoluteIndexStr)];
 
         if (!item) {
             await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', {
@@ -730,6 +780,9 @@ async function handleEquipItem(ctx) {
     if (legacyOld) {
         const [, slot, itemIdRaw] = legacyOld;
         const player = await loadPlayer(ctx);
+        if (!player) {
+            return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+        }
 
         const item = player.inventory.find(invItem => (
             getRealSlot(invItem) === slot &&
@@ -828,6 +881,9 @@ SOUL ACTIONS
 async function handleEquipSoul(ctx) {
     const soulId = ctx.match?.[1];
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
 
     const soul = player.soulsInventory.find(
         s => String(s.instanceId || s.id) === String(soulId)
@@ -850,6 +906,9 @@ async function handleEquipSoul(ctx) {
 async function handleUnequipSoul(ctx) {
     const slotIdx = parseInt(ctx.match?.[1], 10);
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
 
     const result = applySoulUnequip(player, slotIdx);
     if (!result.success) {
@@ -870,6 +929,9 @@ COSMETIC ACTIONS
 async function handleEquipSkin(ctx) {
     const skinId = ctx.match?.[1];
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
 
     const result = equipCosmetic(player, skinId);
     if (!result.success) {
@@ -884,6 +946,9 @@ async function handleEquipSkin(ctx) {
 async function handleUnequipSkin(ctx) {
     const slot = ctx.match?.[1];
     const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
 
     const current = getActiveCosmetic(player, slot);
     const result = unequipCosmetic(player, slot);
