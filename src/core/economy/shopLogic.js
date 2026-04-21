@@ -10,7 +10,9 @@ const {
     addKeys,
     restoreEnergy,
     normalizePlayerForSave,
-    getItemKey
+    getItemKey,
+    normalizeInventoryItem,
+    getUiCategoryFromSlot
 } = require('../player/playerMutations');
 
 const {
@@ -28,6 +30,19 @@ function getExpectedMaxEnergy(player) {
     return player?.vip
         ? BALANCE.energy.vipMax
         : BALANCE.energy.baseMax;
+}
+
+function getDisplayCategoryLabel(slot) {
+    const labels = {
+        weapon: 'Arma',
+        shield: 'Armadura',
+        armor: 'Armadura',
+        boots: 'Armadura',
+        ring: 'Joia',
+        necklace: 'Joia'
+    };
+
+    return labels[slot] || 'Item';
 }
 
 function ensurePlayerEconomy(player) {
@@ -149,33 +164,52 @@ function addConsumable(player, item, quantity = 1) {
     };
 }
 
-function addEquipment(player, item, quantity = 1) {
-    for (let i = 0; i < quantity; i++) {
-        const equipment = {
-            id: `${item.id}_${Date.now()}_${i}`,
-            name: item.name,
-            slot: item.slot,
-            atk: item.atk || 0,
-            def: item.def || 0,
-            hp: item.hp || 0,
-            crit: item.crit || 0,
-            rarity: item.rarity || 'Raro',
-            emoji: item.emoji || '⚔️',
-            level: item.level || 1,
-            classRestriction: item.classRestriction || null
-        };
+function buildPurchasedEquipment(item, index = 0) {
+    const timestamp = Date.now();
+    const raw = {
+        id: `${item.id}_${timestamp}_${index}`,
+        instanceId: `${item.id}_${timestamp}_${index}`,
+        name: item.name,
+        slot: item.slot,
+        atk: item.atk || 0,
+        def: item.def || 0,
+        hp: item.hp || 0,
+        crit: item.crit || 0,
+        rarity: item.rarity || 'Raro',
+        emoji: item.emoji || '⚔️',
+        level: item.level || 1,
+        classRestriction: item.classRestriction || null,
+        category: item.category || undefined,
+        uiCategory: item.uiCategory || (item.slot ? getUiCategoryFromSlot(item.slot) : undefined),
+        displayCategory: item.displayCategory || getDisplayCategoryLabel(item.slot)
+    };
 
+    return normalizeInventoryItem(raw);
+}
+
+function addEquipment(player, item, quantity = 1) {
+    if (!item.slot) {
+        return { success: false, message: '❌ Equipamento inválido: slot ausente.' };
+    }
+
+    let lastEquipment = null;
+
+    for (let i = 0; i < quantity; i++) {
+        const equipment = buildPurchasedEquipment(item, i);
         const result = addInventoryItem(player, equipment);
         if (!result.success) {
             return { success: false, message: `❌ ${result.message}` };
         }
+        lastEquipment = result.item;
     }
 
     normalizePlayerForSave(player);
 
+    const categoryLabel = lastEquipment?.displayCategory || getDisplayCategoryLabel(lastEquipment?.slot);
+
     return {
         success: true,
-        message: `✅ ${item.name} x${quantity} comprado!`
+        message: `✅ ${item.name} x${quantity} comprado! (${categoryLabel})`
     };
 }
 
@@ -369,6 +403,7 @@ function sellItem(player, itemIndex) {
 
     const item = player.inventory[itemIndex];
     const sellPrice = calculateSellPrice(item);
+    const categoryLabel = item?.displayCategory || getDisplayCategoryLabel(item?.slot);
 
     player.inventory.splice(itemIndex, 1);
     addGold(player, sellPrice);
@@ -382,7 +417,7 @@ function sellItem(player, itemIndex) {
 
     return {
         success: true,
-        message: `✅ ${item.name} vendido por ${sellPrice} ouro!`,
+        message: `✅ ${item.name} (${categoryLabel}) vendido por ${sellPrice} ouro!`,
         sellPrice,
         itemName: item.name
     };
