@@ -186,7 +186,7 @@ function buildItemSummaryLine(item, player) {
     const delta = getComparisonDelta(item, player, slot);
     const rarityEmoji = getRarityEmoji(item.rarity);
     const name = `${rarityEmoji} ${item.name} [Lv${item.level || 1}]`;
-    const statLine = `(${buildShortStatLine(item)})`;
+    const statLine = buildShortStatLine(item);
     const deltaLine = item.__equipped ? '⭐ Equipado' : formatDelta(delta);
 
     return {
@@ -217,16 +217,16 @@ function renderInventoryHeader(player) {
     const ring = escapeMarkdown(player.equipment?.ring?.name || '—');
 
     return (
-        `🎒 *Inventário* (${inventory.length}/${maxInv})\n\n` +
-        `⚔️ ATK ${player.atk || 0}   🛡️ DEF ${player.def || 0}\n` +
-        `❤️ HP ${player.hp || 0}/${player.maxHp || 0}   💥 CRIT ${player.crit || 0}%\n\n` +
-        `Arma: ${weapon}\n` +
-        `Escudo: ${shield}\n` +
-        `Armadura: ${armor}\n` +
-        `Bota: ${boots}\n` +
-        `Colar: ${necklace}\n` +
-        `Anel: ${ring}\n\n` +
-        `⭐ Itens equipados não ocupam slots visuais do menu.`
+        `🎒 *INVENTÁRIO*  ${inventory.length}/${maxInv}\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `⚔️ ${player.atk || 0}   🛡️ ${player.def || 0}   ❤️ ${player.hp || 0}/${player.maxHp || 0}   💥 ${player.crit || 0}%\n\n` +
+        `*Equipado*\n` +
+        `⚔️ ${weapon}\n` +
+        `🛡️ ${shield}\n` +
+        `🥋 ${armor}\n` +
+        `👢 ${boots}\n` +
+        `📿 ${necklace}\n` +
+        `💍 ${ring}`
     );
 }
 
@@ -303,7 +303,8 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
     const { totalPages, page: safePage, items: pageItems } = getPageItems(allItems, page);
 
     let text = `${renderInventoryHeader(player)}\n\n`;
-    text += `${config.title} — página ${safePage}/${totalPages}\n\n`;
+    text += `*${config.title}*  •  página ${safePage}/${totalPages}\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━\n\n`;
 
     const buttons = [];
 
@@ -315,9 +316,9 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
             const summary = buildItemSummaryLine(item, player);
 
             text += `*#${itemNumber}* ${summary.title}\n`;
-            text += `${summary.stats}\n`;
-            text += `Slot: ${summary.slotLabel}`;
-            if (summary.delta) text += ` • ${summary.delta}`;
+            text += `• ${summary.stats}\n`;
+            text += `• ${summary.slotLabel}`;
+            if (summary.delta) text += `  ${summary.delta}`;
             text += `\n\n`;
 
             if (item.__equipped) {
