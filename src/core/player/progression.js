@@ -47,6 +47,46 @@ function getXpToNextLevel(level) {
     return Math.floor(3135 + (lv - 36) * 185);
 }
 
+function isVipActive(player) {
+    if (!player?.vip) return false;
+    if (!player.vipExpires) return true;
+
+    const expiresAt = new Date(player.vipExpires).getTime();
+    if (!Number.isFinite(expiresAt)) return Boolean(player.vip);
+
+    return expiresAt > Date.now();
+}
+
+function getDeathPenaltyRate(player) {
+    return isVipActive(player) ? 0.05 : 0.10;
+}
+
+function getTotalXp(player) {
+    const level = Math.max(1, Number(player?.level || 1));
+    let total = Math.max(0, Number(player?.xp || 0));
+
+    for (let lv = 1; lv < level; lv++) {
+        total += getXpToNextLevel(lv);
+    }
+
+    return total;
+}
+
+function setProgressFromTotalXp(player, totalXp) {
+    let remaining = Math.max(0, Math.floor(Number(totalXp) || 0));
+    let level = 1;
+
+    while (remaining >= getXpToNextLevel(level)) {
+        remaining -= getXpToNextLevel(level);
+        level += 1;
+    }
+
+    player.level = level;
+    player.xp = remaining;
+    recalculateStats(player);
+    return player;
+}
+
 /*
 =================================
 LEVEL REWARDS
@@ -99,25 +139,41 @@ LOSE XP ON DEATH
 =================================
 */
 
-function applyDeathXpPenalty(player, percent = 0.05) {
-    const currentXp = Math.max(0, Number(player.xp) || 0);
-    const penaltyRate = Math.max(0, Number(percent) || 0);
+function applyDeathXpPenalty(player, percent = null) {
+    const totalXpBefore = getTotalXp(player);
+    const penaltyRate = Math.max(0, Number(percent ?? getDeathPenaltyRate(player)) || 0);
+    const oldLevel = Math.max(1, Number(player.level || 1));
+    const oldLevelXp = Math.max(0, Number(player.xp || 0));
 
-    if (currentXp <= 0 || penaltyRate <= 0) {
+    if (totalXpBefore <= 0 || penaltyRate <= 0) {
         return {
             success: true,
             lostXp: 0,
-            remainingXp: currentXp
+            remainingXp: oldLevelXp,
+            totalXpBefore,
+            totalXpAfter: totalXpBefore,
+            oldLevel,
+            newLevel: oldLevel,
+            levelReduced: false,
+            rateApplied: penaltyRate
         };
     }
 
-    const lostXp = Math.max(1, Math.floor(currentXp * penaltyRate));
-    player.xp = Math.max(0, currentXp - lostXp);
+    const lostXp = Math.max(1, Math.floor(totalXpBefore * penaltyRate));
+    const totalXpAfter = Math.max(0, totalXpBefore - lostXp);
+
+    setProgressFromTotalXp(player, totalXpAfter);
 
     return {
         success: true,
         lostXp,
-        remainingXp: player.xp
+        remainingXp: player.xp,
+        totalXpBefore,
+        totalXpAfter,
+        oldLevel,
+        newLevel: player.level,
+        levelReduced: player.level < oldLevel,
+        rateApplied: penaltyRate
     };
 }
 
@@ -240,6 +296,9 @@ function getLevelProgress(player) {
 module.exports = {
     getXpToNextLevel,
     getLevelUpRewards,
+    getDeathPenaltyRate,
+    getTotalXp,
+    setProgressFromTotalXp,
     addXp,
     applyDeathXpPenalty,
     checkLevelUp,
