@@ -15,6 +15,14 @@ const {
 } = require('../../services/energyService');
 
 const VALID_EQUIPMENT_SLOTS = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+const SLOT_TO_UI_CATEGORY = {
+    weapon: 'weapons',
+    shield: 'armors',
+    armor: 'armors',
+    boots: 'armors',
+    ring: 'jewels',
+    necklace: 'jewels'
+};
 
 function toSafeNumber(value, fallback = 0) {
     const n = Number(value);
@@ -23,6 +31,91 @@ function toSafeNumber(value, fallback = 0) {
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+}
+
+function buildSyntheticItemId() {
+    return `itm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getCanonicalSlot(item = {}) {
+    const rawSlot = String(item.slot || '').trim();
+    if (!rawSlot) return 'weapon';
+
+    for (const validSlot of VALID_EQUIPMENT_SLOTS) {
+        if (rawSlot.startsWith(validSlot)) {
+            return validSlot;
+        }
+    }
+
+    const rawCategory = String(item.category || '').trim().toLowerCase();
+    const rawName = String(item.name || '').trim().toLowerCase();
+
+    if (rawCategory === 'weapon') return 'weapon';
+    if (rawCategory === 'jewelry') {
+        if (rawName.includes('anel')) return 'ring';
+        if (rawName.includes('amuleto') || rawName.includes('colar')) return 'necklace';
+        return 'ring';
+    }
+    if (rawCategory === 'armor') {
+        if (rawName.includes('escudo') || rawName.includes('broquel') || rawName.includes('algibeira')) return 'shield';
+        if (rawName.includes('bota')) return 'boots';
+        return 'armor';
+    }
+
+    return 'weapon';
+}
+
+function getUiCategoryFromSlot(slot) {
+    return SLOT_TO_UI_CATEGORY[slot] || 'weapons';
+}
+
+function normalizeInventoryItem(item) {
+    if (!item || typeof item !== 'object') return null;
+
+    const slot = getCanonicalSlot(item);
+    const id = String(item.id || item.instanceId || item._id || buildSyntheticItemId());
+    const instanceId = String(item.instanceId || id);
+
+    return {
+        ...item,
+        id,
+        instanceId,
+        name: String(item.name || 'Item sem nome'),
+        slot,
+        category: String(item.category || '').trim().toLowerCase() || (
+            slot === 'weapon' ? 'weapon' :
+            (slot === 'ring' || slot === 'necklace') ? 'jewelry' :
+            'armor'
+        ),
+        uiCategory: String(item.uiCategory || getUiCategoryFromSlot(slot)),
+        rarity: String(item.rarity || 'Comum'),
+        level: Math.max(1, toSafeNumber(item.level, 1)),
+        atk: Math.max(0, toSafeNumber(item.atk, 0)),
+        def: Math.max(0, toSafeNumber(item.def, 0)),
+        hp: Math.max(0, toSafeNumber(item.hp, 0)),
+        crit: Math.max(0, toSafeNumber(item.crit, 0)),
+        power: Math.max(0, toSafeNumber(item.power, 0)),
+        classRestriction: item.classRestriction || item.class || null,
+        __equipped: Boolean(item.__equipped)
+    };
+}
+
+function normalizeInventoryCollection(items = []) {
+    if (!Array.isArray(items)) return [];
+
+    const seen = new Set();
+    const normalized = [];
+
+    for (const item of items) {
+        const fixed = normalizeInventoryItem(item);
+        if (!fixed) continue;
+        const key = getItemKey(fixed);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        normalized.push(fixed);
+    }
+
+    return normalized;
 }
 
 function ensureConsumables(player) {
@@ -46,9 +139,16 @@ function ensureInventory(player) {
         player.equipment = {};
     }
 
+    player.inventory = normalizeInventoryCollection(player.inventory);
+
     for (const slot of VALID_EQUIPMENT_SLOTS) {
         if (!(slot in player.equipment)) {
             player.equipment[slot] = null;
+        } else if (player.equipment[slot]) {
+            player.equipment[slot] = {
+                ...normalizeInventoryItem(player.equipment[slot]),
+                __equipped: true
+            };
         }
     }
 }
@@ -113,7 +213,8 @@ function restoreFullEnergy(player) {
 function addInventoryItem(player, item) {
     ensurePlayer(player);
 
-    if (!item || typeof item !== 'object') {
+    const normalized = normalizeInventoryItem(item);
+    if (!normalized) {
         return { success: false, message: 'Item inválido.' };
     }
 
@@ -122,8 +223,9 @@ function addInventoryItem(player, item) {
         return { success: false, message: 'Inventário cheio.' };
     }
 
-    const normalized = { ...item, __equipped: false };
+    normalized.__equipped = false;
     player.inventory.push(normalized);
+    player.inventory = normalizeInventoryCollection(player.inventory);
 
     return { success: true, item: normalized };
 }
@@ -156,20 +258,21 @@ function applyEquipmentChange(player, slot, item) {
         return { success: false, message: 'Slot inválido.' };
     }
 
-    if (!item || typeof item !== 'object') {
+    const normalizedItem = normalizeInventoryItem(item);
+    if (!normalizedItem) {
         return { success: false, message: 'Item inválido.' };
     }
 
-    const itemSlot = String(item.slot || '');
+    const itemSlot = String(normalizedItem.slot || '');
     if (!itemSlot.startsWith(slot)) {
         return { success: false, message: 'Item incompatível com o slot.' };
     }
 
-    if (item.classRestriction && item.classRestriction !== player.class) {
+    if (normalizedItem.classRestriction && normalizedItem.classRestriction !== player.class) {
         return { success: false, message: 'Classe incompatível com o item.' };
     }
 
-    equipItem(player, slot, item);
+    equipItem(player, slot, normalizedItem);
     normalizePlayerForSave(player);
 
     return {
@@ -398,6 +501,17 @@ function normalizePlayerForSave(player) {
     syncEnergyCapacity(player);
     recalculateStats(player);
 
+    player.inventory = normalizeInventoryCollection(player.inventory);
+
+    for (const slot of VALID_EQUIPMENT_SLOTS) {
+        if (player.equipment?.[slot]) {
+            player.equipment[slot] = {
+                ...normalizeInventoryItem(player.equipment[slot]),
+                __equipped: true
+            };
+        }
+    }
+
     player.hp = clamp(toSafeNumber(player.hp, player.maxHp || 1), 1, player.maxHp || 1);
     player.energy = clamp(toSafeNumber(player.energy, player.maxEnergy || 0), 0, player.maxEnergy || 0);
     player.gold = Math.max(0, toSafeNumber(player.gold, 0));
@@ -419,6 +533,13 @@ function normalizePlayerForSave(player) {
 }
 
 module.exports = {
+    VALID_EQUIPMENT_SLOTS,
+    SLOT_TO_UI_CATEGORY,
+    getCanonicalSlot,
+    getUiCategoryFromSlot,
+    normalizeInventoryItem,
+    normalizeInventoryCollection,
+
     applyDamage,
     applyHeal,
     restoreFullHp,
