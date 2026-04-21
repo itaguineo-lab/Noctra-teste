@@ -17,8 +17,18 @@ function getRealSlot(item = {}) {
 }
 
 function countItemsBySlots(player = {}, slots = []) {
-    const items = player.inventory || [];
-    return items.filter(item => slots.includes(getRealSlot(item))).length;
+    const inventory = Array.isArray(player.inventory) ? player.inventory : [];
+    const equipment = player.equipment || {};
+
+    let total = inventory.filter(item => slots.includes(getRealSlot(item))).length;
+
+    for (const slot of slots) {
+        if (equipment[slot]) {
+            total += 1;
+        }
+    }
+
+    return total;
 }
 
 function inventoryMainMenu(player = {}) {
@@ -30,7 +40,7 @@ function inventoryMainMenu(player = {}) {
     const boots = countItemsBySlots(player, ['boots']);
     const skins = (player.cosmetics || []).length;
     const consumables = sumConsumables(player);
-    const souls = (player.soulsInventory || []).length;
+    const souls = (player.soulsInventory || []).length + (player.soulsEquipped || []).filter(Boolean).length;
 
     return Markup.inlineKeyboard([
         [
