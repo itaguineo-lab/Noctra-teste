@@ -19,6 +19,18 @@ const {
 } = require('../core/player/progression');
 
 const {
+    createAndStoreFight,
+    getStoredFight,
+    persistFightMessage,
+    removeStoredFight,
+    runAttack,
+    runDefend,
+    runFlee,
+    runSoul,
+    runConsumableTurn
+} = require('../core/combat/fightService');
+
+const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
 
