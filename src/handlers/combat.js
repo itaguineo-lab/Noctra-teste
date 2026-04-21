@@ -382,8 +382,6 @@ ENTRYPOINTS
 */
 
 async function handleHunt(ctx) {
-    await ctx.answerCbQuery().catch(() => {});
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
         await ctx.answerCbQuery('🧭 Você ainda não criou um personagem. Use /start.', {
@@ -407,6 +405,8 @@ async function handleHunt(ctx) {
         }).catch(() => {});
         return;
     }
+
+    await ctx.answerCbQuery().catch(() => {});
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
