@@ -7,7 +7,8 @@ const {
 
 const {
     generateDrop,
-    getDropProfileByEnemy
+    getDropProfileByEnemy,
+    getDisplayCategoryLabel
 } = require('../data/items');
 
 const {
@@ -33,21 +34,9 @@ const MAP_NUMBERS = {
     abismo_noctra: 6
 };
 
-/*
-=================================
-MAPA
-=================================
-*/
-
 function getMapNumber(mapName) {
     return MAP_NUMBERS[mapName] || 1;
 }
-
-/*
-=================================
-CLASSIFICAÇÃO DE ENCONTRO
-=================================
-*/
 
 function getEncounterTier(enemy) {
     if (enemy?.isBoss) return 'boss';
@@ -56,12 +45,6 @@ function getEncounterTier(enemy) {
     return 'common';
 }
 
-/*
-=================================
-SOUL SOURCE
-=================================
-*/
-
 function getSoulSource(enemy, options = {}) {
     if (options.isDungeonBoss) return 'dungeon_boss';
     if (options.isWorldBoss) return 'world_boss';
@@ -69,12 +52,6 @@ function getSoulSource(enemy, options = {}) {
     if (enemy?.isBoss) return 'field_boss';
     return null;
 }
-
-/*
-=================================
-TÍTULO DE VITÓRIA
-=================================
-*/
 
 function getVictoryTitle(enemy) {
     if (enemy?.isBoss) return '👑 BOSS DERROTADO';
@@ -99,12 +76,6 @@ function ensureRewardState(player) {
     return player;
 }
 
-/*
-=================================
-RECOMPENSA BASE
-=================================
-*/
-
 function buildRewardBase(player, enemy) {
     let baseXp = Math.max(1, Number(enemy?.xp || 0));
     let baseGold = Math.max(1, Number(enemy?.gold || 0));
@@ -120,14 +91,15 @@ function buildRewardBase(player, enemy) {
     };
 }
 
-/*
-=================================
-CHAVE
-- Regra atual consolidada:
-- somente boss de campo
-- drop raro
-=================================
-*/
+function formatDroppedItemLoot(item) {
+    if (!item) return null;
+
+    const icon = item.emoji || '🎁';
+    const categoryLabel = item.displayCategory || getDisplayCategoryLabel(item.slot);
+    const levelLabel = item.level ? ` Lv${item.level}` : '';
+
+    return `${icon} ${item.name}${levelLabel} [${item.rarity}] • ${categoryLabel}`;
+}
 
 function tryDropKey(player, enemy, loot, options = {}) {
     const isFieldBoss = Boolean(enemy?.isBoss) && !options.isDungeonBoss && !options.isWorldBoss && !options.isEventBoss;
@@ -143,12 +115,6 @@ function tryDropKey(player, enemy, loot, options = {}) {
     return dropped;
 }
 
-/*
-=================================
-ITEM
-=================================
-*/
-
 function tryDropItem(player, enemy, loot) {
     const mapNumber = getMapNumber(player.currentMap);
     const encounterTier = getEncounterTier(enemy);
@@ -161,12 +127,12 @@ function tryDropItem(player, enemy, loot) {
         };
     }
 
-    const droppedItem = generateDrop(mapNumber, {
+    const rolledItem = generateDrop(mapNumber, {
         encounterTier,
         rarityBias: dropProfile.rarityBias
     });
 
-    const addItemResult = addInventoryItem(player, droppedItem);
+    const addItemResult = addInventoryItem(player, rolledItem);
 
     if (!addItemResult.success) {
         return {
@@ -175,26 +141,17 @@ function tryDropItem(player, enemy, loot) {
         };
     }
 
-    loot.push(`🎁 ${droppedItem.name} [${droppedItem.rarity}]`);
+    const droppedItem = addItemResult.item;
+    const lootLine = formatDroppedItemLoot(droppedItem);
+    if (lootLine) {
+        loot.push(lootLine);
+    }
 
     return {
         droppedItem,
         inventoryFull: false
     };
 }
-
-/*
-=================================
-SOUL
-- Regra consolidada:
-- boss de campo: 3%
-- boss de dungeon: 8%
-- world boss: 15%
-- evento: 20%
-- pity: após 10 bosses de campo sem soul,
-  o próximo boss de campo fica com chance dobrada
-=================================
-*/
 
 function tryDropSoul(player, enemy, loot, options = {}) {
     const source = getSoulSource(enemy, options);
@@ -262,12 +219,6 @@ function recordVictoryMetricsAsync(payload) {
         console.error('⚠️ recordDropMetrics falhou:', error);
     });
 }
-
-/*
-=================================
-PROCESSAMENTO DE RECOMPENSAS
-=================================
-*/
 
 async function processVictory(player, enemy, options = {}) {
     ensureRewardState(player);
