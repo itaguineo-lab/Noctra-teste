@@ -48,7 +48,7 @@ async function renderEnergy(ctx) {
     const player = await getPlayer(ctx.from.id);
 
     if (!player) {
-        return navigateText(ctx, '❌ Perfil não encontrado.');
+        return safeAnswer(ctx, '❌ Perfil não encontrado.', { show_alert: true });
     }
 
     const changed = updateEnergy(player);
@@ -130,8 +130,6 @@ async function handleEnergy(ctx) {
 
 async function handleRestEnergy(ctx) {
     try {
-        await safeAnswer(ctx);
-
         const player = await getPlayer(ctx.from.id);
 
         if (!player) {
@@ -153,6 +151,8 @@ async function handleRestEnergy(ctx) {
                 show_alert: true
             });
         }
+
+        await safeAnswer(ctx);
 
         player.hp = player.maxHp;
         normalizePlayerForSave(player);
