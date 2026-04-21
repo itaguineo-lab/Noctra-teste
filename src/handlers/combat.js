@@ -19,18 +19,6 @@ const {
 } = require('../core/player/progression');
 
 const {
-    createAndStoreFight,
-    getStoredFight,
-    persistFightMessage,
-    removeStoredFight,
-    runAttack,
-    runDefend,
-    runFlee,
-    runSoul,
-    runConsumableTurn
-} = require('../core/combat/fightService');
-
-const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
 
@@ -253,18 +241,29 @@ function buildVictoryMessage(player, rewards) {
 }
 
 function buildLossMessage(player, penalty) {
-    return (
+    const ratePercent = Math.round((penalty?.rateApplied || 0) * 100);
+
+    let msg = (
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `💀 *DERROTA*\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `Você foi derrotado...\n\n` +
-        `📉 XP perdido: ${penalty?.lostXp || 0}\n` +
-        `✨ XP atual: ${player.xp}\n\n` +
-        `❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
+        `📉 XP perdido: ${penalty?.lostXp || 0} (${ratePercent}%)\n` +
+        `✨ XP atual: ${player.xp}\n`
+    );
+
+    if (penalty?.levelReduced) {
+        msg += `⬇️ Nível reduzido: ${penalty.oldLevel} → ${penalty.newLevel}\n`;
+    }
+
+    msg += (
+        `\n❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
         `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `🌑 Reúna forças e tente novamente.`
     );
+
+    return msg;
 }
 
 function buildFleeMessage(player) {
@@ -318,8 +317,8 @@ async function resolveWin(ctx, stored, player) {
 async function resolveLoss(ctx, stored, player) {
     const { meta } = stored;
 
-    const penalty = applyDeathXpPenalty(player, 0.05);
-    player.hp = Math.max(1, Math.floor(player.maxHp * 0.25));
+    const penalty = applyDeathXpPenalty(player);
+    player.hp = 1;
 
     normalizePlayerForSave(player);
 
