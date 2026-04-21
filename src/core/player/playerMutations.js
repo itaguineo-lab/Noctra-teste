@@ -95,6 +95,19 @@ function inferSlotFromName(rawName = '') {
     return null;
 }
 
+function hasMeaningfulItemIdentity(item = {}) {
+    if (!item || typeof item !== 'object') return false;
+
+    const hasName = Boolean(String(item.name || '').trim());
+    const hasSlot = Boolean(String(item.slot || '').trim());
+    const hasCategory = Boolean(String(item.category || '').trim());
+    const hasUiCategory = Boolean(String(item.uiCategory || '').trim());
+    const hasEmoji = Boolean(String(item.emoji || item.icon || '').trim());
+    const hasStats = [item.atk, item.def, item.hp, item.crit, item.power].some(value => Number(value || 0) > 0);
+
+    return hasName || hasSlot || hasCategory || hasUiCategory || hasEmoji || hasStats;
+}
+
 function getCanonicalSlot(item = {}) {
     const rawSlot = String(item.slot || '').trim();
     if (rawSlot) {
@@ -136,6 +149,7 @@ function getDisplayCategoryFromSlot(slot) {
 
 function normalizeInventoryItem(item) {
     if (!item || typeof item !== 'object') return null;
+    if (!hasMeaningfulItemIdentity(item)) return null;
 
     const slot = getCanonicalSlot(item);
     const existingInstanceId = String(item.instanceId || '').trim();
@@ -213,14 +227,13 @@ function ensureInventory(player) {
     player.inventory = normalizeInventoryCollection(player.inventory);
 
     for (const slot of VALID_EQUIPMENT_SLOTS) {
-        if (!(slot in player.equipment)) {
+        if (!(slot in player.equipment) || !player.equipment[slot]) {
             player.equipment[slot] = null;
-        } else if (player.equipment[slot]) {
-            player.equipment[slot] = {
-                ...normalizeInventoryItem(player.equipment[slot]),
-                __equipped: true
-            };
+            continue;
         }
+
+        const normalized = normalizeInventoryItem(player.equipment[slot]);
+        player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 }
 
@@ -575,12 +588,13 @@ function normalizePlayerForSave(player) {
     player.inventory = normalizeInventoryCollection(player.inventory);
 
     for (const slot of VALID_EQUIPMENT_SLOTS) {
-        if (player.equipment?.[slot]) {
-            player.equipment[slot] = {
-                ...normalizeInventoryItem(player.equipment[slot]),
-                __equipped: true
-            };
+        if (!player.equipment?.[slot]) {
+            player.equipment[slot] = null;
+            continue;
         }
+
+        const normalized = normalizeInventoryItem(player.equipment[slot]);
+        player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 
     player.hp = clamp(toSafeNumber(player.hp, player.maxHp || 1), 1, player.maxHp || 1);
