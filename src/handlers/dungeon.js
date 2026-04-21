@@ -344,7 +344,9 @@ async function handleDungeonAttack(ctx) {
     }
 
     if (result.playerDefeated) {
-        const penalty = applyDeathXpPenalty(player, 0.05);
+        const penalty = applyDeathXpPenalty(player);
+        const ratePercent = Math.round((penalty.rateApplied || 0) * 100);
+        player.hp = 1;
 
         d.summary = {
             roomsCleared: d.rooms.filter(r => r.cleared).length,
@@ -355,7 +357,9 @@ async function handleDungeonAttack(ctx) {
             items: d.rewards.items,
             notes: [
                 '💀 Derrotado na masmorra.',
-                `📉 XP perdido: ${penalty.lostXp}`
+                `📉 XP perdido: ${penalty.lostXp} (${ratePercent}%)`,
+                ...(penalty.levelReduced ? [`⬇️ Nível reduzido: ${penalty.oldLevel} → ${penalty.newLevel}`] : []),
+                '❤️ Você retornou com 1 de vida.'
             ]
         };
 
