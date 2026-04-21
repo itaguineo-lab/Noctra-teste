@@ -18,7 +18,7 @@ async function handleVip(ctx) {
 
         const player = await getPlayer(ctx.from.id);
         if (!player) {
-            return navigateText(ctx, '❌ Perfil não encontrado.');
+            return safeAnswer(ctx, '❌ Perfil não encontrado.', { show_alert: true });
         }
 
         const vipActive =
