@@ -267,7 +267,9 @@ async function handleDungeon(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
 
     normalizeDungeonState(player);
@@ -275,11 +277,11 @@ async function handleDungeon(ctx) {
 }
 
 async function handleDungeonStart(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
 
     const keyCost = BALANCE.energy.dungeonEntryKeyCost;
@@ -291,6 +293,7 @@ async function handleDungeonStart(ctx) {
         return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
+    await safeAnswer(ctx);
     player.keys -= keyCost;
     startDungeonRun(player);
 
@@ -302,12 +305,14 @@ async function handleDungeonStart(ctx) {
 }
 
 async function handleDungeonAttack(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
+
+    await safeAnswer(ctx);
 
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
@@ -386,12 +391,14 @@ async function handleDungeonAttack(ctx) {
 }
 
 async function handleDungeonNextRoom(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
+
+    await safeAnswer(ctx);
 
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
@@ -421,12 +428,14 @@ async function handleDungeonNextRoom(ctx) {
 }
 
 async function handleDungeonFlee(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
+
+    await safeAnswer(ctx);
 
     const d = normalizeDungeonState(player);
 
@@ -473,12 +482,14 @@ async function handleDungeonSoulMenu(ctx) {
 }
 
 async function handleDungeonConsumables(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
+
+    await safeAnswer(ctx);
 
     const c = player.consumables || {};
     const rows = [];
@@ -506,13 +517,13 @@ async function handleDungeonConsumables(ctx) {
 }
 
 async function handleDungeonUseConsumable(ctx) {
-    await safeAnswer(ctx);
-
     const key = ctx.match?.[1];
     const player = await getPlayer(ctx.from.id);
 
     if (!player) {
-        return safeSend(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
 
     const d = normalizeDungeonState(player);
@@ -526,6 +537,7 @@ async function handleDungeonUseConsumable(ctx) {
         return safeAnswer(ctx, '❌ Item indisponível.', { show_alert: true });
     }
 
+    await safeAnswer(ctx);
     updateMissionProgress(player, 'use_consumable', 1);
     await recordConsumableUsed();
 
