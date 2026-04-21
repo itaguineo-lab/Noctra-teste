@@ -386,17 +386,26 @@ async function handleHunt(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return ctx.reply('🧭 Você ainda não criou um personagem. Use /start.');
+        await ctx.answerCbQuery('🧭 Você ainda não criou um personagem. Use /start.', {
+            show_alert: true
+        }).catch(() => {});
+        return;
     }
 
     if (!consumeEnergy(player, BALANCE.energy.huntCost)) {
-        return ctx.reply('⚡ Sem energia.');
+        await ctx.answerCbQuery('⚡ Sem energia.', {
+            show_alert: false
+        }).catch(() => {});
+        return;
     }
 
     const enemy = getRandomEnemy(player.currentMap, player.level);
     if (!enemy) {
         player.energy = Math.min(player.maxEnergy, player.energy + BALANCE.energy.huntCost);
-        return ctx.reply('❌ Nenhum inimigo neste mapa.');
+        await ctx.answerCbQuery('❌ Nenhum inimigo disponível neste mapa.', {
+            show_alert: true
+        }).catch(() => {});
+        return;
     }
 
     normalizePlayerForSave(player);
