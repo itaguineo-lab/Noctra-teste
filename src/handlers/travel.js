@@ -105,7 +105,9 @@ async function handleTravel(ctx) {
     const player = await getPlayer(ctx.from.id);
 
     if (!player) {
-        return ctx.reply('🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
 
     if (!player.currentMap) {
@@ -154,7 +156,7 @@ async function handleTravelTo(ctx) {
         return sendOrUpdateTravelMessage(ctx, player);
     } catch (error) {
         console.error('Erro ao viajar:', error);
-        return ctx.reply('❌ Erro ao viajar.');
+        return safeAnswer(ctx, '❌ Erro ao viajar.', { show_alert: true });
     }
 }
 
@@ -179,7 +181,9 @@ async function handleDungeon(ctx) {
 
     const player = await getPlayer(ctx.from.id);
     if (!player) {
-        return ctx.reply('🧭 Você ainda não criou um personagem. Use /start para começar.');
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
     }
 
     const currentMap = getMapById(player.currentMap) || getStartingMap();
