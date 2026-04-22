@@ -1,259 +1,509 @@
-function buildSemanticKey(item = {}) {
-    return [
-        item.slot || 'unknown',
-        item.name || 'item',
-        item.level || 0,
-        item.rarity || 'common',
-        item.atk || 0,
-        item.def || 0,
-        item.hp || 0,
-        item.crit || 0,
-        item.category || 'none',
-        item.uiCategory || 'none'
-    ].join('|');
-}
+const Player = require('./PlayerModel');
+const mongoose = require('mongoose');
 
-function sanitizeIdPart(value = '') {
-    return String(value || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 80) || 'item';
-}
+const { ensureCosmeticsState } = require('./cosmetics');
+const {
+    preserveTransientStates,
+    sanitizePlayerForPersistence
+} = require('./playerSaveGuard');
 
-function isUsableId(value) {
-    const v = String(value || '').trim();
-    if (!v) return false;
-    if (v === '[object Object]') return false;
-    return true;
-}
+const {
+    ensureEnergyFields,
+    syncEnergyCapacity,
+    updateEnergy
+} = require('../../services/energyService');
 
-function getLegacyBase(item = {}) {
-    const rawInstanceId = String(item.instanceId || '').trim();
-    if (rawInstanceId.startsWith('itm_') || rawInstanceId.startsWith('drop_') || rawInstanceId.startsWith('lgc_')) {
-        return sanitizeIdPart(rawInstanceId);
+const { BALANCE } = require('../../data/balance');
+
+let isConnected = false;
+
+const PLAYER_LIST_PROJECTION = {
+    id: 1,
+    name: 1,
+    class: 1,
+    level: 1,
+    xp: 1,
+    hp: 1,
+    maxHp: 1,
+    atk: 1,
+    def: 1,
+    crit: 1,
+    maxEnergy: 1,
+    energy: 1,
+    gold: 1,
+    nox: 1,
+    glorias: 1,
+    keys: 1,
+    currentMap: 1,
+    totalKills: 1,
+    buffs: 1,
+    equipment: 1,
+    soulsEquipped: 1,
+    arena: 1,
+    vip: 1,
+    vipExpires: 1,
+    bonusInventory: 1,
+    maxInventory: 1,
+    lastActive: 1,
+    activeFight: 1,
+    activeArenaBattle: 1,
+    consumables: 1,
+    cosmetics: 1,
+    activeCosmetics: 1
+};
+
+/*
+=================================
+VIP HELPERS
+=================================
+*/
+
+function parseVipExpires(value) {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+        const ts = value.getTime();
+        return Number.isFinite(ts) ? ts : null;
     }
 
-    const rawId = String(item.id || '').trim();
-    if (rawId.startsWith('itm_') || rawId.startsWith('drop_') || rawId.startsWith('lgc_')) {
-        return sanitizeIdPart(rawId);
-    }
+    const parsed = new Date(value).getTime();
+    if (Number.isFinite(parsed)) return parsed;
 
-    const explicitLegacy = String(item.__legacyBase || item.__legacyKey || '').trim();
-    if (explicitLegacy) {
-        return sanitizeIdPart(explicitLegacy);
-    }
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
 
-    if (rawId) {
-        return sanitizeIdPart(rawId);
-    }
-
-    return sanitizeIdPart(buildSemanticKey(item));
+    return null;
 }
 
-function ensureItemIdentity(item) {
+function isVipActive(player) {
+    if (!player?.vip) return false;
+    if (!player.vipExpires) return true;
+
+    const expiresAt = parseVipExpires(player.vipExpires);
+    if (!Number.isFinite(expiresAt)) return false;
+
+    return expiresAt > Date.now();
+}
+
+function normalizeVipState(player) {
+    if (!player || typeof player !== 'object') return player;
+
+    player.vip = Boolean(player.vip);
+
+    if (!player.vip) {
+        player.vipExpires = null;
+        return player;
+    }
+
+    if (!player.vipExpires) {
+        return player;
+    }
+
+    const expiresAt = parseVipExpires(player.vipExpires);
+
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        player.vip = false;
+        player.vipExpires = null;
+        return player;
+    }
+
+    player.vipExpires = new Date(expiresAt).toISOString();
+    return player;
+}
+
+/*
+=================================
+MIGRAÇÃO DE ITENS ANTIGOS
+=================================
+*/
+
+function migrateItemSlot(item) {
     if (!item || typeof item !== 'object') return item;
 
-    const instanceId = String(item.instanceId || '').trim();
-    if (isUsableId(instanceId)) {
-        if (!item.id) item.id = instanceId;
-        if (!item.__legacyBase) item.__legacyBase = getLegacyBase(item);
-        return item;
+    const originalSlot = item.slot;
+    if (!originalSlot) return item;
+
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
+    for (const validSlot of validSlots) {
+        if (String(originalSlot).startsWith(validSlot) && originalSlot !== validSlot) {
+            item.slot = validSlot;
+            break;
+        }
     }
 
-    const rawId = String(item.id || '').trim();
-    if (isUsableId(rawId) && (rawId.startsWith('itm_') || rawId.startsWith('drop_') || rawId.startsWith('lgc_'))) {
-        item.instanceId = rawId;
-        item.id = rawId;
-        if (!item.__legacyBase) item.__legacyBase = getLegacyBase(item);
-        return item;
-    }
-
-    const base = getLegacyBase(item);
-    item.__legacyBase = base;
-    item.instanceId = `lgc_${base}`;
-    item.id = item.instanceId;
     return item;
 }
 
-function getItemKey(item) {
-    if (!item || typeof item !== 'object') return '';
+/*
+=================================
+BUFFS
+=================================
+*/
 
-    ensureItemIdentity(item);
+function updateBuffs(player) {
+    if (!Array.isArray(player.buffs)) player.buffs = [];
 
-    const instanceId = String(item.instanceId || '').trim();
-    if (instanceId) return instanceId;
+    const now = Date.now();
+    player.buffs = player.buffs.filter(buff => {
+        if (!buff.expiresAt) return true;
+        return Number(buff.expiresAt) > now;
+    });
 
-    const mongoId = String(item._id || '').trim();
-    if (mongoId && mongoId !== '[object Object]') return mongoId;
-
-    return `lgc_${getLegacyBase(item)}`;
-}
-
-function sameItem(a, b) {
-    return getItemKey(a) === getItemKey(b);
-}
-
-function ensureEquipmentState(player) {
-    if (!player.equipment || typeof player.equipment !== 'object') {
-        player.equipment = {};
-    }
-
-    if (!Array.isArray(player.inventory)) {
-        player.inventory = [];
-    }
-
-    const slots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
-    for (const slot of slots) {
-        if (!(slot in player.equipment)) {
-            player.equipment[slot] = null;
-            continue;
-        }
-
-        if (player.equipment[slot]) {
-            ensureItemIdentity(player.equipment[slot]);
-        }
-    }
-
-    player.inventory = player.inventory.map(item => ensureItemIdentity(item));
     return player;
 }
 
-function cloneItem(item = {}, equipped = false) {
-    const cloned = {
-        ...item,
-        __equipped: equipped
+/*
+=================================
+ACTIVE STATES
+=================================
+*/
+
+function ensureActiveFightState(player) {
+    player.activeFight ??= null;
+
+    if (!player.activeFight) return player;
+
+    player.activeFight.mode ??= 'hunt';
+    player.activeFight.createdAt ??= Date.now();
+    player.activeFight.expiresAt ??= player.activeFight.createdAt + (10 * 60 * 1000);
+    player.activeFight.battleMessageId ??= null;
+    player.activeFight.isPhoto ??= false;
+    player.activeFight.payload ??= null;
+
+    return player;
+}
+
+function ensureActiveArenaBattleState(player) {
+    player.activeArenaBattle ??= null;
+
+    if (!player.activeArenaBattle) return player;
+
+    player.activeArenaBattle.mode ??= 'arena';
+    player.activeArenaBattle.createdAt ??= Date.now();
+    player.activeArenaBattle.expiresAt ??= player.activeArenaBattle.createdAt + (10 * 60 * 1000);
+    player.activeArenaBattle.messageId ??= null;
+    player.activeArenaBattle.payload ??= null;
+
+    return player;
+}
+
+/*
+=================================
+BALANCE HELPERS
+=================================
+*/
+
+function getBaseInventoryCapacity(player) {
+    return isVipActive(player)
+        ? BALANCE.inventory.vipMax
+        : BALANCE.inventory.baseMax;
+}
+
+function applyInventoryCapacity(player) {
+    player.bonusInventory ??= 0;
+    player.maxInventory = getBaseInventoryCapacity(player) + (player.bonusInventory || 0);
+    return player.maxInventory;
+}
+
+/*
+=================================
+ESTADO PADRÃO
+=================================
+*/
+
+function ensurePlayerState(player) {
+    if (!player) return {};
+    if (!player.id) throw new Error('Player sem ID');
+
+    player.name ??= 'Viajante';
+    player.class ??= 'guerreiro';
+
+    player.level ??= 1;
+    player.xp ??= 0;
+
+    player.gold ??= 100;
+    player.nox ??= 0;
+    player.glorias ??= 0;
+    player.keys ??= 0;
+
+    player.vip ??= false;
+    player.vipExpires ??= null;
+    normalizeVipState(player);
+
+    ensureEnergyFields(player);
+    syncEnergyCapacity(player);
+
+    player.inventory ??= [];
+    player.inventory = player.inventory.map(migrateItemSlot);
+
+    applyInventoryCapacity(player);
+
+    player.consumables ??= {
+        potionHp: 0,
+        potionEnergy: 0,
+        tonicStrength: 0,
+        tonicDefense: 0
     };
 
-    ensureItemIdentity(cloned);
-    return cloned;
-}
+    player.buffs ??= [];
+    player.equipment ??= {};
 
-function assignDeterministicUniqueId(item, usedKeys, baseCounters) {
-    ensureItemIdentity(item);
-
-    const currentKey = getItemKey(item);
-    if (currentKey && !usedKeys.has(currentKey)) {
-        usedKeys.add(currentKey);
-        return item;
-    }
-
-    const base = getLegacyBase(item);
-    let counter = (baseCounters.get(base) || 0) + 1;
-    let newId = `lgc_${base}_${counter}`;
-
-    while (usedKeys.has(newId)) {
-        counter += 1;
-        newId = `lgc_${base}_${counter}`;
-    }
-
-    baseCounters.set(base, counter);
-    item.__legacyBase = base;
-    item.instanceId = newId;
-    item.id = newId;
-    usedKeys.add(newId);
-
-    return item;
-}
-
-function ensureUniquePlayerItemKeys(player) {
-    ensureEquipmentState(player);
-
-    const usedKeys = new Set();
-    const baseCounters = new Map();
     const slots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+    slots.forEach(slot => {
+        if (!(slot in player.equipment)) player.equipment[slot] = null;
+        if (player.equipment[slot]) {
+            player.equipment[slot] = migrateItemSlot(player.equipment[slot]);
+        }
+    });
 
-    for (const slot of slots) {
-        const equipped = player.equipment[slot];
-        if (!equipped) continue;
-        assignDeterministicUniqueId(equipped, usedKeys, baseCounters);
-        player.equipment[slot] = equipped;
-    }
+    player.soulsInventory ??= [];
+    player.soulsEquipped ??= [null, null];
 
-    const fixedInventory = [];
-    for (const item of player.inventory) {
-        if (!item || typeof item !== 'object') continue;
-        assignDeterministicUniqueId(item, usedKeys, baseCounters);
-        fixedInventory.push(item);
-    }
+    player.totalKills ??= 0;
+    player.achievements ??= {};
 
-    player.inventory = fixedInventory;
+    player.currentMap ??= 'clareira_sombria';
+    player.dungeonProgress ??= null;
+    player.lastDungeonRun ??= 0;
+    player.soulPityCounter ??= 0;
+
+    player.arena ??= null;
+
+    ensureCosmeticsState(player);
+    player.lastDailyChest ??= null;
+
+    player.renamed ??= false;
+    player.classChanged ??= false;
+
+    ensureActiveFightState(player);
+    ensureActiveArenaBattleState(player);
+
+    player.createdAt ??= new Date();
+    player.updatedAt ??= new Date();
+
+    player.hp ??= 120;
+    player.maxHp ??= 120;
+    player.atk ??= 12;
+    player.def ??= 10;
+    player.crit ??= 5;
+
     return player;
 }
 
-function findInventoryItemByKey(player, itemKey) {
-    ensureUniquePlayerItemKeys(player);
-    return player.inventory.find(item => getItemKey(item) === String(itemKey)) || null;
-}
+/*
+=================================
+RECALCULAR STATS
+=================================
+*/
 
-function removeInventoryItemByKey(player, itemKey) {
-    ensureUniquePlayerItemKeys(player);
+function recalculateStats(player) {
+    const BASE_STATS = {
+        guerreiro: { atk: 12, def: 10, hp: 120, crit: 5 },
+        mago: { atk: 18, def: 4, hp: 80, crit: 8 },
+        arqueiro: { atk: 15, def: 6, hp: 100, crit: 10 }
+    };
 
-    const key = String(itemKey);
-    const index = player.inventory.findIndex(item => getItemKey(item) === key);
+    ensurePlayerState(player);
+    updateBuffs(player);
+    syncEnergyCapacity(player);
+    applyInventoryCapacity(player);
 
-    if (index === -1) {
-        return null;
+    const currentHp = Math.max(1, Number(player.hp || 1));
+    const classBase = BASE_STATS[player.class] || BASE_STATS.guerreiro;
+    const level = Math.max(1, Number(player.level || 1));
+
+    let atk = classBase.atk + (level - 1) * 2;
+    let def = classBase.def + (level - 1);
+    let maxHp = classBase.hp + (level - 1) * 8;
+    let crit = classBase.crit + Math.floor((level - 1) * 0.5);
+
+    const eq = player.equipment || {};
+    for (const slot of Object.keys(eq)) {
+        const item = eq[slot];
+        if (!item) continue;
+
+        atk += Number(item.atk || 0);
+        def += Number(item.def || 0);
+        maxHp += Number(item.hp || 0);
+        crit += Number(item.crit || 0);
     }
 
-    const [removed] = player.inventory.splice(index, 1);
-    return removed || null;
-}
+    const buffs = Array.isArray(player.buffs) ? player.buffs : [];
+    for (const buff of buffs) {
+        atk += Number(buff.atk || 0);
+        def += Number(buff.def || 0);
+        maxHp += Number(buff.hp || 0);
+        crit += Number(buff.crit || 0);
+    }
 
-function pushInventoryCopySafely(player, item) {
-    ensureUniquePlayerItemKeys(player);
-    player.inventory.push(cloneItem(item, false));
-    ensureUniquePlayerItemKeys(player);
+    const souls = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [];
+    for (const soul of souls) {
+        if (!soul?.effect || soul.effect.type !== 'passive') continue;
+
+        atk += Number(soul.effect.atkBonus || 0);
+        def += Number(soul.effect.defBonus || 0);
+        maxHp += Number(soul.effect.hpBonus || 0);
+        crit += Number(soul.effect.critBonus || 0);
+    }
+
+    player.atk = Math.max(1, Math.round(atk));
+    player.def = Math.max(0, Math.round(def));
+    player.maxHp = Math.max(1, Math.round(maxHp));
+    player.crit = Math.max(0, Math.round(crit));
+    player.hp = Math.max(1, Math.min(currentHp, player.maxHp));
+
     return player;
 }
 
-function equipItem(player, slot, item) {
-    ensureUniquePlayerItemKeys(player);
+/*
+=================================
+MONGO
+=================================
+*/
 
-    const normalizedItem = cloneItem(item, true);
-    const targetKey = getItemKey(normalizedItem);
+async function connectToMongo() {
+    if (isConnected) return;
 
-    const selectedInventoryItem = removeInventoryItemByKey(player, targetKey);
-    const itemToEquip = selectedInventoryItem
-        ? cloneItem(selectedInventoryItem, true)
-        : cloneItem(item, true);
-
-    const current = player.equipment[slot];
-    if (current) {
-        pushInventoryCopySafely(player, current);
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    if (!mongoUri) {
+        throw new Error('MONGODB_URI/MONGO_URI não configurado.');
     }
 
-    player.equipment[slot] = itemToEquip;
+    await mongoose.connect(mongoUri);
+    isConnected = true;
+    console.log('✅ MongoDB conectado.');
+}
 
-    ensureUniquePlayerItemKeys(player);
+/*
+=================================
+CREATE PLAYER
+=================================
+*/
+
+async function createPlayer(id, name, className) {
+    const safeId = String(id);
+    const safeName = String(name || '').trim();
+    const safeClass = String(className || '').trim();
+
+    const allowedClasses = ['guerreiro', 'arqueiro', 'mago'];
+
+    if (!safeName || safeName.length < 3 || safeName.length > 20) {
+        throw new Error('Nome inválido.');
+    }
+
+    if (!allowedClasses.includes(safeClass)) {
+        throw new Error('Classe inválida.');
+    }
+
+    const existing = await Player.findOne({ id: safeId });
+    if (existing) {
+        ensurePlayerState(existing);
+        updateEnergy(existing);
+        recalculateStats(existing);
+        return existing;
+    }
+
+    const player = new Player({
+        id: safeId,
+        name: safeName,
+        class: safeClass
+    });
+
+    ensurePlayerState(player);
+    recalculateStats(player);
+    player.hp = player.maxHp;
+    player.energy = player.maxEnergy;
+
+    await player.save();
     return player;
 }
 
-function unequipItem(player, slot) {
-    ensureUniquePlayerItemKeys(player);
+/*
+=================================
+GET / SAVE
+=================================
+*/
 
-    const item = player.equipment[slot];
-    if (!item) return null;
+async function getPlayer(id) {
+    const player = await Player.findOne({ id: String(id) });
+    if (!player) return null;
 
-    const returned = cloneItem(item, false);
-    pushInventoryCopySafely(player, returned);
+    ensurePlayerState(player);
+    updateEnergy(player);
+    recalculateStats(player);
 
-    player.equipment[slot] = null;
-    ensureUniquePlayerItemKeys(player);
+    return player;
+}
 
-    return returned;
+async function savePlayer(id, playerData) {
+    const safeId = String(id);
+
+    let current = null;
+    if (!playerData?.activeFight || !playerData?.activeArenaBattle) {
+        current = await Player.findOne(
+            { id: safeId },
+            { activeFight: 1, activeArenaBattle: 1 }
+        ).lean();
+    }
+
+    const transientState = preserveTransientStates(current, playerData);
+
+    ensurePlayerState(playerData);
+    updateBuffs(playerData);
+    updateEnergy(playerData);
+    recalculateStats(playerData);
+
+    playerData.updatedAt = new Date();
+
+    const sanitized = sanitizePlayerForPersistence({
+        ...playerData,
+        ...transientState,
+        id: safeId
+    });
+
+    await Player.findOneAndUpdate(
+        { id: safeId },
+        sanitized,
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+}
+
+/*
+=================================
+COLLECTION / UTILS
+=================================
+*/
+
+async function getPlayerCollection() {
+    return mongoose.connection.collection('players');
+}
+
+async function getAllPlayers() {
+    const players = await Player.find({}, PLAYER_LIST_PROJECTION).lean();
+    const roster = [];
+
+    for (const player of players) {
+        ensurePlayerState(player);
+        updateEnergy(player);
+        recalculateStats(player);
+        roster.push(player);
+    }
+
+    return roster;
 }
 
 module.exports = {
-    equipItem,
-    unequipItem,
-    sameItem,
-    getItemKey,
-    findInventoryItemByKey,
-    removeInventoryItemByKey,
-    ensureEquipmentState,
-    ensureItemIdentity,
-    ensureUniquePlayerItemKeys
+    connectToMongo,
+    createPlayer,
+    getPlayer,
+    savePlayer,
+    getPlayerCollection,
+    getAllPlayers,
+    ensurePlayerState,
+    recalculateStats,
+    updateBuffs,
+    applyInventoryCapacity,
+    isVipActive,
+    normalizeVipState
 };
