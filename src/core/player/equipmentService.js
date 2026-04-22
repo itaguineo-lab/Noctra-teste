@@ -58,7 +58,8 @@ function ensureItemIdentity(item) {
 
     const instanceId = String(item.instanceId || '').trim();
     if (isUsableId(instanceId)) {
-        if (!item.id) item.id = instanceId;
+        item.instanceId = instanceId;
+        item.id = instanceId;
         if (!item.__legacyBase) item.__legacyBase = getLegacyBase(item);
         return item;
     }
@@ -106,6 +107,7 @@ function ensureEquipmentState(player) {
     }
 
     const slots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
     for (const slot of slots) {
         if (!(slot in player.equipment)) {
             player.equipment[slot] = null;
@@ -117,7 +119,10 @@ function ensureEquipmentState(player) {
         }
     }
 
-    player.inventory = player.inventory.map(item => ensureItemIdentity(item));
+    player.inventory = player.inventory
+        .filter(item => item && typeof item === 'object')
+        .map(item => ensureItemIdentity(item));
+
     return player;
 }
 
@@ -168,6 +173,7 @@ function ensureUniquePlayerItemKeys(player) {
     for (const slot of slots) {
         const equipped = player.equipment[slot];
         if (!equipped) continue;
+
         assignDeterministicUniqueId(equipped, usedKeys, baseCounters);
         player.equipment[slot] = equipped;
     }
@@ -175,6 +181,7 @@ function ensureUniquePlayerItemKeys(player) {
     const fixedInventory = [];
     for (const item of player.inventory) {
         if (!item || typeof item !== 'object') continue;
+
         assignDeterministicUniqueId(item, usedKeys, baseCounters);
         fixedInventory.push(item);
     }
@@ -194,38 +201,44 @@ function removeInventoryItemByKey(player, itemKey) {
     const key = String(itemKey);
     const index = player.inventory.findIndex(item => getItemKey(item) === key);
 
-    if (index === -1) {
-        return null;
-    }
+    if (index === -1) return null;
 
     const [removed] = player.inventory.splice(index, 1);
     return removed || null;
 }
 
-function pushInventoryCopySafely(player, item) {
+function addItemBackToInventory(player, item) {
+    const restored = cloneItem(item, false);
+    player.inventory.push(restored);
     ensureUniquePlayerItemKeys(player);
-    player.inventory.push(cloneItem(item, false));
-    ensureUniquePlayerItemKeys(player);
-    return player;
+
+    const restoredKey = getItemKey(restored);
+    return player.inventory.find(invItem => getItemKey(invItem) === restoredKey) || restored;
 }
 
 function equipItem(player, slot, item) {
     ensureUniquePlayerItemKeys(player);
 
-    const normalizedItem = cloneItem(item, true);
-    const targetKey = getItemKey(normalizedItem);
-
+    const targetKey = getItemKey(item);
     const selectedInventoryItem = removeInventoryItemByKey(player, targetKey);
-    const itemToEquip = selectedInventoryItem
-        ? cloneItem(selectedInventoryItem, true)
-        : cloneItem(item, true);
+    const currentEquipped = player.equipment[slot] ? cloneItem(player.equipment[slot], false) : null;
 
-    const current = player.equipment[slot];
-    if (current) {
-        pushInventoryCopySafely(player, current);
+    if (currentEquipped) {
+        /*
+        Primeiro removemos o item selecionado do inventário.
+        Depois equipamos o novo item.
+        Só então devolvemos o antigo para o inventário.
+        Isso evita colisão artificial entre o item equipado e a cópia devolvida.
+        */
+        player.equipment[slot] = null;
     }
 
+    const itemToEquip = cloneItem(selectedInventoryItem || item, true);
     player.equipment[slot] = itemToEquip;
+
+    if (currentEquipped) {
+        addItemBackToInventory(player, currentEquipped);
+    }
 
     ensureUniquePlayerItemKeys(player);
     return player;
@@ -234,16 +247,22 @@ function equipItem(player, slot, item) {
 function unequipItem(player, slot) {
     ensureUniquePlayerItemKeys(player);
 
-    const item = player.equipment[slot];
-    if (!item) return null;
+    const equipped = player.equipment[slot];
+    if (!equipped) return null;
 
-    const returned = cloneItem(item, false);
-    pushInventoryCopySafely(player, returned);
-
+    /*
+    Aqui estava o erro principal:
+    o código antigo devolvia uma cópia ao inventário enquanto o item ainda
+    permanecia equipado. Isso gerava colisão de identidade.
+    Agora o slot é limpo antes, e o próprio item volta ao inventário.
+    */
+    const returningItem = cloneItem(equipped, false);
     player.equipment[slot] = null;
-    ensureUniquePlayerItemKeys(player);
 
-    return returned;
+    const restored = addItemBackToInventory(player, returningItem);
+
+    ensureUniquePlayerItemKeys(player);
+    return restored;
 }
 
 module.exports = {
