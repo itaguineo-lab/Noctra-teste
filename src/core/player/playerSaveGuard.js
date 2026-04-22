@@ -19,13 +19,36 @@ function hasRealItemStats(item = {}) {
     return ['atk', 'def', 'hp', 'crit', 'power'].some(field => Number(item?.[field] || 0) > 0);
 }
 
-function looksLikeMeaningfulItem(item) {
+function getFallbackNameForSlot(slot) {
+    if (slot === 'weapon') return 'Arma desconhecida';
+    if (slot === 'shield') return 'Escudo desconhecido';
+    if (slot === 'armor') return 'Armadura desconhecida';
+    if (slot === 'boots') return 'Bota desconhecida';
+    if (slot === 'ring') return 'Anel desconhecido';
+    if (slot === 'necklace') return 'Colar desconhecido';
+    return 'Item desconhecido';
+}
+
+function normalizeSlot(rawSlot = '', slotHint = null) {
+    const source = normalizeText(slotHint || rawSlot);
+
+    if (!source) return null;
+
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+    for (const slot of validSlots) {
+        if (source.startsWith(slot)) return slot;
+    }
+
+    return null;
+}
+
+function looksLikeMeaningfulItem(item, slotHint = null) {
     if (!isObject(item)) return false;
 
     const hasName = !isPlaceholderName(item.name);
     const hasStats = hasRealItemStats(item);
 
-    const hasSlotHint = Boolean(normalizeText(item.slot));
+    const hasSlotHint = Boolean(normalizeSlot(item.slot, slotHint));
     const hasCategoryHint = Boolean(normalizeText(item.category));
     const hasUiCategoryHint = Boolean(normalizeText(item.uiCategory));
     const hasEmoji = Boolean(normalizeText(item.emoji || item.icon));
@@ -34,12 +57,18 @@ function looksLikeMeaningfulItem(item) {
 }
 
 function sanitizeSingleItem(item, slotHint = null) {
-    if (!looksLikeMeaningfulItem(item)) return null;
+    if (!looksLikeMeaningfulItem(item, slotHint)) return null;
 
     const cloned = deepClone(item);
+    const normalizedSlot = normalizeSlot(cloned.slot, slotHint);
 
-    if (slotHint && !cloned.slot) {
-        cloned.slot = slotHint;
+    if (normalizedSlot) {
+        cloned.slot = normalizedSlot;
+    }
+
+    if (isPlaceholderName(cloned.name)) {
+        if (!hasRealItemStats(cloned)) return null;
+        cloned.name = getFallbackNameForSlot(normalizedSlot);
     }
 
     return cloned;
@@ -120,13 +149,18 @@ function sanitizePlayerForPersistence(player) {
         safe.activeArenaBattle = null;
     }
 
-    /*
-    Higienização real de inventário/equipment.
-    Sem isso, lixo legado continua sendo salvo.
-    */
+    const seenInventoryKeys = new Set();
+
     safe.inventory = safe.inventory
         .map(item => sanitizeSingleItem(item))
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter(item => {
+            const key = String(item.instanceId || item.id || '').trim();
+            if (!key) return true;
+            if (seenInventoryKeys.has(key)) return false;
+            seenInventoryKeys.add(key);
+            return true;
+        });
 
     const equipmentSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
     for (const slot of equipmentSlots) {
