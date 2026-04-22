@@ -16,18 +16,25 @@ const {
 } = require('../player/playerMutations');
 
 const {
+    isVipActive,
+    normalizeVipState
+} = require('../player/playerService');
+
+const {
     recordPurchaseMetrics,
     recordSaleMetrics
 } = require('../metrics/metricsService');
 
 function getExpectedMaxInventory(player) {
-    return player?.vip
+    const bonusInventory = Number(player?.bonusInventory || 0);
+
+    return (isVipActive(player)
         ? BALANCE.inventory.vipMax
-        : BALANCE.inventory.baseMax;
+        : BALANCE.inventory.baseMax) + bonusInventory;
 }
 
 function getExpectedMaxEnergy(player) {
-    return player?.vip
+    return isVipActive(player)
         ? BALANCE.energy.vipMax
         : BALANCE.energy.baseMax;
 }
@@ -52,6 +59,12 @@ function ensurePlayerEconomy(player) {
     player.nox ??= 0;
     player.glorias ??= 0;
     player.inventory ??= [];
+    player.keys ??= 0;
+    player.vip ??= false;
+    player.vipExpires ??= null;
+    player.bonusInventory ??= 0;
+
+    normalizeVipState(player);
 
     player.consumables ??= {
         potionHp: 0,
@@ -62,20 +75,11 @@ function ensurePlayerEconomy(player) {
 
     ensureCosmeticsState(player);
 
-    player.vip ??= false;
-    player.vipExpires ??= null;
+    player.maxInventory = getExpectedMaxInventory(player);
+    player.maxEnergy = getExpectedMaxEnergy(player);
 
-    player.maxInventory ??= getExpectedMaxInventory(player);
-    player.keys ??= 0;
-    player.energy ??= getExpectedMaxEnergy(player);
-    player.maxEnergy ??= getExpectedMaxEnergy(player);
-
-    if (player.maxInventory < getExpectedMaxInventory(player)) {
-        player.maxInventory = getExpectedMaxInventory(player);
-    }
-
-    if (player.maxEnergy !== getExpectedMaxEnergy(player)) {
-        player.maxEnergy = getExpectedMaxEnergy(player);
+    if (!Number.isFinite(Number(player.energy))) {
+        player.energy = player.maxEnergy;
     }
 
     player.energy = Math.max(0, Math.min(player.energy, player.maxEnergy));
@@ -214,6 +218,7 @@ function addEquipment(player, item, quantity = 1) {
 }
 
 function applyVip(player, item) {
+    const oldMaxEnergy = getExpectedMaxEnergy(player);
     const now = Date.now();
     const currentExpire = player.vipExpires ? new Date(player.vipExpires).getTime() : now;
     const baseTime = Math.max(now, currentExpire);
@@ -221,9 +226,24 @@ function applyVip(player, item) {
 
     player.vip = true;
     player.vipExpires = new Date(newExpire).toISOString();
-    player.maxEnergy = BALANCE.energy.vipMax;
-    player.maxInventory = Math.max(player.maxInventory || BALANCE.inventory.baseMax, BALANCE.inventory.vipMax);
-    player.energy = Math.min(player.maxEnergy, player.energy || player.maxEnergy);
+
+    const newMaxEnergy = BALANCE.energy.vipMax;
+    const oldEnergy = Number(player.energy || 0);
+
+    player.maxEnergy = newMaxEnergy;
+
+    /*
+    Compra de VIP deve gerar benefício perceptível instantâneo,
+    não só promessa futura.
+    */
+    if (oldMaxEnergy < newMaxEnergy) {
+        const diff = newMaxEnergy - oldMaxEnergy;
+        player.energy = Math.min(newMaxEnergy, oldEnergy + diff);
+    } else {
+        player.energy = Math.min(newMaxEnergy, oldEnergy);
+    }
+
+    player.maxInventory = getExpectedMaxInventory(player);
 
     normalizePlayerForSave(player);
 
