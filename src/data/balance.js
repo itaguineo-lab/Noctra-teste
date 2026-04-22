@@ -47,7 +47,31 @@ const BALANCE = {
 
     dungeon: {
         fleeConsumesEnergy: false,
-        fieldBossKeyDropChance: 0.05
+
+        /*
+        Chave agora cai de miniboss e boss de campo.
+        A dungeon precisa existir como rotina desejável,
+        não como sistema decorativo impossível de acessar.
+        */
+        fieldMiniBossKeyDropChance: 0.20,
+        fieldBossKeyDropChance: 0.45
+    },
+
+    souls: {
+        /*
+        Elite temática pode dropar alma, mas raro.
+        Miniboss temático também.
+        Boss continua sendo fonte principal.
+        */
+        fieldEliteThematicDropChance: 0.01,
+        fieldMiniBossThematicDropChance: 0.02,
+        fieldBossDropChance: 0.03,
+        dungeonBossDropChance: 0.08,
+        worldBossDropChance: 0.15,
+        eventBossDropChance: 0.20,
+
+        pityBoostAt: 10,
+        pityMultiplier: 2
     },
 
     rarities: {
