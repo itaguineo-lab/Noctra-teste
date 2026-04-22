@@ -13,6 +13,19 @@ function buildSemanticKey(item = {}) {
     ].join('|');
 }
 
+function buildLooseSignature(item = {}) {
+    return [
+        item.slot || 'unknown',
+        item.name || 'item',
+        item.level || 0,
+        item.rarity || 'common',
+        item.atk || 0,
+        item.def || 0,
+        item.hp || 0,
+        item.crit || 0
+    ].join('|');
+}
+
 function sanitizeIdPart(value = '') {
     return String(value || '')
         .toLowerCase()
@@ -40,6 +53,16 @@ function getSlotMeta(slot) {
     }
 
     return { category: 'armor', uiCategory: 'armors', displayCategory: 'Armadura' };
+}
+
+function getFallbackNameForSlot(slot) {
+    if (slot === 'weapon') return 'Arma desconhecida';
+    if (slot === 'shield') return 'Escudo desconhecido';
+    if (slot === 'armor') return 'Armadura desconhecida';
+    if (slot === 'boots') return 'Bota desconhecida';
+    if (slot === 'ring') return 'Anel desconhecido';
+    if (slot === 'necklace') return 'Colar desconhecido';
+    return 'Item desconhecido';
 }
 
 function getLegacyBase(item = {}) {
@@ -125,8 +148,10 @@ function normalizeItemForSlot(item = {}, slotHint = null, equipped = false) {
         displayCategory: item.displayCategory || null
     };
 
+    const rawName = String(item.name || '').trim();
     const normalized = {
         ...item,
+        name: rawName || (slot ? getFallbackNameForSlot(slot) : 'Item desconhecido'),
         slot,
         category: meta.category,
         uiCategory: meta.uiCategory,
@@ -228,16 +253,28 @@ function ensureUniquePlayerItemKeys(player) {
     return player;
 }
 
-function findInventoryItemByKey(player, itemKey) {
+function findInventoryIndexFlexible(player, itemKey, fallbackItem = null) {
     ensureUniquePlayerItemKeys(player);
-    return player.inventory.find(item => getItemKey(item) === String(itemKey)) || null;
+
+    const key = String(itemKey || '').trim();
+    if (key) {
+        const exactIndex = player.inventory.findIndex(item => getItemKey(item) === key);
+        if (exactIndex !== -1) return exactIndex;
+    }
+
+    if (!fallbackItem) return -1;
+
+    const fallbackSignature = buildLooseSignature(fallbackItem);
+    return player.inventory.findIndex(item => buildLooseSignature(item) === fallbackSignature);
 }
 
-function removeInventoryItemByKey(player, itemKey) {
-    ensureUniquePlayerItemKeys(player);
+function findInventoryItemByKey(player, itemKey) {
+    const index = findInventoryIndexFlexible(player, itemKey, null);
+    return index === -1 ? null : player.inventory[index];
+}
 
-    const key = String(itemKey);
-    const index = player.inventory.findIndex(item => getItemKey(item) === key);
+function removeInventoryItemByKey(player, itemKey, fallbackItem = null) {
+    const index = findInventoryIndexFlexible(player, itemKey, fallbackItem);
 
     if (index === -1) return null;
 
@@ -259,7 +296,8 @@ function equipItem(player, slot, item) {
 
     const normalizedInput = normalizeItemForSlot(item, slot, false);
     const targetKey = getItemKey(normalizedInput);
-    const selectedInventoryItem = removeInventoryItemByKey(player, targetKey);
+
+    const selectedInventoryItem = removeInventoryItemByKey(player, targetKey, normalizedInput);
 
     const currentEquipped = player.equipment[slot]
         ? normalizeItemForSlot(player.equipment[slot], slot, false)
@@ -286,11 +324,6 @@ function unequipItem(player, slot) {
     const equipped = player.equipment[slot];
     if (!equipped) return null;
 
-    /*
-    Aqui o slot do equipamento é a fonte de verdade.
-    Mesmo que o item esteja com metadado torto, ao voltar pro inventário
-    ele volta com slot/categoria/uiCategory corretos.
-    */
     const returningItem = normalizeItemForSlot(equipped, slot, false);
     player.equipment[slot] = null;
 
