@@ -360,8 +360,8 @@ function getPageItems(items, page) {
     };
 }
 
-function buildEquipCallback(category, page, item) {
-    return `eqid:${category}:${page}:${encodeURIComponent(getItemKey(item))}`;
+function buildEquipCallback(category, page, pageIndex) {
+    return `eqp:${category}:${page}:${pageIndex}`;
 }
 
 function buildUnequipCallback(slot, category, page) {
@@ -375,7 +375,7 @@ function buildInventoryActionKeyboard(player, activeCategory, pageData, pageRows
         rows.push(pageRows);
     }
 
-    pageData.items.forEach(item => {
+    pageData.items.forEach((item, pageIndex) => {
         if (item.__equipped) {
             rows.push([
                 Markup.button.callback(
@@ -387,7 +387,7 @@ function buildInventoryActionKeyboard(player, activeCategory, pageData, pageRows
             rows.push([
                 Markup.button.callback(
                     buildEquipButtonLabel(item, player),
-                    buildEquipCallback(activeCategory, pageData.page, item)
+                    buildEquipCallback(activeCategory, pageData.page, pageIndex)
                 )
             ]);
         }
@@ -733,6 +733,49 @@ async function equipByItemKey(ctx, rawCategory, page, itemKey) {
     return renderInventory(ctx, category, page);
 }
 
+async function equipByPageIndex(ctx, rawCategory, page, pageIndex) {
+    const category = getMacroCategory(rawCategory);
+    const player = await loadPlayer(ctx);
+    if (!player) {
+        return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+    }
+
+    const { items } = getPageItems(getCategoryItems(player, category), Number(page));
+    const item = items[Number(pageIndex)];
+
+    if (!item) {
+        await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
+        return renderInventory(ctx, category, Number(page));
+    }
+
+    if (item.__equipped) {
+        await safeAnswer(ctx, '⚠️ Este item já está equipado.', { show_alert: true });
+        return renderInventory(ctx, category, Number(page));
+    }
+
+    const slot = getRealSlot(item);
+    if (!slot || slot === 'unknown') {
+        await safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
+        return renderInventory(ctx, category, Number(page));
+    }
+
+    if (item.classRestriction && item.classRestriction !== player.class) {
+        const restrictedClassName = getClassNamePortuguese(item.classRestriction);
+        await safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
+        return renderInventory(ctx, category, Number(page));
+    }
+
+    const result = applyEquipmentChange(player, slot, item);
+    if (!result.success) {
+        await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
+        return renderInventory(ctx, category, Number(page));
+    }
+
+    await saveNormalizedPlayer(ctx, player);
+    await safeAnswer(ctx, `✅ ${item.name} equipado!`, { show_alert: true });
+    return renderInventory(ctx, category, Number(page));
+}
+
 async function unequipBySlot(ctx, slot, rawCategory, page) {
     const category = getMacroCategory(rawCategory);
     const player = await loadPlayer(ctx);
@@ -758,30 +801,19 @@ async function unequipBySlot(ctx, slot, rawCategory, page) {
 async function handleEquipItem(ctx) {
     const raw = ctx.callbackQuery?.data || '';
 
+    const compact = raw.match(/^eqp:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(\d+)$/);
+    if (compact) {
+        const [, category, pageStr, pageIndexStr] = compact;
+        return equipByPageIndex(ctx, getMacroCategory(category), Number(pageStr), Number(pageIndexStr));
+    }
+
+    /*
+    Compatibilidade com botões antigos já enviados antes da atualização.
+    */
     const byId = raw.match(/^eqid:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(.+)$/);
     if (byId) {
         const [, category, pageStr, encodedKey] = byId;
         return equipByItemKey(ctx, getMacroCategory(category), Number(pageStr), decodeURIComponent(encodedKey));
-    }
-
-    const compact = raw.match(/^eqp:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(\d+)$/);
-    if (compact) {
-        const [, category, pageStr, pageIndexStr] = compact;
-        const player = await loadPlayer(ctx);
-        if (!player) {
-            return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
-        }
-
-        const macroCategory = getMacroCategory(category);
-        const { items } = getPageItems(getCategoryItems(player, macroCategory), Number(pageStr));
-        const item = items[Number(pageIndexStr)];
-
-        if (!item || item.__equipped) {
-            await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
-            return renderInventory(ctx, macroCategory, Number(pageStr));
-        }
-
-        return equipByItemKey(ctx, macroCategory, Number(pageStr), getItemKey(item));
     }
 
     const legacy = raw.match(/^eq:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(\d+)$/);
@@ -799,7 +831,15 @@ async function handleEquipItem(ctx) {
             return renderInventory(ctx, macroCategory, Number(pageStr));
         }
 
-        return equipByItemKey(ctx, macroCategory, Number(pageStr), getItemKey(item));
+        const { items } = getPageItems(getCategoryItems(player, macroCategory), Number(pageStr));
+        const pageIndex = items.findIndex(pageItem => sameItem(pageItem, item));
+
+        if (pageIndex === -1) {
+            await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
+            return renderInventory(ctx, macroCategory, Number(pageStr));
+        }
+
+        return equipByPageIndex(ctx, macroCategory, Number(pageStr), pageIndex);
     }
 
     const legacyOld = raw.match(/^equip_(weapon|shield|armor|necklace|ring|boots)(?:_item_\d+)?_(.+)$/);
@@ -818,7 +858,15 @@ async function handleEquipItem(ctx) {
             return safeAnswer(ctx, '❌ Item não encontrado no inventário.', { show_alert: true });
         }
 
-        return equipByItemKey(ctx, getUiCategoryFromSlot(slot), 1, getItemKey(item));
+        const category = getUiCategoryFromSlot(slot);
+        const { items } = getPageItems(getCategoryItems(player, category), 1);
+        const pageIndex = items.findIndex(pageItem => sameItem(pageItem, item));
+
+        if (pageIndex === -1) {
+            return safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
+        }
+
+        return equipByPageIndex(ctx, category, 1, pageIndex);
     }
 
     return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
