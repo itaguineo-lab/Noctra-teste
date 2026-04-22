@@ -30,7 +30,30 @@ function isUsableId(value) {
     return true;
 }
 
+function getSlotMeta(slot) {
+    if (slot === 'weapon') {
+        return { category: 'weapon', uiCategory: 'weapons', displayCategory: 'Arma' };
+    }
+
+    if (slot === 'ring' || slot === 'necklace') {
+        return { category: 'jewelry', uiCategory: 'jewels', displayCategory: 'Joia' };
+    }
+
+    return { category: 'armor', uiCategory: 'armors', displayCategory: 'Armadura' };
+}
+
 function getLegacyBase(item = {}) {
+    const explicitLegacy = String(
+        item.legacyBase ||
+        item.__legacyBase ||
+        item.__legacyKey ||
+        ''
+    ).trim();
+
+    if (explicitLegacy) {
+        return sanitizeIdPart(explicitLegacy);
+    }
+
     const rawInstanceId = String(item.instanceId || '').trim();
     if (rawInstanceId.startsWith('itm_') || rawInstanceId.startsWith('drop_') || rawInstanceId.startsWith('lgc_')) {
         return sanitizeIdPart(rawInstanceId);
@@ -39,11 +62,6 @@ function getLegacyBase(item = {}) {
     const rawId = String(item.id || '').trim();
     if (rawId.startsWith('itm_') || rawId.startsWith('drop_') || rawId.startsWith('lgc_')) {
         return sanitizeIdPart(rawId);
-    }
-
-    const explicitLegacy = String(item.__legacyBase || item.__legacyKey || '').trim();
-    if (explicitLegacy) {
-        return sanitizeIdPart(explicitLegacy);
     }
 
     if (rawId) {
@@ -60,7 +78,7 @@ function ensureItemIdentity(item) {
     if (isUsableId(instanceId)) {
         item.instanceId = instanceId;
         item.id = instanceId;
-        if (!item.__legacyBase) item.__legacyBase = getLegacyBase(item);
+        item.legacyBase = item.legacyBase || getLegacyBase(item);
         return item;
     }
 
@@ -68,12 +86,12 @@ function ensureItemIdentity(item) {
     if (isUsableId(rawId) && (rawId.startsWith('itm_') || rawId.startsWith('drop_') || rawId.startsWith('lgc_'))) {
         item.instanceId = rawId;
         item.id = rawId;
-        if (!item.__legacyBase) item.__legacyBase = getLegacyBase(item);
+        item.legacyBase = item.legacyBase || getLegacyBase(item);
         return item;
     }
 
     const base = getLegacyBase(item);
-    item.__legacyBase = base;
+    item.legacyBase = base;
     item.instanceId = `lgc_${base}`;
     item.id = item.instanceId;
     return item;
@@ -97,6 +115,29 @@ function sameItem(a, b) {
     return getItemKey(a) === getItemKey(b);
 }
 
+function normalizeItemForSlot(item = {}, slotHint = null, equipped = false) {
+    if (!item || typeof item !== 'object') return null;
+
+    const slot = String(slotHint || item.slot || '').trim() || null;
+    const meta = slot ? getSlotMeta(slot) : {
+        category: item.category || null,
+        uiCategory: item.uiCategory || null,
+        displayCategory: item.displayCategory || null
+    };
+
+    const normalized = {
+        ...item,
+        slot,
+        category: meta.category,
+        uiCategory: meta.uiCategory,
+        displayCategory: meta.displayCategory,
+        __equipped: equipped
+    };
+
+    ensureItemIdentity(normalized);
+    return normalized;
+}
+
 function ensureEquipmentState(player) {
     if (!player.equipment || typeof player.equipment !== 'object') {
         player.equipment = {};
@@ -115,25 +156,22 @@ function ensureEquipmentState(player) {
         }
 
         if (player.equipment[slot]) {
-            ensureItemIdentity(player.equipment[slot]);
+            player.equipment[slot] = normalizeItemForSlot(player.equipment[slot], slot, true);
         }
     }
 
     player.inventory = player.inventory
         .filter(item => item && typeof item === 'object')
-        .map(item => ensureItemIdentity(item));
+        .map(item => {
+            ensureItemIdentity(item);
+            return item;
+        });
 
     return player;
 }
 
-function cloneItem(item = {}, equipped = false) {
-    const cloned = {
-        ...item,
-        __equipped: equipped
-    };
-
-    ensureItemIdentity(cloned);
-    return cloned;
+function cloneItem(item = {}, equipped = false, slotHint = null) {
+    return normalizeItemForSlot({ ...item }, slotHint || item.slot || null, equipped);
 }
 
 function assignDeterministicUniqueId(item, usedKeys, baseCounters) {
@@ -155,7 +193,7 @@ function assignDeterministicUniqueId(item, usedKeys, baseCounters) {
     }
 
     baseCounters.set(base, counter);
-    item.__legacyBase = base;
+    item.legacyBase = base;
     item.instanceId = newId;
     item.id = newId;
     usedKeys.add(newId);
@@ -175,7 +213,7 @@ function ensureUniquePlayerItemKeys(player) {
         if (!equipped) continue;
 
         assignDeterministicUniqueId(equipped, usedKeys, baseCounters);
-        player.equipment[slot] = equipped;
+        player.equipment[slot] = normalizeItemForSlot(equipped, slot, true);
     }
 
     const fixedInventory = [];
@@ -183,7 +221,7 @@ function ensureUniquePlayerItemKeys(player) {
         if (!item || typeof item !== 'object') continue;
 
         assignDeterministicUniqueId(item, usedKeys, baseCounters);
-        fixedInventory.push(item);
+        fixedInventory.push(normalizeItemForSlot(item, item.slot, false));
     }
 
     player.inventory = fixedInventory;
@@ -207,8 +245,8 @@ function removeInventoryItemByKey(player, itemKey) {
     return removed || null;
 }
 
-function addItemBackToInventory(player, item) {
-    const restored = cloneItem(item, false);
+function addItemBackToInventory(player, item, slotHint = null) {
+    const restored = normalizeItemForSlot(item, slotHint || item.slot, false);
     player.inventory.push(restored);
     ensureUniquePlayerItemKeys(player);
 
@@ -219,25 +257,23 @@ function addItemBackToInventory(player, item) {
 function equipItem(player, slot, item) {
     ensureUniquePlayerItemKeys(player);
 
-    const targetKey = getItemKey(item);
+    const normalizedInput = normalizeItemForSlot(item, slot, false);
+    const targetKey = getItemKey(normalizedInput);
     const selectedInventoryItem = removeInventoryItemByKey(player, targetKey);
-    const currentEquipped = player.equipment[slot] ? cloneItem(player.equipment[slot], false) : null;
+
+    const currentEquipped = player.equipment[slot]
+        ? normalizeItemForSlot(player.equipment[slot], slot, false)
+        : null;
 
     if (currentEquipped) {
-        /*
-        Primeiro removemos o item selecionado do inventário.
-        Depois equipamos o novo item.
-        Só então devolvemos o antigo para o inventário.
-        Isso evita colisão artificial entre o item equipado e a cópia devolvida.
-        */
         player.equipment[slot] = null;
     }
 
-    const itemToEquip = cloneItem(selectedInventoryItem || item, true);
+    const itemToEquip = normalizeItemForSlot(selectedInventoryItem || normalizedInput, slot, true);
     player.equipment[slot] = itemToEquip;
 
     if (currentEquipped) {
-        addItemBackToInventory(player, currentEquipped);
+        addItemBackToInventory(player, currentEquipped, slot);
     }
 
     ensureUniquePlayerItemKeys(player);
@@ -251,15 +287,14 @@ function unequipItem(player, slot) {
     if (!equipped) return null;
 
     /*
-    Aqui estava o erro principal:
-    o código antigo devolvia uma cópia ao inventário enquanto o item ainda
-    permanecia equipado. Isso gerava colisão de identidade.
-    Agora o slot é limpo antes, e o próprio item volta ao inventário.
+    Aqui o slot do equipamento é a fonte de verdade.
+    Mesmo que o item esteja com metadado torto, ao voltar pro inventário
+    ele volta com slot/categoria/uiCategory corretos.
     */
-    const returningItem = cloneItem(equipped, false);
+    const returningItem = normalizeItemForSlot(equipped, slot, false);
     player.equipment[slot] = null;
 
-    const restored = addItemBackToInventory(player, returningItem);
+    const restored = addItemBackToInventory(player, returningItem, slot);
 
     ensureUniquePlayerItemKeys(player);
     return restored;
