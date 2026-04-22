@@ -147,7 +147,7 @@ function normalizePlayerState(player) {
             continue;
         }
 
-        const normalized = normalizeInventoryItem(player.equipment[slot]);
+        const normalized = normalizeInventoryItem(player.equipment[slot], slot);
         player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 
@@ -321,7 +321,7 @@ function getCategoryItems(player = {}, rawCategory = 'weapons') {
         const equipped = equipment[slot];
         if (!equipped) continue;
 
-        const normalizedBase = normalizeInventoryItem(equipped);
+        const normalizedBase = normalizeInventoryItem(equipped, slot);
         if (!normalizedBase) continue;
 
         const normalized = { ...normalizedBase, __equipped: true };
@@ -430,7 +430,7 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
     text += `💡 O status mostra se o item é melhor, pior, equivalente ou equipado.\n\n`;
 
     if (!pageData.items.length) {
-        text += `Nenhum item encontrado nesta categoria.`;
+        text += 'Nenhum item encontrado nesta categoria.';
     } else {
         pageData.items.forEach((item, idx) => {
             const itemNumber = (pageData.page - 1) * PAGE_SIZE + idx + 1;
@@ -506,14 +506,14 @@ function buildSoulsText(player) {
     text += `Inventário (${souls.length})\n`;
 
     if (!souls.length) {
-        text += `• Nenhuma alma no inventário\n`;
+        text += '• Nenhuma alma no inventário\n';
     } else {
         souls.forEach((soul, index) => {
             text += `${index + 1}. ${escapeMarkdown(soul.name)} (${escapeMarkdown(soul.rarity || 'Comum')})\n`;
         });
     }
 
-    text += `\nEquipadas\n`;
+    text += '\nEquipadas\n';
     equipped.forEach((soul, idx) => {
         text += soul
             ? `⭐ Slot ${idx + 1}: ${escapeMarkdown(soul.name)}\n`
@@ -570,13 +570,13 @@ function renderSkinsText(player) {
     const activeBadge = getActiveCosmetic(player, 'badge');
 
     let text = `${buildSectionHeader(player, '🎨 *Skins & Cosméticos*')}\n`;
-    text += `Ativos\n`;
+    text += 'Ativos\n';
     text += `• 🏷️ Título: ${activeTitle ? activeTitle.name : 'Nenhum'}\n`;
     text += `• ✨ Aura: ${activeAura ? activeAura.name : 'Nenhuma'}\n`;
     text += `• 🎖️ Emblema: ${activeBadge ? activeBadge.name : 'Nenhum'}\n\n`;
 
     if (!cosmetics.length) {
-        text += `Você não possui skins ainda.`;
+        text += 'Você não possui skins ainda.';
         return text;
     }
 
@@ -783,7 +783,7 @@ async function unequipBySlot(ctx, slot, rawCategory, page) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
 
-    const currentItem = player.equipment?.[slot] ? normalizeInventoryItem(player.equipment[slot]) : null;
+    const currentItem = player.equipment?.[slot] ? normalizeInventoryItem(player.equipment[slot], slot) : null;
     const result = removeEquipment(player, slot);
 
     if (!result.success) {
@@ -807,9 +807,6 @@ async function handleEquipItem(ctx) {
         return equipByPageIndex(ctx, getMacroCategory(category), Number(pageStr), Number(pageIndexStr));
     }
 
-    /*
-    Compatibilidade com botões antigos já enviados antes da atualização.
-    */
     const byId = raw.match(/^eqid:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+):(.+)$/);
     if (byId) {
         const [, category, pageStr, encodedKey] = byId;
@@ -851,7 +848,12 @@ async function handleEquipItem(ctx) {
         }
 
         const item = player.inventory.find(invItem => (
-            getRealSlot(invItem) === slot && String(getItemKey(invItem)) === String(itemIdRaw)
+            getRealSlot(invItem) === slot &&
+            (
+                String(getItemKey(invItem)) === String(itemIdRaw) ||
+                String(invItem.instanceId || '') === String(itemIdRaw) ||
+                String(invItem.id || '') === String(itemIdRaw)
+            )
         ));
 
         if (!item) {
