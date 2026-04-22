@@ -6,6 +6,45 @@ function isObject(value) {
     return value && typeof value === 'object' && !Array.isArray(value);
 }
 
+function normalizeText(value = '') {
+    return String(value || '').trim();
+}
+
+function isPlaceholderName(value = '') {
+    const name = normalizeText(value).toLowerCase();
+    return !name || name === 'item sem nome';
+}
+
+function hasRealItemStats(item = {}) {
+    return ['atk', 'def', 'hp', 'crit', 'power'].some(field => Number(item?.[field] || 0) > 0);
+}
+
+function looksLikeMeaningfulItem(item) {
+    if (!isObject(item)) return false;
+
+    const hasName = !isPlaceholderName(item.name);
+    const hasStats = hasRealItemStats(item);
+
+    const hasSlotHint = Boolean(normalizeText(item.slot));
+    const hasCategoryHint = Boolean(normalizeText(item.category));
+    const hasUiCategoryHint = Boolean(normalizeText(item.uiCategory));
+    const hasEmoji = Boolean(normalizeText(item.emoji || item.icon));
+
+    return hasName || (hasStats && (hasSlotHint || hasCategoryHint || hasUiCategoryHint || hasEmoji));
+}
+
+function sanitizeSingleItem(item, slotHint = null) {
+    if (!looksLikeMeaningfulItem(item)) return null;
+
+    const cloned = deepClone(item);
+
+    if (slotHint && !cloned.slot) {
+        cloned.slot = slotHint;
+    }
+
+    return cloned;
+}
+
 function preserveTransientStates(existing, incoming) {
     const result = deepClone(incoming) || {};
 
@@ -79,6 +118,19 @@ function sanitizePlayerForPersistence(player) {
 
     if (safe.activeArenaBattle && !isObject(safe.activeArenaBattle)) {
         safe.activeArenaBattle = null;
+    }
+
+    /*
+    Higienização real de inventário/equipment.
+    Sem isso, lixo legado continua sendo salvo.
+    */
+    safe.inventory = safe.inventory
+        .map(item => sanitizeSingleItem(item))
+        .filter(Boolean);
+
+    const equipmentSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+    for (const slot of equipmentSlots) {
+        safe.equipment[slot] = sanitizeSingleItem(safe.equipment[slot], slot);
     }
 
     return safe;
