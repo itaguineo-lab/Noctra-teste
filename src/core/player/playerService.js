@@ -54,6 +54,65 @@ const PLAYER_LIST_PROJECTION = {
 
 /*
 =================================
+VIP HELPERS
+=================================
+*/
+
+function parseVipExpires(value) {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+        const ts = value.getTime();
+        return Number.isFinite(ts) ? ts : null;
+    }
+
+    const parsed = new Date(value).getTime();
+    if (Number.isFinite(parsed)) return parsed;
+
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+
+    return null;
+}
+
+function isVipActive(player) {
+    if (!player?.vip) return false;
+    if (!player.vipExpires) return true;
+
+    const expiresAt = parseVipExpires(player.vipExpires);
+    if (!Number.isFinite(expiresAt)) return false;
+
+    return expiresAt > Date.now();
+}
+
+function normalizeVipState(player) {
+    if (!player || typeof player !== 'object') return player;
+
+    player.vip = Boolean(player.vip);
+
+    if (!player.vip) {
+        player.vipExpires = null;
+        return player;
+    }
+
+    if (!player.vipExpires) {
+        return player;
+    }
+
+    const expiresAt = parseVipExpires(player.vipExpires);
+
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        player.vip = false;
+        player.vipExpires = null;
+        return player;
+    }
+
+    player.vipExpires = new Date(expiresAt).toISOString();
+    return player;
+}
+
+/*
+=================================
 MIGRAÇÃO DE ITENS ANTIGOS
 =================================
 */
@@ -136,7 +195,7 @@ BALANCE HELPERS
 */
 
 function getBaseInventoryCapacity(player) {
-    return player.vip
+    return isVipActive(player)
         ? BALANCE.inventory.vipMax
         : BALANCE.inventory.baseMax;
 }
@@ -170,6 +229,7 @@ function ensurePlayerState(player) {
 
     player.vip ??= false;
     player.vipExpires ??= null;
+    normalizeVipState(player);
 
     ensureEnergyFields(player);
     syncEnergyCapacity(player);
@@ -443,5 +503,7 @@ module.exports = {
     ensurePlayerState,
     recalculateStats,
     updateBuffs,
-    applyInventoryCapacity
+    applyInventoryCapacity,
+    isVipActive,
+    normalizeVipState
 };
