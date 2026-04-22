@@ -4,7 +4,9 @@ const {
     equipItem,
     unequipItem,
     sameItem,
-    getItemKey
+    getItemKey,
+    ensureItemIdentity,
+    ensureUniquePlayerItemKeys
 } = require('./equipmentService');
 const {
     ensureEnergyFields,
@@ -152,15 +154,10 @@ function normalizeInventoryItem(item) {
     if (!hasMeaningfulItemIdentity(item)) return null;
 
     const slot = getCanonicalSlot(item);
-    const existingInstanceId = String(item.instanceId || '').trim();
-    const instanceId = existingInstanceId || buildSyntheticItemId();
-    const id = String(item.id || instanceId);
     const name = String(item.name || 'Item sem nome');
 
-    return {
+    const normalized = {
         ...item,
-        id,
-        instanceId,
         name,
         slot,
         category: String(item.category || '').trim().toLowerCase() || (
@@ -183,24 +180,49 @@ function normalizeInventoryItem(item) {
         classRestriction: item.classRestriction || item.class || null,
         __equipped: Boolean(item.__equipped)
     };
+
+    /*
+    Nunca confiar em id semântico antigo como identidade de instância.
+    */
+    if (!normalized.instanceId || String(normalized.instanceId).trim() === '') {
+        const rawId = String(normalized.id || '').trim();
+        if (!rawId || !rawId.startsWith('itm_')) {
+            normalized.instanceId = buildSyntheticItemId();
+            normalized.id = normalized.instanceId;
+        } else {
+            normalized.instanceId = rawId;
+            normalized.id = rawId;
+        }
+    }
+
+    ensureItemIdentity(normalized);
+    return normalized;
 }
 
 function normalizeInventoryCollection(items = []) {
     if (!Array.isArray(items)) return [];
 
-    const seen = new Set();
-    const normalized = [];
+    const normalized = items
+        .map(item => normalizeInventoryItem(item))
+        .filter(Boolean);
 
-    for (const item of items) {
-        const fixed = normalizeInventoryItem(item);
-        if (!fixed) continue;
-        const key = getItemKey(fixed);
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
-        normalized.push(fixed);
+    const usedKeys = new Set();
+    const result = [];
+
+    for (const item of normalized) {
+        ensureItemIdentity(item);
+        let key = getItemKey(item);
+
+        while (!key || usedKeys.has(key)) {
+            ensureItemIdentity(item, { forceNewIdentity: true });
+            key = getItemKey(item);
+        }
+
+        usedKeys.add(key);
+        result.push(item);
     }
 
-    return normalized;
+    return result;
 }
 
 function ensureConsumables(player) {
@@ -235,6 +257,8 @@ function ensureInventory(player) {
         const normalized = normalizeInventoryItem(player.equipment[slot]);
         player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
+
+    ensureUniquePlayerItemKeys(player);
 }
 
 function ensurePlayer(player) {
@@ -308,8 +332,20 @@ function addInventoryItem(player, item) {
     }
 
     normalized.__equipped = false;
+    ensureItemIdentity(normalized);
+
+    /*
+    Se colidir com item existente, gera nova identidade.
+    Nunca descartar item do jogador.
+    */
+    const existingKeys = new Set((player.inventory || []).map(inv => getItemKey(inv)));
+    while (existingKeys.has(getItemKey(normalized))) {
+        ensureItemIdentity(normalized, { forceNewIdentity: true });
+    }
+
     player.inventory.push(normalized);
     player.inventory = normalizeInventoryCollection(player.inventory);
+    ensureUniquePlayerItemKeys(player);
 
     return { success: true, item: normalized };
 }
@@ -596,6 +632,8 @@ function normalizePlayerForSave(player) {
         const normalized = normalizeInventoryItem(player.equipment[slot]);
         player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
+
+    ensureUniquePlayerItemKeys(player);
 
     player.hp = clamp(toSafeNumber(player.hp, player.maxHp || 1), 1, player.maxHp || 1);
     player.energy = clamp(toSafeNumber(player.energy, player.maxEnergy || 0), 0, player.maxEnergy || 0);
