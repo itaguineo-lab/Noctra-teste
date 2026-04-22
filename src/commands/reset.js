@@ -7,12 +7,20 @@ ADMIN
 =================================
 */
 
-function isAdmin(ctx) {
-    const adminIds = process.env.ADMIN_IDS
-        ? process.env.ADMIN_IDS.split(',').map(id => id.trim())
+function getAdminIds() {
+    return process.env.ADMIN_IDS
+        ? process.env.ADMIN_IDS.split(',').map(id => id.trim()).filter(Boolean)
         : [];
+}
 
-    return adminIds.includes(String(ctx.from.id));
+function isAdmin(ctx) {
+    return getAdminIds().includes(String(ctx.from.id));
+}
+
+function isProtectedPlayer(player) {
+    const adminIds = getAdminIds();
+    const playerId = String(player?.id || player?.telegramId || '');
+    return adminIds.includes(playerId);
 }
 
 /*
@@ -35,6 +43,15 @@ function normalizeRawTarget(value = '') {
 
 function escapeRegex(text = '') {
     return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function describePlayer(player) {
+    return (
+        `👤 *${player.name || 'Sem nome'}*\n` +
+        `🆔 \`${player.id || 'sem_id'}\`\n` +
+        `⭐ Nível ${player.level || 1}\n` +
+        `🗺️ ${player.currentMap || 'clareira_sombria'}`
+    );
 }
 
 /*
@@ -201,10 +218,17 @@ async function executeResetPlayer(ctx, target, isAdminAction = false) {
 
         const player = resolved;
 
+        if (isProtectedPlayer(player)) {
+            return ctx.reply(
+                '❌ Este jogador está protegido contra reset administrativo.\n' +
+                'Remova-o da lista de admins antes, se isso for realmente intencional.'
+            );
+        }
+
         await collection.deleteOne({ _id: player._id });
 
         const message = isAdminAction
-            ? `♻️ Personagem de *${player.name}* foi resetado com sucesso.\n🆔 ID: \`${player.id}\``
+            ? `♻️ Personagem resetado com sucesso.\n\n${describePlayer(player)}`
             : `♻️ Seu personagem foi resetado com sucesso.\n\nUse /start para começar novamente.`;
 
         await ctx.reply(message, { parse_mode: 'Markdown' });
@@ -295,11 +319,19 @@ async function handleResetAll(ctx) {
 
     try {
         const collection = await getPlayerCollection();
-        const result = await collection.deleteMany({});
+
+        /*
+        Protege admins de um wipe acidental.
+        */
+        const adminIds = getAdminIds();
+        const result = await collection.deleteMany({
+            id: { $nin: adminIds }
+        });
 
         return ctx.reply(
             `💥 Reset global concluído.\n\n` +
-            `Jogadores removidos: ${result.deletedCount || 0}`
+            `Jogadores removidos: ${result.deletedCount || 0}\n` +
+            `Admins preservados: ${adminIds.length}`
         );
     } catch (error) {
         console.error('Erro reset all:', error);
