@@ -35,6 +35,19 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function normalizeText(value = '') {
+    return String(value || '').trim();
+}
+
+function isPlaceholderName(value = '') {
+    const name = normalizeText(value).toLowerCase();
+    return !name || name === 'item sem nome';
+}
+
+function hasRealItemStats(item = {}) {
+    return ['atk', 'def', 'hp', 'crit', 'power'].some(field => Number(item?.[field] || 0) > 0);
+}
+
 function getDefaultWeaponEmoji(name = '') {
     const lower = String(name).toLowerCase();
     if (lower.includes('machado')) return '🪓';
@@ -55,6 +68,16 @@ function getDefaultEmojiForSlot(slot, name = '') {
     if (slot === 'ring') return '💍';
     if (slot === 'necklace') return '📿';
     return '⚪';
+}
+
+function getFallbackNameForSlot(slot) {
+    if (slot === 'weapon') return 'Arma desconhecida';
+    if (slot === 'shield') return 'Escudo desconhecido';
+    if (slot === 'armor') return 'Armadura desconhecida';
+    if (slot === 'boots') return 'Bota desconhecida';
+    if (slot === 'ring') return 'Anel desconhecido';
+    if (slot === 'necklace') return 'Colar desconhecido';
+    return 'Item desconhecido';
 }
 
 function inferSlotFromName(rawName = '') {
@@ -98,18 +121,25 @@ function inferSlotFromName(rawName = '') {
 function hasMeaningfulItemIdentity(item = {}) {
     if (!item || typeof item !== 'object') return false;
 
-    const hasName = Boolean(String(item.name || '').trim());
-    const hasSlot = Boolean(String(item.slot || '').trim());
-    const hasCategory = Boolean(String(item.category || '').trim());
-    const hasUiCategory = Boolean(String(item.uiCategory || '').trim());
-    const hasEmoji = Boolean(String(item.emoji || item.icon || '').trim());
-    const hasStats = [item.atk, item.def, item.hp, item.crit, item.power].some(value => Number(value || 0) > 0);
+    const hasName = !isPlaceholderName(item.name);
+    const hasStats = hasRealItemStats(item);
 
-    return hasName || hasSlot || hasCategory || hasUiCategory || hasEmoji || hasStats;
+    const hasSlotHint = Boolean(normalizeText(item.slot));
+    const hasCategoryHint = Boolean(normalizeText(item.category));
+    const hasUiCategoryHint = Boolean(normalizeText(item.uiCategory));
+    const hasEmoji = Boolean(normalizeText(item.emoji || item.icon));
+
+    /*
+    Regra correta:
+    - item com nome real passa
+    - item sem nome só passa se tiver estatística real E alguma pista estrutural
+    - item vazio com slot/category/emoji mas sem nome e sem stats = lixo
+    */
+    return hasName || (hasStats && (hasSlotHint || hasCategoryHint || hasUiCategoryHint || hasEmoji));
 }
 
 function getCanonicalSlot(item = {}) {
-    const rawSlot = String(item.slot || '').trim();
+    const rawSlot = normalizeText(item.slot);
     if (rawSlot) {
         for (const validSlot of VALID_EQUIPMENT_SLOTS) {
             if (rawSlot.startsWith(validSlot)) {
@@ -118,9 +148,10 @@ function getCanonicalSlot(item = {}) {
         }
     }
 
-    const rawCategory = String(item.category || '').trim().toLowerCase();
-    const rawUiCategory = String(item.uiCategory || '').trim().toLowerCase();
-    const rawName = String(item.name || '').trim().toLowerCase();
+    const rawCategory = normalizeText(item.category).toLowerCase();
+    const rawUiCategory = normalizeText(item.uiCategory).toLowerCase();
+    const rawDisplayCategory = normalizeText(item.displayCategory).toLowerCase();
+    const rawName = normalizeText(item.name).toLowerCase();
 
     if (rawCategory === 'weapon') return 'weapon';
     if (rawCategory === 'jewelry') return inferSlotFromName(rawName) || 'ring';
@@ -130,7 +161,11 @@ function getCanonicalSlot(item = {}) {
     if (rawUiCategory === 'armors') return inferSlotFromName(rawName) || 'armor';
     if (rawUiCategory === 'jewels') return inferSlotFromName(rawName) || 'ring';
 
-    return inferSlotFromName(rawName) || 'weapon';
+    if (rawDisplayCategory === 'arma') return 'weapon';
+    if (rawDisplayCategory === 'joia') return inferSlotFromName(rawName) || 'ring';
+    if (rawDisplayCategory === 'armadura') return inferSlotFromName(rawName) || 'armor';
+
+    return inferSlotFromName(rawName) || null;
 }
 
 function getUiCategoryFromSlot(slot) {
@@ -148,21 +183,35 @@ function normalizeInventoryItem(item) {
     if (!hasMeaningfulItemIdentity(item)) return null;
 
     const slot = getCanonicalSlot(item);
-    const name = String(item.name || 'Item sem nome');
+    if (!slot) return null;
+
+    const rawName = normalizeText(item.name);
+    const statsPresent = hasRealItemStats(item);
+
+    /*
+    Se não há nome real:
+    - sem stats => lixo, descarta
+    - com stats => tenta salvar com nome fallback do slot
+    */
+    let finalName = rawName;
+    if (isPlaceholderName(rawName)) {
+        if (!statsPresent) return null;
+        finalName = getFallbackNameForSlot(slot);
+    }
 
     const normalized = {
         ...item,
-        name,
+        name: finalName,
         slot,
-        category: String(item.category || '').trim().toLowerCase() || (
+        category: normalizeText(item.category).toLowerCase() || (
             slot === 'weapon' ? 'weapon' :
             (slot === 'ring' || slot === 'necklace') ? 'jewelry' :
             'armor'
         ),
-        uiCategory: String(item.uiCategory || getUiCategoryFromSlot(slot)),
-        displayCategory: String(item.displayCategory || getDisplayCategoryFromSlot(slot)),
-        emoji: String(item.emoji || item.icon || getDefaultEmojiForSlot(slot, name)),
-        rarity: String(item.rarity || 'Comum'),
+        uiCategory: normalizeText(item.uiCategory) || getUiCategoryFromSlot(slot),
+        displayCategory: normalizeText(item.displayCategory) || getDisplayCategoryFromSlot(slot),
+        emoji: normalizeText(item.emoji || item.icon) || getDefaultEmojiForSlot(slot, finalName),
+        rarity: normalizeText(item.rarity) || 'Comum',
         level: Math.max(1, toSafeNumber(item.level, 1)),
         atk: Math.max(0, toSafeNumber(item.atk, 0)),
         def: Math.max(0, toSafeNumber(item.def, 0)),
@@ -231,7 +280,11 @@ function ensureInventory(player) {
             continue;
         }
 
-        const normalized = normalizeInventoryItem(player.equipment[slot]);
+        const normalized = normalizeInventoryItem({
+            ...player.equipment[slot],
+            slot
+        });
+
         player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 
@@ -346,7 +399,11 @@ function applyEquipmentChange(player, slot, item) {
         return { success: false, message: 'Slot inválido.' };
     }
 
-    const normalizedItem = normalizeInventoryItem(item);
+    const normalizedItem = normalizeInventoryItem({
+        ...item,
+        slot
+    });
+
     if (!normalizedItem) {
         return { success: false, message: 'Item inválido.' };
     }
@@ -597,7 +654,11 @@ function normalizePlayerForSave(player) {
             continue;
         }
 
-        const normalized = normalizeInventoryItem(player.equipment[slot]);
+        const normalized = normalizeInventoryItem({
+            ...player.equipment[slot],
+            slot
+        });
+
         player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 
