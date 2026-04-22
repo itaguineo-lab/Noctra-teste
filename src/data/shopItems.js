@@ -20,7 +20,7 @@ const shopItems = [
         effect: 'potionHp',
         value: 1,
         currency: 'gold',
-        price: 140,
+        price: 120,
         description: `Restaura até ${Math.round(hpCfg.outsideCombatHealPercent * 100)}% do HP máximo.`
     },
     {
@@ -31,7 +31,7 @@ const shopItems = [
         effect: 'tonicStrength',
         value: 1,
         currency: 'gold',
-        price: 180,
+        price: 150,
         description: `+${strCfg.atkBonus} ATK por ${strCfg.durationMinutes} minutos.`
     },
     {
@@ -42,7 +42,7 @@ const shopItems = [
         effect: 'tonicDefense',
         value: 1,
         currency: 'gold',
-        price: 180,
+        price: 150,
         description: `+${defCfg.defBonus} DEF por ${defCfg.durationMinutes} minutos.`
     },
 
