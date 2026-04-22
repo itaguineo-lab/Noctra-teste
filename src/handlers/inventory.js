@@ -16,7 +16,6 @@ const {
 const {
     applyEquipmentChange,
     removeEquipment,
-    addInventoryItem,
     applySoulEquip,
     applySoulUnequip,
     applyBuff,
@@ -72,6 +71,12 @@ function safeNumber(value) {
     return Number.isFinite(n) ? n : 0;
 }
 
+function truncateText(text = '', max = 26) {
+    const value = String(text || '');
+    if (value.length <= max) return value;
+    return `${value.slice(0, max - 1)}…`;
+}
+
 function getClassNamePortuguese(className) {
     const map = {
         guerreiro: 'Guerreiros',
@@ -115,18 +120,6 @@ function getSlotIcon(slot) {
 
 function getMacroCategory(category) {
     return LEGACY_CATEGORY_ALIAS[category] || category;
-}
-
-function truncateText(text = '', max = 26) {
-    const value = String(text || '');
-    if (value.length <= max) return value;
-    return `${value.slice(0, max - 1)}…`;
-}
-
-function buildItemRef(item) {
-    const key = String(getItemKey(item) || '');
-    const ref = key.slice(-4).toUpperCase();
-    return ref || '----';
 }
 
 function normalizePlayerState(player) {
@@ -196,17 +189,49 @@ function calcItemPower(item) {
     return Math.max(1, Math.round((atk * 2) + (def * 1.5) + (hp * 0.5) + (crit * 3)));
 }
 
-function getComparisonDelta(item, player, slot) {
+function getComparisonData(item, player, slot) {
     const equipped = player?.equipment?.[slot];
-    if (!equipped) return null;
-    if (sameItem(equipped, item)) return 0;
-    return calcItemPower(item) - calcItemPower(equipped);
-}
 
-function formatDelta(delta) {
-    if (delta === null || delta === undefined) return '';
-    if (delta === 0) return '⭐ Equipado';
-    return delta > 0 ? `▲ +${delta} poder` : `▼ ${Math.abs(delta)} poder`;
+    if (!equipped) {
+        return {
+            delta: null,
+            equipped: null,
+            status: 'Livre para equipar'
+        };
+    }
+
+    if (sameItem(equipped, item)) {
+        return {
+            delta: 0,
+            equipped,
+            status: 'Equipado no momento'
+        };
+    }
+
+    const delta = calcItemPower(item) - calcItemPower(equipped);
+    const equippedName = truncateText(equipped.name || 'item equipado', 18);
+
+    if (delta > 0) {
+        return {
+            delta,
+            equipped,
+            status: `Melhor que ${equippedName} (+${delta} poder)`
+        };
+    }
+
+    if (delta < 0) {
+        return {
+            delta,
+            equipped,
+            status: `Pior que ${equippedName} (-${Math.abs(delta)} poder)`
+        };
+    }
+
+    return {
+        delta: 0,
+        equipped,
+        status: `Equivalente a ${equippedName}`
+    };
 }
 
 function buildShortStatLine(item) {
@@ -228,31 +253,29 @@ function buildFullItemLine(item, equipped = false) {
 
 function buildItemSummaryLine(item, player) {
     const slot = getRealSlot(item);
-    const delta = getComparisonDelta(item, player, slot);
-    const ref = buildItemRef(item);
+    const comparison = getComparisonData(item, player, slot);
 
     return {
         line: buildFullItemLine(item, item.__equipped),
-        delta: escapeMarkdown(item.__equipped ? '⭐ Equipado' : formatDelta(delta)),
         slotLabel: `${getSlotIcon(slot)} ${escapeMarkdown(getSlotLabel(slot))}`,
-        refLabel: `#${escapeMarkdown(ref)}`
+        statusLabel: escapeMarkdown(comparison.status)
     };
 }
 
 function buildEquipButtonLabel(item, player) {
-    const delta = getComparisonDelta(item, player, getRealSlot(item));
-    const shortName = truncateText(item.name, 16);
-    const ref = buildItemRef(item);
-    const level = item.level || 1;
+    const slot = getRealSlot(item);
+    const comparison = getComparisonData(item, player, slot);
+    const shortName = truncateText(item.name, 22);
 
-    if (delta === null) return `🔹 Equipar ${shortName} [${level}] #${ref}`;
-    if (delta > 0) return `🔺 Equipar ${shortName} [${level}] #${ref}`;
-    if (delta < 0) return `🔻 Equipar ${shortName} [${level}] #${ref}`;
-    return `🔹 Equipar ${shortName} [${level}] #${ref}`;
+    if (comparison.delta === null) return `🔹 Equipar ${shortName}`;
+    if (comparison.delta > 0) return `🔺 Equipar ${shortName}`;
+    if (comparison.delta < 0) return `🔻 Equipar ${shortName}`;
+    if (comparison.status === 'Equipado no momento') return `⭐ Equipado`;
+    return `🔹 Equipar ${shortName}`;
 }
 
 function buildUnequipButtonLabel(item) {
-    return `⭐ Desequipar ${truncateText(item.name, 16)} #${buildItemRef(item)}`;
+    return `⭐ Desequipar ${truncateText(item.name, 22)}`;
 }
 
 function renderEquippedSlotLine(label, item, slot) {
@@ -404,7 +427,7 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
     let text = `${renderInventoryHeader(player)}\n\n`;
     text += `📦 *${config.title}* — página ${pageData.page}/${pageData.totalPages}\n`;
     text += `💡 Itens equipados aparecem com ⭐ e não ocupam slots do inventário.\n`;
-    text += `💡 Use a referência #XXXX para diferenciar itens parecidos.\n\n`;
+    text += `💡 O status mostra se o item é melhor, pior, equivalente ou equipado.\n\n`;
 
     if (!pageData.items.length) {
         text += `Nenhum item encontrado nesta categoria.`;
@@ -414,7 +437,7 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
             const summary = buildItemSummaryLine(item, player);
 
             text += `${itemNumber}. ${summary.line}\n`;
-            text += `   ${summary.slotLabel} • ${summary.delta || '—'} • ${summary.refLabel}\n\n`;
+            text += `   ${summary.slotLabel} • ${summary.statusLabel}\n\n`;
         });
     }
 
@@ -719,26 +742,15 @@ async function unequipBySlot(ctx, slot, rawCategory, page) {
 
     const currentItem = player.equipment?.[slot] ? normalizeInventoryItem(player.equipment[slot]) : null;
     const result = removeEquipment(player, slot);
+
     if (!result.success) {
         await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
         return renderInventory(ctx, category, page);
     }
 
-    const returnedItem = normalizeInventoryItem(result.item) || currentItem;
-
     await saveNormalizedPlayer(ctx, player);
 
-    if (returnedItem) {
-        const reloaded = await loadPlayer(ctx);
-        const alreadyReturned = reloaded?.inventory?.some(item => getItemKey(item) === getItemKey(returnedItem));
-
-        if (!alreadyReturned && reloaded) {
-            addInventoryItem(reloaded, returnedItem);
-            await saveNormalizedPlayer(ctx, reloaded);
-        }
-    }
-
-    const itemName = returnedItem?.name || 'item';
+    const itemName = result.item?.name || currentItem?.name || 'item';
     await safeAnswer(ctx, `✅ ${itemName} removido!`, { show_alert: true });
     return renderInventory(ctx, category, page);
 }
