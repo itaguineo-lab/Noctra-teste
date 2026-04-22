@@ -129,16 +129,15 @@ function hasMeaningfulItemIdentity(item = {}) {
     const hasUiCategoryHint = Boolean(normalizeText(item.uiCategory));
     const hasEmoji = Boolean(normalizeText(item.emoji || item.icon));
 
-    /*
-    Regra correta:
-    - item com nome real passa
-    - item sem nome só passa se tiver estatística real E alguma pista estrutural
-    - item vazio com slot/category/emoji mas sem nome e sem stats = lixo
-    */
     return hasName || (hasStats && (hasSlotHint || hasCategoryHint || hasUiCategoryHint || hasEmoji));
 }
 
-function getCanonicalSlot(item = {}) {
+function getCanonicalSlot(item = {}, forcedSlot = null) {
+    const forced = normalizeText(forcedSlot);
+    if (forced && VALID_EQUIPMENT_SLOTS.includes(forced)) {
+        return forced;
+    }
+
     const rawSlot = normalizeText(item.slot);
     if (rawSlot) {
         for (const validSlot of VALID_EQUIPMENT_SLOTS) {
@@ -178,21 +177,16 @@ function getDisplayCategoryFromSlot(slot) {
     return 'Armadura';
 }
 
-function normalizeInventoryItem(item) {
+function normalizeInventoryItem(item, forcedSlot = null) {
     if (!item || typeof item !== 'object') return null;
     if (!hasMeaningfulItemIdentity(item)) return null;
 
-    const slot = getCanonicalSlot(item);
+    const slot = getCanonicalSlot(item, forcedSlot);
     if (!slot) return null;
 
     const rawName = normalizeText(item.name);
     const statsPresent = hasRealItemStats(item);
 
-    /*
-    Se não há nome real:
-    - sem stats => lixo, descarta
-    - com stats => tenta salvar com nome fallback do slot
-    */
     let finalName = rawName;
     if (isPlaceholderName(rawName)) {
         if (!statsPresent) return null;
@@ -280,11 +274,7 @@ function ensureInventory(player) {
             continue;
         }
 
-        const normalized = normalizeInventoryItem({
-            ...player.equipment[slot],
-            slot
-        });
-
+        const normalized = normalizeInventoryItem(player.equipment[slot], slot);
         player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 
@@ -399,17 +389,13 @@ function applyEquipmentChange(player, slot, item) {
         return { success: false, message: 'Slot inválido.' };
     }
 
-    const normalizedItem = normalizeInventoryItem({
-        ...item,
-        slot
-    });
-
+    const normalizedItem = normalizeInventoryItem(item, slot);
     if (!normalizedItem) {
         return { success: false, message: 'Item inválido.' };
     }
 
     const itemSlot = String(normalizedItem.slot || '');
-    if (!itemSlot.startsWith(slot)) {
+    if (itemSlot !== slot) {
         return { success: false, message: 'Item incompatível com o slot.' };
     }
 
@@ -654,11 +640,7 @@ function normalizePlayerForSave(player) {
             continue;
         }
 
-        const normalized = normalizeInventoryItem({
-            ...player.equipment[slot],
-            slot
-        });
-
+        const normalized = normalizeInventoryItem(player.equipment[slot], slot);
         player.equipment[slot] = normalized ? { ...normalized, __equipped: true } : null;
     }
 
