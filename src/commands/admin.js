@@ -4,7 +4,10 @@ const {
     getPlayer,
     savePlayer,
     recalculateStats,
-    getPlayerCollection
+    getPlayerCollection,
+    normalizeVipState,
+    applyInventoryCapacity,
+    isVipActive
 } = require('../core/player/playerService');
 
 const { generateDrop } = require('../data/items');
@@ -19,8 +22,16 @@ const {
     applyXpReward,
     restoreFullHp,
     restoreFullEnergy,
-    normalizePlayerForSave
+    normalizePlayerForSave,
+    normalizeInventoryCollection,
+    normalizeInventoryItem
 } = require('../core/player/playerMutations');
+
+const {
+    ensureUniquePlayerItemKeys,
+    getItemKey,
+    sameItem
+} = require('../core/player/equipmentService');
 
 const {
     getTodayMetrics,
@@ -66,6 +77,12 @@ function getAdminIds() {
 
 function isAdmin(ctx) {
     return getAdminIds().includes(String(ctx.from.id));
+}
+
+function isProtectedPlayer(player) {
+    const adminIds = getAdminIds();
+    const playerId = String(player?.id || player?.telegramId || '');
+    return adminIds.includes(playerId);
 }
 
 async function requireAdmin(ctx) {
@@ -118,6 +135,58 @@ function toPositiveNumber(value) {
     return Number.isFinite(n) ? Math.max(0, n) : NaN;
 }
 
+function normalizeText(value = '') {
+    return String(value || '').trim();
+}
+
+function isPlaceholderName(value = '') {
+    const name = normalizeText(value).toLowerCase();
+    return !name || name === 'item sem nome';
+}
+
+function hasRealItemStats(item = {}) {
+    return ['atk', 'def', 'hp', 'crit', 'power'].some(field => Number(item?.[field] || 0) > 0);
+}
+
+function isMeaningfulItem(item = {}) {
+    if (!item || typeof item !== 'object') return false;
+
+    const hasName = !isPlaceholderName(item.name);
+    const hasStats = hasRealItemStats(item);
+
+    const hasSlotHint = Boolean(normalizeText(item.slot));
+    const hasCategoryHint = Boolean(normalizeText(item.category));
+    const hasUiCategoryHint = Boolean(normalizeText(item.uiCategory));
+    const hasEmoji = Boolean(normalizeText(item.emoji || item.icon));
+
+    return hasName || (hasStats && (hasSlotHint || hasCategoryHint || hasUiCategoryHint || hasEmoji));
+}
+
+function getFallbackNameForSlot(slot) {
+    if (slot === 'weapon') return 'Arma desconhecida';
+    if (slot === 'shield') return 'Escudo desconhecido';
+    if (slot === 'armor') return 'Armadura desconhecida';
+    if (slot === 'boots') return 'Bota desconhecida';
+    if (slot === 'ring') return 'Anel desconhecido';
+    if (slot === 'necklace') return 'Colar desconhecido';
+    return 'Item desconhecido';
+}
+
+function formatVipExpiry(player) {
+    if (!player?.vipExpires) return '—';
+
+    const date = new Date(player.vipExpires);
+    if (Number.isNaN(date.getTime())) return '—';
+
+    return date.toLocaleString('pt-BR');
+}
+
+function buildVipStatusLine(player) {
+    return isVipActive(player)
+        ? `✅ Ativo até ${formatVipExpiry(player)}`
+        : (player?.vip ? '⚠️ Expirado/inconsistente' : 'Não');
+}
+
 function buildEquipmentLines(player) {
     const eq = player.equipment || {};
     return [
@@ -139,6 +208,8 @@ function buildSoulsLines(player) {
 }
 
 async function saveAdminPlayer(player) {
+    normalizeVipState(player);
+    applyInventoryCapacity(player);
     normalizePlayerForSave(player);
     await savePlayer(player.id, player);
 }
@@ -407,772 +478,169 @@ async function resolveGiveSoulPayload(ctx) {
 
 /*
 =================================
-RENDER HELP
+PLAYERFIX AGRESSIVO
 =================================
 */
 
-function renderAdminHelp() {
-    return `🛠️ *PAINEL ADMIN — NOCTRA*
-
-*IDs e busca*
-• \`/myid\` → mostra seu ID
-• \`/id\` → mostra seu ID
-• \`/id\` respondendo alguém → mostra o ID da pessoa
-• \`/findplayer ID_ou_nome\`
-• \`/findplayername NOME\`
-• \`/playerstate ID_ou_nome\`
-
-*Consulta / Operação*
-• \`/adminhelp\` → mostra esta lista
-• \`/metrics\` → métricas de hoje
-• \`/metrics AAAA-MM-DD\` → métricas de uma data específica
-• \`/reload\` → reload lógico
-• \`/capture\` → ativa captura de imagem para pegar file_id
-• \`/playerfix ID_ou_nome\` → saneia estado do player
-
-*Give / Ajuste de conta*
-• \`/give xp ID_ou_nome 500\`
-• \`/give gold ID_ou_nome 1000\`
-• \`/give nox ID_ou_nome 50\`
-• \`/give keys ID_ou_nome 5\`
-• \`/give glorias ID_ou_nome 10\`
-• \`/give item ID_ou_nome\`
-• \`/give soul ID_ou_nome soul_wolf\`
-• também funcionam respondendo a mensagem do jogador
-
-*Set direto*
-• \`/setplayer ID_ou_nome level 10\`
-• \`/setplayer ID_ou_nome gold 5000\`
-• \`/setplayer ID_ou_nome nox 100\`
-• \`/setplayer ID_ou_nome hp 200\`
-• \`/setplayer ID_ou_nome energy 20\`
-• \`/setplayer ID_ou_nome keys 10\`
-• \`/setplayer ID_ou_nome glorias 15\`
-• \`/setplayer ID_ou_nome map cripta_em_ruinas\`
-• \`/setplayer ID_ou_nome vipdays 30\`
-• também funciona respondendo a mensagem do jogador
-
-*Ferramentas rápidas*
-• \`/heal ID_ou_nome\` → cura HP e energia
-• \`/teleport ID_ou_nome mapa_id\`
-
-*Moderação*
-• \`/ban ID_ou_nome\`
-• \`/unban ID_ou_nome\`
-• também funciona respondendo a mensagem do jogador
-
-*Captura de asset*
-• use \`/capture\`
-• depois envie uma foto com legenda
-• o bot devolverá somente o file_id
-
-*Observações*
-• busca por nome tenta encontrar o jogador mais compatível
-• nomes únicos funcionam melhor
-• reply continua sendo a forma mais segura`;
-}
-
-function renderFindPlayer(player) {
-    return `🔎 *PLAYER ENCONTRADO*
-
-👤 Nome: *${safeName(player.name)}*
-🆔 ID: \`${safeName(player.id)}\`
-🏷️ Classe: ${safeName(player.class)}
-⭐ Nível: ${formatNumber(player.level)}
-🗺️ Mapa: ${safeName(player.currentMap)}
-❤️ HP: ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}
-⚡ Energia: ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}
-
-💰 Ouro: ${formatNumber(player.gold)}
-💎 Nox: ${formatNumber(player.nox)}
-🏅 Glórias: ${formatNumber(player.glorias)}
-🗝️ Chaves: ${formatNumber(player.keys)}
-
-🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || BALANCE.inventory.baseMax)}
-💀 Almas no inventário: ${formatNumber((player.soulsInventory || []).length)}
-✨ VIP: ${player.vip ? 'Sim' : 'Não'}
-⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
-}
-
-function renderPlayerState(player) {
-    return `🧾 *PLAYER STATE*
-
-👤 Nome: *${safeName(player.name)}*
-🆔 ID: \`${safeName(player.id)}\`
-🏷️ Classe: ${safeName(player.class)}
-⭐ Nível: ${formatNumber(player.level)}
-✨ XP: ${formatNumber(player.xp)}
-🗺️ Mapa: ${safeName(player.currentMap)}
-
-*Status*
-❤️ HP: ${formatNumber(player.hp)}/${formatNumber(player.maxHp)}
-⚡ Energia: ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)}
-⚔️ ATK: ${formatNumber(player.atk)}
-🛡️ DEF: ${formatNumber(player.def)}
-💥 CRIT: ${formatNumber(player.crit)}%
-
-*Economia*
-💰 Ouro: ${formatNumber(player.gold)}
-💎 Nox: ${formatNumber(player.nox)}
-🏅 Glórias: ${formatNumber(player.glorias)}
-🗝️ Chaves: ${formatNumber(player.keys)}
-
-*Inventário / Progressão*
-🎒 Inventário: ${formatNumber((player.inventory || []).length)}/${formatNumber(player.maxInventory || BALANCE.inventory.baseMax)}
-💀 Almas inventário: ${formatNumber((player.soulsInventory || []).length)}
-☠️ Total de kills: ${formatNumber(player.totalKills)}
-📉 Soul pity: ${formatNumber(player.soulPityCounter)}
-
-*Equipamentos*
-${buildEquipmentLines(player)}
-
-*Almas equipadas*
-${buildSoulsLines(player)}
-
-*Flags*
-✨ VIP: ${player.vip ? 'Sim' : 'Não'}
-⛔ Banido: ${player.banned ? 'Sim' : 'Não'}`;
-}
-
-function renderPlayerNameMatches(matches, query) {
-    let text = `🔎 *RESULTADOS PARA:* ${safeName(query)}\n\n`;
-
-    if (!matches.length) {
-        return text + 'Nenhum jogador encontrado.';
+function repairEquipmentItem(rawItem, slot) {
+    if (!rawItem || typeof rawItem !== 'object') {
+        return null;
     }
 
-    matches.slice(0, 10).forEach((player, index) => {
-        text += `${index + 1}. *${safeName(player.name)}*\n`;
-        text += `   🆔 \`${safeName(player.id)}\`\n`;
-        text += `   ⭐ Nível ${formatNumber(player.level)} | 🗺️ ${safeName(player.currentMap)}\n`;
-        text += `   💰 ${formatNumber(player.gold)} ouro | 💎 ${formatNumber(player.nox)} nox\n\n`;
+    const normalized = normalizeInventoryItem({
+        ...rawItem,
+        slot
     });
 
-    return text;
-}
-
-function renderMetricsMessage(summary) {
-    const c = summary.counters;
-    const d = summary.derived;
-
-    return `📊 *NOCTRA METRICS — ${summary.dateKey}*
-
-*Aquisição / Atividade*
-• Players criados: ${c.playersCreated}
-• Menu loads: ${c.menuLoads}
-
-*Combate*
-• Iniciados: ${c.combatsStarted}
-• Vitórias: ${c.combatsWon}
-• Derrotas: ${c.combatsLost}
-• Fugas: ${c.combatsFled}
-• Win rate: ${d.winRate}%
-
-*Dungeon*
-• Iniciadas: ${c.dungeonsStarted}
-• Concluídas: ${c.dungeonsCompleted}
-• Abandonadas: ${c.dungeonsAbandoned}
-• Salas limpas: ${c.dungeonRoomsCleared}
-• Finish rate: ${d.dungeonFinishRate}%
-
-*Drops / Economia*
-• Itens dropados: ${c.itemsDropped}
-• Souls dropadas: ${c.soulsDropped}
-• Keys dropadas: ${c.keysDropped}
-• Ouro entregue: ${c.goldAwarded}
-• XP entregue: ${c.xpAwarded}
-
-*Uso*
-• Consumíveis usados: ${c.consumablesUsed}
-
-*Médias*
-• Ouro por vitória: ${d.avgGoldPerCombat}
-• XP por vitória: ${d.avgXpPerCombat}`;
-}
-
-/*
-=================================
-ID COMMANDS
-=================================
-*/
-
-async function handleAdminHelp(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-    return ctx.reply(renderAdminHelp(), { parse_mode: 'Markdown' });
-}
-
-async function handleMyId(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    return ctx.reply(
-        `🆔 *SEU ID ADMIN*\n\n` +
-        `Nome: *${safeName(ctx.from.first_name)}*\n` +
-        `ID: \`${String(ctx.from.id)}\``,
-        { parse_mode: 'Markdown' }
-    );
-}
-
-async function handleId(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const replyUser = ctx.message?.reply_to_message?.from;
-
-    if (replyUser) {
-        const label = replyUser.username
-            ? `@${replyUser.username}`
-            : (replyUser.first_name || 'jogador');
-
-        return ctx.reply(
-            `🆔 *ID DO JOGADOR*\n\n` +
-            `Jogador: *${safeName(label)}*\n` +
-            `ID: \`${String(replyUser.id)}\``,
-            { parse_mode: 'Markdown' }
-        );
-    }
-
-    return ctx.reply(
-        `🆔 *SEU ID*\n\n` +
-        `Nome: *${safeName(ctx.from.first_name)}*\n` +
-        `ID: \`${String(ctx.from.id)}\``,
-        { parse_mode: 'Markdown' }
-    );
-}
-
-/*
-=================================
-PLAYER INSPECTION
-=================================
-*/
-
-async function handleFindPlayer(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const player = await resolvePlayerForSingleTargetCommand(ctx, '/findplayer 123456789');
-    if (!player) return;
-
-    return ctx.reply(renderFindPlayer(player), { parse_mode: 'Markdown' });
-}
-
-async function handlePlayerState(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const player = await resolvePlayerForSingleTargetCommand(ctx, '/playerstate 123456789');
-    if (!player) return;
-
-    return ctx.reply(renderPlayerState(player), { parse_mode: 'Markdown' });
-}
-
-async function handleFindPlayerName(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const text = String(ctx.message?.text || '');
-    const query = text.replace(/^\/findplayername(@\w+)?\s*/i, '').trim();
-
-    if (!query) {
-        return ctx.reply('❌ Uso: /findplayername NomeDoJogador');
-    }
-
-    const matches = await findPlayersByName(query, 10);
-    return ctx.reply(renderPlayerNameMatches(matches, query), { parse_mode: 'Markdown' });
-}
-
-/*
-=================================
-SET PLAYER
-=================================
-*/
-
-async function handleSetPlayer(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const payload = await resolveSetPlayerPayload(ctx);
-    if (!payload) return;
-
-    const { player, field, value } = payload;
-
-    if (!VALID_SETPLAYER_FIELDS.has(field)) {
-        return ctx.reply('❌ Campo inválido. Use: level, gold, nox, energy, hp, keys, glorias, map, vipdays');
-    }
-
-    try {
-        if (field === 'level') {
-            const level = Math.max(1, Number(value));
-            if (!Number.isFinite(level)) {
-                return ctx.reply('❌ Nível inválido.');
-            }
-
-            player.level = level;
-            player.xp = 0;
-            recalculateStats(player);
-        }
-
-        if (field === 'gold') {
-            const amount = toPositiveNumber(value);
-            if (!Number.isFinite(amount)) {
-                return ctx.reply('❌ Valor inválido para gold.');
-            }
-            player.gold = amount;
-        }
-
-        if (field === 'nox') {
-            const amount = toPositiveNumber(value);
-            if (!Number.isFinite(amount)) {
-                return ctx.reply('❌ Valor inválido para nox.');
-            }
-            player.nox = amount;
-        }
-
-        if (field === 'energy') {
-            const amount = toPositiveNumber(value);
-            if (!Number.isFinite(amount)) {
-                return ctx.reply('❌ Valor inválido para energy.');
-            }
-            player.energy = Math.min(amount, player.maxEnergy || amount);
-        }
-
-        if (field === 'hp') {
-            const amount = toPositiveNumber(value);
-            if (!Number.isFinite(amount)) {
-                return ctx.reply('❌ Valor inválido para hp.');
-            }
-            player.hp = Math.min(Math.max(1, amount), player.maxHp || amount);
-        }
-
-        if (field === 'keys') {
-            const amount = toPositiveNumber(value);
-            if (!Number.isFinite(amount)) {
-                return ctx.reply('❌ Valor inválido para keys.');
-            }
-            player.keys = amount;
-        }
-
-        if (field === 'glorias') {
-            const amount = toPositiveNumber(value);
-            if (!Number.isFinite(amount)) {
-                return ctx.reply('❌ Valor inválido para glorias.');
-            }
-            player.glorias = amount;
-        }
-
-        if (field === 'map') {
-            if (!validateMapValue(value)) {
-                return ctx.reply('❌ Mapa inválido.');
-            }
-            player.currentMap = String(value).trim();
-        }
-
-        if (field === 'vipdays') {
-            const days = toPositiveNumber(value);
-            if (!Number.isFinite(days)) {
-                return ctx.reply('❌ Valor inválido para vipdays.');
-            }
-
-            if (days === 0) {
-                player.vip = false;
-                player.vipExpires = null;
-                player.maxEnergy = BALANCE.energy.baseMax;
-                player.maxInventory = BALANCE.inventory.baseMax;
-                player.energy = Math.min(player.energy || BALANCE.energy.baseMax, BALANCE.energy.baseMax);
-            } else {
-                const now = Date.now();
-                player.vip = true;
-                player.vipExpires = new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
-                player.maxEnergy = BALANCE.energy.vipMax;
-                player.maxInventory = Math.max(player.maxInventory || BALANCE.inventory.baseMax, BALANCE.inventory.vipMax);
-                player.energy = Math.min(player.energy || BALANCE.energy.vipMax, player.maxEnergy);
-            }
-        }
-
-        await saveAdminPlayer(player);
-
-        const xpNext = getXpToNextLevel(player.level || 1);
-
-        return ctx.reply(
-            `✅ Jogador atualizado com sucesso.\n\n` +
-            `👤 ${player.name}\n` +
-            `🆔 ${player.id}\n` +
-            `⭐ Nível: ${player.level}\n` +
-            `✨ XP: ${player.xp}/${xpNext}\n` +
-            `❤️ HP: ${player.hp}/${player.maxHp}\n` +
-            `💰 Ouro: ${player.gold}\n` +
-            `💎 Nox: ${player.nox}\n` +
-            `🏅 Glórias: ${player.glorias}\n` +
-            `🗝️ Chaves: ${player.keys}\n` +
-            `⚡ Energia: ${player.energy}/${player.maxEnergy}\n` +
-            `🗺️ Mapa: ${player.currentMap}\n` +
-            `✨ VIP: ${player.vip ? 'Sim' : 'Não'}`
-        );
-    } catch (error) {
-        console.error('Erro em /setplayer:', error);
-        return ctx.reply('❌ Erro ao atualizar jogador.');
-    }
-}
-
-/*
-=================================
-GIVE COMMANDS
-=================================
-*/
-
-async function handleGiveXp(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const resolved = await resolvePlayerFromGiveCommand(ctx);
-    if (!resolved) return;
-
-    const { player, amount } = resolved;
-
-    if (amount <= 0) {
-        return ctx.reply('❌ Quantidade inválida.');
-    }
-
-    applyXpReward(player, amount);
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ ${amount} XP concedido para ${player.name}.`);
-}
-
-async function handleGiveGold(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const resolved = await resolvePlayerFromGiveCommand(ctx);
-    if (!resolved) return;
-
-    const { player, amount } = resolved;
-
-    if (amount <= 0) {
-        return ctx.reply('❌ Quantidade inválida.');
-    }
-
-    addGold(player, amount);
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ ${amount} gold concedido para ${player.name}.`);
-}
-
-async function handleGiveNox(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const resolved = await resolvePlayerFromGiveCommand(ctx);
-    if (!resolved) return;
-
-    const { player, amount } = resolved;
-
-    if (amount <= 0) {
-        return ctx.reply('❌ Quantidade inválida.');
-    }
-
-    addNox(player, amount);
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ ${amount} Nox concedido para ${player.name}.`);
-}
-
-async function handleGiveKeys(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const resolved = await resolvePlayerFromGiveCommand(ctx);
-    if (!resolved) return;
-
-    const { player, amount } = resolved;
-
-    if (amount <= 0) {
-        return ctx.reply('❌ Quantidade inválida.');
-    }
-
-    addKeys(player, amount);
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ ${amount} chave(s) concedida(s) para ${player.name}.`);
-}
-
-async function handleGiveGlorias(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const resolved = await resolvePlayerFromGiveCommand(ctx);
-    if (!resolved) return;
-
-    const { player, amount } = resolved;
-
-    if (amount <= 0) {
-        return ctx.reply('❌ Quantidade inválida.');
-    }
-
-    addGlorias(player, amount);
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ ${amount} glória(s) concedida(s) para ${player.name}.`);
-}
-
-async function handleGiveItem(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    let player = await resolvePlayerFromReply(ctx);
-    const parts = splitText(ctx.message?.text || '');
-
-    if (!player) {
-        const rawTarget = parts[2];
-        if (!rawTarget) {
-            return ctx.reply('❌ Uso: /give item ID_ou_nome\nTambém funciona respondendo a mensagem do jogador.');
-        }
-        player = await resolvePlayerFlexible(rawTarget);
-    }
-
-    if (!player) {
-        return ctx.reply('❌ Jogador não encontrado.');
-    }
-
-    const mapToDropTable = {
-        clareira_sombria: 1,
-        cripta_em_ruinas: 2,
-        pantano_corrompido: 3,
-        deserto_incandescente: 4,
-        citadela_lunar: 5,
-        abismo_noctra: 6
+    if (!normalized) return null;
+
+    return {
+        ...normalized,
+        __equipped: true
     };
-
-    const mapNumber = mapToDropTable[player.currentMap] || 1;
-
-    const item = generateDrop(mapNumber, {
-        encounterTier: 'boss',
-        rarityBias: mapNumber <= 2 ? 'mid_boss' : 'late_boss'
-    });
-
-    const result = addInventoryItem(player, item);
-    if (!result.success) {
-        return ctx.reply(`❌ Falha ao adicionar item: ${result.message}`);
-    }
-
-    await saveAdminPlayer(player);
-    return ctx.reply(`✅ Item ${item.name} concedido para ${player.name}.`);
 }
 
-async function handleGiveSoul(ctx) {
-    if (!(await requireAdmin(ctx))) return;
+function dedupeInventory(items = []) {
+    const result = [];
+    const seen = new Set();
 
-    const resolved = await resolveGiveSoulPayload(ctx);
-    if (!resolved) return;
+    for (const item of items) {
+        if (!item) continue;
 
-    const { player, soulId } = resolved;
-    let soulTemplate = null;
+        const key = getItemKey(item);
+        if (!key) continue;
 
-    if (soulId === 'random') {
-        soulTemplate = pickRandomSoulForPlayer(player);
-    } else {
-        soulTemplate = getSoulById(soulId);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(item);
     }
 
-    if (!soulTemplate) {
-        return ctx.reply('❌ Alma inválida. Use um id válido ou random.');
-    }
-
-    player.soulsInventory ??= [];
-    const soulInstance = buildSoulInstance(soulTemplate);
-    player.soulsInventory.push(soulInstance);
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ Alma ${soulTemplate.name} concedida para ${player.name}.`);
+    return result;
 }
 
-/*
-=================================
-UTILITY COMMANDS
-=================================
-*/
-
-async function handleHeal(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const player = await resolvePlayerForSingleTargetCommand(ctx, '/heal 123456789');
-    if (!player) return;
-
-    restoreFullHp(player);
-    restoreFullEnergy(player);
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ ${player.name} foi curado(a) totalmente. HP e energia restaurados.`);
-}
-
-async function handleTeleport(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const payload = await resolveTeleportPayload(ctx);
-    if (!payload) return;
-
-    const { player, map } = payload;
-
-    if (!validateMapValue(map)) {
-        return ctx.reply('❌ Mapa inválido.');
-    }
-
-    player.currentMap = map;
-    await saveAdminPlayer(player);
-
-    return ctx.reply(`✅ ${player.name} teleportado para ${map}.`);
-}
-
-async function handlePlayerFix(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const player = await resolvePlayerForSingleTargetCommand(ctx, '/playerfix 123456789');
-    if (!player) return;
-
+function repairLegacyInventoryAndEquipment(player) {
     const beforeInventory = Array.isArray(player.inventory) ? player.inventory.length : 0;
-    const beforeSouls = Array.isArray(player.soulsInventory) ? player.soulsInventory.length : 0;
 
-    if (!validateMapValue(player.currentMap)) {
-        player.currentMap = 'clareira_sombria';
+    player.inventory = Array.isArray(player.inventory) ? player.inventory : [];
+    player.equipment = (player.equipment && typeof player.equipment === 'object') ? player.equipment : {};
+
+    const slots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
+    const repairedEquipment = {};
+    const cleanedInventory = [];
+
+    let removedGhostItems = 0;
+    let repairedEquipmentItems = 0;
+    let movedBrokenEquipmentToInventory = 0;
+
+    for (const rawItem of player.inventory) {
+        if (!isMeaningfulItem(rawItem)) {
+            removedGhostItems += 1;
+            continue;
+        }
+
+        const normalized = normalizeInventoryItem(rawItem);
+        if (!normalized) {
+            removedGhostItems += 1;
+            continue;
+        }
+
+        cleanedInventory.push({
+            ...normalized,
+            __equipped: false
+        });
     }
 
-    player.inventory ??= [];
-    player.soulsInventory ??= [];
-    player.soulsEquipped ??= [null, null];
-    player.consumables ??= {
-        potionHp: 0,
-        potionEnergy: 0,
-        tonicStrength: 0,
-        tonicDefense: 0
-    };
+    for (const slot of slots) {
+        const rawEquipped = player.equipment?.[slot];
 
-    await saveAdminPlayer(player);
+        if (!rawEquipped) {
+            repairedEquipment[slot] = null;
+            continue;
+        }
+
+        const repaired = repairEquipmentItem(rawEquipped, slot);
+
+        if (!repaired) {
+            /*
+            Se o item equipado está tão quebrado que nem dá para normalizar,
+            ele sai do slot e não volta como lixo.
+            */
+            repairedEquipment[slot] = null;
+            removedGhostItems += 1;
+            continue;
+        }
+
+        /*
+        Se o item ainda está com placeholder mas tem stats reais,
+        normalizeInventoryItem já tentou salvar com nome fallback.
+        */
+        if (isPlaceholderName(repaired.name) && !hasRealItemStats(repaired)) {
+            repairedEquipment[slot] = null;
+            removedGhostItems += 1;
+            continue;
+        }
+
+        repairedEquipment[slot] = repaired;
+        repairedEquipmentItems += 1;
+    }
+
+    player.equipment = repairedEquipment;
+    player.inventory = normalizeInventoryCollection(cleanedInventory);
+    ensureUniquePlayerItemKeys(player);
+
+    /*
+    Remove do inventário qualquer item que esteja simultaneamente equipado
+    com a mesma identidade.
+    */
+    const equippedKeys = new Set(
+        slots
+            .map(slot => player.equipment?.[slot])
+            .filter(Boolean)
+            .map(item => getItemKey(item))
+    );
+
+    player.inventory = player.inventory.filter(item => !equippedKeys.has(getItemKey(item)));
+    player.inventory = dedupeInventory(player.inventory);
+    ensureUniquePlayerItemKeys(player);
 
     const afterInventory = Array.isArray(player.inventory) ? player.inventory.length : 0;
-    const afterSouls = Array.isArray(player.soulsInventory) ? player.soulsInventory.length : 0;
 
-    return ctx.reply(
-        `🧹 Player saneado com sucesso.\n\n` +
-        `👤 ${player.name}\n` +
-        `🎒 Inventário: ${beforeInventory} → ${afterInventory}\n` +
-        `💀 Almas: ${beforeSouls} → ${afterSouls}\n` +
-        `🗺️ Mapa: ${player.currentMap}\n` +
-        `⚡ Energia: ${player.energy}/${player.maxEnergy}\n` +
-        `❤️ HP: ${player.hp}/${player.maxHp}`
-    );
+    return {
+        beforeInventory,
+        afterInventory,
+        removedGhostItems,
+        repairedEquipmentItems,
+        movedBrokenEquipmentToInventory
+    };
 }
 
-/*
-=================================
-BAN / UNBAN
-=================================
-*/
+function repairSouls(player) {
+    player.soulsInventory = Array.isArray(player.soulsInventory)
+        ? player.soulsInventory.filter(Boolean)
+        : [];
 
-async function handleBan(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const player = await resolvePlayerFromBanCommand(ctx, '/ban 123456');
-    if (!player) return;
-
-    player.banned = true;
-    await savePlayer(player.id, player);
-
-    return ctx.reply(`⛔ ${player.name} foi banido.`);
-}
-
-async function handleUnban(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const player = await resolvePlayerFromBanCommand(ctx, '/unban 123456');
-    if (!player) return;
-
-    player.banned = false;
-    await savePlayer(player.id, player);
-
-    return ctx.reply(`✅ ${player.name} foi desbanido.`);
-}
-
-/*
-=================================
-RELOAD
-=================================
-*/
-
-async function handleReload(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-    return ctx.reply('♻️ Reload lógico concluído. Reinicie manualmente se quiser rebuild total.');
-}
-
-/*
-=================================
-CAPTURE
-=================================
-*/
-
-async function handleCapture(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const userId = String(ctx.from.id);
-    captureSessions.add(userId);
-
-    return ctx.reply('📸 Modo captura ativado. Envie uma imagem.');
-}
-
-async function handleCapturePhoto(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const userId = String(ctx.from.id);
-
-    if (!captureSessions.has(userId)) {
-        return;
+    if (!Array.isArray(player.soulsEquipped)) {
+        player.soulsEquipped = [null, null];
     }
 
-    const photos = ctx.message?.photo || [];
-
-    if (!photos.length) {
-        captureSessions.delete(userId);
-        return ctx.reply('❌ Nenhuma foto encontrada.');
+    while (player.soulsEquipped.length < 2) {
+        player.soulsEquipped.push(null);
     }
 
-    const bestPhoto = photos[photos.length - 1];
-    const fileId = bestPhoto.file_id;
+    if (player.soulsEquipped.length > 2) {
+        player.soulsEquipped = player.soulsEquipped.slice(0, 2);
+    }
 
-    captureSessions.delete(userId);
+    const seenSoulIds = new Set();
+    player.soulsInventory = player.soulsInventory.filter(soul => {
+        const key = String(soul?.instanceId || soul?.id || '');
+        if (!key) return false;
+        if (seenSoulIds.has(key)) return false;
+        seenSoulIds.add(key);
+        return true;
+    });
 
-    return ctx.reply(fileId);
-}
-
-/*
-=================================
-METRICS
-=================================
-*/
-
-async function handleMetrics(ctx) {
-    if (!(await requireAdmin(ctx))) return;
-
-    const text = ctx.message?.text || '';
-    const parts = splitText(text);
-    const dateKey = parts[1];
-
-    const metricsDoc = dateKey
-        ? await getMetricsByDate(dateKey)
-        : await getTodayMetrics();
-
-    const summary = buildMetricsSummary(metricsDoc);
-    return ctx.reply(renderMetricsMessage(summary), { parse_mode: 'Markdown' });
-}
-
-module.exports = {
-    handleAdminHelp,
-    handleMyId,
-    handleId,
-    handleFindPlayer,
-    handleFindPlayerName,
-    handlePlayerState,
-    handleSetPlayer,
-    handleGiveXp,
-    handleGiveGold,
-    handleGiveNox,
-    handleGiveKeys,
-    handleGiveGlorias,
-    handleGiveItem,
-    handleGiveSoul,
-    handleHeal,
-    handleTeleport,
-    handlePlayerFix,
-    handleBan,
-    handleUnban,
-    handleReload,
-    handleCapture,
-    handleCapturePhoto,
-    handleMetrics
-};
+    for (let i = 0; i < player.soulsEquipped.length; i++) {
+        const soul = player.soulsEquipped[i];
+        if (!s
