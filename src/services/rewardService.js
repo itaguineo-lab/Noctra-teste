@@ -2,7 +2,8 @@ const {
     resolveSoulDrop,
     registerSoulPityFailure,
     resetSoulPity,
-    getSoulDropChance
+    getSoulDropChance,
+    hasThemedSoul
 } = require('../core/player/souls');
 
 const {
@@ -22,6 +23,10 @@ const {
 const {
     recordDropMetrics
 } = require('../core/metrics/metricsService');
+
+const {
+    isVipActive
+} = require('../core/player/playerService');
 
 const { BALANCE } = require('../data/balance');
 
@@ -49,7 +54,17 @@ function getSoulSource(enemy, options = {}) {
     if (options.isDungeonBoss) return 'dungeon_boss';
     if (options.isWorldBoss) return 'world_boss';
     if (options.isEventBoss) return 'event_boss';
+
     if (enemy?.isBoss) return 'field_boss';
+
+    if (enemy?.isMiniBoss && hasThemedSoul(enemy.id)) {
+        return 'field_miniboss_thematic';
+    }
+
+    if (enemy?.isElite && hasThemedSoul(enemy.id)) {
+        return 'field_elite_thematic';
+    }
+
     return null;
 }
 
@@ -67,7 +82,7 @@ function ensureRewardState(player) {
     player.soulPityCounter ??= 0;
     player.keys ??= 0;
     player.gold ??= 0;
-    player.maxInventory ??= player.vip
+    player.maxInventory ??= isVipActive(player)
         ? BALANCE.inventory.vipMax
         : BALANCE.inventory.baseMax;
     player.currentMap ??= 'clareira_sombria';
@@ -80,7 +95,7 @@ function buildRewardBase(player, enemy) {
     let baseXp = Math.max(1, Number(enemy?.xp || 0));
     let baseGold = Math.max(1, Number(enemy?.gold || 0));
 
-    if (player.vip) {
+    if (isVipActive(player)) {
         baseXp = Math.floor(baseXp * (BALANCE.vip.xpMultiplier || 1));
         baseGold = Math.floor(baseGold * (BALANCE.vip.goldMultiplier || 1));
     }
@@ -102,8 +117,23 @@ function formatDroppedItemLoot(item) {
 }
 
 function tryDropKey(player, enemy, loot, options = {}) {
-    const isFieldBoss = Boolean(enemy?.isBoss) && !options.isDungeonBoss && !options.isWorldBoss && !options.isEventBoss;
-    const chance = isFieldBoss ? (BALANCE.dungeon.fieldBossKeyDropChance || 0) : 0;
+    const isSpecialExternal = options.isDungeonBoss || options.isWorldBoss || options.isEventBoss;
+
+    if (isSpecialExternal) {
+        return false;
+    }
+
+    let chance = 0;
+
+    if (enemy?.isBoss) {
+        chance = BALANCE.dungeon.fieldBossKeyDropChance || 0;
+    } else if (enemy?.isMiniBoss) {
+        chance = BALANCE.dungeon.fieldMiniBossKeyDropChance || 0;
+    }
+
+    if (chance <= 0) {
+        return false;
+    }
 
     const dropped = Math.random() < chance;
 
