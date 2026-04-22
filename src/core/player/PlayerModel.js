@@ -4,22 +4,28 @@ const itemSchema = new mongoose.Schema(
     {
         id: { type: String, default: null },
         instanceId: { type: String, default: null },
+        legacyBase: { type: String, default: null },
+
         name: { type: String, required: true },
         slot: { type: String, default: null },
         category: { type: String, default: null },
         uiCategory: { type: String, default: null },
         displayCategory: { type: String, default: null },
         emoji: { type: String, default: null },
+
         rarity: { type: String, default: 'Comum' },
         level: { type: Number, default: 1 },
+
         atk: { type: Number, default: 0 },
         def: { type: Number, default: 0 },
         hp: { type: Number, default: 0 },
         crit: { type: Number, default: 0 },
         power: { type: Number, default: 0 },
+
         powerTier: { type: String, default: null },
         sourceTier: { type: String, default: null },
         classRestriction: { type: String, default: null },
+
         price: { type: Number, default: 0 },
         icon: { type: String, default: null }
     },
