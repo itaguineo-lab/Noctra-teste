@@ -12,8 +12,35 @@ function toTimestamp(value, fallback = Date.now()) {
     return fallback;
 }
 
+function parseVipExpires(value) {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+        const ts = value.getTime();
+        return Number.isFinite(ts) ? ts : null;
+    }
+
+    const parsed = new Date(value).getTime();
+    if (Number.isFinite(parsed)) return parsed;
+
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+
+    return null;
+}
+
+function isVipActive(player) {
+    if (!player?.vip) return false;
+    if (!player.vipExpires) return true;
+
+    const expiresAt = parseVipExpires(player.vipExpires);
+    if (!Number.isFinite(expiresAt)) return false;
+
+    return expiresAt > Date.now();
+}
+
 function getExpectedMaxEnergy(player) {
-    return player?.vip
+    return isVipActive(player)
         ? BALANCE.energy.vipMax
         : BALANCE.energy.baseMax;
 }
@@ -59,7 +86,7 @@ INTERVALO DE REGENERAÇÃO
 function getRegenInterval(player) {
     ensureEnergyFields(player);
 
-    const minutes = player.vip
+    const minutes = isVipActive(player)
         ? BALANCE.energy.vipRegenMinutes
         : BALANCE.energy.baseRegenMinutes;
 
