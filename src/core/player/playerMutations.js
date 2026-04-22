@@ -35,10 +35,6 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
-function buildSyntheticItemId() {
-    return `itm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function getDefaultWeaponEmoji(name = '') {
     const lower = String(name).toLowerCase();
     if (lower.includes('machado')) return '🪓';
@@ -69,6 +65,7 @@ function inferSlotFromName(rawName = '') {
     if (name.includes('bota') || name.includes('greva') || name.includes('sandália')) return 'boots';
     if (name.includes('anel') || name.includes('aliança')) return 'ring';
     if (name.includes('amuleto') || name.includes('colar') || name.includes('pingente') || name.includes('gargantilha')) return 'necklace';
+
     if (
         name.includes('armadura') ||
         name.includes('gibão') ||
@@ -80,6 +77,7 @@ function inferSlotFromName(rawName = '') {
         name.includes('peitoral') ||
         name.includes('robe')
     ) return 'armor';
+
     if (
         name.includes('espada') ||
         name.includes('machado') ||
@@ -125,12 +123,8 @@ function getCanonicalSlot(item = {}) {
     const rawName = String(item.name || '').trim().toLowerCase();
 
     if (rawCategory === 'weapon') return 'weapon';
-    if (rawCategory === 'jewelry') {
-        return inferSlotFromName(rawName) || 'ring';
-    }
-    if (rawCategory === 'armor') {
-        return inferSlotFromName(rawName) || 'armor';
-    }
+    if (rawCategory === 'jewelry') return inferSlotFromName(rawName) || 'ring';
+    if (rawCategory === 'armor') return inferSlotFromName(rawName) || 'armor';
 
     if (rawUiCategory === 'weapons') return 'weapon';
     if (rawUiCategory === 'armors') return inferSlotFromName(rawName) || 'armor';
@@ -181,20 +175,6 @@ function normalizeInventoryItem(item) {
         __equipped: Boolean(item.__equipped)
     };
 
-    /*
-    Nunca confiar em id semântico antigo como identidade de instância.
-    */
-    if (!normalized.instanceId || String(normalized.instanceId).trim() === '') {
-        const rawId = String(normalized.id || '').trim();
-        if (!rawId || !rawId.startsWith('itm_')) {
-            normalized.instanceId = buildSyntheticItemId();
-            normalized.id = normalized.instanceId;
-        } else {
-            normalized.instanceId = rawId;
-            normalized.id = rawId;
-        }
-    }
-
     ensureItemIdentity(normalized);
     return normalized;
 }
@@ -206,23 +186,20 @@ function normalizeInventoryCollection(items = []) {
         .map(item => normalizeInventoryItem(item))
         .filter(Boolean);
 
-    const usedKeys = new Set();
-    const result = [];
-
-    for (const item of normalized) {
-        ensureItemIdentity(item);
-        let key = getItemKey(item);
-
-        while (!key || usedKeys.has(key)) {
-            ensureItemIdentity(item, { forceNewIdentity: true });
-            key = getItemKey(item);
+    const tempPlayer = {
+        inventory: normalized,
+        equipment: {
+            weapon: null,
+            shield: null,
+            armor: null,
+            necklace: null,
+            ring: null,
+            boots: null
         }
+    };
 
-        usedKeys.add(key);
-        result.push(item);
-    }
-
-    return result;
+    ensureUniquePlayerItemKeys(tempPlayer);
+    return tempPlayer.inventory;
 }
 
 function ensureConsumables(player) {
@@ -333,15 +310,6 @@ function addInventoryItem(player, item) {
 
     normalized.__equipped = false;
     ensureItemIdentity(normalized);
-
-    /*
-    Se colidir com item existente, gera nova identidade.
-    Nunca descartar item do jogador.
-    */
-    const existingKeys = new Set((player.inventory || []).map(inv => getItemKey(inv)));
-    while (existingKeys.has(getItemKey(normalized))) {
-        ensureItemIdentity(normalized, { forceNewIdentity: true });
-    }
 
     player.inventory.push(normalized);
     player.inventory = normalizeInventoryCollection(player.inventory);
