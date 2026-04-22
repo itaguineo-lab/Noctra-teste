@@ -1,4 +1,5 @@
 const { randomUUID } = require('crypto');
+const { BALANCE } = require('../../data/balance');
 
 /*
 =================================
@@ -129,23 +130,21 @@ const rarityWeights = {
 =================================
 DROP SOURCES
 =================================
-- field_boss: boss de campo
-- dungeon_boss: boss de masmorra
-- world_boss: boss global
-- event_boss: boss de evento
 =================================
 */
 
 const SOUL_DROP_SOURCES = {
-    field_boss: 0.03,
-    dungeon_boss: 0.08,
-    world_boss: 0.15,
-    event_boss: 0.20
+    field_elite_thematic: BALANCE.souls.fieldEliteThematicDropChance,
+    field_miniboss_thematic: BALANCE.souls.fieldMiniBossThematicDropChance,
+    field_boss: BALANCE.souls.fieldBossDropChance,
+    dungeon_boss: BALANCE.souls.dungeonBossDropChance,
+    world_boss: BALANCE.souls.worldBossDropChance,
+    event_boss: BALANCE.souls.eventBossDropChance
 };
 
 const PITY_RULES = {
-    boostAt: 10,
-    multiplier: 2
+    boostAt: BALANCE.souls.pityBoostAt,
+    multiplier: BALANCE.souls.pityMultiplier
 };
 
 /*
@@ -167,6 +166,10 @@ function createSoulInstance(soul) {
 
 function getSoulById(id) {
     return soulsList.find(soul => soul.id === id) || null;
+}
+
+function hasThemedSoul(enemyId) {
+    return soulsList.some(soul => soul.bossId === enemyId);
 }
 
 function getRarityEmoji(rarity) {
@@ -213,16 +216,25 @@ function resolveSoulDrop({ playerLevel, enemy, source = 'field_boss' }) {
     const available = getAvailableSoulsByLevel(playerLevel);
     if (!available.length) return null;
 
+    const themedSoul = enemy?.id
+        ? available.find(soul => soul.bossId === enemy.id)
+        : null;
+
     /*
-    Prioridade:
-    1) alma temática do boss/enemy, se existir
-    2) fallback ponderado por raridade dentro do nível
+    Elite e miniboss só dropam alma se forem temáticos.
+    Não existe fallback aleatório nesses casos.
     */
-    if (enemy?.id) {
-        const themedSoul = available.find(soul => soul.bossId === enemy.id);
-        if (themedSoul) {
-            return createSoulInstance(themedSoul);
-        }
+    if (source === 'field_elite_thematic' || source === 'field_miniboss_thematic') {
+        return themedSoul ? createSoulInstance(themedSoul) : null;
+    }
+
+    /*
+    Bosses e fontes superiores:
+    1) tenta alma temática
+    2) se não houver, cai para rolagem ponderada
+    */
+    if (themedSoul) {
+        return createSoulInstance(themedSoul);
     }
 
     const randomSoul = weightedRandom(available);
@@ -395,6 +407,7 @@ module.exports = {
     SOUL_DROP_SOURCES,
     PITY_RULES,
     getSoulById,
+    hasThemedSoul,
     getSoulDropChance,
     resolveSoulDrop,
     registerSoulPityFailure,
