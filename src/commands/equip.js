@@ -6,8 +6,13 @@ const {
 const {
     applyEquipmentChange,
     applySoulEquip,
-    normalizePlayerForSave
+    normalizePlayerForSave,
+    normalizeInventoryItem
 } = require('../core/player/playerMutations');
+
+const {
+    getItemKey
+} = require('../core/player/equipmentService');
 
 /*
 =================================
@@ -42,26 +47,33 @@ function normalizePlayer(player) {
     return player;
 }
 
-function getItemId(item) {
-    return String(
-        item?.id ??
-        item?._id ??
-        item?.instanceId
-    );
+function getItemIdentifiers(item) {
+    if (!item) return [];
+
+    return [
+        String(item.instanceId || ''),
+        String(item.id || ''),
+        String(getItemKey(item) || '')
+    ].filter(Boolean);
 }
 
 function getRealSlot(item) {
-    if (!item?.slot) return null;
+    const normalized = normalizeInventoryItem(item);
+    return normalized?.slot || null;
+}
 
-    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+function findInventoryItemByAnyIdentifier(player, rawIdentifier) {
+    player = normalizePlayer(player);
 
-    for (const slot of validSlots) {
-        if (String(item.slot).startsWith(slot)) {
-            return slot;
-        }
-    }
+    const target = String(rawIdentifier || '').trim();
+    if (!target) return null;
 
-    return null;
+    return player.inventory.find(entry => {
+        const normalized = normalizeInventoryItem(entry);
+        if (!normalized) return false;
+
+        return getItemIdentifiers(normalized).includes(target);
+    }) || null;
 }
 
 /*
@@ -73,9 +85,7 @@ EQUIP ITEM
 function equipItemById(player, itemId) {
     player = normalizePlayer(player);
 
-    const item = player.inventory.find(
-        entry => entry && getItemId(entry) === String(itemId)
-    );
+    const item = findInventoryItemByAnyIdentifier(player, itemId);
 
     if (!item) {
         return {
@@ -112,7 +122,7 @@ function equipItemById(player, itemId) {
 
     return {
         ok: true,
-        item
+        item: result.equipped
     };
 }
 
