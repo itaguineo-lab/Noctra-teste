@@ -1,6 +1,6 @@
 /*
 =================================
-NOCTRA — ENEMY SYSTEM 4.0
+NOCTRA — ENEMY SYSTEM 4.1
 INIMIGOS TEMÁTICOS + HABILIDADES + PROGRESSÃO CONTROLADA
 FOCO EM LONGEVIDADE, IDENTIDADE DE MAPA E PACING
 =================================
@@ -553,31 +553,34 @@ function getSpawnProfile(mapId, playerLevel = 1) {
     const level = Number(playerLevel) || 1;
     const levelOffset = Math.max(0, level - mapBaseLevel);
 
+    /*
+    Todos os mapas agora têm common / elite / miniboss / boss
+    em perfil real de spawn.
+    A proteção do early continua existindo só no onboarding.
+    */
     const baseProfiles = {
-        clareira_sombria: { common: 0.92, elite: 0.08, miniboss: 0.00, boss: 0.00 },
-        cripta_em_ruinas: { common: 0.82, elite: 0.16, miniboss: 0.02, boss: 0.00 },
-        pantano_corrompido: { common: 0.75, elite: 0.20, miniboss: 0.05, boss: 0.00 },
-        deserto_incandescente: { common: 0.70, elite: 0.22, miniboss: 0.07, boss: 0.01 },
-        citadela_lunar: { common: 0.66, elite: 0.24, miniboss: 0.08, boss: 0.02 },
-        abismo_noctra: { common: 0.62, elite: 0.25, miniboss: 0.10, boss: 0.03 }
+        clareira_sombria: { common: 0.82, elite: 0.12, miniboss: 0.04, boss: 0.02 },
+        cripta_em_ruinas: { common: 0.76, elite: 0.15, miniboss: 0.06, boss: 0.03 },
+        pantano_corrompido: { common: 0.70, elite: 0.17, miniboss: 0.08, boss: 0.05 },
+        deserto_incandescente: { common: 0.64, elite: 0.19, miniboss: 0.10, boss: 0.07 },
+        citadela_lunar: { common: 0.58, elite: 0.21, miniboss: 0.12, boss: 0.09 },
+        abismo_noctra: { common: 0.52, elite: 0.23, miniboss: 0.14, boss: 0.11 }
     };
 
     const profile = { ...(baseProfiles[mapId] || baseProfiles.clareira_sombria) };
 
     /*
-    Ajuste suave por overlevel:
-    jogador forte encontra um pouco mais de elite/miniboss,
-    mas o mapa não perde identidade.
+    Overlevel aumenta a chance de coisa relevante.
     */
-    const overlevelBonus = Math.min(0.06, levelOffset * 0.006);
+    const overlevelBonus = Math.min(0.08, levelOffset * 0.006);
 
-    profile.elite += overlevelBonus * 0.65;
-    profile.miniboss += overlevelBonus * 0.25;
-    profile.boss += overlevelBonus * 0.10;
+    profile.elite += overlevelBonus * 0.50;
+    profile.miniboss += overlevelBonus * 0.30;
+    profile.boss += overlevelBonus * 0.20;
     profile.common -= overlevelBonus;
 
     /*
-    Early onboarding protegido:
+    Onboarding protegido:
     até nível 4, nada além de common.
     */
     if (level <= 4) {
@@ -589,11 +592,15 @@ function getSpawnProfile(mapId, playerLevel = 1) {
         };
     }
 
+    /*
+    Clareira ainda segura até o 7.
+    Já existe miniboss cedo, mas boss fica bloqueado.
+    */
     if (level <= 7 && mapId === 'clareira_sombria') {
         return {
-            common: 0.90,
+            common: 0.88,
             elite: 0.10,
-            miniboss: 0,
+            miniboss: 0.02,
             boss: 0
         };
     }
@@ -614,21 +621,21 @@ function applyDangerProfile(profile, dangerLevel = 0, pool = {}) {
     const adjusted = { ...profile };
 
     if (pool.elite?.length) {
-        adjusted.elite += bonus * 0.60;
-        adjusted.common -= bonus * 0.45;
+        adjusted.elite += bonus * 0.50;
+        adjusted.common -= bonus * 0.35;
     }
 
     if (pool.miniboss?.length) {
-        adjusted.miniboss += bonus * 0.28;
-        adjusted.common -= bonus * 0.18;
+        adjusted.miniboss += bonus * 0.30;
+        adjusted.common -= bonus * 0.20;
     }
 
     if (pool.boss?.length) {
-        adjusted.boss += bonus * 0.12;
-        adjusted.common -= bonus * 0.07;
+        adjusted.boss += bonus * 0.20;
+        adjusted.common -= bonus * 0.12;
     }
 
-    adjusted.common = Math.max(0.18, adjusted.common);
+    adjusted.common = Math.max(0.16, adjusted.common);
 
     const total = adjusted.common + adjusted.elite + adjusted.miniboss + adjusted.boss;
 
@@ -655,8 +662,8 @@ function scaleEnemyForPlayer(baseEnemy, playerLevel = 1, mapId = 'clareira_sombr
     const mapBaseLevel = getMapBaseLevel(mapId);
 
     /*
-    Scaling mais controlado:
-    mapa mantém identidade e não vira “conteúdo do seu level”.
+    Scaling controlado:
+    o mapa mantém identidade e não vira “conteúdo do seu level”.
     */
     const delta = Math.max(0, level - mapBaseLevel);
 
