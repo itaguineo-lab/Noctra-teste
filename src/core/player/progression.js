@@ -1,60 +1,49 @@
 const {
-    recalculateStats
+    recalculateStats,
+    isVipActive
 } = require('./playerService');
 
 /*
 =================================
-XP CURVE 2.0
-FOCO EM PACING PROFISSIONAL
-- EARLY: rápido e viciante
-- MID: consistente
-- LATE: desaceleração saudável
+XP CURVE 3.0
+OBJETIVO:
+- LV 1–8 bem fácil
+- após LV 8 desacelera forte
+- mid/late começam a exigir compromisso
 =================================
 */
 
 function getXpToNextLevel(level) {
     const lv = Math.max(1, Number(level) || 1);
 
-    /*
-    Metas de pacing:
-    Lv 1–4   = onboarding forte
-    Lv 5–8   = ainda rápido
-    Lv 9–15  = progressão estável
-    Lv 16–24 = build e dungeon começam a pesar
-    Lv 25+   = longevidade real
-    */
-
     if (lv <= 4) {
         return Math.floor(90 + (lv - 1) * 28);
     }
 
     if (lv <= 8) {
-        return Math.floor(180 + (lv - 5) * 42);
+        return Math.floor(180 + (lv - 5) * 45);
     }
 
-    if (lv <= 15) {
-        return Math.floor(320 + (lv - 9) * 62);
+    /*
+    A partir daqui a curva sobe de verdade.
+    */
+    if (lv <= 12) {
+        return Math.floor(400 + (lv - 9) * 95);
+    }
+
+    if (lv <= 16) {
+        return Math.floor(780 + (lv - 13) * 140);
     }
 
     if (lv <= 24) {
-        return Math.floor(760 + (lv - 16) * 95);
+        return Math.floor(1340 + (lv - 17) * 190);
     }
 
     if (lv <= 35) {
-        return Math.floor(1650 + (lv - 25) * 135);
+        return Math.floor(2860 + (lv - 25) * 260);
     }
 
-    return Math.floor(3135 + (lv - 36) * 185);
-}
-
-function isVipActive(player) {
-    if (!player?.vip) return false;
-    if (!player.vipExpires) return true;
-
-    const expiresAt = new Date(player.vipExpires).getTime();
-    if (!Number.isFinite(expiresAt)) return Boolean(player.vip);
-
-    return expiresAt > Date.now();
+    return Math.floor(5720 + (lv - 36) * 340);
 }
 
 function getDeathPenaltyRate(player) {
@@ -103,17 +92,10 @@ function getLevelUpRewards(player) {
         keys: 0
     };
 
-    /*
-    Glória deve existir como marco.
-    */
     if (level % 5 === 0) {
         rewards.glorias = 1;
     }
 
-    /*
-    Chave por level up é rara.
-    Mantém valor da dungeon.
-    */
     if (level % 12 === 0) {
         rewards.keys = 1;
     }
@@ -221,14 +203,11 @@ function checkLevelUp(player) {
 
     recalculateStats(player);
 
-    /*
-    Quanto maior o level, menos o level up deve trivializar recuperação.
-    */
     const effectiveHealPercent = player.level <= 10
         ? 0.40
         : player.level <= 24
-            ? 0.32
-            : 0.26;
+            ? 0.30
+            : 0.24;
 
     const healAmount = Math.floor(player.maxHp * effectiveHealPercent * levelsGained);
     totalHeal = healAmount;
