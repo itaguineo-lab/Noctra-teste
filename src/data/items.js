@@ -1,129 +1,7 @@
-const ITEM_POOL = {
-    level1: {
-        weapon: [
-            { name: 'Espada do Vigia', class: 'guerreiro', emoji: '🗡️' },
-            { name: 'Machado Brutal', class: 'guerreiro', emoji: '🪓' },
-            { name: 'Arco do Caçador', class: 'arqueiro', emoji: '🏹' },
-            { name: 'Lança do Batedor', class: 'arqueiro', emoji: '🔱' },
-            { name: 'Varinha Arcana', class: 'mago', emoji: '🪄' },
-            { name: 'Grimório Antigo', class: 'mago', emoji: '📘' },
-            { name: 'Orbe Azul', class: 'mago', emoji: '🔮' }
-        ],
-        armor: [
-            { name: 'Armadura do Soldado', class: null, emoji: '🥋', forcedSlot: 'armor' },
-            { name: 'Escudo de Ferro', class: null, emoji: '🛡️', forcedSlot: 'shield' },
-            { name: 'Botas de Couro', class: null, emoji: '👢', forcedSlot: 'boots' }
-        ],
-        jewelry: [
-            { name: 'Anel Comum', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto Comum', class: null, emoji: '📿', forcedSlot: 'necklace' }
-        ]
-    },
-
-    level8: {
-        weapon: [
-            { name: 'Espada da Névoa', class: 'guerreiro', emoji: '🗡️' },
-            { name: 'Machado do Eco', class: 'guerreiro', emoji: '🪓' },
-            { name: 'Arco das Folhas Mortas', class: 'arqueiro', emoji: '🏹' },
-            { name: 'Lança da Penumbra', class: 'arqueiro', emoji: '🔱' },
-            { name: 'Cajado dos Murmúrios', class: 'mago', emoji: '🪄' },
-            { name: 'Grimório da Cinza', class: 'mago', emoji: '📘' },
-            { name: 'Orbe do Véu', class: 'mago', emoji: '🔮' }
-        ],
-        armor: [
-            { name: 'Couraça da Névoa', class: null, emoji: '🥋', forcedSlot: 'armor' },
-            { name: 'Escudo Sombrio', class: null, emoji: '🛡️', forcedSlot: 'shield' },
-            { name: 'Botas da Sombra', class: null, emoji: '👢', forcedSlot: 'boots' }
-        ],
-        jewelry: [
-            { name: 'Anel da Névoa', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto Espectral', class: null, emoji: '📿', forcedSlot: 'necklace' }
-        ]
-    },
-
-    level15: {
-        weapon: [
-            { name: 'Espada Tumular', class: 'guerreiro', emoji: '🗡️' },
-            { name: 'Machado Carniceiro', class: 'guerreiro', emoji: '🪓' },
-            { name: 'Arco dos Ossos', class: 'arqueiro', emoji: '🏹' },
-            { name: 'Lança Élfica', class: 'arqueiro', emoji: '🔱' },
-            { name: 'Cajado Tumular', class: 'mago', emoji: '🪄' },
-            { name: 'Grimório das Almas', class: 'mago', emoji: '📘' },
-            { name: 'Orbe do Vazio', class: 'mago', emoji: '🔮' }
-        ],
-        armor: [
-            { name: 'Armadura do Cavaleiro Negro', class: null, emoji: '🥋', forcedSlot: 'armor' },
-            { name: 'Escudo do Corvo', class: null, emoji: '🛡️', forcedSlot: 'shield' },
-            { name: 'Botas Sombrias', class: null, emoji: '👢', forcedSlot: 'boots' }
-        ],
-        jewelry: [
-            { name: 'Anel Profanado', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto Funesto', class: null, emoji: '📿', forcedSlot: 'necklace' }
-        ]
-    },
-
-    level24: {
-        weapon: [
-            { name: 'Espada do Eclipse', class: 'guerreiro', emoji: '🗡️' },
-            { name: 'Machado do Caos', class: 'guerreiro', emoji: '🪓' },
-            { name: 'Arco Lunar', class: 'arqueiro', emoji: '🏹' },
-            { name: 'Lança da Maré Sombria', class: 'arqueiro', emoji: '🔱' },
-            { name: 'Cajado de Noctra', class: 'mago', emoji: '🪄' },
-            { name: 'Grimório do Eclipse', class: 'mago', emoji: '📘' },
-            { name: 'Orbe da Eternidade', class: 'mago', emoji: '🔮' }
-        ],
-        armor: [
-            { name: 'Armadura do Eclipse', class: null, emoji: '🥋', forcedSlot: 'armor' },
-            { name: 'Escudo do Abismo', class: null, emoji: '🛡️', forcedSlot: 'shield' },
-            { name: 'Botas do Vazio', class: null, emoji: '👢', forcedSlot: 'boots' }
-        ],
-        jewelry: [
-            { name: 'Anel Solar Negro', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto da Tempestade', class: null, emoji: '📿', forcedSlot: 'necklace' }
-        ]
-    },
-
-    level32: {
-        weapon: [
-            { name: 'Espada da Citadela', class: 'guerreiro', emoji: '🗡️' },
-            { name: 'Machado do Cometa', class: 'guerreiro', emoji: '🪓' },
-            { name: 'Arco da Lua Partida', class: 'arqueiro', emoji: '🏹' },
-            { name: 'Lança do Guardião Lunar', class: 'arqueiro', emoji: '🔱' },
-            { name: 'Cajado Astral', class: 'mago', emoji: '🪄' },
-            { name: 'Grimório Celeste', class: 'mago', emoji: '📘' },
-            { name: 'Orbe da Maré Lunar', class: 'mago', emoji: '🔮' }
-        ],
-        armor: [
-            { name: 'Armadura Celestial', class: null, emoji: '🥋', forcedSlot: 'armor' },
-            { name: 'Escudo Lunar', class: null, emoji: '🛡️', forcedSlot: 'shield' },
-            { name: 'Botas Astrais', class: null, emoji: '👢', forcedSlot: 'boots' }
-        ],
-        jewelry: [
-            { name: 'Anel da Lua Alta', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto Estelar', class: null, emoji: '📿', forcedSlot: 'necklace' }
-        ]
-    },
-
-    level42: {
-        weapon: [
-            { name: 'Espada de Noctra', class: 'guerreiro', emoji: '🗡️' },
-            { name: 'Machado do Fim', class: 'guerreiro', emoji: '🪓' },
-            { name: 'Arco do Abismo', class: 'arqueiro', emoji: '🏹' },
-            { name: 'Lança da Ruína', class: 'arqueiro', emoji: '🔱' },
-            { name: 'Cajado do Trono Vazio', class: 'mago', emoji: '🪄' },
-            { name: 'Grimório do Vazio Profundo', class: 'mago', emoji: '📘' },
-            { name: 'Orbe da Eternidade Negra', class: 'mago', emoji: '🔮' }
-        ],
-        armor: [
-            { name: 'Armadura de Noctra', class: null, emoji: '🥋', forcedSlot: 'armor' },
-            { name: 'Escudo do Vazio', class: null, emoji: '🛡️', forcedSlot: 'shield' },
-            { name: 'Botas da Eternidade', class: null, emoji: '👢', forcedSlot: 'boots' }
-        ],
-        jewelry: [
-            { name: 'Anel Mítico', class: null, emoji: '💍', forcedSlot: 'ring' },
-            { name: 'Amuleto de Noctra', class: null, emoji: '📿', forcedSlot: 'necklace' }
-        ]
-    }
+const CATEGORY_WEIGHTS = {
+    weapon: 42,
+    armor: 38,
+    jewelry: 20
 };
 
 const BASE_RARITIES = [
@@ -135,12 +13,6 @@ const BASE_RARITIES = [
     { name: 'Mítico', multiplier: 2.22, weight: 0.3 }
 ];
 
-const CATEGORY_WEIGHTS = {
-    weapon: 42,
-    armor: 38,
-    jewelry: 20
-};
-
 const SLOT_TO_UI_CATEGORY = {
     weapon: 'weapons',
     shield: 'armors',
@@ -148,6 +20,232 @@ const SLOT_TO_UI_CATEGORY = {
     boots: 'armors',
     ring: 'jewels',
     necklace: 'jewels'
+};
+
+function weaponRequiresOffhand(name, emoji, className, requiredOffhandType) {
+    return {
+        name,
+        emoji,
+        allowedClasses: [className],
+        weaponStyle: 'requires_offhand',
+        requiredOffhandType
+    };
+}
+
+function weaponTwoHanded(name, emoji, className) {
+    return {
+        name,
+        emoji,
+        allowedClasses: [className],
+        weaponStyle: 'two_handed'
+    };
+}
+
+function offhandItem(name, emoji, allowedClasses, offhandType) {
+    return {
+        name,
+        emoji,
+        forcedSlot: 'shield',
+        allowedClasses,
+        offhandType
+    };
+}
+
+function armorItem(name, emoji, className) {
+    return {
+        name,
+        emoji,
+        forcedSlot: 'armor',
+        allowedClasses: [className]
+    };
+}
+
+function bootsItem(name, emoji, className) {
+    return {
+        name,
+        emoji,
+        forcedSlot: 'boots',
+        allowedClasses: [className]
+    };
+}
+
+function jewelItem(name, emoji, forcedSlot) {
+    return {
+        name,
+        emoji,
+        forcedSlot,
+        allowedClasses: []
+    };
+}
+
+const ITEM_POOL = {
+    level1: {
+        weapon: [
+            weaponRequiresOffhand('Espada do Vigia', '🗡️', 'guerreiro', 'shield'),
+            weaponTwoHanded('Machado Brutal', '🪓', 'guerreiro'),
+            weaponRequiresOffhand('Arco do Caçador', '🏹', 'arqueiro', 'quiver'),
+            weaponRequiresOffhand('Lança do Batedor', '🔱', 'arqueiro', 'shield'),
+            weaponRequiresOffhand('Varinha Arcana', '🪄', 'mago', 'orb'),
+            weaponTwoHanded('Cajado do Aprendiz', '🪄', 'mago')
+        ],
+        armor: [
+            armorItem('Armadura do Soldado', '🥋', 'guerreiro'),
+            offhandItem('Escudo de Ferro', '🛡️', ['guerreiro', 'arqueiro'], 'shield'),
+            bootsItem('Botas do Soldado', '👢', 'guerreiro'),
+
+            armorItem('Gibão do Caçador', '🥋', 'arqueiro'),
+            offhandItem('Aljava de Couro', '🏹', ['arqueiro'], 'quiver'),
+            bootsItem('Botas do Batedor', '👢', 'arqueiro'),
+
+            armorItem('Manto Arcano', '🥋', 'mago'),
+            offhandItem('Orbe Azul', '🔮', ['mago'], 'orb'),
+            bootsItem('Sandálias Arcanas', '👢', 'mago')
+        ],
+        jewelry: [
+            jewelItem('Anel Comum', '💍', 'ring'),
+            jewelItem('Amuleto Comum', '📿', 'necklace')
+        ]
+    },
+
+    level8: {
+        weapon: [
+            weaponRequiresOffhand('Espada da Névoa', '🗡️', 'guerreiro', 'shield'),
+            weaponTwoHanded('Machado do Eco', '🪓', 'guerreiro'),
+            weaponRequiresOffhand('Arco das Folhas Mortas', '🏹', 'arqueiro', 'quiver'),
+            weaponRequiresOffhand('Lança da Penumbra', '🔱', 'arqueiro', 'shield'),
+            weaponRequiresOffhand('Varinha do Véu', '🪄', 'mago', 'orb'),
+            weaponTwoHanded('Cajado dos Murmúrios', '🪄', 'mago')
+        ],
+        armor: [
+            armorItem('Couraça da Névoa', '🥋', 'guerreiro'),
+            offhandItem('Escudo Sombrio', '🛡️', ['guerreiro', 'arqueiro'], 'shield'),
+            bootsItem('Botas da Névoa', '👢', 'guerreiro'),
+
+            armorItem('Traje da Folha Morta', '🥋', 'arqueiro'),
+            offhandItem('Aljava Sombria', '🏹', ['arqueiro'], 'quiver'),
+            bootsItem('Botas da Sombra', '👢', 'arqueiro'),
+
+            armorItem('Manto do Véu', '🥋', 'mago'),
+            offhandItem('Orbe do Véu', '🔮', ['mago'], 'orb'),
+            bootsItem('Sandálias do Véu', '👢', 'mago')
+        ],
+        jewelry: [
+            jewelItem('Anel da Névoa', '💍', 'ring'),
+            jewelItem('Amuleto Espectral', '📿', 'necklace')
+        ]
+    },
+
+    level15: {
+        weapon: [
+            weaponRequiresOffhand('Espada Tumular', '🗡️', 'guerreiro', 'shield'),
+            weaponTwoHanded('Machado Carniceiro', '🪓', 'guerreiro'),
+            weaponRequiresOffhand('Arco dos Ossos', '🏹', 'arqueiro', 'quiver'),
+            weaponRequiresOffhand('Lança Élfica Sombria', '🔱', 'arqueiro', 'shield'),
+            weaponRequiresOffhand('Varinha Tumular', '🪄', 'mago', 'orb'),
+            weaponTwoHanded('Cajado Tumular', '🪄', 'mago')
+        ],
+        armor: [
+            armorItem('Armadura do Cavaleiro Negro', '🥋', 'guerreiro'),
+            offhandItem('Escudo do Corvo', '🛡️', ['guerreiro', 'arqueiro'], 'shield'),
+            bootsItem('Botas do Cavaleiro Negro', '👢', 'guerreiro'),
+
+            armorItem('Traje do Ossário', '🥋', 'arqueiro'),
+            offhandItem('Aljava dos Ossos', '🏹', ['arqueiro'], 'quiver'),
+            bootsItem('Botas Profanas', '👢', 'arqueiro'),
+
+            armorItem('Manto das Almas', '🥋', 'mago'),
+            offhandItem('Orbe do Vazio', '🔮', ['mago'], 'orb'),
+            bootsItem('Sandálias Profanadas', '👢', 'mago')
+        ],
+        jewelry: [
+            jewelItem('Anel Profanado', '💍', 'ring'),
+            jewelItem('Amuleto Funesto', '📿', 'necklace')
+        ]
+    },
+
+    level24: {
+        weapon: [
+            weaponRequiresOffhand('Espada do Eclipse', '🗡️', 'guerreiro', 'shield'),
+            weaponTwoHanded('Machado do Caos', '🪓', 'guerreiro'),
+            weaponRequiresOffhand('Arco Lunar', '🏹', 'arqueiro', 'quiver'),
+            weaponRequiresOffhand('Lança da Maré Sombria', '🔱', 'arqueiro', 'shield'),
+            weaponRequiresOffhand('Varinha do Eclipse', '🪄', 'mago', 'orb'),
+            weaponTwoHanded('Cajado de Noctra', '🪄', 'mago')
+        ],
+        armor: [
+            armorItem('Armadura do Eclipse', '🥋', 'guerreiro'),
+            offhandItem('Escudo do Abismo', '🛡️', ['guerreiro', 'arqueiro'], 'shield'),
+            bootsItem('Botas do Eclipse', '👢', 'guerreiro'),
+
+            armorItem('Traje Lunar', '🥋', 'arqueiro'),
+            offhandItem('Aljava Lunar', '🏹', ['arqueiro'], 'quiver'),
+            bootsItem('Botas da Lua Negra', '👢', 'arqueiro'),
+
+            armorItem('Manto do Eclipse', '🥋', 'mago'),
+            offhandItem('Orbe da Eternidade', '🔮', ['mago'], 'orb'),
+            bootsItem('Sandálias do Eclipse', '👢', 'mago')
+        ],
+        jewelry: [
+            jewelItem('Anel Solar Negro', '💍', 'ring'),
+            jewelItem('Amuleto da Tempestade', '📿', 'necklace')
+        ]
+    },
+
+    level32: {
+        weapon: [
+            weaponRequiresOffhand('Espada da Citadela', '🗡️', 'guerreiro', 'shield'),
+            weaponTwoHanded('Machado do Cometa', '🪓', 'guerreiro'),
+            weaponRequiresOffhand('Arco da Lua Partida', '🏹', 'arqueiro', 'quiver'),
+            weaponRequiresOffhand('Lança do Guardião Lunar', '🔱', 'arqueiro', 'shield'),
+            weaponRequiresOffhand('Varinha Astral', '🪄', 'mago', 'orb'),
+            weaponTwoHanded('Cajado Astral', '🪄', 'mago')
+        ],
+        armor: [
+            armorItem('Armadura Celestial', '🥋', 'guerreiro'),
+            offhandItem('Escudo Lunar', '🛡️', ['guerreiro', 'arqueiro'], 'shield'),
+            bootsItem('Botas Astrais de Guerra', '👢', 'guerreiro'),
+
+            armorItem('Traje da Lua Alta', '🥋', 'arqueiro'),
+            offhandItem('Aljava da Lua Alta', '🏹', ['arqueiro'], 'quiver'),
+            bootsItem('Botas Astrais do Caçador', '👢', 'arqueiro'),
+
+            armorItem('Manto Celeste', '🥋', 'mago'),
+            offhandItem('Orbe da Maré Lunar', '🔮', ['mago'], 'orb'),
+            bootsItem('Sandálias Celestes', '👢', 'mago')
+        ],
+        jewelry: [
+            jewelItem('Anel da Lua Alta', '💍', 'ring'),
+            jewelItem('Amuleto Estelar', '📿', 'necklace')
+        ]
+    },
+
+    level42: {
+        weapon: [
+            weaponRequiresOffhand('Espada de Noctra', '🗡️', 'guerreiro', 'shield'),
+            weaponTwoHanded('Machado do Fim', '🪓', 'guerreiro'),
+            weaponRequiresOffhand('Arco do Abismo', '🏹', 'arqueiro', 'quiver'),
+            weaponRequiresOffhand('Lança da Ruína', '🔱', 'arqueiro', 'shield'),
+            weaponRequiresOffhand('Varinha do Trono Vazio', '🪄', 'mago', 'orb'),
+            weaponTwoHanded('Cajado do Trono Vazio', '🪄', 'mago')
+        ],
+        armor: [
+            armorItem('Armadura de Noctra', '🥋', 'guerreiro'),
+            offhandItem('Escudo do Vazio', '🛡️', ['guerreiro', 'arqueiro'], 'shield'),
+            bootsItem('Botas da Eternidade de Guerra', '👢', 'guerreiro'),
+
+            armorItem('Traje do Abismo', '🥋', 'arqueiro'),
+            offhandItem('Aljava do Abismo', '🏹', ['arqueiro'], 'quiver'),
+            bootsItem('Botas da Eternidade do Caçador', '👢', 'arqueiro'),
+
+            armorItem('Manto de Noctra', '🥋', 'mago'),
+            offhandItem('Orbe da Eternidade Negra', '🔮', ['mago'], 'orb'),
+            bootsItem('Sandálias da Eternidade Arcana', '👢', 'mago')
+        ],
+        jewelry: [
+            jewelItem('Anel Mítico', '💍', 'ring'),
+            jewelItem('Amuleto de Noctra', '📿', 'necklace')
+        ]
+    }
 };
 
 function rand(min, max) {
@@ -204,8 +302,8 @@ function getSlotFromItem(category, itemData) {
 
     if (category === 'armor') {
         const lowerName = itemData.name.toLowerCase();
-        if (lowerName.includes('escudo')) return 'shield';
-        if (lowerName.includes('bota')) return 'boots';
+        if (lowerName.includes('escudo') || lowerName.includes('aljava') || lowerName.includes('orbe')) return 'shield';
+        if (lowerName.includes('bota') || lowerName.includes('sandália') || lowerName.includes('sandalia')) return 'boots';
         return 'armor';
     }
 
@@ -226,9 +324,9 @@ function getUiCategoryFromSlot(slot) {
 function getDisplayCategoryLabel(slot) {
     const labels = {
         weapon: 'Arma',
-        shield: 'Armadura',
+        shield: 'Mão Secundária',
         armor: 'Armadura',
-        boots: 'Armadura',
+        boots: 'Botas',
         ring: 'Joia',
         necklace: 'Joia'
     };
@@ -268,10 +366,10 @@ function buildStatsBySlot(tier, slot) {
 
     if (slot === 'shield') {
         return {
-            atk: 0,
-            def: rand(5, 8) * scale,
-            hp: rand(8, 15) * scale,
-            crit: 0
+            atk: rand(0, 2) * scale * 0.30,
+            def: rand(4, 8) * scale,
+            hp: rand(6, 15) * scale,
+            crit: rand(0, 2) * scale * 0.22
         };
     }
 
@@ -476,9 +574,14 @@ function generateDrop(mapId = 1, options = {}) {
         finalStats.crit * 3
     );
 
+    const allowedClasses = Array.isArray(itemData.allowedClasses)
+        ? itemData.allowedClasses.map(value => String(value).toLowerCase())
+        : [];
+
     return {
         id: itemId,
         instanceId: itemId,
+        legacyBase: itemId,
         name: itemData.name,
         emoji: itemData.emoji || '⚪',
         rarity: rarity.name,
@@ -493,7 +596,11 @@ function generateDrop(mapId = 1, options = {}) {
         category,
         uiCategory: getUiCategoryFromSlot(slot),
         displayCategory: getDisplayCategoryLabel(slot),
-        classRestriction: itemData.class || null,
+        allowedClasses,
+        classRestriction: allowedClasses.length === 1 ? allowedClasses[0] : null,
+        weaponStyle: itemData.weaponStyle || null,
+        requiredOffhandType: itemData.requiredOffhandType || null,
+        offhandType: itemData.offhandType || null,
         sourceTier: options.encounterTier || 'common'
     };
 }
