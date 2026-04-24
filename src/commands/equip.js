@@ -14,12 +14,6 @@ const {
     getItemKey
 } = require('../core/player/equipmentService');
 
-/*
-=================================
-HELPERS
-=================================
-*/
-
 function normalizePlayer(player) {
     if (!player.equipment) {
         player.equipment = {
@@ -76,12 +70,6 @@ function findInventoryItemByAnyIdentifier(player, rawIdentifier) {
     }) || null;
 }
 
-/*
-=================================
-EQUIP ITEM
-=================================
-*/
-
 function equipItemById(player, itemId) {
     player = normalizePlayer(player);
 
@@ -102,13 +90,6 @@ function equipItemById(player, itemId) {
         };
     }
 
-    if (item.classRestriction && item.classRestriction !== player.class) {
-        return {
-            ok: false,
-            message: `❌ Apenas ${item.classRestriction} pode equipar este item.`
-        };
-    }
-
     const result = applyEquipmentChange(player, slot, item);
 
     if (!result.success) {
@@ -125,12 +106,6 @@ function equipItemById(player, itemId) {
         item: result.equipped
     };
 }
-
-/*
-=================================
-EQUIP SOUL
-=================================
-*/
 
 function equipSoulById(player, soulId) {
     player = normalizePlayer(player);
@@ -162,12 +137,6 @@ function equipSoulById(player, soulId) {
         soul: result.soul
     };
 }
-
-/*
-=================================
-COMMANDS
-=================================
-*/
 
 async function handleEquip(ctx) {
     try {
