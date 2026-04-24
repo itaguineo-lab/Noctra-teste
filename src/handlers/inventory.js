@@ -23,7 +23,8 @@ const {
     normalizePlayerForSave,
     normalizeInventoryCollection,
     normalizeInventoryItem,
-    getUiCategoryFromSlot
+    getUiCategoryFromSlot,
+    getOffhandTypeLabel
 } = require('../core/player/playerMutations');
 
 const {
@@ -77,25 +78,20 @@ function truncateText(text = '', max = 26) {
     return `${value.slice(0, max - 1)}…`;
 }
 
-function getClassNamePortuguese(className) {
-    const map = {
-        guerreiro: 'Guerreiros',
-        arqueiro: 'Arqueiros',
-        mago: 'Magos'
-    };
-    return map[className] || className;
-}
-
 function getCosmeticTypeLabel(type) {
     if (type === 'title') return '🏷️ Título';
     if (type === 'aura') return '✨ Aura';
     return '🎖️ Emblema';
 }
 
-function getSlotLabel(slot) {
+function getSlotLabel(slot, item = null) {
+    if (slot === 'shield') {
+        if (item?.offhandType) return getOffhandTypeLabel(item.offhandType);
+        return 'Mão Secundária';
+    }
+
     const labels = {
         weapon: 'Arma',
-        shield: 'Escudo',
         armor: 'Armadura',
         necklace: 'Colar',
         ring: 'Anel',
@@ -105,10 +101,15 @@ function getSlotLabel(slot) {
     return labels[slot] || slot;
 }
 
-function getSlotIcon(slot) {
+function getSlotIcon(slot, item = null) {
+    if (slot === 'shield') {
+        if (item?.offhandType === 'quiver') return '🏹';
+        if (item?.offhandType === 'orb') return '🔮';
+        return '🛡️';
+    }
+
     const icons = {
         weapon: '⚔️',
-        shield: '🛡️',
         armor: '🥋',
         necklace: '📿',
         ring: '💍',
@@ -189,6 +190,24 @@ function calcItemPower(item) {
     return Math.max(1, Math.round((atk * 2) + (def * 1.5) + (hp * 0.5) + (crit * 3)));
 }
 
+function buildItemRuleTags(item) {
+    const tags = [];
+
+    if (item.slot === 'weapon' && item.weaponStyle === 'two_handed') {
+        tags.push('2M');
+    }
+
+    if (item.slot === 'weapon' && item.requiredOffhandType) {
+        tags.push(`+${getOffhandTypeLabel(item.requiredOffhandType)}`);
+    }
+
+    if (item.slot === 'shield' && item.offhandType) {
+        tags.push(getOffhandTypeLabel(item.offhandType));
+    }
+
+    return tags.length ? ` [${tags.join(' • ')}]` : '';
+}
+
 function getComparisonData(item, player, slot) {
     const equipped = player?.equipment?.[slot];
 
@@ -248,7 +267,9 @@ function buildFullItemLine(item, equipped = false) {
     const rarityEmoji = getRarityEmoji(item.rarity);
     const stats = buildShortStatLine(item);
     const equippedSuffix = equipped ? ' ⭐' : '';
-    return `${emoji} ${rarityEmoji} ${escapeMarkdown(item.name)} [Lv${item.level || 1}] (${escapeMarkdown(stats)})${equippedSuffix}`;
+    const ruleTags = buildItemRuleTags(item);
+
+    return `${emoji} ${rarityEmoji} ${escapeMarkdown(item.name)}${escapeMarkdown(ruleTags)} [Lv${item.level || 1}] (${escapeMarkdown(stats)})${equippedSuffix}`;
 }
 
 function buildItemSummaryLine(item, player) {
@@ -257,7 +278,7 @@ function buildItemSummaryLine(item, player) {
 
     return {
         line: buildFullItemLine(item, item.__equipped),
-        slotLabel: `${getSlotIcon(slot)} ${escapeMarkdown(getSlotLabel(slot))}`,
+        slotLabel: `${getSlotIcon(slot, item)} ${escapeMarkdown(getSlotLabel(slot, item))}`,
         statusLabel: escapeMarkdown(comparison.status)
     };
 }
@@ -270,7 +291,7 @@ function buildEquipButtonLabel(item, player) {
     if (comparison.delta === null) return `🔹 Equipar ${shortName}`;
     if (comparison.delta > 0) return `🔺 Equipar ${shortName}`;
     if (comparison.delta < 0) return `🔻 Equipar ${shortName}`;
-    if (comparison.status === 'Equipado no momento') return `⭐ Equipado`;
+    if (comparison.status === 'Equipado no momento') return '⭐ Equipado';
     return `🔹 Equipar ${shortName}`;
 }
 
@@ -278,12 +299,13 @@ function buildUnequipButtonLabel(item) {
     return `⭐ Desequipar ${truncateText(item.name, 22)}`;
 }
 
-function renderEquippedSlotLine(label, item, slot) {
+function renderEquippedSlotLine(defaultLabel, item, slot) {
     if (!item) {
-        return `${getSlotIcon(slot)} ${label}: —`;
+        return `${getSlotIcon(slot, item)} ${defaultLabel}: —`;
     }
 
-    return `${getSlotIcon(slot)} ${label}: ${buildFullItemLine(item, true)}`;
+    const label = getSlotLabel(slot, item);
+    return `${getSlotIcon(slot, item)} ${label}: ${buildFullItemLine(item, true)}`;
 }
 
 function renderInventoryHeader(player) {
@@ -298,9 +320,9 @@ function renderInventoryHeader(player) {
         `❤️ HP ${player.hp || 0}/${player.maxHp || 0}   💥 CRIT ${player.crit || 0}%\n\n` +
         `*Equipado*\n` +
         `${renderEquippedSlotLine('Arma', player.equipment?.weapon, 'weapon')}\n` +
-        `${renderEquippedSlotLine('Escudo', player.equipment?.shield, 'shield')}\n` +
+        `${renderEquippedSlotLine('Mão Secundária', player.equipment?.shield, 'shield')}\n` +
         `${renderEquippedSlotLine('Armadura', player.equipment?.armor, 'armor')}\n` +
-        `${renderEquippedSlotLine('Bota', player.equipment?.boots, 'boots')}\n` +
+        `${renderEquippedSlotLine('Botas', player.equipment?.boots, 'boots')}\n` +
         `${renderEquippedSlotLine('Colar', player.equipment?.necklace, 'necklace')}\n` +
         `${renderEquippedSlotLine('Anel', player.equipment?.ring, 'ring')}`
     );
@@ -426,8 +448,8 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
 
     let text = `${renderInventoryHeader(player)}\n\n`;
     text += `📦 *${config.title}* — página ${pageData.page}/${pageData.totalPages}\n`;
-    text += `💡 Itens equipados aparecem com ⭐ e não ocupam slots do inventário.\n`;
-    text += `💡 O status mostra se o item é melhor, pior, equivalente ou equipado.\n\n`;
+    text += `💡 Builds válidas: espada+escudo, machado 2M, arco+aljava, lança+escudo, varinha+orbe, cajado 2M.\n`;
+    text += `💡 Itens equipados aparecem com ⭐ e não ocupam slots do inventário.\n\n`;
 
     if (!pageData.items.length) {
         text += 'Nenhum item encontrado nesta categoria.';
@@ -716,12 +738,6 @@ async function equipByItemKey(ctx, rawCategory, page, itemKey) {
         return renderInventory(ctx, category, page);
     }
 
-    if (item.classRestriction && item.classRestriction !== player.class) {
-        const restrictedClassName = getClassNamePortuguese(item.classRestriction);
-        await safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
-        return renderInventory(ctx, category, page);
-    }
-
     const result = applyEquipmentChange(player, slot, item);
     if (!result.success) {
         await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
@@ -756,12 +772,6 @@ async function equipByPageIndex(ctx, rawCategory, page, pageIndex) {
     const slot = getRealSlot(item);
     if (!slot || slot === 'unknown') {
         await safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
-        return renderInventory(ctx, category, Number(page));
-    }
-
-    if (item.classRestriction && item.classRestriction !== player.class) {
-        const restrictedClassName = getClassNamePortuguese(item.classRestriction);
-        await safeAnswer(ctx, `❌ Apenas ${restrictedClassName} podem equipar ${item.name}.`, { show_alert: true });
         return renderInventory(ctx, category, Number(page));
     }
 
