@@ -1,6 +1,7 @@
 const { calculateDamage } = require('../combat/damageCalc');
 const { processVictory } = require('../../services/rewardService');
 const { generateDrop } = require('../../data/items');
+
 const {
     applyDamage,
     applyHeal,
@@ -11,9 +12,11 @@ const {
     applyGloriaReward,
     applyXpReward
 } = require('../player/playerMutations');
+
 const {
     updateMissionProgress
 } = require('../daily/dailyService');
+
 const {
     safeNumber,
     getMapNumber
@@ -21,6 +24,7 @@ const {
 
 function addDungeonLog(player, message) {
     player.dungeonProgress.logs.push(message);
+
     if (player.dungeonProgress.logs.length > 4) {
         player.dungeonProgress.logs.shift();
     }
@@ -28,14 +32,17 @@ function addDungeonLog(player, message) {
 
 function addSummaryNote(player, note) {
     const d = player.dungeonProgress;
+
     if (!d.summary) d.summary = { notes: [] };
     if (!d.summary.notes) d.summary.notes = [];
+
     d.summary.notes.push(note);
 }
 
 function getRoomRewardScalar(roomType) {
     if (roomType === 'boss') return 1.28;
     if (roomType === 'elite') return 1.16;
+
     return 1.0;
 }
 
@@ -65,16 +72,19 @@ function resolveTreasureRoom(player, room) {
     }
 
     /*
-    Tesouro pode dar item, mas não deve roubar o valor
-    da conclusão total da masmorra.
+    Tesouro pode dar item, mas agora respeita bias por classe.
+    Isso aumenta chance de arqueiro ver aljava, mago ver orbe
+    e guerreiro ver escudo/armadura própria.
     */
     if (Math.random() < 0.24) {
         const drop = generateDrop(mapNumber, {
             encounterTier: 'miniboss',
-            rarityBias: mapNumber >= 4 ? 'late_elite' : 'mid_elite'
+            rarityBias: mapNumber >= 4 ? 'late_elite' : 'mid_elite',
+            playerClass: player.class
         });
 
         const addResult = addInventoryItem(player, drop);
+
         if (addResult.success) {
             d.rewards.items += 1;
             notes.push(`✨ ${drop.name} [${drop.rarity}]`);
@@ -174,6 +184,7 @@ function resolveShrineRoom(player, room) {
     ];
 
     const selected = boons[Math.floor(Math.random() * boons.length)];
+
     d.combatBonus.atk += selected.atk;
     d.combatBonus.def += selected.def;
     d.combatBonus.crit += selected.crit;
@@ -187,6 +198,7 @@ function resolveShrineRoom(player, room) {
     room.clearedAt = Date.now();
 
     addSummaryNote(player, selected.note);
+
     if (player.hp - beforeHp > 0) {
         addSummaryNote(player, `❤️ +${player.hp - beforeHp} HP`);
     }
@@ -272,7 +284,7 @@ async function resolveCombatRoom(player, room) {
         }
 
         if (dungeonBonusXp > 0 || dungeonBonusGold > 0) {
-            result.notes.push(`🏰 Bônus da masmorra aplicado`);
+            result.notes.push('🏰 Bônus da masmorra aplicado');
         }
 
         room.cleared = true;
@@ -353,12 +365,15 @@ function finalizeDungeonRun(player, reason) {
 
     if (reason === 'complete') {
         const mapNumber = getMapNumber(d.mapId);
+
         const premiumDrop = generateDrop(mapNumber, {
             encounterTier: 'boss',
-            rarityBias: mapNumber >= 4 ? 'late_boss' : 'mid_boss'
+            rarityBias: mapNumber >= 4 ? 'late_boss' : 'mid_boss',
+            playerClass: player.class
         });
 
         const addResult = addInventoryItem(player, premiumDrop);
+
         if (addResult.success) {
             completionItem = premiumDrop;
             d.summary.items += 1;
