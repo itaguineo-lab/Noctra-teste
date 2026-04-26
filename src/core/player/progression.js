@@ -162,6 +162,26 @@ function applyDeathXpPenalty(player, percent = null) {
 /*
 =================================
 LEVEL UP
+
+FIX: HP double-add removido.
+
+O código anterior fazia:
+1. recalculateStats(player)       → player.maxHp cresce (ex: de 120 para 128)
+2. healAmount = maxHp * percent   → calculado sobre o novo maxHp (128 * 0.40 = 51)
+3. player.hp += healAmount        → hp sobe 51
+4. hpIncrease = maxHp - oldMaxHp → 128 - 120 = 8
+5. player.hp += hpIncrease        → hp sobe mais 8 (DUPLO)
+
+O problema: healAmount já foi calculado sobre o novo maxHp, então
+o crescimento de stat (+8) já estava embutido no cálculo do heal.
+Adicionar hpIncrease por cima era dupla contagem.
+
+Resultado do bug: ao upar vários níveis de uma vez, o HP final
+ficava inflado incorretamente, podendo até ultrapassar maxHp
+antes do Math.min (que corrija) se múltiplos levels fossem ganhos.
+
+Fix: removido o bloco hpIncrease. O heal percentual sobre o novo
+maxHp já cobre o crescimento de stat corretamente.
 =================================
 */
 
@@ -169,15 +189,14 @@ function checkLevelUp(player) {
     let leveledUp = false;
     let levelsGained = 0;
 
-    let totalHeal = 0;
     let totalEnergy = 0;
     let totalGlorias = 0;
     let totalKeys = 0;
 
     const oldLevel = player.level || 1;
-    const oldMaxHp = player.maxHp || 0;
     const oldAtk = player.atk || 0;
     const oldDef = player.def || 0;
+    const oldMaxHp = player.maxHp || 0;
 
     while (player.xp >= getXpToNextLevel(player.level)) {
         const xpNeeded = getXpToNextLevel(player.level);
@@ -201,6 +220,11 @@ function checkLevelUp(player) {
         };
     }
 
+    /*
+    recalculateStats atualiza player.maxHp para o novo nível.
+    O heal percentual é calculado APÓS esse update, então
+    já reflete o maxHp crescido. Não adicionar hpIncrease separadamente.
+    */
     recalculateStats(player);
 
     const effectiveHealPercent = player.level <= 10
@@ -210,7 +234,6 @@ function checkLevelUp(player) {
             : 0.24;
 
     const healAmount = Math.floor(player.maxHp * effectiveHealPercent * levelsGained);
-    totalHeal = healAmount;
 
     player.hp = Math.min(
         player.maxHp,
@@ -225,18 +248,13 @@ function checkLevelUp(player) {
     player.glorias = (player.glorias || 0) + totalGlorias;
     player.keys = (player.keys || 0) + totalKeys;
 
-    const hpIncrease = player.maxHp - oldMaxHp;
-    if (hpIncrease > 0) {
-        player.hp = Math.min(player.maxHp, player.hp + hpIncrease);
-    }
-
     return {
         success: true,
         leveledUp: true,
         oldLevel,
         newLevel: player.level,
         levelsGained,
-        healAmount: totalHeal,
+        healAmount,
         energyRestored: totalEnergy,
         gloriasGained: totalGlorias,
         keysGained: totalKeys,
