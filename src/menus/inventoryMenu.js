@@ -1,18 +1,43 @@
 const { Markup } = require('telegraf');
 
-const UI_CATEGORIES = {
+const EQUIPMENT_CATEGORIES = {
     weapons: {
         label: '⚔️ Armas',
+        shortLabel: 'Armas',
         slots: ['weapon']
+    },
+    offhands: {
+        label: '🧤 Mão Sec.',
+        shortLabel: 'Mão Secundária',
+        slots: ['shield']
     },
     armors: {
         label: '🛡️ Armaduras',
-        slots: ['shield', 'armor', 'boots']
+        shortLabel: 'Armaduras',
+        slots: ['armor']
     },
-    jewels: {
-        label: '💎 Joias',
-        slots: ['ring', 'necklace']
+    boots: {
+        label: '👢 Botas',
+        shortLabel: 'Botas',
+        slots: ['boots']
     },
+    rings: {
+        label: '💍 Anéis',
+        shortLabel: 'Anéis',
+        slots: ['ring']
+    },
+    necklaces: {
+        label: '📿 Colares',
+        shortLabel: 'Colares',
+        slots: ['necklace']
+    }
+};
+
+const UI_CATEGORIES = {
+    equipment: {
+        label: '⚔️ Equipamentos'
+    },
+    ...EQUIPMENT_CATEGORIES,
     consumables: {
         label: '🧪 Consumíveis'
     },
@@ -23,6 +48,22 @@ const UI_CATEGORIES = {
         label: '💀 Almas'
     }
 };
+
+const LEGACY_CATEGORY_ALIAS = {
+    shields: 'offhands',
+    jewels: 'rings',
+    jewelry: 'rings',
+    armor: 'armors',
+    weapon: 'weapons',
+    shield: 'offhands',
+    ring: 'rings',
+    necklace: 'necklaces'
+};
+
+function normalizeCategoryKey(categoryKey = '') {
+    const key = String(categoryKey || '').trim();
+    return LEGACY_CATEGORY_ALIAS[key] || key;
+}
 
 function getRealSlot(item = {}) {
     const slot = String(item.slot || '');
@@ -63,7 +104,16 @@ function countSkins(player = {}) {
     return (player.cosmetics || []).length;
 }
 
-function getCategoryCount(player, categoryKey) {
+function countEquipment(player = {}) {
+    return Object.keys(EQUIPMENT_CATEGORIES).reduce((sum, categoryKey) => {
+        return sum + getCategoryCount(player, categoryKey);
+    }, 0);
+}
+
+function getCategoryCount(player, rawCategoryKey) {
+    const categoryKey = normalizeCategoryKey(rawCategoryKey);
+
+    if (categoryKey === 'equipment') return countEquipment(player);
     if (categoryKey === 'consumables') return sumConsumables(player);
     if (categoryKey === 'souls') return countSouls(player);
     if (categoryKey === 'skins') return countSkins(player);
@@ -73,35 +123,62 @@ function getCategoryCount(player, categoryKey) {
     return countItemsBySlots(player, category.slots);
 }
 
-function buildCategoryButton(player, categoryKey, activeCategory = null) {
+function buildCategoryButton(player, rawCategoryKey, activeCategory = null) {
+    const categoryKey = normalizeCategoryKey(rawCategoryKey);
+    const activeKey = normalizeCategoryKey(activeCategory);
     const category = UI_CATEGORIES[categoryKey];
-    const count = getCategoryCount(player, categoryKey);
-    const isActive = activeCategory === categoryKey;
-    const label = isActive
-        ? `⭐ ${category.label}`
-        : `${category.label}`;
 
-    return Markup.button.callback(`${label}`, `invcat:${categoryKey}`);
+    if (!category) {
+        return Markup.button.callback('❓ Inválido', 'inventory');
+    }
+
+    const count = getCategoryCount(player, categoryKey);
+    const prefix = activeKey === categoryKey ? '⭐ ' : '';
+
+    return Markup.button.callback(`${prefix}${category.label} (${count})`, `invcat:${categoryKey}`);
 }
 
 function buildInventoryCategoryRows(player = {}, activeCategory = null, includeMenuButton = true) {
     const rows = [
+        [buildCategoryButton(player, 'equipment', activeCategory)],
         [
-            buildCategoryButton(player, 'weapons', activeCategory),
-            buildCategoryButton(player, 'armors', activeCategory)
-        ],
-        [
-            buildCategoryButton(player, 'jewels', activeCategory),
-            buildCategoryButton(player, 'consumables', activeCategory)
+            buildCategoryButton(player, 'consumables', activeCategory),
+            buildCategoryButton(player, 'souls', activeCategory)
         ],
         [
             buildCategoryButton(player, 'skins', activeCategory),
-            buildCategoryButton(player, 'souls', activeCategory)
+            Markup.button.callback('💰 Vender', 'shop_sell')
         ]
     ];
 
     if (includeMenuButton) {
         rows.push([Markup.button.callback('🏠 Menu', 'menu')]);
+    }
+
+    return rows;
+}
+
+function buildEquipmentCategoryRows(player = {}, activeCategory = null, includeBackButton = true) {
+    const rows = [
+        [
+            buildCategoryButton(player, 'weapons', activeCategory),
+            buildCategoryButton(player, 'offhands', activeCategory)
+        ],
+        [
+            buildCategoryButton(player, 'armors', activeCategory),
+            buildCategoryButton(player, 'boots', activeCategory)
+        ],
+        [
+            buildCategoryButton(player, 'rings', activeCategory),
+            buildCategoryButton(player, 'necklaces', activeCategory)
+        ]
+    ];
+
+    if (includeBackButton) {
+        rows.push([
+            Markup.button.callback('◀️ Inventário', 'inventory'),
+            Markup.button.callback('🏠 Menu', 'menu')
+        ]);
     }
 
     return rows;
@@ -115,12 +192,21 @@ function inventoryCategoryMenu(player = {}, activeCategory = null) {
     return inventoryMainMenu(player, activeCategory);
 }
 
+function equipmentCategoryMenu(player = {}, activeCategory = null) {
+    return Markup.inlineKeyboard(buildEquipmentCategoryRows(player, activeCategory, true));
+}
+
 module.exports = {
     UI_CATEGORIES,
+    EQUIPMENT_CATEGORIES,
+    LEGACY_CATEGORY_ALIAS,
     inventoryMainMenu,
     inventoryCategoryMenu,
+    equipmentCategoryMenu,
     buildInventoryCategoryRows,
+    buildEquipmentCategoryRows,
     getRealSlot,
     countItemsBySlots,
-    getCategoryCount
+    getCategoryCount,
+    normalizeCategoryKey
 };
