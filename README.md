@@ -2,204 +2,534 @@
 
 Entre na escuridão. Evolua sem fim.
 
-NOCTRA é um idle RPG / social RPG para Telegram com foco em sessões curtas, progressão viciante, loot, builds, rotina diária, dungeons, arena e monetização ética.
+NOCTRA é um idle RPG / social RPG para Telegram com foco em sessões curtas, progressão viciante, loot, builds, rotina diária, dungeons, arena, rankings e monetização ética.
 
 ---
 
 ## 1. Visão do produto
 
-### Proposta central
 NOCTRA foi desenhado para ser um RPG sombrio, fácil de entrar, intuitivo no Telegram e difícil de largar.
 
-A promessa emocional do produto é simples:
+A promessa central do jogo é simples:
 
-> sempre existe um próximo loot, uma próxima alma, um próximo boss ou uma build melhor.
+> sempre existe um próximo loot, uma próxima alma, um próximo boss, uma próxima dungeon ou uma build melhor.
 
-### North Star do produto
+### North Star
+
 Toda decisão de sistema, UX, economia e monetização deve responder:
+
 - por que o jogador volta hoje?
 - por que volta amanhã?
 - por que continua após 30 dias?
 
-### Pilares estratégicos
+### Pilares
+
 1. **Retenção diária**
    - energia
    - daily rewards
+   - baús temporizados
    - missões
    - retorno múltiplo ao dia
-   - dungeons com cooldown
 
 2. **Progressão viciante**
    - level
    - mapas
    - loot raro
+   - equipamentos
    - souls
-   - subclasses
    - builds
 
-3. **Cooperação social**
+3. **Conteúdo social / competitivo**
    - ranking
    - arena
-   - futuro sistema de guildas
-   - futuro sistema de bosses cooperativos e eventos
+   - dungeons
+   - futura camada de guildas
+   - futuros bosses globais
 
 4. **Monetização ética**
+   - Nox
+   - VIP
    - conveniência
    - cosméticos
-   - VIP
-   - QoL
-   - nunca pay-to-win
+   - qualidade de vida
+   - nunca vender dano bruto como atalho pay-to-win
 
 ---
 
 ## 2. Core loop oficial
 
 ### Sessão curta
+
 Caçar → Combater → Loot → Upgrade → Repetir
 
 ### Meta loop
+
 Level → Mapa → Boss → Dungeon → Alma → Build → Ranking → Guilda
 
-### Regra de produto
-Toda feature nova deve fortalecer esse loop.
-Feature que distrai do loop principal enfraquece o produto.
+Regra de produto: feature que não fortalece esse loop deve ser tratada como distração.
 
 ---
 
-## 3. Identidade, lore e tom
+## 3. Regras econômicas fixas
 
-### Identidade
-- RPG sombrio
-- progressão clara
-- loot raro
-- builds profundas
-- mapas escaláveis
-- sensação constante de próxima melhoria
-
-### Lore oficial
-Noctra é um mundo consumido pela escuridão ancestral.
-Criaturas corrompidas, almas fragmentadas e bosses lendários emergem de cada região.
-Cada mapa representa uma camada mais profunda da corrupção.
-Os jogadores são Caçadores da Noite, responsáveis por restaurar o equilíbrio através de combate, loot, almas e dungeons.
-
-A lore deve continuar curta, forte e expansível para eventos futuros.
+- Moeda premium: **Nox**
+- Regra: **R$1 = 1 Nox**
+- Nox não deve dropar em combate normal
+- Ouro é recurso base do jogo
+- Glórias são recurso competitivo da arena
+- Monetização deve priorizar conveniência, cosmético, prestígio e QoL
 
 ---
 
 ## 4. Estado atual do projeto
 
-O projeto já saiu da fase de bot funcional desorganizado e entrou em um estágio de alpha mais coerente.
+O NOCTRA está em estágio alpha estruturado.
 
-### Situação atual
-Hoje o NOCTRA já possui:
-- home mais limpa e mais orientada à ação
-- menu principal com hierarquia melhor
-- telas de energia e diário refinadas
-- shop mais clara e com compra em quantidade para consumíveis
-- inventário mais legível para comparação de equipamentos
-- arena com mais peso visual e melhor apresentação
-- perda de XP ao morrer em PvE / dungeon
-- métricas básicas de operação e economia
-- camada admin muito mais robusta
+Já existe:
 
-### O que isso não significa
-O produto ainda **não** está validado comercialmente.
-Ainda faltam:
-- validação real de retenção
-- auditoria dura de balanceamento
-- tuning econômico baseado em dados
-- redução de dívida técnica
-- aprofundamento de sistemas futuros (guildas, eventos, world bosses, monetização V2)
+- menu principal funcional
+- criação de personagem
+- classes base
+- combate PvE
+- sistema de energia
+- mapas e inimigos
+- inventário
+- equipamentos
+- souls
+- consumíveis
+- loja principal
+- arena
+- arena shop
+- dungeons
+- daily rewards
+- baús temporizados
+- ranking
+- VIP
+- sistema admin
+- métricas básicas
+- testes iniciais
+- assets via `file_id` do Telegram
+
+O que ainda não existe de forma validada:
+
+- retenção D1 / D7 / D30 medida com base real
+- economia calibrada por dados
+- balanceamento final
+- guildas
+- world boss
+- eventos sazonais maduros
+- monetização V2
 
 ---
 
-## 5. Sistemas atualmente implementados
+## 5. Estrutura real do repositório
 
-### 5.1 Home / menu principal
-Melhorias realizadas:
-- redução da poluição visual da home
-- foco em status imediato + recursos + mapa
-- melhor hierarquia dos botões do menu principal
+Esta é a árvore estrutural real observada no repositório `Noctra-teste`.
 
-Ordem atual da home:
-- Hunt + Viajar
-- Masmorra + Arena
-- Perfil + Inventário
-- Energia + Diário
-- Loja + Ranking
-- VIP + Online
+```text
+Noctra-teste/
+├── .github/
+│   └── workflows/
+│       └── backup-sync.yml
+│
+├── .gitignore
+├── index.js
+├── package.json
+├── README.md
+│
+├── tests/
+│   ├── cosmetics.test.js
+│   ├── energyService.test.js
+│   └── mapsAssets.test.js
+│
+└── src/
+    ├── commands/
+    │   ├── admin.js
+    │   ├── class.js
+    │   ├── equip.js
+    │   ├── rename.js
+    │   └── reset.js
+    │
+    ├── core/
+    │   ├── arena/
+    │   │   ├── arenaBattleService.js
+    │   │   ├── arenaPersistence.js
+    │   │   └── arenaService.js
+    │   │
+    │   ├── chests/
+    │   │   └── chestService.js
+    │   │
+    │   ├── combat/
+    │   │   ├── combatEngine.js
+    │   │   ├── damageCalc.js
+    │   │   ├── fightPersistence.js
+    │   │   └── fightService.js
+    │   │
+    │   ├── daily/
+    │   │   └── dailyService.js
+    │   │
+    │   ├── dungeon/
+    │   │   ├── dungeonRewards.js
+    │   │   ├── dungeonRooms.js
+    │   │   └── dungeonService.js
+    │   │
+    │   ├── economy/
+    │   │   ├── nox.js
+    │   │   └── shopLogic.js
+    │   │
+    │   ├── metrics/
+    │   │   ├── MetricsModel.js
+    │   │   └── metricsService.js
+    │   │
+    │   ├── player/
+    │   │   ├── PlayerModel.js
+    │   │   ├── README_AUDIT_REFACTOR.md
+    │   │   ├── cosmetics.js
+    │   │   ├── equipmentService.js
+    │   │   ├── playerMutations.js
+    │   │   ├── playerSaveGuard.js
+    │   │   ├── playerService.js
+    │   │   ├── progression.js
+    │   │   └── souls.js
+    │   │
+    │   └── world/
+    │       ├── enemies.js
+    │       └── maps.js
+    │
+    ├── data/
+    │   ├── arenaShopItems.js
+    │   ├── assets.js
+    │   ├── balance.js
+    │   ├── constants.js
+    │   ├── items.js
+    │   └── shopItems.js
+    │
+    ├── handlers/
+    │   ├── arena.js
+    │   ├── arenaShop.js
+    │   ├── combat.js
+    │   ├── daily.js
+    │   ├── dungeon.js
+    │   ├── energy.js
+    │   ├── inventory.js
+    │   ├── inventoryPersistenceAdapter.js
+    │   ├── online.js
+    │   ├── profile.js
+    │   ├── ranking.js
+    │   ├── shop.js
+    │   ├── travel.js
+    │   └── vip.js
+    │
+    ├── menus/
+    │   ├── combatMenu.js
+    │   ├── inventoryMenu.js
+    │   ├── mainMenu.js
+    │   └── shopMenu.js
+    │
+    ├── services/
+    │   ├── energyService.js
+    │   └── rewardService.js
+    │
+    └── utils/
+        ├── formatters.js
+        ├── helpers.js
+        └── uiNavigator.js
+```
 
-### 5.2 Combate PvE
+---
+
+## 6. Responsabilidade das pastas
+
+### `index.js`
+
+Entrada principal do bot. Hoje concentra:
+
+- carregamento de variáveis de ambiente
+- inicialização do Telegraf
+- conexão com MongoDB
+- HTTP server para Render
+- registro de comandos
+- registro de callbacks
+- middlewares
+- fluxo de criação de personagem
+- shutdown seguro
+
+Ponto de atenção: o arquivo funciona, mas já está grande demais. Deve ser quebrado futuramente em camada de bootstrap.
+
+### `src/commands/`
+
+Comandos digitados pelo jogador ou admin.
+
+Exemplos:
+
+- `/rename`
+- `/class`
+- `/equip`
+- `/reset`
+- `/adminhelp`
+- `/metrics`
+- `/give`
+- `/ban`
+- `/unban`
+
+### `src/handlers/`
+
+Camada de interação com botões, telas e fluxos do Telegram.
+
+Ponto de atenção: handlers não devem virar depósito de regra de negócio. Sempre que uma regra crescer, deve migrar para `core/` ou `services/`.
+
+### `src/core/`
+
+Coração do jogo. Contém regra estrutural de arena, combate, dungeon, economia, player, mundo, métricas e baús.
+
+Esta é a camada mais importante para escalar o jogo.
+
+### `src/data/`
+
+Tabelas e configurações estáticas:
+
+- itens
+- loja
+- arena shop
+- assets
+- balanceamento
+- constantes
+
+### `src/menus/`
+
+Teclados inline e menus reutilizáveis.
+
+### `src/services/`
+
+Serviços reaproveitáveis que não pertencem diretamente a um handler.
+
+### `src/utils/`
+
+Funções utilitárias, formatadores, helpers e navegação de UI.
+
+### `tests/`
+
+Testes automatizados iniciais.
+
+Atualmente cobre:
+
+- cosméticos
+- energia
+- assets dos mapas
+
+---
+
+## 7. Sistemas implementados
+
+### Personagem
+
+- criação de personagem
+- nome
+- classe
+- progressão
+- equipamentos
+- souls
+- cosméticos
+- persistência no MongoDB
+
+### Classes base
+
+- Guerreiro
+- Arqueiro
+- Mago
+
+As subclasses não precisam ser fixas no cadastro. A build deve emergir por equipamentos, stats e souls.
+
+### Combate
+
 - caça por mapa
-- inimigos por faixa e progressão
-- interface por botões inline
-- ataque, defesa, fuga, consumíveis e almas
-- resultado de vitória, derrota e fuga
-- perda de 5% do XP atual ao morrer em PvE
+- ataque
+- defesa
+- fuga
+- uso de consumíveis
+- uso de souls
+- persistência de luta
+- cálculo de dano separado
 
-### 5.3 Energia
-Regras oficiais:
+### Energia
+
 - padrão: 20
 - VIP: 40
-- regeneração: 10 min normal / 8 min VIP
-- combate normal consome 1 energia
+- regeneração normal: 10 minutos
+- regeneração VIP: 8 minutos
+- caça consome energia
 - dungeon consome chave, não energia
 
-Melhorias já feitas:
-- tela de energia mais premium
-- melhor leitura de regeneração
-- descanso para recuperar HP em troca de energia
-- reforço da proposta de valor do VIP
+### Dungeon
 
-### 5.4 Daily / rotina
-- centro diário com streak
-- baú diário
-- missões diárias
-- timed chests
-- melhor apresentação do loop diário
+- serviço próprio
+- salas próprias
+- recompensas próprias
+- conteúdo de maior valor que farm comum
 
-### 5.5 Inventário
-- categorias por slot / tipo
-- consumíveis
-- souls
-- skins / cosméticos
-- melhor diferenciação entre equipamentos do mesmo tipo
-- comparação mais clara entre item equipado e candidato
-- indicação do item que será substituído
+### Arena
 
-### 5.6 Loja principal
-- loja com tabs
-- compra e venda
-- compra em quantidade para consumíveis (x1 / x5 / x10)
-- melhor clareza de wallet
-- retorno para a aba correta após compra
+- serviço de arena
+- batalha de arena
+- persistência de arena
+- ranking competitivo
+- loja própria
+- glórias
 
-### 5.7 Arena
-- hub da arena
-- combate competitivo
-- baús de arena
-- ranking
-- loja própria da arena
-- melhor apresentação de vitória / derrota / fuga
+### Daily / Chests
 
-### 5.8 Dungeons
-- expedições por salas
-- combate / elite / boss / tesouro / fonte / shrine / curse
-- resumo final de run
-- perda de XP ao morrer em dungeon
-- dungeon como conteúdo superior ao farm comum
+- daily service
+- chest service
+- baús temporizados
+- rotina de retorno
 
-### 5.9 Admin / operação
-Atualmente o painel admin já oferece:
+### Métricas
+
+- modelo de métricas
+- serviço de métricas
+- base para leitura de operação e economia
+
+---
+
+## 8. Dívida técnica atual
+
+Principais pontos de risco:
+
+1. `index.js` grande demais.
+2. `src/handlers/inventory.js` tende a ficar pesado.
+3. `src/handlers/shop.js` tende a misturar UI com economia.
+4. `src/handlers/arena.js` precisa continuar delegando para `core/arena`.
+5. `src/commands/admin.js` pode virar arquivo inchado se crescer sem separação.
+6. Falta uma pasta `renderers/` para padronizar textos e telas.
+7. Falta uma pasta `core/loot/` para centralizar drops, raridade, pity e recompensas.
+
+---
+
+## 9. Próxima arquitetura recomendada
+
+A próxima evolução estrutural deve ser gradual, não uma reescrita total.
+
+```text
+src/
+├── app/
+│   ├── bot.js
+│   ├── httpServer.js
+│   ├── registerActions.js
+│   ├── registerCommands.js
+│   └── registerMiddlewares.js
+│
+├── renderers/
+│   ├── arenaRenderer.js
+│   ├── combatRenderer.js
+│   ├── dungeonRenderer.js
+│   ├── inventoryRenderer.js
+│   ├── profileRenderer.js
+│   └── shopRenderer.js
+│
+└── core/
+    ├── loot/
+    │   ├── dropService.js
+    │   ├── lootTables.js
+    │   └── pityService.js
+    │
+    └── ...demais módulos atuais
+```
+
+Ordem correta:
+
+1. Quebrar `index.js`.
+2. Criar `renderers/`.
+3. Criar `core/loot/`.
+4. Reduzir peso de `inventory.js`.
+5. Reduzir peso de `shop.js`.
+6. Só depois abrir guildas, world boss e eventos.
+
+---
+
+## 10. Scripts
+
+```bash
+npm start
+npm run dev
+npm test
+```
+
+- `npm start` inicia o bot com `node index.js`
+- `npm run dev` inicia com `nodemon index.js`
+- `npm test` executa os testes com `node --test`
+
+---
+
+## 11. Checklist de QA manual
+
+### Home
+
+- `/start`
+- criação de personagem
+- menu principal
+- retorno ao menu
+- navegação entre telas
+
+### Combate
+
+- caçar
+- atacar
+- defender
+- usar consumível
+- usar soul
+- fugir
+- vencer
+- morrer
+- validar XP, ouro, drops e energia
+
+### Dungeon
+
+- iniciar dungeon
+- consumir chave
+- avançar salas
+- vencer boss
+- morrer
+- fugir
+- validar recompensa final
+
+### Inventário
+
+- abrir categorias
+- equipar item
+- desequipar item
+- comparar item
+- usar consumível
+- equipar soul
+- remover soul
+- equipar skin
+
+### Loja
+
+- comprar item
+- comprar quantidade
+- vender item
+- saldo insuficiente
+- retorno para aba correta
+
+### Arena
+
+- iniciar luta
+- atacar
+- defender
+- fugir
+- usar consumível
+- abrir ranking
+- abrir baús
+- usar arena shop
+
+### Admin
+
 - `/adminhelp`
 - `/metrics`
 - `/findplayer`
 - `/playerstate`
 - `/setplayer`
-- `/give xp`
-- `/give gold`
-- `/give nox`
-- `/give item`
+- `/give`
 - `/ban`
 - `/unban`
 - `/reset`
@@ -208,320 +538,23 @@ Atualmente o painel admin já oferece:
 
 ---
 
-## 6. Economia e monetização
+## 12. Prioridades de produto
 
-### Princípios fixos
-- moeda premium: **Nox**
-- regra: **R$1 = 1 Nox**
-- Nox nunca dropa
-- proibido vender dano ou stats diretos
-- monetização deve ser ética
+### Agora
 
-### Estrutura econômica atual
-- **ouro**: recursos básicos do loop
-- **Nox**: conveniência, VIP, cosméticos, QoL
-- **glórias**: camada competitiva / arena
-
-### Loja principal
-Hoje a loja foi reorganizada para refletir:
-- ouro = base
-- Nox = conveniência / premium / VIP / cosmético
-- glórias = tático / competitivo
-
-### Arena shop
-A arena shop foi redesenhada para:
-- utilidade tática limitada
-- conveniência moderada
-- prestígio competitivo
-- evitar atalho exagerado para o PvE
-
-### Situação real da economia
-A economia está mais coerente do que no início, mas ainda **não está calibrada**.
-Ela precisa de leitura de dados reais para ajuste de:
-- preços
-- sinks
-- valor do VIP
-- valor das chaves
-- retorno líquido de dungeon
-- valor relativo da arena
-
----
-
-## 7. Progressão, drops e risco
-
-### Classes base
-- **Guerreiro**
-  - fantasia: tank / sustain / crítico pesado
-  - builds: Berserker / Guardião
-
-- **Arqueiro**
-  - fantasia: dano rápido / crítico / evasão
-  - builds: Atirador / Lanceiro
-
-- **Mago**
-  - fantasia: burst mágico / debuffs / cura
-  - builds: Veneno / Gélido / Necromante / Curandeiro
-
-### Mapas oficiais
-1. **Clareira Sombria** — nível 1–8
-   - boss: Alfa da Matilha
-2. **Cripta em Ruínas** — nível 8–15
-   - boss: Necromante Ancestral
-3. **Pântano Corrompido** — nível 15–24
-   - boss: Guardião do Lodo
-4. **Deserto Incandescente** — nível 24+
-   - boss: Faraó das Brasas
-
-### Drop philosophy
-- early game = comum / incomum
-- mid game = raro / épico
-- late game = lendário / mítico
-- lendário = bosses e dungeons
-- mítico = dungeon elite / evento / world boss
-
-### Souls
-Diretrizes oficiais:
-- boss comum = 3%
-- boss dungeon = 8%
-- world boss = 15%
-- evento = 20%
-- pity: após 10 bosses sem soul, o 11º deve ter chance dobrada
-
-### Risco atual
-- derrota PvE = perda de 5% do XP atual
-- derrota em dungeon = perda de 5% do XP atual
-- arena não remove XP, porque já pune competitivamente
-
----
-
-## 8. Arquitetura técnica
-
-### Estrutura base do projeto
-
-```text
-noctra-rpg-bot/
-├── index.js
-├── package.json
-├── README.md
-├── .env
-└── src/
-    ├── commands/
-    ├── core/
-    ├── data/
-    ├── handlers/
-    ├── menus/
-    ├── services/
-    └── utils/
-```
-
-### Regras de engenharia
-1. modularidade
-2. zero duplicidade quando possível
-3. escalabilidade para mapas, guildas e eventos
-4. performance
-5. legibilidade
-
-### Observação honesta
-A arquitetura melhorou bastante, mas ainda há arquivos grandes demais e pontos de dívida técnica.
-
-Arquivos que merecem atenção futura:
-- `src/handlers/inventory.js`
-- `src/handlers/shop.js`
-- `src/handlers/arena.js`
-- `src/commands/admin.js`
-- `index.js`
-
----
-
-## 9. O que já foi corrigido / melhorado na prática
-
-### UX / produto
-- home menos poluída
-- melhor hierarquia de botões
-- telas de energia e daily refinadas
-- loja mais fluida
-- inventário mais claro
-- arena mais relevante visualmente
-
-### Economia
-- `shopLogic` mais segura
-- compra múltipla para consumíveis
-- shop items reorganizados
-- arena shop mais coerente
-- métricas econômicas básicas adicionadas
-
-### Progressão / combate
-- maior peso da morte
-- uso de consumíveis mais valioso
-- dungeon com custo / risco mais respeitável
-
-### Operação
-- ajuda admin
-- inspeção de player
-- edição de player
-- resets
-- métricas
-
----
-
-## 10. Dívida técnica atual
-
-### 10.1 Arquivos grandes
-A aplicação ainda carrega arquivos muito grandes para a fase futura do projeto.
-Isso ainda é aceitável em alpha, mas não deve crescer sem disciplina.
-
-### 10.2 Renderização muito manual
-Boa parte das mensagens é montada diretamente nos handlers.
-Hoje funciona, mas depois dificulta:
-- consistência visual
-- manutenção
-- padronização
-
-### 10.3 Repetição de padrões de UI
-Há padrões parecidos espalhados entre handlers diferentes.
-No futuro, isso deve ser consolidado em helpers de renderização.
-
-### 10.4 Painel admin em expansão
-A camada admin melhorou muito, mas pode virar bagunça se crescer sem padrão.
-
----
-
-## 11. Checklist de QA atual
-
-### Home / navegação
-- `/start`
-- abrir menu principal
-- testar todos os botões
-- validar retorno ao menu
-
-### Combate
-- iniciar caça
-- atacar
-- defender
-- fugir
-- usar consumível
-- vencer
-- morrer
-- validar perda de XP
-
-### Dungeon
-- iniciar run
-- vencer salas
-- usar consumível
-- fugir
-- morrer
-- validar perda de XP
-- validar resumo final
-
-### Inventário
-- abrir categorias
-- comparar itens parecidos
-- equipar / desequipar
-- abrir consumíveis
-- abrir souls
-- abrir skins
-
-### Loja
-- comprar item unitário
-- comprar x1 / x5 / x10
-- testar saldo insuficiente
-- vender item
-- validar retorno da aba
-
-### Arena
-- iniciar luta
-- atacar / defender / fugir
-- usar consumível
-- abrir ranking
-- abrir baú
-- usar arena shop
-
-### Admin
-- `/adminhelp`
-- `/findplayer`
-- `/playerstate`
-- `/setplayer`
-- `/metrics`
-- `/reset`
-- `/resetplayer`
-- `/resetall` (somente em ambiente seguro)
-
----
-
-## 12. Estado real do balance
-
-### O que já melhorou
-- maior clareza de progressão
-- maior risco em combate
-- mais valor para consumível e preparo
-- melhor peso relativo de dungeon / arena
-
-### O que ainda falta auditar
-- curva de level
-- dificuldade por faixa de mapa
-- pacing de boss
-- valor esperado de dungeon
-- valor esperado de arena
-- drop rate real de souls
-- custo / benefício de consumíveis
-
-Tradução honesta:
-O balance atual está **melhor**, mas ainda **não está validado**.
-
----
-
-## 13. Estado real da retenção
-
-### Melhorias nos drivers de retenção
-Já foram fortalecidos:
-- home e hierarquia de ação
-- rotina diária
-- energia
-- dungeon
-- arena
-- valor do risco
-- valor do loot e da gestão do inventário
-
-### O que ainda não existe
-Ainda não existe prova real de retenção D1 / D7 / D30.
-Para isso, o projeto precisa de:
-- uso real
+- estabilidade
+- QA manual
+- correção de bugs
+- balanceamento inicial
 - leitura de métricas
-- auditoria de fluxo
-- menos polimento no escuro
+- organização do código existente
 
----
+### Depois
 
-## 14. Prioridades corretas daqui para frente
-
-### Prioridade 1 — validação real
-Rodar o jogo, testar o loop e observar comportamento real.
-
-### Prioridade 2 — usar métricas de verdade
-Ler:
-- combates iniciados / vencidos
-- derrotas
-- dungeon start / finish
-- uso de consumíveis
-- ouro entrando / saindo
-- compras
-- vendas
-
-### Prioridade 3 — auditoria dura de balance
-Fechar uma revisão séria de:
-- progressão
-- reward
-- dificuldade
-- dungeon superiority
-- arena pacing
-
-### Prioridade 4 — reduzir dívida técnica
-Começar a quebrar arquivos gordos e padronizar renderização.
-
-### Prioridade 5 — só depois abrir novas frentes
-Exemplos de frentes futuras:
-- subclasses reais
+- loot avançado
+- pity system
 - achievements
+- subclasses emergentes
 - guildas
 - eventos
 - world boss
@@ -529,114 +562,16 @@ Exemplos de frentes futuras:
 
 ---
 
-## 15. Roadmap executivo
+## 13. Frase de controle
 
-### 30 dias
-Foco:
-- bug fix
-- balance
-- loot
-- souls
-- scaling
-- estabilidade do core loop
-- leitura das métricas
+O NOCTRA não precisa de mais ideias soltas.
 
-### 60 dias
-Foco:
-- dungeons maduras
-- subclasses
-- missões melhores
-- achievements
-- aprofundamento de build
+Precisa de:
 
-### 90 dias
-Foco:
-- ranking forte
-- guildas
-- eventos
-- monetização V2
-- world bosses
-- live ops
-
----
-
-## 16. Comandos admin atuais
-
-### Consulta e operação
-- `/adminhelp`
-- `/metrics`
-- `/metrics AAAA-MM-DD`
-- `/findplayer ID`
-- `/playerstate ID`
-- `/reload`
-
-### Ajuste de conta
-- `/give xp ID VALOR`
-- `/give gold ID VALOR`
-- `/give nox ID VALOR`
-- `/give item ID`
-- `/setplayer ID level VALOR`
-- `/setplayer ID gold VALOR`
-- `/setplayer ID nox VALOR`
-- `/setplayer ID energy VALOR`
-- `/setplayer ID map MAPA_ID`
-- `/setplayer ID vipdays DIAS`
-
-### Moderação
-- `/ban ID`
-- `/unban ID`
-
-### Reset
-- `/reset`
-- `/resetplayer ID`
-- `/resetall CONFIRMAR_RESET_TOTAL`
-
----
-
-## 17. Resumo executivo final
-
-### O que o NOCTRA já é hoje
-- um alpha bem mais coerente
-- com loop principal mais claro
-- com UX principal melhor
-- com daily / energy melhores
-- com loja mais fluida
-- com economy mais adulta
-- com inventário mais útil
-- com arena mais respeitável
-- com camada admin forte para a fase atual
-
-### O que o NOCTRA ainda não é
-- produto comercial validado
-- economia calibrada
-- retenção comprovada
-- sistema social maduro
-- arquitetura final de scale
-
-### Frase de controle do projeto
-O NOCTRA já não precisa só de mais ideias.
-Agora precisa de:
-- validação
-- disciplina
-- leitura de dados
-- controle de escopo
-- priorização correta
-
----
-
-## 18. Scripts
-
-- `npm start` → inicia o bot
-- `npm run dev` → inicia com hot reload / nodemon
-- `npm test` → executa testes configurados no projeto
-
----
-
-## 19. Próximo passo recomendado
-
-Antes de abrir novos sistemas, execute a seguinte sequência:
-1. QA manual completo
-2. leitura de `/metrics`
-3. auditoria de balance
-4. revisão da economia com dados reais
-5. só então abrir novas frentes de produto
+- disciplina de escopo
+- estabilidade
+- balanceamento
+- métricas
+- retenção real
+- refactor cirúrgico
+- evolução modular
