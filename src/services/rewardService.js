@@ -10,7 +10,7 @@ const {
     generateDrop,
     getDropProfileByEnemy,
     getDisplayCategoryLabel
-} = require('../data/items');
+} = require('../data/itemsV2');
 
 const {
     addInventoryItem,
@@ -113,8 +113,10 @@ function formatDroppedItemLoot(item) {
     const icon = item.emoji || '🎁';
     const categoryLabel = item.displayCategory || getDisplayCategoryLabel(item.slot);
     const levelLabel = item.level ? ` Lv${item.level}` : '';
+    const originLabel = item.originMap ? ` • ${item.originMap}` : '';
+    const traitLabel = item.traitLabel ? ` • ${item.traitLabel}` : '';
 
-    return `${icon} ${item.name}${levelLabel} [${item.rarity}] • ${categoryLabel}`;
+    return `${icon} ${item.name}${levelLabel} [${item.rarity}] • ${categoryLabel}${traitLabel}${originLabel}`;
 }
 
 function tryDropKey(player, enemy, loot, options = {}) {
