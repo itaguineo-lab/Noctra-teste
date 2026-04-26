@@ -26,6 +26,19 @@ const itemSchema = new mongoose.Schema(
         powerTier: { type: String, default: null },
         sourceTier: { type: String, default: null },
 
+        setName: { type: String, default: null },
+        originMap: { type: String, default: null },
+        originMapId: { type: String, default: null },
+        originTier: { type: String, default: null },
+        encounterTier: { type: String, default: null },
+        dropSource: { type: String, default: null },
+        flavor: { type: String, default: null },
+        trait: { type: String, default: null },
+        traitLabel: { type: String, default: null },
+        itemFamily: { type: String, default: null },
+        qualityLabel: { type: String, default: null },
+        tags: { type: [String], default: [] },
+
         classRestriction: { type: String, default: null },
         allowedClasses: { type: [String], default: [] },
 
