@@ -28,6 +28,8 @@ function ensureFightShape(fight) {
     fight.player.buffs ??= [];
     fight.player.defending ??= false;
     fight.player.stunned ??= false;
+    fight.player.poisonTurns ??= 0;
+    fight.player.bleedTurns ??= 0;
     fight.player.souls ??= [null, null];
 
     fight.enemy.frozen ??= false;
@@ -85,6 +87,43 @@ function applyShieldDamage(target, damage, fight, ownerName = 'Escudo') {
     return remainingDamage;
 }
 
+function applyDamageOverTime(target, fight, config) {
+    const turnsKey = config.turnsKey;
+    const percent = config.percent;
+    const emoji = config.emoji;
+    const label = config.label;
+    const targetName = config.targetName;
+
+    if ((target[turnsKey] || 0) <= 0) return false;
+
+    const baseHp = Math.max(1, Number(target.maxHp || target.hp || 1));
+    const damage = Math.max(1, Math.floor(baseHp * percent));
+
+    target.hp = Math.max(0, (target.hp || 0) - damage);
+    target[turnsKey] -= 1;
+
+    fight.logs.push(`${emoji} ${label} causa ${damage} de dano em ${targetName}.`);
+    return target.hp <= 0;
+}
+
+function applyEnemyStatusToPlayer(fight, type) {
+    ensureFightShape(fight);
+
+    if (type === 'POISON') {
+        fight.player.poisonTurns += 2;
+        fight.logs.push(`🧪 ${fight.enemy.name} envenenou você!`);
+        return true;
+    }
+
+    if (type === 'BLEED') {
+        fight.player.bleedTurns += 2;
+        fight.logs.push(`🩸 ${fight.enemy.name} abriu um sangramento em você!`);
+        return true;
+    }
+
+    return false;
+}
+
 /*
 =================================
 CREATE
@@ -109,7 +148,9 @@ function createFight(player, enemy) {
             maxEnergy: player.maxEnergy,
             buffs: [],
             defending: false,
-            stunned: false
+            stunned: false,
+            poisonTurns: 0,
+            bleedTurns: 0
         },
         enemy: {
             id: enemy.id || enemy.name,
@@ -148,30 +189,72 @@ PROCESSAMENTO DE EFEITOS DE STATUS
 =================================
 */
 
+function processPlayerStatusEffects(fight) {
+    ensureFightShape(fight);
+
+    if (fight.status !== 'ongoing') return false;
+
+    const poisonedToDeath = applyDamageOverTime(fight.player, fight, {
+        turnsKey: 'poisonTurns',
+        percent: 0.04,
+        emoji: '🧪',
+        label: 'Veneno',
+        targetName: 'você'
+    });
+
+    if (poisonedToDeath) {
+        setLoss(fight);
+        return true;
+    }
+
+    const bledToDeath = applyDamageOverTime(fight.player, fight, {
+        turnsKey: 'bleedTurns',
+        percent: 0.035,
+        emoji: '🩸',
+        label: 'Sangramento',
+        targetName: 'você'
+    });
+
+    if (bledToDeath) {
+        setLoss(fight);
+        return true;
+    }
+
+    return false;
+}
+
 function processEnemyStatusEffects(fight) {
     ensureFightShape(fight);
 
     if (fight.status !== 'ongoing') return false;
 
-    let enemyDied = false;
+    const poisonedToDeath = applyDamageOverTime(fight.enemy, fight, {
+        turnsKey: 'poisonTurns',
+        percent: 0.05,
+        emoji: '🧪',
+        label: 'Veneno',
+        targetName: fight.enemy.name
+    });
 
-    if (fight.enemy.poisonTurns > 0) {
-        ENEMY_ABILITIES.POISON.tick(fight.enemy, fight);
-        if (fight.enemy.hp <= 0) {
-            setVictory(fight);
-            enemyDied = true;
-        }
+    if (poisonedToDeath) {
+        setVictory(fight);
+        return true;
     }
 
-    if (!enemyDied && fight.enemy.bleedTurns > 0) {
-        ENEMY_ABILITIES.BLEED.tick(fight.enemy, fight);
-        if (fight.enemy.hp <= 0) {
-            setVictory(fight);
-            enemyDied = true;
-        }
+    const bledToDeath = applyDamageOverTime(fight.enemy, fight, {
+        turnsKey: 'bleedTurns',
+        percent: 0.04,
+        emoji: '🩸',
+        label: 'Sangramento',
+        targetName: fight.enemy.name
+    });
+
+    if (bledToDeath) {
+        setVictory(fight);
+        return true;
     }
 
-    return enemyDied;
+    return false;
 }
 
 /*
@@ -184,6 +267,12 @@ function processPlayerTurn(fight) {
     ensureFightShape(fight);
 
     if (fight.status !== 'ongoing') return null;
+
+    const playerDiedByStatus = processPlayerStatusEffects(fight);
+    if (playerDiedByStatus) {
+        fight.logs = trimLogs(fight.logs);
+        return null;
+    }
 
     if (fight.player.stunned) {
         fight.logs.push('💫 Você está atordoado e perdeu o turno!');
@@ -235,11 +324,15 @@ function processEnemyTurn(fight) {
     }
 
     if (fight.enemy.ability) {
-        const abilityDef = ENEMY_ABILITIES[fight.enemy.ability.type];
+        const abilityType = fight.enemy.ability.type;
+        const abilityDef = ENEMY_ABILITIES[abilityType];
+
         if (abilityDef && Math.random() < (fight.enemy.ability.chance || 0.3)) {
-            if (fight.enemy.ability.type === 'STUN') {
+            if (abilityType === 'POISON' || abilityType === 'BLEED') {
+                applyEnemyStatusToPlayer(fight, abilityType);
+            } else if (abilityType === 'STUN') {
                 abilityDef.apply(fight.player, fight);
-            } else if (fight.enemy.ability.type === 'HEAL' || fight.enemy.ability.type === 'SHIELD') {
+            } else if (abilityType === 'HEAL' || abilityType === 'SHIELD') {
                 abilityDef.apply(fight.enemy, fight);
                 fight.player.defending = false;
                 fight.turn += 1;
