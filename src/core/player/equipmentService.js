@@ -43,6 +43,148 @@ function isUsableId(value) {
     return true;
 }
 
+function normalizeText(value = '') {
+    return String(value || '').trim().toLowerCase();
+}
+
+const OFFHAND_TYPE_LABELS = {
+    shield: 'Escudo',
+    quiver: 'Aljava',
+    orb: 'Orbe'
+};
+
+function getOffhandTypeLabel(type = '') {
+    return OFFHAND_TYPE_LABELS[String(type || '').trim().toLowerCase()] || 'Mão Secundária';
+}
+
+function inferWeaponStyleForCompatibility(item = {}) {
+    const explicit = normalizeText(item.weaponStyle);
+
+    if (explicit === 'requires_offhand' || explicit === 'one_handed') return 'one_handed';
+    if (explicit === 'two_handed') return 'two_handed';
+
+    const name = normalizeText(item.name);
+
+    if (name.includes('machado') || name.includes('cajado')) {
+        return 'two_handed';
+    }
+
+    if (
+        name.includes('espada') ||
+        name.includes('arco') ||
+        name.includes('lança') ||
+        name.includes('lanca') ||
+        name.includes('varinha') ||
+        name.includes('grimório') ||
+        name.includes('grimorio') ||
+        name.includes('grimoire')
+    ) {
+        return 'one_handed';
+    }
+
+    return null;
+}
+
+function inferRequiredOffhandTypeForCompatibility(item = {}) {
+    const explicit = normalizeText(item.requiredOffhandType);
+    if (explicit) return explicit;
+
+    const name = normalizeText(item.name);
+
+    if (name.includes('espada')) return 'shield';
+    if (name.includes('lança') || name.includes('lanca')) return 'shield';
+    if (name.includes('arco')) return 'quiver';
+    if (name.includes('varinha')) return 'orb';
+    if (name.includes('grimório') || name.includes('grimorio') || name.includes('grimoire')) return 'orb';
+
+    return null;
+}
+
+function inferOffhandTypeForCompatibility(item = {}) {
+    const explicit = normalizeText(item.offhandType);
+    if (explicit) return explicit;
+
+    const name = normalizeText(item.name);
+
+    if (name.includes('aljava')) return 'quiver';
+    if (name.includes('orbe')) return 'orb';
+    if (name.includes('escudo')) return 'shield';
+
+    return null;
+}
+
+function getOffhandCompatibilityIssue(weapon, offhand) {
+    if (!weapon) return null;
+
+    const weaponName = weapon.name || 'Esta arma';
+    const weaponStyle = inferWeaponStyleForCompatibility(weapon);
+
+    if (weaponStyle === 'two_handed') {
+        if (offhand) {
+            return `${weaponName} é de duas mãos e exige a mão secundária livre.`;
+        }
+
+        return null;
+    }
+
+    if (!offhand) return null;
+
+    const requiredType = inferRequiredOffhandTypeForCompatibility(weapon);
+    const actualType = inferOffhandTypeForCompatibility(offhand);
+
+    if (!requiredType) return null;
+
+    if (!actualType) {
+        return `${offhand.name || 'Este item'} não é uma mão secundária compatível com ${weaponName}.`;
+    }
+
+    if (requiredType !== actualType) {
+        return `${weaponName} combina com ${getOffhandTypeLabel(requiredType)}, não com ${getOffhandTypeLabel(actualType)}.`;
+    }
+
+    return null;
+}
+
+function moveEquippedItemToInventory(player, slot) {
+    const equipped = player?.equipment?.[slot];
+    if (!equipped) return null;
+
+    const returning = normalizeItemForSlot(equipped, slot, false);
+    player.equipment[slot] = null;
+
+    if (returning) {
+        player.inventory.push(returning);
+    }
+
+    return returning;
+}
+
+function enforceCompatibleLoadout(player, preferredSlot = 'weapon') {
+    ensureEquipmentState(player);
+
+    const weapon = player.equipment.weapon;
+    const offhand = player.equipment.shield;
+    const issue = getOffhandCompatibilityIssue(weapon, offhand);
+
+    if (!issue) return null;
+
+    /*
+    Regra de segurança:
+    - O loadout nunca pode persistir inválido.
+    - Ao equipar uma nova arma incompatível com a mão secundária, a mão secundária volta ao inventário.
+    - Ao equipar uma nova mão secundária incompatível com a arma atual, a arma volta ao inventário.
+
+    Isso evita combinações quebradas como Arco + Escudo, sem deixar item sumir.
+    */
+    if (preferredSlot === 'shield') {
+        moveEquippedItemToInventory(player, 'weapon');
+    } else {
+        moveEquippedItemToInventory(player, 'shield');
+    }
+
+    return issue;
+}
+
 function normalizeLegacyWeaponStyle(item = {}) {
     if (!item || typeof item !== 'object') return item;
 
@@ -265,6 +407,8 @@ function ensureUniquePlayerItemKeys(player) {
         player.equipment[slot] = normalizeItemForSlot(equipped, slot, true);
     }
 
+    enforceCompatibleLoadout(player, 'weapon');
+
     const fixedInventory = [];
     for (const item of player.inventory) {
         if (!item || typeof item !== 'object') continue;
@@ -338,6 +482,7 @@ function equipItem(player, slot, item) {
         addItemBackToInventory(player, currentEquipped, slot);
     }
 
+    enforceCompatibleLoadout(player, slot);
     ensureUniquePlayerItemKeys(player);
     return player;
 }
@@ -362,6 +507,7 @@ module.exports = {
     unequipItem,
     sameItem,
     getItemKey,
+    getOffhandCompatibilityIssue,
     findInventoryItemByKey,
     removeInventoryItemByKey,
     ensureEquipmentState,
