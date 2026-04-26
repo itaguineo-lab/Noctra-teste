@@ -164,9 +164,9 @@ function isMeaningfulItem(item = {}) {
 
 function getFallbackNameForSlot(slot) {
     if (slot === 'weapon') return 'Arma desconhecida';
-    if (slot === 'shield') return 'Escudo desconhecido';
+    if (slot === 'shield') return 'Item de mão secundária';
     if (slot === 'armor') return 'Armadura desconhecida';
-    if (slot === 'boots') return 'Bota desconhecida';
+    if (slot === 'boots') return 'Botas desconhecidas';
     if (slot === 'ring') return 'Anel desconhecido';
     if (slot === 'necklace') return 'Colar desconhecido';
     return 'Item desconhecido';
@@ -191,7 +191,7 @@ function buildEquipmentLines(player) {
     const eq = player.equipment || {};
     return [
         `⚔️ Arma: ${safeName(eq.weapon?.name)}`,
-        `🛡️ Escudo: ${safeName(eq.shield?.name)}`,
+        `🛡️ Mão Secundária: ${safeName(eq.shield?.name)}`,
         `🥋 Armadura: ${safeName(eq.armor?.name)}`,
         `📿 Amuleto: ${safeName(eq.necklace?.name)}`,
         `💍 Anel: ${safeName(eq.ring?.name)}`,
@@ -697,7 +697,7 @@ function buildPlayerFixSummary(player, repairReport, beforeSouls, afterSouls) {
         `*Equipamento*\n` +
         `• Itens reconstruídos: ${repairReport.repairedEquipmentItems}\n` +
         `• Arma: ${safeName(player.equipment?.weapon?.name)}\n` +
-        `• Escudo: ${safeName(player.equipment?.shield?.name)}\n` +
+        `• Mão Secundária: ${safeName(player.equipment?.shield?.name)}\n` +
         `• Armadura: ${safeName(player.equipment?.armor?.name)}\n` +
         `• Colar: ${safeName(player.equipment?.necklace?.name)}\n` +
         `• Anel: ${safeName(player.equipment?.ring?.name)}\n` +
