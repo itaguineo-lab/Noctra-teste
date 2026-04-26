@@ -42,9 +42,9 @@ function getExpectedMaxEnergy(player) {
 function getDisplayCategoryLabel(slot) {
     const labels = {
         weapon: 'Arma',
-        shield: 'Armadura',
+        shield: 'Mão Secundária',
         armor: 'Armadura',
-        boots: 'Armadura',
+        boots: 'Botas',
         ring: 'Joia',
         necklace: 'Joia'
     };
