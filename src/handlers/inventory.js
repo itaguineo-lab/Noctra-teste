@@ -48,6 +48,7 @@ const {
 const { BALANCE, getRarityEmoji } = require('../data/balance');
 
 const PAGE_SIZE = 6;
+
 const MACRO_CATEGORY_CONFIG = {
     weapons: { title: '⚔️ Armas', slots: ['weapon'] },
     armors: { title: '🛡️ Armaduras', slots: ['shield', 'armor', 'boots'] },
@@ -154,6 +155,7 @@ function normalizePlayerState(player) {
 
     ensureUniquePlayerItemKeys(player);
     ensureCosmeticsState(player);
+
     return player;
 }
 
@@ -255,10 +257,12 @@ function getComparisonData(item, player, slot) {
 
 function buildShortStatLine(item) {
     const parts = [];
+
     if (safeNumber(item.atk) > 0) parts.push(`ATK+${safeNumber(item.atk)}`);
     if (safeNumber(item.def) > 0) parts.push(`DEF+${safeNumber(item.def)}`);
     if (safeNumber(item.hp) > 0) parts.push(`HP+${safeNumber(item.hp)}`);
     if (safeNumber(item.crit) > 0) parts.push(`CRIT+${safeNumber(item.crit)}%`);
+
     return parts.join(', ') || 'Sem bônus';
 }
 
@@ -292,6 +296,7 @@ function buildEquipButtonLabel(item, player) {
     if (comparison.delta > 0) return `🔺 Equipar ${shortName}`;
     if (comparison.delta < 0) return `🔻 Equipar ${shortName}`;
     if (comparison.status === 'Equipado no momento') return '⭐ Equipado';
+
     return `🔹 Equipar ${shortName}`;
 }
 
@@ -331,6 +336,7 @@ function renderInventoryHeader(player) {
 function getCategoryItems(player = {}, rawCategory = 'weapons') {
     const category = getMacroCategory(rawCategory);
     const config = MACRO_CATEGORY_CONFIG[category];
+
     if (!config) return [];
 
     const inventory = Array.isArray(player.inventory) ? player.inventory : [];
@@ -425,6 +431,7 @@ function buildInventoryActionKeyboard(player, activeCategory, pageData, pageRows
 
 async function renderInventory(ctx, rawCategory = null, page = 1) {
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return sendScreen(ctx, '❌ Perfil não encontrado. Use /start.', {});
     }
@@ -434,6 +441,7 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
     }
 
     const category = getMacroCategory(rawCategory);
+
     if (!ensureValidCategory(category)) {
         return sendScreen(ctx, 'Categoria inválida.', {});
     }
@@ -448,7 +456,8 @@ async function renderInventory(ctx, rawCategory = null, page = 1) {
 
     let text = `${renderInventoryHeader(player)}\n\n`;
     text += `📦 *${config.title}* — página ${pageData.page}/${pageData.totalPages}\n`;
-    text += `💡 Builds válidas: espada+escudo, machado 2M, arco+aljava, lança+escudo, varinha+orbe, cajado 2M.\n`;
+    text += `💡 Armas de uma mão podem ser usadas sem mão secundária.\n`;
+    text += `💡 Escudo, aljava e orbe são sinergias opcionais de build. Armas 2M exigem mão secundária livre.\n`;
     text += `💡 Itens equipados aparecem com ⭐ e não ocupam slots do inventário.\n\n`;
 
     if (!pageData.items.length) {
@@ -480,15 +489,13 @@ function buildSectionHeader(player, title) {
 
 function buildConsumablesText(player) {
     const c = player.consumables || {};
-    const healCfg = BALANCE.consumables.potionHp;
-    const healAmount = Math.max(
-        healCfg.minHealFlat,
-        Math.floor((player.maxHp || 0) * healCfg.outsideCombatHealPercent)
-    );
+    const hpLabel = BALANCE.consumables.potionHp.fullHeal
+        ? 'restaura 100% do HP'
+        : `cura ${Math.floor((BALANCE.consumables.potionHp.outsideCombatHealPercent || 0) * 100)}% do HP`;
 
     return (
         `${buildSectionHeader(player, '🧪 *Consumíveis*')}\n` +
-        `❤️ Poção de HP: ${c.potionHp || 0} (cura aprox. ${healAmount})\n` +
+        `❤️ Poção de HP: ${c.potionHp || 0} (${hpLabel})\n` +
         `⚡ Poção de Energia: ${c.potionEnergy || 0}\n` +
         `💪 Tônico de Força: ${c.tonicStrength || 0}\n` +
         `🛡️ Tônico de Defesa: ${c.tonicDefense || 0}\n` +
@@ -500,9 +507,17 @@ function buildConsumablesKeyboard(player) {
     const c = player.consumables || {};
     const rows = [...buildInventoryCategoryRows(player, 'consumables', false)];
 
-    if (c.potionHp > 0) rows.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
-    if (c.tonicStrength > 0) rows.push([Markup.button.callback('💪 Usar Tônico de Força', 'use_tonic_strength')]);
-    if (c.tonicDefense > 0) rows.push([Markup.button.callback('🛡️ Usar Tônico de Defesa', 'use_tonic_defense')]);
+    if (c.potionHp > 0) {
+        rows.push([Markup.button.callback('❤️ Usar Poção de Vida', 'use_potion_outside_hp')]);
+    }
+
+    if (c.tonicStrength > 0) {
+        rows.push([Markup.button.callback('💪 Usar Tônico de Força', 'use_tonic_strength')]);
+    }
+
+    if (c.tonicDefense > 0) {
+        rows.push([Markup.button.callback('🛡️ Usar Tônico de Defesa', 'use_tonic_defense')]);
+    }
 
     rows.push([
         Markup.button.callback('◀️ Inventário', 'inventory'),
@@ -514,9 +529,11 @@ function buildConsumablesKeyboard(player) {
 
 async function handleInvConsumables(ctx) {
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
+
     return sendScreen(ctx, buildConsumablesText(player), buildConsumablesKeyboard(player));
 }
 
@@ -536,6 +553,7 @@ function buildSoulsText(player) {
     }
 
     text += '\nEquipadas\n';
+
     equipped.forEach((soul, idx) => {
         text += soul
             ? `⭐ Slot ${idx + 1}: ${escapeMarkdown(soul.name)}\n`
@@ -574,14 +592,17 @@ function buildSoulsKeyboard(player) {
         Markup.button.callback('◀️ Inventário', 'inventory'),
         Markup.button.callback('🏠 Menu', 'menu')
     ]);
+
     return Markup.inlineKeyboard(rows);
 }
 
 async function handleInvSouls(ctx) {
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
+
     return sendScreen(ctx, buildSoulsText(player), buildSoulsKeyboard(player));
 }
 
@@ -603,6 +624,7 @@ function renderSkinsText(player) {
     }
 
     text += `Coleção (${cosmetics.length})\n`;
+
     cosmetics.forEach((skin, idx) => {
         const equipped = player.activeCosmetics?.[skin.type] === skin.id ? ' ✅' : '';
         text += `${idx + 1}. ${getCosmeticTypeLabel(skin.type)} — *${escapeMarkdown(skin.name)}*${equipped}\n`;
@@ -617,6 +639,7 @@ function buildSkinsKeyboard(player) {
 
     cosmetics.forEach(cosmetic => {
         const equipped = player.activeCosmetics?.[cosmetic.type] === cosmetic.id;
+
         rows.push([
             Markup.button.callback(
                 equipped
@@ -633,19 +656,23 @@ function buildSkinsKeyboard(player) {
         Markup.button.callback('◀️ Inventário', 'inventory'),
         Markup.button.callback('🏠 Menu', 'menu')
     ]);
+
     return Markup.inlineKeyboard(rows);
 }
 
 async function handleInvSkins(ctx) {
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
+
     return sendScreen(ctx, renderSkinsText(player), buildSkinsKeyboard(player));
 }
 
 async function handleUsePotionOutside(ctx, type) {
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
@@ -656,26 +683,28 @@ async function handleUsePotionOutside(ctx, type) {
         }
 
         const consumeResult = consumeConsumable(player, 'potionHp', 1);
+
         if (!consumeResult.success) {
             return safeAnswer(ctx, '❌ Você não tem poções de vida.', { show_alert: true });
         }
 
-        const healCfg = BALANCE.consumables.potionHp;
-        const heal = Math.max(
-            healCfg.minHealFlat,
-            Math.floor(player.maxHp * healCfg.outsideCombatHealPercent)
-        );
-
         const beforeHp = player.hp;
-        player.hp = Math.min(player.maxHp, player.hp + heal);
+        player.hp = player.maxHp;
 
         await saveNormalizedPlayer(ctx, player);
-        await safeAnswer(ctx, `🧪 Poção de Vida usada! Você recuperou ${player.hp - beforeHp} HP.`, { show_alert: true });
+
+        await safeAnswer(
+            ctx,
+            `🧪 Poção de Vida usada! Você recuperou ${player.hp - beforeHp} HP.`,
+            { show_alert: true }
+        );
+
         return handleInvConsumables(ctx);
     }
 
     if (type === 'strength') {
         const consumeResult = consumeConsumable(player, 'tonicStrength', 1);
+
         if (!consumeResult.success) {
             return safeAnswer(ctx, '❌ Você não tem Tônicos de Força.', { show_alert: true });
         }
@@ -687,12 +716,19 @@ async function handleUsePotionOutside(ctx, type) {
         });
 
         await saveNormalizedPlayer(ctx, player);
-        await safeAnswer(ctx, `💪 Tônico de Força usado! +${BALANCE.consumables.tonicStrength.atkBonus} ATK por ${BALANCE.consumables.tonicStrength.durationMinutes} minutos.`, { show_alert: true });
+
+        await safeAnswer(
+            ctx,
+            `💪 Tônico de Força usado! +${BALANCE.consumables.tonicStrength.atkBonus} ATK por ${BALANCE.consumables.tonicStrength.durationMinutes} minutos.`,
+            { show_alert: true }
+        );
+
         return handleInvConsumables(ctx);
     }
 
     if (type === 'defense') {
         const consumeResult = consumeConsumable(player, 'tonicDefense', 1);
+
         if (!consumeResult.success) {
             return safeAnswer(ctx, '❌ Você não tem Tônicos de Defesa.', { show_alert: true });
         }
@@ -704,7 +740,13 @@ async function handleUsePotionOutside(ctx, type) {
         });
 
         await saveNormalizedPlayer(ctx, player);
-        await safeAnswer(ctx, `🛡️ Tônico de Defesa usado! +${BALANCE.consumables.tonicDefense.defBonus} DEF por ${BALANCE.consumables.tonicDefense.durationMinutes} minutos.`, { show_alert: true });
+
+        await safeAnswer(
+            ctx,
+            `🛡️ Tônico de Defesa usado! +${BALANCE.consumables.tonicDefense.defBonus} DEF por ${BALANCE.consumables.tonicDefense.durationMinutes} minutos.`,
+            { show_alert: true }
+        );
+
         return handleInvConsumables(ctx);
     }
 
@@ -722,23 +764,27 @@ async function handleUseDefenseTonic(ctx) {
 async function equipByItemKey(ctx, rawCategory, page, itemKey) {
     const category = getMacroCategory(rawCategory);
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
 
     const item = findInventoryItemByKey(player, itemKey);
+
     if (!item) {
         await safeAnswer(ctx, '⚠️ Item não encontrado. O inventário foi atualizado.', { show_alert: true });
         return renderInventory(ctx, category, page);
     }
 
     const slot = getRealSlot(item);
+
     if (!slot || slot === 'unknown') {
         await safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
         return renderInventory(ctx, category, page);
     }
 
     const result = applyEquipmentChange(player, slot, item);
+
     if (!result.success) {
         await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
         return renderInventory(ctx, category, page);
@@ -746,12 +792,14 @@ async function equipByItemKey(ctx, rawCategory, page, itemKey) {
 
     await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `✅ ${item.name} equipado!`, { show_alert: true });
+
     return renderInventory(ctx, category, page);
 }
 
 async function equipByPageIndex(ctx, rawCategory, page, pageIndex) {
     const category = getMacroCategory(rawCategory);
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
@@ -770,12 +818,14 @@ async function equipByPageIndex(ctx, rawCategory, page, pageIndex) {
     }
 
     const slot = getRealSlot(item);
+
     if (!slot || slot === 'unknown') {
         await safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
         return renderInventory(ctx, category, Number(page));
     }
 
     const result = applyEquipmentChange(player, slot, item);
+
     if (!result.success) {
         await safeAnswer(ctx, `❌ ${result.message}`, { show_alert: true });
         return renderInventory(ctx, category, Number(page));
@@ -783,12 +833,14 @@ async function equipByPageIndex(ctx, rawCategory, page, pageIndex) {
 
     await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `✅ ${item.name} equipado!`, { show_alert: true });
+
     return renderInventory(ctx, category, Number(page));
 }
 
 async function unequipBySlot(ctx, slot, rawCategory, page) {
     const category = getMacroCategory(rawCategory);
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
@@ -805,6 +857,7 @@ async function unequipBySlot(ctx, slot, rawCategory, page) {
 
     const itemName = result.item?.name || currentItem?.name || 'item';
     await safeAnswer(ctx, `✅ ${itemName} removido!`, { show_alert: true });
+
     return renderInventory(ctx, category, page);
 }
 
@@ -827,12 +880,14 @@ async function handleEquipItem(ctx) {
     if (legacy) {
         const [, category, pageStr, absoluteIndexStr] = legacy;
         const player = await loadPlayer(ctx);
+
         if (!player) {
             return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
         }
 
         const macroCategory = getMacroCategory(category);
         const item = getCategoryItems(player, macroCategory)[Number(absoluteIndexStr)];
+
         if (!item) {
             await safeAnswer(ctx, '⚠️ Lista desatualizada. Abra o inventário novamente.', { show_alert: true });
             return renderInventory(ctx, macroCategory, Number(pageStr));
@@ -853,6 +908,7 @@ async function handleEquipItem(ctx) {
     if (legacyOld) {
         const [, slot, itemIdRaw] = legacyOld;
         const player = await loadPlayer(ctx);
+
         if (!player) {
             return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
         }
@@ -909,22 +965,26 @@ async function handleInventory(ctx) {
 
 async function handleInventoryPage(ctx) {
     const match = ctx.callbackQuery?.data?.match(/^invpage:(weapons|armors|jewels|shields|rings|necklaces|boots):(\d+)$/);
+
     if (!match) {
         return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
     }
 
     const [, category, pageStr] = match;
+
     await safeAnswer(ctx);
     return renderInventory(ctx, getMacroCategory(category), Number(pageStr));
 }
 
 async function handleInventoryCategory(ctx) {
     const match = ctx.callbackQuery?.data?.match(/^invcat:(weapons|armors|jewels|consumables|skins|souls|shields|rings|necklaces|boots)$/);
+
     if (!match) {
         return safeAnswer(ctx, 'Erro interno.', { show_alert: true });
     }
 
     const category = getMacroCategory(match[1]);
+
     await safeAnswer(ctx);
     return renderInventory(ctx, category, 1);
 }
@@ -932,6 +992,7 @@ async function handleInventoryCategory(ctx) {
 async function handleEquipSoul(ctx) {
     const soulId = ctx.match?.[1];
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
@@ -945,52 +1006,61 @@ async function handleEquipSoul(ctx) {
     }
 
     const result = applySoulEquip(player, soul);
+
     if (!result.success) {
         return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
     await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `💀 ${result.soul.name} equipada!`, { show_alert: true });
+
     return handleInvSouls(ctx);
 }
 
 async function handleUnequipSoul(ctx) {
     const slotIdx = parseInt(ctx.match?.[1], 10);
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
 
     const result = applySoulUnequip(player, slotIdx);
+
     if (!result.success) {
         return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
     await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `💀 ${result.soul.name} removida e devolvida!`, { show_alert: true });
+
     return handleInvSouls(ctx);
 }
 
 async function handleEquipSkin(ctx) {
     const skinId = ctx.match?.[1];
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
 
     const result = equipCosmetic(player, skinId);
+
     if (!result.success) {
         return safeAnswer(ctx, result.message, { show_alert: true });
     }
 
     await saveNormalizedPlayer(ctx, player);
     await safeAnswer(ctx, `✅ ${result.cosmetic.name} equipado(a)!`, { show_alert: true });
+
     return handleInvSkins(ctx);
 }
 
 async function handleUnequipSkin(ctx) {
     const slot = ctx.match?.[1];
     const player = await loadPlayer(ctx);
+
     if (!player) {
         return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
     }
@@ -1003,7 +1073,12 @@ async function handleUnequipSkin(ctx) {
     }
 
     await saveNormalizedPlayer(ctx, player);
-    await safeAnswer(ctx, current ? `✅ ${current.name} removido(a).` : '✅ Slot cosmético limpo.', { show_alert: true });
+    await safeAnswer(
+        ctx,
+        current ? `✅ ${current.name} removido(a).` : '✅ Slot cosmético limpo.',
+        { show_alert: true }
+    );
+
     return handleInvSkins(ctx);
 }
 
