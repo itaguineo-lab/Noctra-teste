@@ -4,7 +4,6 @@ const { calculateDamage } = require('../core/combat/damageCalc');
 const { BALANCE } = require('../data/balance');
 
 const {
-    applyHeal,
     applyDamage,
     restoreEnergy,
     consumeConsumable,
@@ -549,14 +548,9 @@ async function handleDungeonUseConsumable(ctx) {
     let log = '';
 
     if (key === 'potionHp') {
-        const healCfg = BALANCE.consumables.potionHp;
-        const heal = Math.max(
-            healCfg.dungeonMinHealFlat,
-            Math.floor(player.maxHp * healCfg.dungeonHealPercent)
-        );
         const before = player.hp;
-        applyHeal(player, heal);
-        log = `❤️ Poção restaurou ${player.hp - before} HP.`;
+        player.hp = player.maxHp;
+        log = `❤️ Poção de Vida restaurou ${player.hp - before} HP e encheu sua vida.`;
     } else if (key === 'potionEnergy') {
         const before = player.energy;
         restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
@@ -591,7 +585,7 @@ async function handleDungeonUseConsumable(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    await safeAnswer(ctx, '✅ Consumível usado!', { show_alert: true });
+    await safeAnswer(ctx, '✅ Consumível usado!').catch(() => {});
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 

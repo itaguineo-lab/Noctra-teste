@@ -21,7 +21,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 120,
-        description: `Restaura até ${Math.round(hpCfg.outsideCombatHealPercent * 100)}% do HP máximo.`
+        description: 'Restaura 100% do HP máximo.'
     },
     {
         id: 'strength_tonic',

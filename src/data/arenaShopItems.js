@@ -14,7 +14,7 @@ const arenaShopItems = [
         effect: 'potionHp',
         value: 1,
         price: 25,
-        description: `Recupera HP com força moderada, sem quebrar o competitivo.`
+        description: 'Restaura 100% do HP máximo.'
     },
     {
         id: 'arena_strength_tonic',

@@ -129,13 +129,6 @@ async function persistBattleHp(playerId, battle) {
     return true;
 }
 
-function getArenaPotionHeal(maxHp) {
-    return Math.max(
-        BALANCE.consumables.potionHp.dungeonMinHealFlat,
-        Math.floor(maxHp * BALANCE.consumables.potionHp.dungeonHealPercent)
-    );
-}
-
 function getArenaStrengthBonus() {
     return Math.max(1, BALANCE.consumables.tonicStrength.dungeonAtkBonus);
 }
@@ -415,7 +408,7 @@ async function handleArenaConsumables(ctx) {
 
     return safeSend(
         ctx,
-        `🧪 *Consumíveis da Arena*\n\nEscolha um item para obter vantagem tática, não para distorcer o meta.`,
+        `🧪 *Consumíveis da Arena*\n\nEscolha um item para obter vantagem tática.`,
         Markup.inlineKeyboard(rows)
     );
 }
@@ -442,9 +435,9 @@ async function handleArenaUseConsumable(ctx) {
 
     const updated = await runArenaConsumable(ctx.from.id, (battle) => {
         if (key === 'potionHp') {
-            const heal = getArenaPotionHeal(battle.player.maxHp);
-            battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + heal);
-            battle.logs.push(`❤️ Você usou ${BALANCE.consumables.potionHp.label} e se curou.`);
+            const before = battle.player.hp;
+            battle.player.hp = battle.player.maxHp;
+            battle.logs.push(`❤️ Você usou ${BALANCE.consumables.potionHp.label} e restaurou ${battle.player.hp - before} HP.`);
         } else if (key === 'potionEnergy') {
             restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
             battle.logs.push(`⚡ Energia +${BALANCE.consumables.potionEnergy.restoreAmount} com ${BALANCE.consumables.potionEnergy.label}.`);

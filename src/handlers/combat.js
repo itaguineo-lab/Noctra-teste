@@ -625,14 +625,9 @@ async function handleUseConsumable(ctx) {
         let log = '';
 
         if (key === 'potionHp') {
-            const healCfg = BALANCE.consumables.potionHp;
-            const heal = Math.max(
-                healCfg.minHealFlat,
-                Math.floor(fight.player.maxHp * healCfg.combatHealPercent)
-            );
             const before = fight.player.hp;
-            fight.player.hp = Math.min(fight.player.maxHp, fight.player.hp + heal);
-            log = `❤️ Você recuperou ${fight.player.hp - before} HP com poção.`;
+            fight.player.hp = fight.player.maxHp;
+            log = `❤️ Poção de Vida restaurou ${fight.player.hp - before} HP e encheu sua vida.`;
         } else if (key === 'potionEnergy') {
             const before = player.energy;
             restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
