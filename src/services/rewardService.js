@@ -88,6 +88,7 @@ function ensureRewardState(player) {
     player.currentMap ??= 'clareira_sombria';
     player.level ??= 1;
     player.vip ??= false;
+
     return player;
 }
 
@@ -159,7 +160,8 @@ function tryDropItem(player, enemy, loot) {
 
     const rolledItem = generateDrop(mapNumber, {
         encounterTier,
-        rarityBias: dropProfile.rarityBias
+        rarityBias: dropProfile.rarityBias,
+        playerClass: player.class
     });
 
     const addItemResult = addInventoryItem(player, rolledItem);
@@ -173,6 +175,7 @@ function tryDropItem(player, enemy, loot) {
 
     const droppedItem = addItemResult.item;
     const lootLine = formatDroppedItemLoot(droppedItem);
+
     if (lootLine) {
         loot.push(lootLine);
     }
