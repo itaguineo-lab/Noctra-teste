@@ -5,7 +5,6 @@ const {
     applyDamage,
     applyHeal,
     restoreEnergy,
-    consumeEnergy,
     addInventoryItem,
     applyGoldReward,
     applyKeyReward,
@@ -303,7 +302,6 @@ async function resolveCombatRoom(player, room) {
         d.summary = d.summary || {};
         d.summary.notes = d.summary.notes || [];
         d.summary.notes.push('💀 Derrotado na masmorra.');
-        consumeEnergy(player, 1);
         result.finished = true;
         result.playerDefeated = true;
         addDungeonLog(player, '💀 Você foi derrotado...');
