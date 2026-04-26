@@ -15,6 +15,13 @@ const { navigateScreen, tryDeleteCurrentMessage } = require('./src/utils/uiNavig
 const assets = require('./src/data/assets');
 
 /*
+FIX: banCacheService substitui getPlayer() completo no middleware anti-ban.
+Agora cada interação faz uma busca leve (só o campo `banned`) com cache
+de 5 minutos, reduzindo drasticamente as queries ao MongoDB.
+*/
+const { isBanned, purgeBanCache } = require('./src/services/banCacheService');
+
+/*
 =================================
 IMPORTS HANDLERS
 =================================
@@ -228,16 +235,26 @@ function registerCreationMiddleware() {
 }
 
 function registerAntiBanMiddleware() {
+    /*
+    FIX: versão original chamava getPlayer() completo em TODA interação.
+    Agora usa banCacheService.isBanned() que:
+    - Faz busca leve no MongoDB (só campo `banned`)
+    - Cacheia o resultado por 5 minutos por userId
+    - Em caso de erro de DB, deixa passar (fail-open) para não
+      bloquear jogadores legítimos por instabilidade de conexão.
+    
+    Lembrete: ao banir ou desbanir um jogador via admin,
+    chamar invalidateBanCache(userId) para atualização imediata.
+    */
     bot.use(async (ctx, next) => {
-        if (ctx.from) {
-            try {
-                const player = await getPlayer(ctx.from.id);
-                if (player && player.banned) {
-                    return ctx.reply('⛔ Você está banido do Noctra.');
-                }
-            } catch {
-                // ignora
+        if (!ctx.from) return next();
+
+        try {
+            if (await isBanned(ctx.from.id)) {
+                return ctx.reply('⛔ Você está banido do Noctra.');
             }
+        } catch {
+            // fail-open: erro no cache não bloqueia jogadores
         }
 
         return next();
@@ -626,6 +643,19 @@ function startHttpServer() {
 
 /*
 =================================
+LIMPEZA PERIÓDICA DO BAN CACHE
+Executa a cada 30 minutos para remover entradas expiradas.
+=================================
+*/
+
+function startBanCachePurge() {
+    setInterval(() => {
+        purgeBanCache();
+    }, 30 * 60 * 1000);
+}
+
+/*
+=================================
 SHUTDOWN
 =================================
 */
@@ -658,6 +688,7 @@ START
 
 registerBot();
 startHttpServer();
+startBanCachePurge();
 startBot();
 
 process.once('SIGINT', () => {
