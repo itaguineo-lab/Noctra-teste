@@ -50,13 +50,26 @@ const ENEMY_ABILITIES = {
     STUN: {
         name: 'Atordoamento',
         emoji: '💫',
+        /*
+        FIX: o STUN original tinha dupla rolagem de probabilidade.
+
+        Fluxo original (bugado):
+        1. combatEngine.js: if (Math.random() < ability.chance) → rola 1ª vez (ex: 30%)
+        2. STUN.apply: if (Math.random() < 0.3) → rola 2ª vez (30%)
+        Resultado: chance efetiva = 0.30 × 0.30 = 9%, não os 30% configurados.
+
+        Efeito no jogo: o jogador quase nunca ficava stunado, tornando
+        o status effect praticamente inexistente na experiência real de combate.
+        Inimigos com STUN (banshee, areia, lunar) perdiam identidade.
+
+        Fix: removida a rolagem interna de STUN.apply.
+        A gate de probabilidade já foi feita em combatEngine.js antes de chamar apply.
+        A chance configurada em cada inimigo agora é a chance real de stun.
+        */
         apply: (target, fight) => {
-            if (Math.random() < 0.3) {
-                fight.player.stunned = true;
-                fight.logs.push(`💫 ${fight.enemy.name} atordoou você!`);
-                return true;
-            }
-            return false;
+            fight.player.stunned = true;
+            fight.logs.push(`💫 ${fight.enemy.name} atordoou você!`);
+            return true;
         }
     },
 
@@ -554,9 +567,8 @@ function getSpawnProfile(mapId, playerLevel = 1) {
     const levelOffset = Math.max(0, level - mapBaseLevel);
 
     /*
-    Todos os mapas agora têm common / elite / miniboss / boss
+    Todos os mapas têm common / elite / miniboss / boss
     em perfil real de spawn.
-    A proteção do early continua existindo só no onboarding.
     */
     const baseProfiles = {
         clareira_sombria: { common: 0.82, elite: 0.12, miniboss: 0.04, boss: 0.02 },
@@ -570,7 +582,7 @@ function getSpawnProfile(mapId, playerLevel = 1) {
     const profile = { ...(baseProfiles[mapId] || baseProfiles.clareira_sombria) };
 
     /*
-    Overlevel aumenta a chance de coisa relevante.
+    Overlevel aumenta a chance de encontros relevantes.
     */
     const overlevelBonus = Math.min(0.08, levelOffset * 0.006);
 
@@ -581,7 +593,7 @@ function getSpawnProfile(mapId, playerLevel = 1) {
 
     /*
     Onboarding protegido:
-    até nível 4, nada além de common.
+    até nível 4, somente common.
     */
     if (level <= 4) {
         return {
@@ -594,7 +606,6 @@ function getSpawnProfile(mapId, playerLevel = 1) {
 
     /*
     Clareira ainda segura até o 7.
-    Já existe miniboss cedo, mas boss fica bloqueado.
     */
     if (level <= 7 && mapId === 'clareira_sombria') {
         return {
@@ -663,7 +674,7 @@ function scaleEnemyForPlayer(baseEnemy, playerLevel = 1, mapId = 'clareira_sombr
 
     /*
     Scaling controlado:
-    o mapa mantém identidade e não vira “conteúdo do seu level”.
+    o mapa mantém identidade e não vira "conteúdo do seu level".
     */
     const delta = Math.max(0, level - mapBaseLevel);
 
