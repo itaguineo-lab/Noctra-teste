@@ -28,7 +28,13 @@ const BALANCE = {
             label: 'Poção de Vida'
         },
         potionEnergy: {
-            restoreAmount: 1,
+            /*
+            FIX: era 1. Com restoreAmount: 1, a poção restaurava exatamente
+            o custo de 1 caça. Valor percebido = zero. Ninguém compra nem usa.
+            Agora restaura 3, tornando a poção relevante como item de
+            emergência e como alvo de compra na loja.
+            */
+            restoreAmount: 3,
             label: 'Poção de Energia'
         },
         tonicStrength: {
@@ -49,7 +55,7 @@ const BALANCE = {
         fleeConsumesEnergy: false,
 
         /*
-        Chave agora cai de miniboss e boss de campo.
+        Chave cai de miniboss e boss de campo.
         A dungeon precisa existir como rotina desejável,
         não como sistema decorativo impossível de acessar.
         */
@@ -59,19 +65,35 @@ const BALANCE = {
 
     souls: {
         /*
-        Elite temática pode dropar alma, mas raro.
-        Miniboss temático também.
-        Boss continua sendo fonte principal.
+        FIX DE RETENÇÃO D7:
+
+        Problema original:
+        - fieldBossDropChance: 0.03 (3%)
+        - Boss spawna com ~2% na Clareira
+        - Resultado: jogador casual precisava de ~1.600 combates para
+          ter probabilidade razoável de ver uma soul.
+          Com 20 energia/dia = 80 dias de jogo. Ninguém chega lá.
+
+        Ajuste:
+        - Boss aumentado para 5% — um jogador que matar 20 bosses
+          tem ~64% de chance de ter ao menos 1 soul (antes: 46%).
+        - Dungeon boss aumentado para 12% — dungeon deve SEMPRE
+          se sentir mais recompensadora que farm comum.
+        - Pity ativado em 8 bosses (antes 10) e multiplicador 2.5x
+          (antes 2x), garantindo que no pior caso o jogador veja
+          uma soul em até ~14 bosses com pity.
+
+        Objetivo: primeira soul dentro de 3-5 dias de jogo ativo.
         */
         fieldEliteThematicDropChance: 0.01,
         fieldMiniBossThematicDropChance: 0.02,
-        fieldBossDropChance: 0.03,
-        dungeonBossDropChance: 0.08,
+        fieldBossDropChance: 0.05,
+        dungeonBossDropChance: 0.12,
         worldBossDropChance: 0.15,
         eventBossDropChance: 0.20,
 
-        pityBoostAt: 10,
-        pityMultiplier: 2
+        pityBoostAt: 8,
+        pityMultiplier: 2.5
     },
 
     rarities: {
