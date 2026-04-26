@@ -1,5 +1,6 @@
 const { addXp } = require('./progression');
 const { ensurePlayerState, recalculateStats, updateBuffs } = require('./playerService');
+
 const {
     equipItem,
     unequipItem,
@@ -8,6 +9,7 @@ const {
     ensureItemIdentity,
     ensureUniquePlayerItemKeys
 } = require('./equipmentService');
+
 const {
     ensureEnergyFields,
     consumeEnergy: consumeEnergyState,
@@ -17,6 +19,7 @@ const {
 } = require('../../services/energyService');
 
 const VALID_EQUIPMENT_SLOTS = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
 const SLOT_TO_UI_CATEGORY = {
     weapon: 'weapons',
     shield: 'armors',
@@ -66,6 +69,7 @@ function hasRealItemStats(item = {}) {
 
 function getDefaultWeaponEmoji(name = '') {
     const lower = String(name).toLowerCase();
+
     if (lower.includes('machado')) return '🪓';
     if (lower.includes('arco') || lower.includes('aljava')) return '🏹';
     if (lower.includes('lança')) return '🔱';
@@ -73,21 +77,27 @@ function getDefaultWeaponEmoji(name = '') {
     if (lower.includes('orbe')) return '🔮';
     if (lower.includes('grimório') || lower.includes('grimoire')) return '📘';
     if (lower.includes('adaga')) return '🗡️';
+
     return '🗡️';
 }
 
 function getDefaultEmojiForSlot(slot, name = '') {
     if (slot === 'weapon') return getDefaultWeaponEmoji(name);
+
     if (slot === 'shield') {
         const lower = String(name).toLowerCase();
+
         if (lower.includes('aljava')) return '🏹';
         if (lower.includes('orbe')) return '🔮';
+
         return '🛡️';
     }
+
     if (slot === 'armor') return '🥋';
     if (slot === 'boots') return '👢';
     if (slot === 'ring') return '💍';
     if (slot === 'necklace') return '📿';
+
     return '⚪';
 }
 
@@ -98,6 +108,7 @@ function getFallbackNameForSlot(slot) {
     if (slot === 'boots') return 'Botas desconhecidas';
     if (slot === 'ring') return 'Anel desconhecido';
     if (slot === 'necklace') return 'Colar desconhecido';
+
     return 'Item desconhecido';
 }
 
@@ -122,7 +133,9 @@ function inferSlotFromName(rawName = '') {
         name.includes('veste') ||
         name.includes('peitoral') ||
         name.includes('traje')
-    ) return 'armor';
+    ) {
+        return 'armor';
+    }
 
     if (
         name.includes('espada') ||
@@ -135,7 +148,9 @@ function inferSlotFromName(rawName = '') {
         name.includes('grimório') ||
         name.includes('grimorio') ||
         name.includes('grimoire')
-    ) return 'weapon';
+    ) {
+        return 'weapon';
+    }
 
     return null;
 }
@@ -186,21 +201,52 @@ function inferAllowedClasses(item = {}, slot, rawName = '') {
     if (slot === 'weapon') {
         if (name.includes('espada') || name.includes('machado')) return ['guerreiro'];
         if (name.includes('arco') || name.includes('lança') || name.includes('lanca')) return ['arqueiro'];
-        if (name.includes('varinha') || name.includes('cajado') || name.includes('grimório') || name.includes('grimorio') || name.includes('grimoire')) return ['mago'];
+        if (
+            name.includes('varinha') ||
+            name.includes('cajado') ||
+            name.includes('grimório') ||
+            name.includes('grimorio') ||
+            name.includes('grimoire')
+        ) {
+            return ['mago'];
+        }
     }
 
     return [];
 }
 
+function normalizeWeaponStyle(value = '') {
+    const style = normalizeText(value).toLowerCase();
+
+    if (!style) return null;
+
+    if (style === 'requires_offhand') {
+        return 'one_handed';
+    }
+
+    if (style === 'one_handed') {
+        return 'one_handed';
+    }
+
+    if (style === 'two_handed') {
+        return 'two_handed';
+    }
+
+    return style;
+}
+
 function inferWeaponStyle(item = {}, slot, rawName = '') {
-    const explicit = normalizeText(item.weaponStyle).toLowerCase();
+    const explicit = normalizeWeaponStyle(item.weaponStyle);
     if (explicit) return explicit;
 
     if (slot !== 'weapon') return null;
 
     const name = rawName.toLowerCase();
 
-    if (name.includes('machado') || name.includes('cajado')) return 'two_handed';
+    if (name.includes('machado') || name.includes('cajado')) {
+        return 'two_handed';
+    }
+
     if (
         name.includes('espada') ||
         name.includes('arco') ||
@@ -210,7 +256,9 @@ function inferWeaponStyle(item = {}, slot, rawName = '') {
         name.includes('grimório') ||
         name.includes('grimorio') ||
         name.includes('grimoire')
-    ) return 'requires_offhand';
+    ) {
+        return 'one_handed';
+    }
 
     return null;
 }
@@ -232,6 +280,17 @@ function inferRequiredOffhandType(item = {}, slot, rawName = '') {
     return null;
 }
 
+function inferOffhandMode(item = {}, slot, weaponStyle, requiredOffhandType) {
+    const explicit = normalizeText(item.offhandMode).toLowerCase();
+    if (explicit) return explicit;
+
+    if (slot === 'weapon' && weaponStyle === 'one_handed' && requiredOffhandType) {
+        return 'optional';
+    }
+
+    return null;
+}
+
 function inferOffhandType(item = {}, slot, rawName = '') {
     const explicit = normalizeText(item.offhandType).toLowerCase();
     if (explicit) return explicit;
@@ -249,11 +308,13 @@ function inferOffhandType(item = {}, slot, rawName = '') {
 
 function getCanonicalSlot(item = {}, forcedSlot = null) {
     const forced = normalizeText(forcedSlot);
+
     if (forced && VALID_EQUIPMENT_SLOTS.includes(forced)) {
         return forced;
     }
 
     const rawSlot = normalizeText(item.slot);
+
     if (rawSlot) {
         for (const validSlot of VALID_EQUIPMENT_SLOTS) {
             if (rawSlot.startsWith(validSlot)) {
@@ -279,6 +340,7 @@ function getCanonicalSlot(item = {}, forcedSlot = null) {
     if (rawDisplayCategory === 'joia') return inferSlotFromName(rawName) || 'ring';
     if (rawDisplayCategory === 'armadura') return inferSlotFromName(rawName) || 'armor';
     if (rawDisplayCategory === 'mão secundária') return 'shield';
+    if (rawDisplayCategory === 'mao secundaria') return 'shield';
     if (rawDisplayCategory === 'botas') return 'boots';
 
     return inferSlotFromName(rawName) || null;
@@ -293,6 +355,7 @@ function getDisplayCategoryFromSlot(slot) {
     if (slot === 'shield') return 'Mão Secundária';
     if (slot === 'ring' || slot === 'necklace') return 'Joia';
     if (slot === 'boots') return 'Botas';
+
     return 'Armadura';
 }
 
@@ -311,30 +374,21 @@ function getAllowedClassesLabel(allowedClasses = []) {
 function isItemAllowedForClass(item, className) {
     const allowed = normalizeAllowedClasses(item?.allowedClasses || []);
     if (!allowed.length) return true;
+
     return allowed.includes(normalizeClassName(className));
 }
 
 function validateWeaponOffhandPair(weapon, offhand) {
     if (!weapon) return null;
 
-    if (weapon.weaponStyle === 'two_handed') {
+    const weaponStyle = normalizeWeaponStyle(weapon.weaponStyle);
+
+    if (weaponStyle === 'two_handed') {
         if (offhand) {
             return `${weapon.name} é de duas mãos e exige a mão secundária livre.`;
         }
+
         return null;
-    }
-
-    if (weapon.weaponStyle === 'requires_offhand') {
-        const requiredType = weapon.requiredOffhandType;
-        if (!requiredType) return null;
-
-        if (!offhand) {
-            return `${weapon.name} exige ${getOffhandTypeLabel(requiredType)} equipada.`;
-        }
-
-        if (offhand.offhandType !== requiredType) {
-            return `${weapon.name} exige ${getOffhandTypeLabel(requiredType)} equipada.`;
-        }
     }
 
     return null;
@@ -363,6 +417,7 @@ function normalizeInventoryItem(item, forcedSlot = null) {
     const statsPresent = hasRealItemStats(item);
 
     let finalName = rawName;
+
     if (isPlaceholderName(rawName)) {
         if (!statsPresent) return null;
         finalName = getFallbackNameForSlot(slot);
@@ -371,6 +426,7 @@ function normalizeInventoryItem(item, forcedSlot = null) {
     const allowedClasses = inferAllowedClasses(item, slot, finalName);
     const weaponStyle = inferWeaponStyle(item, slot, finalName);
     const requiredOffhandType = inferRequiredOffhandType(item, slot, finalName);
+    const offhandMode = inferOffhandMode(item, slot, weaponStyle, requiredOffhandType);
     const offhandType = inferOffhandType(item, slot, finalName);
 
     const normalized = {
@@ -397,12 +453,19 @@ function normalizeInventoryItem(item, forcedSlot = null) {
         allowedClasses,
         classRestriction: allowedClasses.length === 1 ? allowedClasses[0] : null,
         weaponStyle,
+        offhandMode,
         requiredOffhandType,
         offhandType,
         __equipped: Boolean(item.__equipped)
     };
 
     ensureItemIdentity(normalized);
+
+    if (normalized.weaponStyle === 'requires_offhand') {
+        normalized.weaponStyle = 'one_handed';
+        normalized.offhandMode = normalized.offhandMode || 'optional';
+    }
+
     return normalized;
 }
 
@@ -436,6 +499,7 @@ function ensureConsumables(player) {
         tonicStrength: 0,
         tonicDefense: 0
     };
+
     return player.consumables;
 }
 
@@ -446,6 +510,7 @@ function ensureSouls(player) {
 
 function ensureInventory(player) {
     if (!Array.isArray(player.inventory)) player.inventory = [];
+
     if (!player.equipment || typeof player.equipment !== 'object') {
         player.equipment = {};
     }
@@ -472,6 +537,7 @@ function ensurePlayer(player) {
     ensureConsumables(player);
     ensureEnergyFields(player);
     syncEnergyCapacity(player);
+
     return player;
 }
 
@@ -503,6 +569,7 @@ function getEquipmentLoadoutIssues(player, targetClass = null) {
 function cleanupExpiredBuffs(player) {
     ensurePlayer(player);
     updateBuffs(player);
+
     return player;
 }
 
@@ -529,6 +596,7 @@ function applyHeal(player, amount) {
 function restoreFullHp(player) {
     ensurePlayer(player);
     player.hp = Math.max(1, player.maxHp || 1);
+
     return player;
 }
 
@@ -551,11 +619,13 @@ function addInventoryItem(player, item) {
     ensurePlayer(player);
 
     const normalized = normalizeInventoryItem(item);
+
     if (!normalized) {
         return { success: false, message: 'Item inválido.' };
     }
 
     const maxInventory = toSafeNumber(player.maxInventory, 20);
+
     if ((player.inventory || []).length >= maxInventory) {
         return { success: false, message: 'Inventário cheio.' };
     }
@@ -583,6 +653,7 @@ function removeInventoryItem(player, itemOrIndex) {
     }
 
     const index = player.inventory.findIndex(invItem => sameItem(invItem, itemOrIndex));
+
     if (index === -1) {
         return { success: false, message: 'Item não encontrado.' };
     }
@@ -599,6 +670,7 @@ function applyEquipmentChange(player, slot, item) {
     }
 
     const normalizedItem = normalizeInventoryItem(item, slot);
+
     if (!normalizedItem) {
         return { success: false, message: 'Item inválido.' };
     }
@@ -609,6 +681,7 @@ function applyEquipmentChange(player, slot, item) {
 
     if (!isItemAllowedForClass(normalizedItem, player.class)) {
         const allowedLabel = getAllowedClassesLabel(normalizedItem.allowedClasses);
+
         return {
             success: false,
             message: allowedLabel
@@ -653,26 +726,15 @@ function removeEquipment(player, slot) {
     }
 
     const current = player.equipment?.[slot];
+
     if (!current) {
         return { success: false, message: 'Nada equipado neste slot.' };
     }
 
     const maxInventory = toSafeNumber(player.maxInventory, 20);
+
     if ((player.inventory || []).length >= maxInventory) {
         return { success: false, message: 'Inventário cheio.' };
-    }
-
-    if (slot === 'shield') {
-        const weapon = player.equipment?.weapon
-            ? normalizeInventoryItem(player.equipment.weapon, 'weapon')
-            : null;
-
-        if (weapon?.weaponStyle === 'requires_offhand') {
-            return {
-                success: false,
-                message: `${weapon.name} depende da mão secundária. Desequipe a arma primeiro.`
-            };
-        }
     }
 
     const removed = unequipItem(player, slot);
@@ -692,6 +754,7 @@ function applySoulEquip(player, soul) {
     }
 
     const soulId = String(soul.instanceId || soul.id || '');
+
     if (!soulId) {
         return { success: false, message: 'Alma inválida.' };
     }
@@ -709,6 +772,7 @@ function applySoulEquip(player, soul) {
     }
 
     const emptySlot = player.soulsEquipped.findIndex(s => !s);
+
     if (emptySlot === -1) {
         return { success: false, message: 'Slots de almas cheios.' };
     }
@@ -729,11 +793,13 @@ function applySoulUnequip(player, slot) {
     ensurePlayer(player);
 
     const slotIndex = toSafeNumber(slot, -1);
+
     if (slotIndex < 0 || slotIndex >= player.soulsEquipped.length) {
         return { success: false, message: 'Slot de alma inválido.' };
     }
 
     const soul = player.soulsEquipped[slotIndex];
+
     if (!soul) {
         return { success: false, message: 'Nada equipado neste slot.' };
     }
@@ -758,57 +824,73 @@ function applySoulUnequip(player, slot) {
 
 function addGold(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.gold = Math.max(0, (player.gold || 0) + value);
+
     return player;
 }
 
 function removeGold(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.gold = Math.max(0, (player.gold || 0) - value);
+
     return player;
 }
 
 function addNox(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.nox = Math.max(0, (player.nox || 0) + value);
+
     return player;
 }
 
 function removeNox(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.nox = Math.max(0, (player.nox || 0) - value);
+
     return player;
 }
 
 function addKeys(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.keys = Math.max(0, (player.keys || 0) + value);
+
     return player;
 }
 
 function removeKeys(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.keys = Math.max(0, (player.keys || 0) - value);
+
     return player;
 }
 
 function addGlorias(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.glorias = Math.max(0, (player.glorias || 0) + value);
+
     return player;
 }
 
 function removeGlorias(player, amount) {
     ensurePlayer(player);
+
     const value = Math.max(0, Math.floor(toSafeNumber(amount, 0)));
     player.glorias = Math.max(0, (player.glorias || 0) - value);
+
     return player;
 }
 
@@ -832,6 +914,7 @@ function applyXpReward(player, amount) {
     ensurePlayer(player);
     addXp(player, amount);
     normalizePlayerForSave(player);
+
     return player;
 }
 
@@ -869,7 +952,10 @@ function consumeConsumable(player, key, amount = 1) {
     consumables[key] -= value;
     player.consumables = consumables;
 
-    return { success: true, remaining: consumables[key] };
+    return {
+        success: true,
+        remaining: consumables[key]
+    };
 }
 
 function normalizePlayerForSave(player) {
