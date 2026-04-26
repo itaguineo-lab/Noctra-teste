@@ -20,11 +20,11 @@ const BALANCE = {
 
     consumables: {
         potionHp: {
-            minHealFlat: 999999,
+            minHealFlat: 0,
             combatHealPercent: 1.00,
             outsideCombatHealPercent: 1.00,
             dungeonHealPercent: 1.00,
-            dungeonMinHealFlat: 999999,
+            dungeonMinHealFlat: 0,
             fullHeal: true,
             label: 'Poção de Vida'
         },
