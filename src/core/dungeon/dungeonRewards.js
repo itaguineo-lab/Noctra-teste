@@ -1,6 +1,7 @@
 const { calculateDamage } = require('../combat/damageCalc');
 const { processVictory } = require('../../services/rewardService');
 const { generateDrop } = require('../../data/items');
+const { BALANCE } = require('../../data/balance');
 
 const {
     applyDamage,
@@ -63,9 +64,10 @@ function resolveTreasureRoom(player, room) {
     const notes = [`🎁 +${gold} ouro`];
 
     /*
-    Chave na dungeon deve existir, mas não banalizar o sistema.
+    Chave pode aparecer dentro da dungeon, mas em baixa chance.
+    Dungeon não pode virar gerador líquido de chaves.
     */
-    if (Math.random() < 0.16) {
+    if (Math.random() < (BALANCE.dungeon.dungeonTreasureKeyDropChance || 0)) {
         applyKeyReward(player, 1);
         d.rewards.keys += 1;
         notes.push('🗝️ +1 chave');
@@ -148,7 +150,7 @@ function resolveCurseRoom(player, room) {
 
     const notes = [`💀 -${hpLoss} HP`, `💰 +${gold} ouro`];
 
-    if (Math.random() < 0.14) {
+    if (Math.random() < (BALANCE.dungeon.dungeonCurseKeyDropChance || 0)) {
         applyKeyReward(player, 1);
         d.rewards.keys += 1;
         notes.push('🗝️ +1 chave');
@@ -348,7 +350,9 @@ function finalizeDungeonRun(player, reason) {
     */
     const bonusXp = Math.floor(40 + cleared * 14 + player.level * 3.5);
     const bonusGold = Math.floor(90 + cleared * 24 + player.level * 7);
-    const bonusKeys = reason === 'complete' ? 1 : 0;
+    const bonusKeys = reason === 'complete'
+        ? Math.max(0, Number(BALANCE.dungeon.dungeonCompletionKeyReward || 0))
+        : 0;
     const bonusGlorias = reason === 'complete' ? 2 : 0;
 
     d.summary = {

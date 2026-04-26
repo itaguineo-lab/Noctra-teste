@@ -12,6 +12,7 @@ const itemSchema = new mongoose.Schema(
         uiCategory: { type: String, default: null },
         displayCategory: { type: String, default: null },
         emoji: { type: String, default: null },
+        icon: { type: String, default: null },
 
         rarity: { type: String, default: 'Comum' },
         level: { type: Number, default: 1 },
@@ -24,10 +25,17 @@ const itemSchema = new mongoose.Schema(
 
         powerTier: { type: String, default: null },
         sourceTier: { type: String, default: null },
+
         classRestriction: { type: String, default: null },
+        allowedClasses: { type: [String], default: [] },
+
+        weaponStyle: { type: String, default: null },
+        offhandMode: { type: String, default: null },
+        requiredOffhandType: { type: String, default: null },
+        offhandType: { type: String, default: null },
 
         price: { type: Number, default: 0 },
-        icon: { type: String, default: null }
+        __equipped: { type: Boolean, default: false }
     },
     { _id: false }
 );
@@ -36,15 +44,33 @@ const soulSchema = new mongoose.Schema(
     {
         id: { type: String, default: null },
         instanceId: { type: String, default: null },
+        bossId: { type: String, default: null },
         name: { type: String, required: true },
         rarity: { type: String, default: 'Comum' },
+        tier: { type: Number, default: 1 },
+        emoji: { type: String, default: null },
+        minLevel: { type: Number, default: 1 },
+        shardValue: { type: Number, default: 5 },
         classRestriction: { type: String, default: null },
-        effect: {
-            atkBonus: { type: Number, default: 0 },
-            defBonus: { type: Number, default: 0 },
-            hpBonus: { type: Number, default: 0 },
-            critBonus: { type: Number, default: 0 }
-        }
+
+        level: { type: Number, default: 1 },
+        exp: { type: Number, default: 0 },
+        shards: { type: Number, default: 0 },
+        awakenLevel: { type: Number, default: 0 },
+
+        /*
+        IMPORTANTE:
+        effect precisa ser Mixed para preservar todos os tipos reais de alma:
+        - damage: multiplier, freezeChance
+        - heal: multiplier
+        - lifesteal: multiplier, healPercent
+        - passive: atkBonus, defBonus, hpBonus, critBonus
+
+        O schema antigo declarava apenas bônus passivos e podia remover
+        effect.type/multiplier ao salvar no MongoDB. Isso quebrava almas
+        ativas e passivas depois de recarregar o jogador.
+        */
+        effect: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
     },
     { _id: false }
 );

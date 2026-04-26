@@ -56,12 +56,21 @@ const BALANCE = {
         fleeConsumesEnergy: false,
 
         /*
-        Chave cai de miniboss e boss de campo.
-        A dungeon precisa existir como rotina desejável,
-        não como sistema decorativo impossível de acessar.
+        Regra oficial de economia:
+        - Dungeon consome chave, não energia.
+        - Chave deve ser rara o suficiente para a dungeon parecer evento desejável.
+        - Dungeon NÃO deve se autoalimentar com chave garantida.
+
+        Ajuste:
+        Os valores antigos (20% miniboss / 45% boss) deixavam chave comum demais.
+        Com energia diária limitada, esse ajuste mantém dungeon como pico de sessão,
+        sem transformar a chave em recurso banal.
         */
-        fieldMiniBossKeyDropChance: 0.20,
-        fieldBossKeyDropChance: 0.45
+        fieldMiniBossKeyDropChance: 0.07,
+        fieldBossKeyDropChance: 0.22,
+        dungeonTreasureKeyDropChance: 0.06,
+        dungeonCurseKeyDropChance: 0.04,
+        dungeonCompletionKeyReward: 0
     },
 
     souls: {
