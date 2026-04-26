@@ -22,12 +22,22 @@ const SLOT_TO_UI_CATEGORY = {
     necklace: 'jewels'
 };
 
-function weaponRequiresOffhand(name, emoji, className, requiredOffhandType) {
+/*
+Regra oficial do NOCTRA:
+- Armas de uma mão podem ser equipadas sozinhas.
+- Escudo / aljava / orbe são sinergia de build, não pré-requisito.
+- Somente armas two_handed exigem mão secundária livre.
+
+Mantemos requiredOffhandType como metadado de sinergia para UI e futuro bônus,
+mas a arma nasce como one_handed para não bloquear o jogador sem offhand.
+*/
+function weaponOneHanded(name, emoji, className, requiredOffhandType) {
     return {
         name,
         emoji,
         allowedClasses: [className],
-        weaponStyle: 'requires_offhand',
+        weaponStyle: 'one_handed',
+        offhandMode: 'optional',
         requiredOffhandType
     };
 }
@@ -81,11 +91,11 @@ function jewelItem(name, emoji, forcedSlot) {
 const ITEM_POOL = {
     level1: {
         weapon: [
-            weaponRequiresOffhand('Espada do Vigia', '🗡️', 'guerreiro', 'shield'),
+            weaponOneHanded('Espada do Vigia', '🗡️', 'guerreiro', 'shield'),
             weaponTwoHanded('Machado Brutal', '🪓', 'guerreiro'),
-            weaponRequiresOffhand('Arco do Caçador', '🏹', 'arqueiro', 'quiver'),
-            weaponRequiresOffhand('Lança do Batedor', '🔱', 'arqueiro', 'shield'),
-            weaponRequiresOffhand('Varinha Arcana', '🪄', 'mago', 'orb'),
+            weaponOneHanded('Arco do Caçador', '🏹', 'arqueiro', 'quiver'),
+            weaponOneHanded('Lança do Batedor', '🔱', 'arqueiro', 'shield'),
+            weaponOneHanded('Varinha Arcana', '🪄', 'mago', 'orb'),
             weaponTwoHanded('Cajado do Aprendiz', '🪄', 'mago')
         ],
         armor: [
@@ -109,11 +119,11 @@ const ITEM_POOL = {
 
     level8: {
         weapon: [
-            weaponRequiresOffhand('Espada da Névoa', '🗡️', 'guerreiro', 'shield'),
+            weaponOneHanded('Espada da Névoa', '🗡️', 'guerreiro', 'shield'),
             weaponTwoHanded('Machado do Eco', '🪓', 'guerreiro'),
-            weaponRequiresOffhand('Arco das Folhas Mortas', '🏹', 'arqueiro', 'quiver'),
-            weaponRequiresOffhand('Lança da Penumbra', '🔱', 'arqueiro', 'shield'),
-            weaponRequiresOffhand('Varinha do Véu', '🪄', 'mago', 'orb'),
+            weaponOneHanded('Arco das Folhas Mortas', '🏹', 'arqueiro', 'quiver'),
+            weaponOneHanded('Lança da Penumbra', '🔱', 'arqueiro', 'shield'),
+            weaponOneHanded('Varinha do Véu', '🪄', 'mago', 'orb'),
             weaponTwoHanded('Cajado dos Murmúrios', '🪄', 'mago')
         ],
         armor: [
@@ -137,11 +147,11 @@ const ITEM_POOL = {
 
     level15: {
         weapon: [
-            weaponRequiresOffhand('Espada Tumular', '🗡️', 'guerreiro', 'shield'),
+            weaponOneHanded('Espada Tumular', '🗡️', 'guerreiro', 'shield'),
             weaponTwoHanded('Machado Carniceiro', '🪓', 'guerreiro'),
-            weaponRequiresOffhand('Arco dos Ossos', '🏹', 'arqueiro', 'quiver'),
-            weaponRequiresOffhand('Lança Élfica Sombria', '🔱', 'arqueiro', 'shield'),
-            weaponRequiresOffhand('Varinha Tumular', '🪄', 'mago', 'orb'),
+            weaponOneHanded('Arco dos Ossos', '🏹', 'arqueiro', 'quiver'),
+            weaponOneHanded('Lança Élfica Sombria', '🔱', 'arqueiro', 'shield'),
+            weaponOneHanded('Varinha Tumular', '🪄', 'mago', 'orb'),
             weaponTwoHanded('Cajado Tumular', '🪄', 'mago')
         ],
         armor: [
@@ -165,11 +175,11 @@ const ITEM_POOL = {
 
     level24: {
         weapon: [
-            weaponRequiresOffhand('Espada do Eclipse', '🗡️', 'guerreiro', 'shield'),
+            weaponOneHanded('Espada do Eclipse', '🗡️', 'guerreiro', 'shield'),
             weaponTwoHanded('Machado do Caos', '🪓', 'guerreiro'),
-            weaponRequiresOffhand('Arco Lunar', '🏹', 'arqueiro', 'quiver'),
-            weaponRequiresOffhand('Lança da Maré Sombria', '🔱', 'arqueiro', 'shield'),
-            weaponRequiresOffhand('Varinha do Eclipse', '🪄', 'mago', 'orb'),
+            weaponOneHanded('Arco Lunar', '🏹', 'arqueiro', 'quiver'),
+            weaponOneHanded('Lança da Maré Sombria', '🔱', 'arqueiro', 'shield'),
+            weaponOneHanded('Varinha do Eclipse', '🪄', 'mago', 'orb'),
             weaponTwoHanded('Cajado de Noctra', '🪄', 'mago')
         ],
         armor: [
@@ -193,11 +203,11 @@ const ITEM_POOL = {
 
     level32: {
         weapon: [
-            weaponRequiresOffhand('Espada da Citadela', '🗡️', 'guerreiro', 'shield'),
+            weaponOneHanded('Espada da Citadela', '🗡️', 'guerreiro', 'shield'),
             weaponTwoHanded('Machado do Cometa', '🪓', 'guerreiro'),
-            weaponRequiresOffhand('Arco da Lua Partida', '🏹', 'arqueiro', 'quiver'),
-            weaponRequiresOffhand('Lança do Guardião Lunar', '🔱', 'arqueiro', 'shield'),
-            weaponRequiresOffhand('Varinha Astral', '🪄', 'mago', 'orb'),
+            weaponOneHanded('Arco da Lua Partida', '🏹', 'arqueiro', 'quiver'),
+            weaponOneHanded('Lança do Guardião Lunar', '🔱', 'arqueiro', 'shield'),
+            weaponOneHanded('Varinha Astral', '🪄', 'mago', 'orb'),
             weaponTwoHanded('Cajado Astral', '🪄', 'mago')
         ],
         armor: [
@@ -221,11 +231,11 @@ const ITEM_POOL = {
 
     level42: {
         weapon: [
-            weaponRequiresOffhand('Espada de Noctra', '🗡️', 'guerreiro', 'shield'),
+            weaponOneHanded('Espada de Noctra', '🗡️', 'guerreiro', 'shield'),
             weaponTwoHanded('Machado do Fim', '🪓', 'guerreiro'),
-            weaponRequiresOffhand('Arco do Abismo', '🏹', 'arqueiro', 'quiver'),
-            weaponRequiresOffhand('Lança da Ruína', '🔱', 'arqueiro', 'shield'),
-            weaponRequiresOffhand('Varinha do Trono Vazio', '🪄', 'mago', 'orb'),
+            weaponOneHanded('Arco do Abismo', '🏹', 'arqueiro', 'quiver'),
+            weaponOneHanded('Lança da Ruína', '🔱', 'arqueiro', 'shield'),
+            weaponOneHanded('Varinha do Trono Vazio', '🪄', 'mago', 'orb'),
             weaponTwoHanded('Cajado do Trono Vazio', '🪄', 'mago')
         ],
         armor: [
@@ -599,6 +609,7 @@ function generateDrop(mapId = 1, options = {}) {
         allowedClasses,
         classRestriction: allowedClasses.length === 1 ? allowedClasses[0] : null,
         weaponStyle: itemData.weaponStyle || null,
+        offhandMode: itemData.offhandMode || null,
         requiredOffhandType: itemData.requiredOffhandType || null,
         offhandType: itemData.offhandType || null,
         sourceTier: options.encounterTier || 'common'

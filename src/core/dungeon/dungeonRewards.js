@@ -234,7 +234,9 @@ async function resolveCombatRoom(player, room) {
     };
 
     if (room.enemy.hp <= 0) {
-        const rewards = await processVictory(player, room.enemy);
+        const rewards = await processVictory(player, room.enemy, {
+            isDungeonBoss: room.type === 'boss'
+        });
 
         /*
         Dungeon precisa ser melhor que hunt:
