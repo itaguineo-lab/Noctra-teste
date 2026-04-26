@@ -4,6 +4,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { ITEM_POOL } = require('../src/data/items');
+const {
+    ensureItemIdentity
+} = require('../src/core/player/equipmentService');
+const {
+    normalizeInventoryItem
+} = require('../src/core/player/playerMutations');
 
 function flattenItemPool(pool) {
     const items = [];
@@ -45,6 +51,44 @@ test('armas de uma mão com sinergia de offhand não nascem como requires_offhan
             `${weapon.name} não pode bloquear equip sem offhand.`
         );
     }
+});
+
+test('requires_offhand legado é normalizado como arma de uma mão opcional', () => {
+    const legacySword = {
+        id: 'legacy_sword_test',
+        instanceId: 'legacy_sword_test',
+        name: 'Espada Legada',
+        slot: 'weapon',
+        category: 'weapon',
+        uiCategory: 'weapons',
+        weaponStyle: 'requires_offhand',
+        requiredOffhandType: 'shield',
+        atk: 5,
+        def: 0,
+        hp: 0,
+        crit: 1
+    };
+
+    ensureItemIdentity(legacySword);
+
+    assert.equal(legacySword.weaponStyle, 'one_handed');
+    assert.equal(legacySword.offhandMode, 'optional');
+    assert.equal(legacySword.requiredOffhandType, 'shield');
+
+    const normalized = normalizeInventoryItem({
+        name: 'Arco Legado',
+        slot: 'weapon',
+        category: 'weapon',
+        uiCategory: 'weapons',
+        weaponStyle: 'requires_offhand',
+        requiredOffhandType: 'quiver',
+        atk: 4,
+        crit: 2
+    });
+
+    assert.equal(normalized.weaponStyle, 'one_handed');
+    assert.equal(normalized.offhandMode, 'optional');
+    assert.equal(normalized.requiredOffhandType, 'quiver');
 });
 
 test('dungeon boss usa fonte de recompensa de boss de masmorra', () => {
