@@ -4,6 +4,12 @@ const CATEGORY_WEIGHTS = {
     jewelry: 20
 };
 
+const CLASS_BIAS_WEIGHTS = {
+    classItem: 70,
+    universalItem: 20,
+    offClassItem: 10
+};
+
 const BASE_RARITIES = [
     { name: 'Comum', multiplier: 1.00, weight: 58 },
     { name: 'Incomum', multiplier: 1.14, weight: 24 },
@@ -28,9 +34,12 @@ Regra oficial do NOCTRA:
 - Escudo / aljava / orbe são sinergia de build, não pré-requisito.
 - Somente armas two_handed exigem mão secundária livre.
 
-Mantemos requiredOffhandType como metadado de sinergia para UI e futuro bônus,
-mas a arma nasce como one_handed para não bloquear o jogador sem offhand.
+Novo ajuste:
+- O drop agora favorece a classe do jogador quando playerClass é informado.
+- Isso reduz frustração de arqueiro sem aljava, mago sem orbe e guerreiro sem escudo.
+- O jogo ainda pode dropar item de outra classe, mas com peso menor.
 */
+
 function weaponOneHanded(name, emoji, className, requiredOffhandType) {
     return {
         name,
@@ -266,16 +275,24 @@ function randomFrom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function normalizeClassName(value = '') {
+    return String(value || '').trim().toLowerCase();
+}
+
 function weightedChoice(entries) {
-    const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
+    const safeEntries = entries.filter(entry => entry && entry.weight > 0);
+    const total = safeEntries.reduce((sum, entry) => sum + entry.weight, 0);
+
+    if (total <= 0) return safeEntries[0] || entries[0];
+
     let roll = Math.random() * total;
 
-    for (const entry of entries) {
+    for (const entry of safeEntries) {
         roll -= entry.weight;
         if (roll <= 0) return entry;
     }
 
-    return entries[0];
+    return safeEntries[0] || entries[0];
 }
 
 function weightedCategory() {
@@ -302,7 +319,90 @@ function getLevelFromTier(tier) {
         level32: 32,
         level42: 42
     };
+
     return levelMap[tier] || 1;
+}
+
+function itemAllowsClass(itemData, playerClass) {
+    const normalizedClass = normalizeClassName(playerClass);
+    if (!normalizedClass) return false;
+
+    const allowedClasses = Array.isArray(itemData.allowedClasses)
+        ? itemData.allowedClasses.map(normalizeClassName)
+        : [];
+
+    return allowedClasses.includes(normalizedClass);
+}
+
+function isUniversalItem(itemData) {
+    return !Array.isArray(itemData.allowedClasses) || itemData.allowedClasses.length === 0;
+}
+
+function splitItemsByClassBias(items, playerClass) {
+    const normalizedClass = normalizeClassName(playerClass);
+
+    if (!normalizedClass) {
+        return {
+            classItems: [],
+            universalItems: [],
+            offClassItems: items
+        };
+    }
+
+    return {
+        classItems: items.filter(item => itemAllowsClass(item, normalizedClass)),
+        universalItems: items.filter(item => isUniversalItem(item)),
+        offClassItems: items.filter(item => !itemAllowsClass(item, normalizedClass) && !isUniversalItem(item))
+    };
+}
+
+function randomItemWithClassBias(items, playerClass) {
+    if (!Array.isArray(items) || !items.length) return null;
+
+    const normalizedClass = normalizeClassName(playerClass);
+
+    if (!normalizedClass) {
+        return randomFrom(items);
+    }
+
+    const {
+        classItems,
+        universalItems,
+        offClassItems
+    } = splitItemsByClassBias(items, normalizedClass);
+
+    const buckets = [];
+
+    if (classItems.length) {
+        buckets.push({
+            name: 'classItem',
+            weight: CLASS_BIAS_WEIGHTS.classItem,
+            items: classItems
+        });
+    }
+
+    if (universalItems.length) {
+        buckets.push({
+            name: 'universalItem',
+            weight: CLASS_BIAS_WEIGHTS.universalItem,
+            items: universalItems
+        });
+    }
+
+    if (offClassItems.length) {
+        buckets.push({
+            name: 'offClassItem',
+            weight: CLASS_BIAS_WEIGHTS.offClassItem,
+            items: offClassItems
+        });
+    }
+
+    if (!buckets.length) {
+        return randomFrom(items);
+    }
+
+    const selectedBucket = weightedChoice(buckets);
+    return randomFrom(selectedBucket.items);
 }
 
 function getSlotFromItem(category, itemData) {
@@ -350,6 +450,7 @@ function getPowerTier(power) {
     if (power < 60) return 'Forte';
     if (power < 90) return 'Elite';
     if (power < 130) return 'Lendário';
+
     return 'Mítico';
 }
 
@@ -563,7 +664,9 @@ function selectRarity(rarityBias) {
 function generateDrop(mapId = 1, options = {}) {
     const tier = getTierByMap(mapId);
     const category = weightedCategory();
-    const itemData = randomFrom(ITEM_POOL[tier][category]);
+    const pool = ITEM_POOL[tier]?.[category] || ITEM_POOL.level1[category] || ITEM_POOL.level1.weapon;
+
+    const itemData = randomItemWithClassBias(pool, options.playerClass || options.className || options.preferredClass);
     const rarity = selectRarity(options.rarityBias);
     const slot = getSlotFromItem(category, itemData);
     const itemId = buildItemId();
