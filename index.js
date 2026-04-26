@@ -28,7 +28,7 @@ IMPORTS HANDLERS
 */
 
 const profile = require('./src/handlers/profile');
-const inventory = require('./src/handlers/inventory');
+const inventory = require('./src/handlers/inventoryV2');
 const combat = require('./src/handlers/combat');
 const travel = require('./src/handlers/travel');
 const energy = require('./src/handlers/energy');
