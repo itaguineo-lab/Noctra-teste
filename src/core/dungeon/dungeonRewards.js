@@ -1,6 +1,6 @@
 const { calculateDamage } = require('../combat/damageCalc');
 const { processVictory } = require('../../services/rewardService');
-const { generateDrop } = require('../../data/items');
+const { generateDrop } = require('../../data/itemsV2');
 const { BALANCE } = require('../../data/balance');
 
 const {
@@ -47,6 +47,12 @@ function getRoomRewardScalar(roomType) {
     return 1.0;
 }
 
+function formatDungeonItemNote(item, prefix = '✨') {
+    const origin = item.originMap ? ` • ${item.originMap}` : '';
+    const trait = item.traitLabel ? ` • ${item.traitLabel}` : '';
+    return `${prefix} ${item.name} [${item.rarity}]${trait}${origin}`;
+}
+
 /*
 =================================
 TREASURE ROOM
@@ -89,7 +95,7 @@ function resolveTreasureRoom(player, room) {
 
         if (addResult.success) {
             d.rewards.items += 1;
-            notes.push(`✨ ${drop.name} [${drop.rarity}]`);
+            notes.push(formatDungeonItemNote(drop));
         }
     }
 
@@ -381,7 +387,7 @@ function finalizeDungeonRun(player, reason) {
         if (addResult.success) {
             completionItem = premiumDrop;
             d.summary.items += 1;
-            d.summary.notes.push(`🎁 Recompensa final: ${premiumDrop.name} [${premiumDrop.rarity}]`);
+            d.summary.notes.push(formatDungeonItemNote(premiumDrop, '🎁 Recompensa final:'));
         }
 
         d.summary.notes.push('🏁 Expedição perfeita!');
@@ -401,7 +407,9 @@ function finalizeDungeonRun(player, reason) {
     d.summary.completionItem = completionItem
         ? {
             name: completionItem.name,
-            rarity: completionItem.rarity
+            rarity: completionItem.rarity,
+            originMap: completionItem.originMap,
+            traitLabel: completionItem.traitLabel
         }
         : null;
 
