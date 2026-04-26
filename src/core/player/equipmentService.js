@@ -43,6 +43,28 @@ function isUsableId(value) {
     return true;
 }
 
+function normalizeLegacyWeaponStyle(item = {}) {
+    if (!item || typeof item !== 'object') return item;
+
+    const style = String(item.weaponStyle || '').trim().toLowerCase();
+
+    /*
+    Regra oficial do NOCTRA:
+    - arma de uma mão pode ser equipada sozinha;
+    - offhand compatível é uma opção de build, não pré-requisito;
+    - somente armas two_handed bloqueiam a mão secundária.
+
+    Mantemos requiredOffhandType/offhandType como metadados para UI e futuro bônus de sinergia,
+    mas migramos requires_offhand legado para one_handed para não travar o jogador.
+    */
+    if (style === 'requires_offhand') {
+        item.weaponStyle = 'one_handed';
+        item.offhandMode = item.offhandMode || 'optional';
+    }
+
+    return item;
+}
+
 function getSlotMeta(slot) {
     if (slot === 'weapon') {
         return { category: 'weapon', uiCategory: 'weapons', displayCategory: 'Arma' };
@@ -96,6 +118,8 @@ function getLegacyBase(item = {}) {
 
 function ensureItemIdentity(item) {
     if (!item || typeof item !== 'object') return item;
+
+    normalizeLegacyWeaponStyle(item);
 
     const instanceId = String(item.instanceId || '').trim();
     if (isUsableId(instanceId)) {
@@ -342,5 +366,6 @@ module.exports = {
     removeInventoryItemByKey,
     ensureEquipmentState,
     ensureItemIdentity,
-    ensureUniquePlayerItemKeys
+    ensureUniquePlayerItemKeys,
+    normalizeLegacyWeaponStyle
 };
