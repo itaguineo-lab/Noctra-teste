@@ -318,15 +318,19 @@ function syncPlayerFromFight(player, fight) {
 
 function preventStaleActiveFightOverwrite(player) {
     if (!player || typeof player !== 'object') return player;
-
-    /*
-    runConsumableTurn já salva activeFight com o HP curado.
-    O player carregado antes da poção ainda contém activeFight antigo.
-    Ao zerar aqui, savePlayer preserva o activeFight atual do Mongo
-    pelo playerSaveGuard, evitando que a cura volte no próximo turno.
-    */
     player.activeFight = null;
     return player;
+}
+
+function shouldSkipEnemyTurnForConsumable(key) {
+    return key === 'potionHp' || key === 'potionEnergy';
+}
+
+async function savePlayerBattleState(userId, player, fight) {
+    syncPlayerFromFight(player, fight);
+    preventStaleActiveFightOverwrite(player);
+    normalizePlayerForSave(player);
+    await savePlayer(userId, player);
 }
 
 async function handleViewDroppedLoot(ctx) {
@@ -454,7 +458,9 @@ async function handleUseConsumable(ctx) {
 
         fight.logs.push(log);
         return { success: true };
-    }, stored);
+    }, stored, {
+        skipEnemyTurn: shouldSkipEnemyTurnForConsumable(key)
+    });
 
     if (!updated || updated.effectResult?.success === false) {
         return ctx.answerCbQuery('❌ Erro ao usar consumível.', {
@@ -462,10 +468,7 @@ async function handleUseConsumable(ctx) {
         }).catch(() => {});
     }
 
-    syncPlayerFromFight(player, updated.fight);
-    preventStaleActiveFightOverwrite(player);
-    normalizePlayerForSave(player);
-    await savePlayer(ctx.from.id, player);
+    await savePlayerBattleState(ctx.from.id, player, updated.fight);
 
     if (updated.fight.status !== 'ongoing') {
         return baseCombat.finishFight(ctx, updated);
@@ -490,6 +493,8 @@ module.exports = {
         buildShortCallbackToken,
         replyClean,
         syncPlayerFromFight,
-        preventStaleActiveFightOverwrite
+        preventStaleActiveFightOverwrite,
+        shouldSkipEnemyTurnForConsumable,
+        savePlayerBattleState
     }
 };
