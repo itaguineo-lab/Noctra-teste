@@ -1,7 +1,7 @@
 const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { processVictory } = require('../services/rewardService');
-const { combatMenu, soulChoiceMenu, postCombatMenu } = require('../menus/combatMenu');
+const { combatMenu, soulChoiceMenu, postCombatMenu, postLootItemMenu } = require('../menus/combatMenu');
 const { progressBar } = require('../utils/formatters');
 const { getRandomEnemy } = require('../core/world/enemies');
 const assets = require('../data/assets');
@@ -11,12 +11,26 @@ const {
     consumeEnergy,
     restoreEnergy,
     consumeConsumable,
-    normalizePlayerForSave
+    normalizePlayerForSave,
+    normalizeInventoryItem,
+    applyEquipmentChange
 } = require('../core/player/playerMutations');
 
 const {
-    applyDeathXpPenalty
+    applyDeathXpPenalty,
+    getXpToNextLevel
 } = require('../core/player/progression');
+
+const {
+    getItemKey,
+    findInventoryItemByKey,
+    sameItem
+} = require('../core/player/equipmentService');
+
+const {
+    buildEnhancedItemDetailText,
+    calcItemPower
+} = require('../core/player/itemLorePresenter');
 
 const {
     createAndStoreFight,
@@ -61,6 +75,125 @@ function clampPlayerBattleState(player, fight) {
     player.hp = Math.max(1, Math.min(fight.player.hp, player.maxHp));
     player.energy = Math.max(0, Math.min(fight.player.energy, player.maxEnergy));
     return player;
+}
+
+function escapeMarkdown(text = '') {
+    return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
+function getRealSlot(item = {}) {
+    const slot = String(item.slot || '');
+    const validSlots = ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots'];
+
+    for (const validSlot of validSlots) {
+        if (slot.startsWith(validSlot)) return validSlot;
+    }
+
+    return slot;
+}
+
+function getOffhandTypeLabel(type = '') {
+    const labels = {
+        shield: 'Escudo',
+        quiver: 'Aljava',
+        orb: 'Orbe'
+    };
+
+    return labels[String(type || '').toLowerCase()] || 'Mão Secundária';
+}
+
+function getSlotLabel(slot, item = null) {
+    if (slot === 'shield') {
+        if (item?.offhandType) return getOffhandTypeLabel(item.offhandType);
+        return 'Mão Secundária';
+    }
+
+    const labels = {
+        weapon: 'Arma',
+        armor: 'Armadura',
+        necklace: 'Colar',
+        ring: 'Anel',
+        boots: 'Bota'
+    };
+
+    return labels[slot] || slot || 'Item';
+}
+
+function getSlotIcon(slot, item = null) {
+    if (slot === 'shield') {
+        if (item?.offhandType === 'quiver') return '🏹';
+        if (item?.offhandType === 'orb') return '🔮';
+        return '🛡️';
+    }
+
+    const icons = {
+        weapon: '⚔️',
+        armor: '🛡️',
+        necklace: '📿',
+        ring: '💍',
+        boots: '👢'
+    };
+
+    return icons[slot] || '📦';
+}
+
+function getBuildRuleText(item = {}) {
+    const slot = getRealSlot(item);
+
+    if (slot === 'weapon') {
+        if (item.weaponStyle === 'two_handed') return 'Usa duas mãos. Remove qualquer mão secundária.';
+        if (item.requiredOffhandType) return `Combina com ${getOffhandTypeLabel(item.requiredOffhandType)}.`;
+        return 'Pode ser usada sem mão secundária.';
+    }
+
+    if (slot === 'shield') {
+        if (item.offhandType === 'quiver') return 'Mão secundária para Arcos.';
+        if (item.offhandType === 'orb') return 'Mão secundária para Varinhas/Grimórios.';
+        if (item.offhandType === 'shield') return 'Mão secundária para Espadas e Lanças.';
+        return 'Mão secundária.';
+    }
+
+    return 'Item de equipamento.';
+}
+
+function getComparisonData(item, player, slot) {
+    const equipped = player?.equipment?.[slot];
+
+    if (!equipped) {
+        return {
+            status: 'Slot vazio',
+            detail: 'Nenhum item equipado neste slot.'
+        };
+    }
+
+    if (sameItem(equipped, item)) {
+        return {
+            status: 'Equipado agora',
+            detail: 'Este item já está equipado.'
+        };
+    }
+
+    const delta = calcItemPower(item) - calcItemPower(equipped);
+    const equippedName = equipped.name || 'item equipado';
+
+    if (delta > 0) {
+        return {
+            status: `📈 +${delta} poder`,
+            detail: `Melhor que ${equippedName}.`
+        };
+    }
+
+    if (delta < 0) {
+        return {
+            status: `📉 -${Math.abs(delta)} poder`,
+            detail: `Pior que ${equippedName}.`
+        };
+    }
+
+    return {
+        status: '➖ mesmo poder',
+        detail: `Equivalente a ${equippedName}.`
+    };
 }
 
 function buildEnemyStatusIcons(fight) {
@@ -192,38 +325,52 @@ POST-COMBAT MESSAGES
 =================================
 */
 
+function buildLootHighlight(rewards) {
+    if (!rewards?.droppedItem) return '';
+
+    const item = rewards.droppedItem;
+    const slot = getRealSlot(item);
+
+    return (
+        `\n🎁 *Item encontrado*\n` +
+        `${item.emoji || getSlotIcon(slot, item)} *${escapeMarkdown(item.name)}*\n` +
+        `${escapeMarkdown(item.rarity || 'Comum')} • ${escapeMarkdown(item.displayCategory || getSlotLabel(slot, item))}` +
+        `${item.traitLabel ? ` • ${escapeMarkdown(item.traitLabel)}` : ''}` +
+        `${item.originMap ? ` • ${escapeMarkdown(item.originMap)}` : ''}\n` +
+        `Poder: ${calcItemPower(item)}${item.powerTier ? ` • ${escapeMarkdown(item.powerTier)}` : ''}\n`
+    );
+}
+
 function buildVictoryMessage(player, rewards) {
-    const { getXpToNextLevel } = require('../core/player/progression');
     const xpNeeded = getXpToNextLevel(player.level);
-    const xpProgress = progressBar(player.xp, xpNeeded, 6, '🟨', '⬛');
+    const xpProgress = progressBar(player.xp, xpNeeded, 8, '🟨', '⬛');
+    const hpBar = progressBar(player.hp, player.maxHp, 8, '🟩', '⬛');
+    const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟦', '⬛');
 
     let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `🏆 *VITÓRIA*\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-    msg += `🎖️ *${player.name}* • Nível ${player.level}\n\n`;
+    msg += `🎖️ *${escapeMarkdown(player.name)}* • Nível ${player.level}\n`;
+    msg += `✨ +${rewards.xp} XP  ${xpProgress}\n`;
+    msg += `📈 ${player.xp}/${xpNeeded} para o próximo nível\n`;
+    msg += `💰 +${rewards.gold} Ouro | Total: ${player.gold}\n\n`;
 
-    msg += `✨ *Experiência*\n`;
-    msg += `+${rewards.xp} XP\n`;
-    msg += `${player.xp}/${xpNeeded} ${xpProgress}\n\n`;
+    msg += `❤️ ${player.hp}/${player.maxHp} ${hpBar}\n`;
+    msg += `⚡ ${player.energy}/${player.maxEnergy} ${energyBar}\n`;
 
-    msg += `💰 *Ouro*\n`;
-    msg += `+${rewards.gold} Ouro | Total: ${player.gold}\n\n`;
-
-    msg += `❤️ *Vitalidade*\n`;
-    msg += `${player.hp}/${player.maxHp}\n`;
-    msg += `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n`;
-
-    if (rewards.loot?.length) {
-        msg += `🎁 *Loot Obtido*\n`;
+    const lootHighlight = buildLootHighlight(rewards);
+    if (lootHighlight) {
+        msg += lootHighlight;
+    } else if (rewards.loot?.length) {
+        msg += `\n🎁 *Loot Obtido*\n`;
         rewards.loot.forEach(item => {
-            msg += `${item}\n`;
+            msg += `${escapeMarkdown(item)}\n`;
         });
-        msg += `\n`;
     }
 
     if (rewards.inventoryFull) {
-        msg += `🎒 *Inventário cheio!* Um item deixou de entrar.\n\n`;
+        msg += `\n🎒 *Inventário cheio!* Um item deixou de entrar.\n`;
     }
 
     if (rewards.soulDropped && rewards.soulSource) {
@@ -234,19 +381,18 @@ function buildVictoryMessage(player, rewards) {
             event_boss: 'Boss de Evento'
         };
 
-        msg += `💀 *Alma obtida via ${sourceLabelMap[rewards.soulSource] || 'fonte rara'}*\n\n`;
+        msg += `\n💀 *Alma obtida via ${sourceLabelMap[rewards.soulSource] || 'fonte rara'}*\n`;
     }
 
     if (rewards.keyDropped) {
-        msg += `🗝️ *Chave de Masmorra obtida!*\n\n`;
+        msg += `\n🗝️ *Chave de Masmorra obtida!*\n`;
     }
 
     if (rewards.leveledUp) {
-        msg += `🌟 *LEVEL UP!*\n`;
-        msg += `Agora você é nível ${player.level}!\n\n`;
+        msg += `\n🌟 *LEVEL UP!* Agora você é nível ${player.level}!\n`;
     }
 
-    msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `\n━━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `🌑 A escuridão recua... por enquanto.`;
 
     return msg;
@@ -292,6 +438,85 @@ function buildFleeMessage(player) {
 
 /*
 =================================
+LOOT DETAIL
+=================================
+*/
+
+function buildCombatLootDetail(player, item) {
+    const slot = getRealSlot(item);
+    const comparison = getComparisonData(item, player, slot);
+
+    return buildEnhancedItemDetailText({
+        item,
+        slotLabel: getSlotLabel(slot, item),
+        slotIcon: getSlotIcon(slot, item),
+        buildRuleText: getBuildRuleText(item),
+        comparisonStatus: comparison.status,
+        comparisonDetail: comparison.detail,
+        isEquipped: false
+    });
+}
+
+async function handleViewDroppedLoot(ctx) {
+    const itemKey = ctx.match?.[1];
+    const player = await getPlayer(ctx.from.id);
+
+    if (!player || !itemKey) {
+        return ctx.answerCbQuery('Item não encontrado.', { show_alert: true }).catch(() => {});
+    }
+
+    const item = findInventoryItemByKey(player, itemKey);
+
+    if (!item) {
+        return ctx.answerCbQuery('Esse item não está mais no inventário.', { show_alert: true }).catch(() => {});
+    }
+
+    await ctx.answerCbQuery().catch(() => {});
+    return ctx.reply(buildCombatLootDetail(player, item), {
+        parse_mode: 'Markdown',
+        ...postLootItemMenu(getItemKey(item))
+    });
+}
+
+async function handleEquipDroppedLoot(ctx) {
+    const itemKey = ctx.match?.[1];
+    const player = await getPlayer(ctx.from.id);
+
+    if (!player || !itemKey) {
+        return ctx.answerCbQuery('Item não encontrado.', { show_alert: true }).catch(() => {});
+    }
+
+    const item = findInventoryItemByKey(player, itemKey);
+
+    if (!item) {
+        return ctx.answerCbQuery('Esse item não está mais no inventário.', { show_alert: true }).catch(() => {});
+    }
+
+    const normalizedItem = normalizeInventoryItem(item);
+    const slot = getRealSlot(normalizedItem);
+
+    if (!slot) {
+        return ctx.answerCbQuery('Item inválido.', { show_alert: true }).catch(() => {});
+    }
+
+    const result = applyEquipmentChange(player, slot, normalizedItem);
+
+    if (!result.success) {
+        return ctx.answerCbQuery(result.message || 'Não foi possível equipar.', { show_alert: true }).catch(() => {});
+    }
+
+    normalizePlayerForSave(player);
+    await savePlayer(ctx.from.id, player);
+
+    await ctx.answerCbQuery(`✅ ${normalizedItem.name} equipado!`, { show_alert: true }).catch(() => {});
+    return ctx.reply(
+        `✅ *Item equipado!*\n\n${normalizedItem.emoji || getSlotIcon(slot, normalizedItem)} ${escapeMarkdown(normalizedItem.name)} foi equipado com sucesso.`,
+        { parse_mode: 'Markdown', ...postCombatMenu() }
+    );
+}
+
+/*
+=================================
 FIGHT RESOLUTION
 =================================
 */
@@ -318,11 +543,13 @@ async function resolveWin(ctx, stored, player) {
     await savePlayer(ctx.from.id, player);
     await recordCombatResult('win');
 
+    const droppedItemKey = rewards.droppedItem ? getItemKey(rewards.droppedItem) : null;
+
     return sendPostCombatMessage(
         ctx,
         meta,
         buildVictoryMessage(player, rewards),
-        postCombatMenu()
+        postCombatMenu({ droppedItemKey })
     );
 }
 
@@ -685,5 +912,7 @@ module.exports = {
     handleConsumables,
     handleUseConsumable,
     handleCombatBack,
+    handleViewDroppedLoot,
+    handleEquipDroppedLoot,
     finishFight
 };
