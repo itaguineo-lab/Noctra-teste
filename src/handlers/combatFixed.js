@@ -17,14 +17,19 @@ const {
     calcItemPower
 } = require('../core/player/itemLorePresenter');
 const {
+    combatMenu,
     postCombatMenu
 } = require('../menus/combatMenu');
 const {
     tryDeleteCurrentMessage
 } = require('../utils/uiNavigator');
 const {
+    progressBar
+} = require('../utils/formatters');
+const {
     getStoredFight,
-    runConsumableTurn
+    runConsumableTurn,
+    persistFightMessage
 } = require('../core/combat/fightService');
 const {
     updateMissionProgress
@@ -33,6 +38,7 @@ const {
     recordConsumableUsed
 } = require('../core/metrics/metricsService');
 const { BALANCE } = require('../data/balance');
+const assets = require('../data/assets');
 
 function cleanText(value = '') {
     return String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
@@ -333,6 +339,106 @@ async function savePlayerBattleState(userId, player, fight) {
     await savePlayer(userId, player);
 }
 
+function getEnemyBadge(enemy) {
+    if (enemy?.isBoss) return '👑 BOSS';
+    if (enemy?.isMiniBoss) return '💀 MINI BOSS';
+    if (enemy?.isElite) return '🔥 ELITE';
+    return '👹 INIMIGO';
+}
+
+function buildEnemyStatusIcons(fight) {
+    let icons = '';
+    if (fight.enemy.poisonTurns > 0) icons += '🧪';
+    if (fight.enemy.bleedTurns > 0) icons += '🩸';
+    if (fight.enemy.shield > 0) icons += '🛡️';
+    if (fight.enemy.frozen) icons += '❄️';
+    return icons;
+}
+
+function escapeMarkdown(text = '') {
+    return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
+function renderFightCaptionSafe(fight, playerLevel = null) {
+    const playerBar = progressBar(fight.player.hp, fight.player.maxHp, 8, '🟩', '⬛');
+    const enemyBar = progressBar(fight.enemy.hp, fight.enemy.maxHp, 8, '🟥', '⬛');
+    const enemyStatusIcons = buildEnemyStatusIcons(fight);
+    const level = playerLevel ?? fight.player.level ?? 1;
+
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `⚔️ *BATALHA*\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    text += `👤 *${escapeMarkdown(fight.player.name)}* [Lv ${level}]\n`;
+    text += `❤️ ${fight.player.hp}/${fight.player.maxHp}  ${playerBar}\n`;
+    text += `⚡ ${fight.player.energy}/${fight.player.maxEnergy}\n`;
+    text += `⚔️ ${fight.player.atk} • 🛡️ ${fight.player.def}`;
+    if (fight.player.defending) text += ` 🛡️`;
+    if (fight.player.stunned) text += ` 💫`;
+    text += `\n\n`;
+
+    text += `${getEnemyBadge(fight.enemy)}\n`;
+    text += `${fight.enemy.emoji || '👹'} *${escapeMarkdown(fight.enemy.name)}* [Lv ${fight.enemy.level}]`;
+    if (enemyStatusIcons) text += ` ${enemyStatusIcons}`;
+    text += `\n`;
+    text += `❤️ ${fight.enemy.hp}/${fight.enemy.maxHp}  ${enemyBar}\n`;
+    if (fight.enemy.shield > 0) text += `🛡️ Escudo: ${fight.enemy.shield}\n`;
+    text += `⚔️ ${fight.enemy.atk} • 🛡️ ${fight.enemy.def} • 💥 ${fight.enemy.crit}%\n\n`;
+
+    text += `📜 *Últimas ações*\n`;
+    text += (fight.logs?.slice(-4).map(escapeMarkdown).join('\n') || '—');
+
+    return text;
+}
+
+async function renderCurrentFightDirect(ctx, stored, playerLevel = null) {
+    const { fight, meta } = stored;
+    const caption = renderFightCaptionSafe(fight, playerLevel);
+    const keyboard = combatMenu();
+    const chatId = ctx.chat.id;
+    const messageId = meta?.battleMessageId || ctx.callbackQuery?.message?.message_id;
+    const isPhoto = Boolean(meta?.isPhoto || ctx.callbackQuery?.message?.photo);
+
+    if (messageId) {
+        try {
+            if (isPhoto) {
+                await ctx.telegram.editMessageCaption(chatId, messageId, null, caption, {
+                    parse_mode: 'Markdown',
+                    reply_markup: keyboard.reply_markup
+                });
+            } else {
+                await ctx.telegram.editMessageText(chatId, messageId, null, caption, {
+                    parse_mode: 'Markdown',
+                    reply_markup: keyboard.reply_markup
+                });
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Erro ao renderizar luta após consumível:', error);
+        }
+    }
+
+    const enemyImage = assets?.enemies?.[fight.enemy.id];
+
+    if (enemyImage) {
+        const sent = await ctx.replyWithPhoto(enemyImage, {
+            caption,
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
+        await persistFightMessage(ctx.from.id, sent.message_id, true);
+        return true;
+    }
+
+    const sent = await ctx.reply(caption, {
+        parse_mode: 'Markdown',
+        ...keyboard
+    });
+    await persistFightMessage(ctx.from.id, sent.message_id, false);
+    return true;
+}
+
 async function handleViewDroppedLoot(ctx) {
     const itemKey = ctx.match?.[1];
     const player = await getPlayer(ctx.from.id);
@@ -413,7 +519,9 @@ async function handleUseConsumable(ctx) {
     }
 
     if (stored.fight.status !== 'ongoing') {
-        return baseCombat.finishFight(ctx, stored);
+        return ctx.answerCbQuery('⚠️ A luta já terminou.', {
+            show_alert: true
+        }).catch(() => {});
     }
 
     const player = await getPlayer(ctx.from.id);
@@ -439,11 +547,13 @@ async function handleUseConsumable(ctx) {
         if (key === 'potionHp') {
             const before = Number(fight.player.hp || 1);
             fight.player.hp = Math.max(1, Number(fight.player.maxHp || fight.player.hp || 1));
+            fight.status = 'ongoing';
             log = `❤️ Poção de Vida restaurou ${fight.player.hp - before} HP e encheu sua vida.`;
         } else if (key === 'potionEnergy') {
             const before = Number(player.energy || 0);
             restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
             fight.player.energy = player.energy;
+            fight.status = 'ongoing';
             log = `⚡ Energia +${player.energy - before} com poção.`;
         } else if (key === 'tonicStrength') {
             fight.player.atk += BALANCE.consumables.tonicStrength.atkBonus;
@@ -470,12 +580,13 @@ async function handleUseConsumable(ctx) {
 
     await savePlayerBattleState(ctx.from.id, player, updated.fight);
 
+    await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
+
     if (updated.fight.status !== 'ongoing') {
-        return baseCombat.finishFight(ctx, updated);
+        return renderCurrentFightDirect(ctx, updated, player.level);
     }
 
-    await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
-    return baseCombat.handleCombatBack(ctx);
+    return renderCurrentFightDirect(ctx, updated, player.level);
 }
 
 module.exports = {
@@ -495,6 +606,8 @@ module.exports = {
         syncPlayerFromFight,
         preventStaleActiveFightOverwrite,
         shouldSkipEnemyTurnForConsumable,
-        savePlayerBattleState
+        savePlayerBattleState,
+        renderFightCaptionSafe,
+        renderCurrentFightDirect
     }
 };
