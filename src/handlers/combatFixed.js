@@ -17,9 +17,21 @@ const {
 const {
     postCombatMenu
 } = require('../menus/combatMenu');
+const {
+    tryDeleteCurrentMessage
+} = require('../utils/uiNavigator');
 
 function cleanText(value = '') {
     return String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
+}
+
+async function deleteCurrentCallbackMessage(ctx) {
+    return tryDeleteCurrentMessage(ctx).catch(() => false);
+}
+
+async function replyClean(ctx, text, options = {}) {
+    await deleteCurrentCallbackMessage(ctx);
+    return ctx.reply(text, options);
 }
 
 function getRealSlot(item = {}) {
@@ -247,6 +259,12 @@ function buildShortItemToken(item) {
     return 'latest';
 }
 
+function buildShortCallbackToken(value) {
+    const token = normalizeKey(value);
+    if (!token || token.length > 48) return 'latest';
+    return token;
+}
+
 function postLootItemMenuSafe(itemToken) {
     const token = buildShortCallbackToken(itemToken);
 
@@ -261,12 +279,6 @@ function postLootItemMenuSafe(itemToken) {
             Markup.button.callback('🏠 Menu', 'menu')
         ]
     ]);
-}
-
-function buildShortCallbackToken(value) {
-    const token = normalizeKey(value);
-    if (!token || token.length > 48) return 'latest';
-    return token;
 }
 
 async function handleViewDroppedLoot(ctx) {
@@ -290,9 +302,11 @@ async function handleViewDroppedLoot(ctx) {
 
     const itemToken = buildShortItemToken(normalizedItem);
 
-    return ctx.reply(buildSafeLootDetail(player, normalizedItem), {
-        ...postLootItemMenuSafe(itemToken)
-    });
+    return replyClean(
+        ctx,
+        buildSafeLootDetail(player, normalizedItem),
+        postLootItemMenuSafe(itemToken)
+    );
 }
 
 async function handleEquipDroppedLoot(ctx) {
@@ -329,7 +343,8 @@ async function handleEquipDroppedLoot(ctx) {
 
     await ctx.answerCbQuery(`✅ ${normalizedItem.name} equipado!`, { show_alert: true }).catch(() => {});
 
-    return ctx.reply(
+    return replyClean(
+        ctx,
         `✅ Item equipado!\n\n${normalizedItem.emoji || getSlotIcon(slot, normalizedItem)} ${cleanText(normalizedItem.name)} foi equipado com sucesso.`,
         postCombatMenu()
     );
@@ -346,6 +361,7 @@ module.exports = {
         findItemByRawIdentity,
         buildSafeLootDetail,
         buildShortItemToken,
-        buildShortCallbackToken
+        buildShortCallbackToken,
+        replyClean
     }
 };
