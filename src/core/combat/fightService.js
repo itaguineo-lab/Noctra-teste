@@ -154,11 +154,12 @@ async function runEnemyOnlyTurn(userId, storedOverride = null) {
     return { fight, meta };
 }
 
-async function runConsumableTurn(userId, applyConsumableEffect, storedOverride = null) {
+async function runConsumableTurn(userId, applyConsumableEffect, storedOverride = null, options = {}) {
     const stored = await resolveStoredFight(userId, storedOverride);
     if (!stored) return null;
 
     const { fight, meta } = stored;
+    const skipEnemyTurn = Boolean(options.skipEnemyTurn || options.skipCounterattack);
 
     const effectResult = applyConsumableEffect(fight);
     if (effectResult?.success === false) {
@@ -166,7 +167,7 @@ async function runConsumableTurn(userId, applyConsumableEffect, storedOverride =
         return { fight, meta, effectResult };
     }
 
-    if (fight.status === 'ongoing') {
+    if (fight.status === 'ongoing' && !skipEnemyTurn) {
         processEnemyTurn(fight);
     }
 
