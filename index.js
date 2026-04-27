@@ -472,6 +472,8 @@ function registerCombatActions() {
     bindAction('combat_soul_menu', combat.handleSoulMenu);
     bindAction('combat_consumables', combat.handleConsumables);
     bindAction(/^combat_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, combat.handleUseConsumable);
+    bindAction(/^combat_loot:(.+)$/, combat.handleViewDroppedLoot);
+    bindAction(/^combat_loot_equip:(.+)$/, combat.handleEquipDroppedLoot);
     bindAction('combat_flee', combat.handleFlee);
     bindAction('combat_back', combat.handleCombatBack);
 }
