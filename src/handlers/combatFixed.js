@@ -1,5 +1,6 @@
 const baseCombat = require('./combat');
 
+const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
 const {
     normalizeInventoryItem,
@@ -11,16 +12,14 @@ const {
     findInventoryItemByKey
 } = require('../core/player/equipmentService');
 const {
-    buildEnhancedItemDetailText,
     calcItemPower
 } = require('../core/player/itemLorePresenter');
 const {
-    postCombatMenu,
-    postLootItemMenu
+    postCombatMenu
 } = require('../menus/combatMenu');
 
-function escapeMarkdown(text = '') {
-    return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+function cleanText(value = '') {
+    return String(value ?? '').replace(/[\u0000-\u001F\u007F]/g, '').trim();
 }
 
 function getRealSlot(item = {}) {
@@ -123,20 +122,20 @@ function getComparisonData(item, player, slot) {
 
     if (delta > 0) {
         return {
-            status: `📈 +${delta} poder`,
+            status: `+${delta} poder`,
             detail: `Melhor que ${equippedName}.`
         };
     }
 
     if (delta < 0) {
         return {
-            status: `📉 -${Math.abs(delta)} poder`,
+            status: `-${Math.abs(delta)} poder`,
             detail: `Pior que ${equippedName}.`
         };
     }
 
     return {
-        status: '➖ mesmo poder',
+        status: 'Mesmo poder',
         detail: `Equivalente a ${equippedName}.`
     };
 }
@@ -184,30 +183,90 @@ function resolveDroppedLootItem(player, itemKey) {
     const rawMatch = findItemByRawIdentity(player, itemKey);
     if (rawMatch) return rawMatch;
 
-    /*
-    Fallback intencional:
-    Após o drop, o item entra no final do inventário. Em alguns fluxos o item
-    retornado por rewardService ainda não tem a mesma chave final após normalizar
-    e salvar o player no Mongo. Quando a chave do botão não bate, usamos o último
-    item válido do inventário para preservar o fluxo Ver item dropado.
-    */
     return getLatestInventoryItem(player);
 }
 
-function buildCombatLootDetail(player, item) {
+function buildStatsText(item = {}) {
+    const parts = [];
+
+    if (Number(item.atk || 0) > 0) parts.push(`ATK +${item.atk}`);
+    if (Number(item.def || 0) > 0) parts.push(`DEF +${item.def}`);
+    if (Number(item.hp || 0) > 0) parts.push(`HP +${item.hp}`);
+    if (Number(item.crit || 0) > 0) parts.push(`CRIT +${item.crit}%`);
+
+    return parts.length ? parts.join('\n') : 'Sem bônus relevantes.';
+}
+
+function buildSafeLootDetail(player, item) {
     const normalizedItem = normalizeInventoryItem(item);
     const slot = getRealSlot(normalizedItem);
     const comparison = getComparisonData(normalizedItem, player, slot);
+    const icon = normalizedItem.emoji || getSlotIcon(slot, normalizedItem);
 
-    return buildEnhancedItemDetailText({
-        item: normalizedItem,
-        slotLabel: getSlotLabel(slot, normalizedItem),
-        slotIcon: getSlotIcon(slot, normalizedItem),
-        buildRuleText: getBuildRuleText(normalizedItem),
-        comparisonStatus: comparison.status,
-        comparisonDetail: comparison.detail,
-        isEquipped: false
-    });
+    const lines = [
+        '🎁 ITEM DROPADO',
+        '',
+        `${icon} ${cleanText(normalizedItem.name || 'Item')}`,
+        `${cleanText(normalizedItem.rarity || 'Comum')} • Lv.${normalizedItem.level || 1}`,
+        `Tipo: ${cleanText(normalizedItem.displayCategory || getSlotLabel(slot, normalizedItem))}`,
+        `Build: ${cleanText(getBuildRuleText(normalizedItem))}`,
+        '',
+        'Atributos:',
+        buildStatsText(normalizedItem),
+        '',
+        `Poder: ${calcItemPower(normalizedItem)}${normalizedItem.powerTier ? ` • ${cleanText(normalizedItem.powerTier)}` : ''}`,
+        `Comparação: ${cleanText(comparison.status)}`,
+        cleanText(comparison.detail)
+    ];
+
+    if (normalizedItem.originMap || normalizedItem.traitLabel || normalizedItem.setName) {
+        lines.push('', 'Identidade:');
+        if (normalizedItem.originMap) lines.push(`Origem: ${cleanText(normalizedItem.originMap)}`);
+        if (normalizedItem.setName) lines.push(`Conjunto: ${cleanText(normalizedItem.setName)}`);
+        if (normalizedItem.traitLabel) lines.push(`Traço: ${cleanText(normalizedItem.traitLabel)}`);
+    }
+
+    if (normalizedItem.flavor) {
+        lines.push('', cleanText(normalizedItem.flavor).slice(0, 400));
+    }
+
+    return lines.join('\n').slice(0, 3500);
+}
+
+function buildShortItemToken(item) {
+    const key = normalizeKey(getItemKey(item));
+
+    if (key && key.length <= 48) return key;
+
+    const instanceId = normalizeKey(item?.instanceId);
+    if (instanceId && instanceId.length <= 48) return instanceId;
+
+    const id = normalizeKey(item?.id);
+    if (id && id.length <= 48) return id;
+
+    return 'latest';
+}
+
+function postLootItemMenuSafe(itemToken) {
+    const token = buildShortCallbackToken(itemToken);
+
+    return Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Equipar agora', `combat_loot_equip:${token}`)],
+        [
+            Markup.button.callback('⚔️ Caçar novamente', 'hunt'),
+            Markup.button.callback('🎒 Inventário', 'inventory')
+        ],
+        [
+            Markup.button.callback('💰 Vender itens', 'shop_sell'),
+            Markup.button.callback('🏠 Menu', 'menu')
+        ]
+    ]);
+}
+
+function buildShortCallbackToken(value) {
+    const token = normalizeKey(value);
+    if (!token || token.length > 48) return 'latest';
+    return token;
 }
 
 async function handleViewDroppedLoot(ctx) {
@@ -218,7 +277,9 @@ async function handleViewDroppedLoot(ctx) {
         return ctx.answerCbQuery('Item não encontrado.', { show_alert: true }).catch(() => {});
     }
 
-    const item = resolveDroppedLootItem(player, itemKey);
+    const item = itemKey === 'latest'
+        ? getLatestInventoryItem(player)
+        : resolveDroppedLootItem(player, itemKey);
     const normalizedItem = normalizeInventoryItem(item);
 
     if (!normalizedItem) {
@@ -227,9 +288,10 @@ async function handleViewDroppedLoot(ctx) {
 
     await ctx.answerCbQuery().catch(() => {});
 
-    return ctx.reply(buildCombatLootDetail(player, normalizedItem), {
-        parse_mode: 'Markdown',
-        ...postLootItemMenu(getItemKey(normalizedItem))
+    const itemToken = buildShortItemToken(normalizedItem);
+
+    return ctx.reply(buildSafeLootDetail(player, normalizedItem), {
+        ...postLootItemMenuSafe(itemToken)
     });
 }
 
@@ -241,7 +303,9 @@ async function handleEquipDroppedLoot(ctx) {
         return ctx.answerCbQuery('Item não encontrado.', { show_alert: true }).catch(() => {});
     }
 
-    const item = resolveDroppedLootItem(player, itemKey);
+    const item = itemKey === 'latest'
+        ? getLatestInventoryItem(player)
+        : resolveDroppedLootItem(player, itemKey);
     const normalizedItem = normalizeInventoryItem(item);
 
     if (!normalizedItem) {
@@ -266,8 +330,8 @@ async function handleEquipDroppedLoot(ctx) {
     await ctx.answerCbQuery(`✅ ${normalizedItem.name} equipado!`, { show_alert: true }).catch(() => {});
 
     return ctx.reply(
-        `✅ *Item equipado!*\n\n${normalizedItem.emoji || getSlotIcon(slot, normalizedItem)} ${escapeMarkdown(normalizedItem.name)} foi equipado com sucesso.`,
-        { parse_mode: 'Markdown', ...postCombatMenu() }
+        `✅ Item equipado!\n\n${normalizedItem.emoji || getSlotIcon(slot, normalizedItem)} ${cleanText(normalizedItem.name)} foi equipado com sucesso.`,
+        postCombatMenu()
     );
 }
 
@@ -279,6 +343,9 @@ module.exports = {
     __private: {
         resolveDroppedLootItem,
         getLatestInventoryItem,
-        findItemByRawIdentity
+        findItemByRawIdentity,
+        buildSafeLootDetail,
+        buildShortItemToken,
+        buildShortCallbackToken
     }
 };
