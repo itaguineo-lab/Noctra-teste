@@ -28,14 +28,39 @@ function soulChoiceMenu() {
     ]);
 }
 
-function postCombatMenu() {
+function postCombatMenu(options = {}) {
+    const rows = [];
+
+    if (options.droppedItemKey) {
+        rows.push([
+            Markup.button.callback('🎁 Ver item dropado', `combat_loot:${options.droppedItemKey}`)
+        ]);
+    }
+
+    rows.push([
+        Markup.button.callback('⚔️ Caçar novamente', 'hunt'),
+        Markup.button.callback('🏰 Masmorra', 'dungeon')
+    ]);
+
+    rows.push([
+        Markup.button.callback('🎒 Inventário', 'inventory'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
+
+    return Markup.inlineKeyboard(rows);
+}
+
+function postLootItemMenu(itemKey) {
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback('⚔️ Caçar novamente', 'hunt'),
-            Markup.button.callback('🏰 Masmorra', 'dungeon')
+            Markup.button.callback('✅ Equipar agora', `combat_loot_equip:${itemKey}`)
         ],
         [
-            Markup.button.callback('🎒 Inventário', 'inventory'),
+            Markup.button.callback('⚔️ Caçar novamente', 'hunt'),
+            Markup.button.callback('🎒 Inventário', 'inventory')
+        ],
+        [
+            Markup.button.callback('💰 Vender itens', 'shop_sell'),
             Markup.button.callback('🏠 Menu', 'menu')
         ]
     ]);
@@ -44,5 +69,6 @@ function postCombatMenu() {
 module.exports = {
     combatMenu,
     soulChoiceMenu,
-    postCombatMenu
+    postCombatMenu,
+    postLootItemMenu
 };
