@@ -21,7 +21,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 120,
-        description: 'Restaura 100% do HP máximo.'
+        description: 'Adiciona 1 poção ao inventário. Use em batalha ou fora dela para restaurar 100% do HP máximo.'
     },
     {
         id: 'strength_tonic',
@@ -32,7 +32,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 150,
-        description: `+${strCfg.atkBonus} ATK por ${strCfg.durationMinutes} minutos.`
+        description: `Adiciona 1 tônico ao inventário. Em batalha, concede +${strCfg.atkBonus} ATK durante a luta atual.`
     },
     {
         id: 'defense_tonic',
@@ -43,7 +43,7 @@ const shopItems = [
         value: 1,
         currency: 'gold',
         price: 150,
-        description: `+${defCfg.defBonus} DEF por ${defCfg.durationMinutes} minutos.`
+        description: `Adiciona 1 tônico ao inventário. Em batalha, concede +${defCfg.defBonus} DEF durante a luta atual.`
     },
 
     /*
@@ -61,7 +61,7 @@ const shopItems = [
         value: energyCfg.restoreAmount,
         currency: 'nox',
         price: 4,
-        description: `Recupera ${energyCfg.restoreAmount} energia instantaneamente.`
+        description: `Adiciona 1 poção ao inventário. Use quando quiser recuperar ${energyCfg.restoreAmount} energia.`
     },
     {
         id: 'energy_refill_10',
@@ -72,7 +72,7 @@ const shopItems = [
         value: 10,
         currency: 'nox',
         price: 10,
-        description: 'Recupera 10 de energia.'
+        description: 'Recupera 10 de energia imediatamente no momento da compra.'
     },
 
     /*
@@ -99,7 +99,7 @@ const shopItems = [
         days: 30,
         currency: 'nox',
         price: 89,
-        description: '👑 Melhor custo-benefício mensal'
+        description: '👑 Melhor custo-benefício mensal. Ativa VIP por 30 dias e soma duração se você já for VIP.'
     },
 
     /*
@@ -116,7 +116,7 @@ const shopItems = [
         cosmeticType: 'aura',
         currency: 'nox',
         price: 12,
-        description: 'Efeito visual sombrio exclusivo.'
+        description: 'Efeito visual sombrio exclusivo. Permanente após desbloqueio.'
     },
     {
         id: 'cosmetic_title_shadowlord',
@@ -126,7 +126,7 @@ const shopItems = [
         cosmeticType: 'title',
         currency: 'nox',
         price: 15,
-        description: 'Título lendário exclusivo.'
+        description: 'Título lendário exclusivo. Permanente após desbloqueio.'
     },
     {
         id: 'cosmetic_badge_moon',
@@ -136,7 +136,7 @@ const shopItems = [
         cosmeticType: 'badge',
         currency: 'nox',
         price: 10,
-        description: 'Emblema raro para o perfil.'
+        description: 'Emblema raro para o perfil. Permanente após desbloqueio.'
     },
 
     /*
@@ -154,7 +154,7 @@ const shopItems = [
         value: 5,
         currency: 'glorias',
         price: 3,
-        description: 'Recupera 5 de energia.'
+        description: 'Recupera 5 de energia imediatamente no momento da compra.'
     },
     {
         id: 'arena_strength_pack',
@@ -165,7 +165,7 @@ const shopItems = [
         value: 2,
         currency: 'glorias',
         price: 3,
-        description: `2 ${strCfg.label}s.`
+        description: `Adiciona 2 ${strCfg.label}s ao inventário.`
     },
     {
         id: 'arena_defense_pack',
@@ -176,7 +176,7 @@ const shopItems = [
         value: 2,
         currency: 'glorias',
         price: 3,
-        description: `2 ${defCfg.label}s.`
+        description: `Adiciona 2 ${defCfg.label}s ao inventário.`
     }
 
     /*
