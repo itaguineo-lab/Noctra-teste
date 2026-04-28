@@ -15,13 +15,17 @@ const {
 } = require('../core/player/equipmentService');
 const {
     getRealSlot,
-    normalizeCategoryKey
+    normalizeCategoryKey,
+    buildInventoryCategoryRows
 } = require('../menus/inventoryMenu');
 const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 const {
     calcItemPower,
     buildEnhancedItemDetailText
 } = require('../core/player/itemLorePresenter');
+const {
+    buildSoulsOverviewText
+} = require('../renderers/soulRenderer');
 
 const PAGE_SIZE = 5;
 
@@ -245,6 +249,45 @@ function getPageItems(items, page) {
     };
 }
 
+function buildSoulsKeyboard(player) {
+    const rows = [...buildInventoryCategoryRows(player, 'souls', false)];
+    const souls = Array.isArray(player?.soulsInventory) ? player.soulsInventory : [];
+    const equipped = Array.isArray(player?.soulsEquipped) ? player.soulsEquipped : [null, null];
+
+    souls.forEach(soul => {
+        rows.push([
+            Markup.button.callback(
+                `💀 Equipar ${truncateText(soul.name, 22)}`,
+                `equip_soul_${soul.instanceId || soul.id}`
+            )
+        ]);
+    });
+
+    equipped.forEach((soul, idx) => {
+        if (!soul) return;
+        rows.push([
+            Markup.button.callback(
+                `⭐ Desequipar Alma ${idx + 1}`,
+                `unequip_soul_${idx}`
+            )
+        ]);
+    });
+
+    rows.push([
+        Markup.button.callback('◀️ Inventário', 'inventory'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
+
+    return Markup.inlineKeyboard(rows);
+}
+
+async function renderSoulsOverview(ctx) {
+    const player = await loadPlayer(ctx);
+    if (!player) return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+
+    return navigateText(ctx, buildSoulsOverviewText(player), buildSoulsKeyboard(player));
+}
+
 async function renderEnhancedItemDetail(ctx, rawCategory, page, pageIndex) {
     const player = await loadPlayer(ctx);
     if (!player) return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
@@ -304,6 +347,13 @@ async function renderEnhancedItemDetail(ctx, rawCategory, page, pageIndex) {
 
 async function handleInventoryCategory(ctx) {
     const raw = ctx.match?.[1] || 'equipment';
+    const category = getCategory(raw);
+
+    if (category === 'souls') {
+        await safeAnswer(ctx).catch(() => {});
+        return renderSoulsOverview(ctx);
+    }
+
     const itemDetail = raw.match(/^item:(.+):(\d+):(\d+)$/);
 
     if (!itemDetail) {
@@ -312,11 +362,18 @@ async function handleInventoryCategory(ctx) {
 
     await safeAnswer(ctx).catch(() => {});
 
-    const [, category, pageStr, pageIndexStr] = itemDetail;
-    return renderEnhancedItemDetail(ctx, category, Number(pageStr), Number(pageIndexStr));
+    const [, detailCategory, pageStr, pageIndexStr] = itemDetail;
+    return renderEnhancedItemDetail(ctx, detailCategory, Number(pageStr), Number(pageIndexStr));
 }
 
 module.exports = {
     ...inventoryV2,
-    handleInventoryCategory
+    handleInventoryCategory,
+    __private: {
+        ...(inventoryV2.__private || {}),
+        buildSoulsKeyboard,
+        renderSoulsOverview,
+        normalizePlayerState,
+        getCategory
+    }
 };
