@@ -14,7 +14,7 @@ const {
     getCurrencyBalance,
     formatNumber,
     syncWalletToPlayer,
-    hasWalletFields
+    clonePlain
 } = require('../core/economy/walletPresenter');
 const { shopItems } = require('../data/shopItems');
 const { shopMainMenu, shopTabsMenu, renderShop } = require('../menus/shopMenu');
@@ -180,12 +180,31 @@ function getSellLongStats(item = {}) {
 }
 
 function isValidShopPlayer(player) {
-    return Boolean(player && (player.id || player._id));
+    return Boolean(player && typeof player === 'object');
 }
 
 function normalizeShopPlayer(player) {
     if (!isValidShopPlayer(player)) return null;
-    return syncWalletToPlayer(player);
+
+    const plain = clonePlain(player);
+    const normalized = syncWalletToPlayer(plain);
+
+    // Campos usados pelos fluxos de venda/compra precisam continuar disponíveis.
+    normalized.inventory ??= Array.isArray(plain.inventory) ? plain.inventory : [];
+    normalized.consumables ??= plain.consumables || {};
+    normalized.cosmetics ??= Array.isArray(plain.cosmetics) ? plain.cosmetics : [];
+    normalized.equipment ??= plain.equipment || {};
+    normalized.vip ??= plain.vip || false;
+    normalized.vipExpires ??= plain.vipExpires || null;
+    normalized.bonusInventory ??= Number(plain.bonusInventory || 0);
+    normalized.maxInventory ??= Number(plain.maxInventory || 20);
+    normalized.energy ??= Number(plain.energy || 0);
+    normalized.maxEnergy ??= Number(plain.maxEnergy || 20);
+    normalized.keys ??= Number(plain.keys || 0);
+    normalized.purchasedBundles ??= Array.isArray(plain.purchasedBundles) ? plain.purchasedBundles : [];
+    normalized.id ??= plain.id || plain._id || null;
+
+    return normalized;
 }
 
 async function getShopPlayer(userId) {
