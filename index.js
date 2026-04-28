@@ -235,17 +235,6 @@ function registerCreationMiddleware() {
 }
 
 function registerAntiBanMiddleware() {
-    /*
-    FIX: versão original chamava getPlayer() completo em TODA interação.
-    Agora usa banCacheService.isBanned() que:
-    - Faz busca leve no MongoDB (só campo `banned`)
-    - Cacheia o resultado por 5 minutos por userId
-    - Em caso de erro de DB, deixa passar (fail-open) para não
-      bloquear jogadores legítimos por instabilidade de conexão.
-    
-    Lembrete: ao banir ou desbanir um jogador via admin,
-    chamar invalidateBanCache(userId) para atualização imediata.
-    */
     bot.use(async (ctx, next) => {
         if (!ctx.from) return next();
 
@@ -513,17 +502,19 @@ function registerShopActions() {
     bindAction('shop_buy_menu', shop.handleShopBuyMenu);
     bindAction('shop_sell', shop.handleShopSell);
     bindAction(/^shop_sell_page_(\d+)$/, shop.handleShopSellPage);
+    bindAction(/^sell_preview_(\d+)$/, shop.handleSellPreview);
     bindAction(/^sell_confirm_key_(.+)$/, shop.handleSellConfirmByKey);
-    bindAction(/sell_confirm_(.+)/, shop.handleSellConfirm);
+    bindAction(/^sell_confirm_(\d+)$/, shop.handleSellConfirm);
 
     bindAction('shop_village', shop.handleShopVillage);
     bindAction('shop_castle', shop.handleShopCastle);
     bindAction('shop_arena', shop.handleShopArena);
 
+    bindAction(/^shop_buy_confirm:(.+):(\d+)$/, shop.handleBuyConfirm);
     bindAction(/^shop_buyqty:(.+):(\d+)$/, shop.handleBuyQuantity);
     bindAction(/^shop_backtab:(.+)$/, shop.handleShopBackTab);
 
-    bindAction(/^buy_(.+)$/, shop.handleBuy);
+    bindAction(/^buy_([^:]+)(?::(\d+))?$/, shop.handleBuy);
 }
 
 /*
