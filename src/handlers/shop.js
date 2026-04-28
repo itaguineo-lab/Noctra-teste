@@ -7,6 +7,14 @@ const {
     calculateSellPrice,
     canBuyMultiple
 } = require('../core/economy/shopLogic');
+const {
+    getWallet,
+    getWalletInline,
+    getWalletText,
+    getCurrencyBalance,
+    formatNumber,
+    syncWalletToPlayer
+} = require('../core/economy/walletPresenter');
 const { shopItems } = require('../data/shopItems');
 const { shopMainMenu, shopTabsMenu, renderShop } = require('../menus/shopMenu');
 const { getItemKey } = require('../core/player/equipmentService');
@@ -39,25 +47,9 @@ function escapeMarkdown(text = '') {
     return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
-function formatNumber(value) {
-    return Number(value || 0).toLocaleString('pt-BR');
-}
-
 function safeItemName(value = '') {
     const name = String(value || '').trim();
     return name || 'Item desconhecido';
-}
-
-function getWalletText(player) {
-    return [
-        `💰 ${formatNumber(player.gold || 0)} ouro`,
-        `💎 ${formatNumber(player.nox || 0)} Nox`,
-        `🏅 ${formatNumber(player.glorias || 0)} glórias`
-    ].join('\n');
-}
-
-function getWalletInline(player) {
-    return `💰 ${formatNumber(player.gold || 0)}   💎 ${formatNumber(player.nox || 0)}   🏅 ${formatNumber(player.glorias || 0)}`;
 }
 
 function getCurrencyLabel(currency) {
@@ -81,7 +73,7 @@ function getCurrencyIcon(currency) {
 }
 
 function getPlayerBalance(player, currency) {
-    return Number(player?.[currency] || 0);
+    return getCurrencyBalance(player, currency);
 }
 
 function getShopItemsByTab(tab) {
@@ -186,8 +178,18 @@ function getSellLongStats(item = {}) {
     return parts.length ? parts.join('\n') : 'Sem bônus relevantes.';
 }
 
+function normalizeShopPlayer(player) {
+    if (!player) return player;
+    return syncWalletToPlayer(player);
+}
+
+async function getShopPlayer(userId) {
+    const player = await getPlayer(userId);
+    return normalizeShopPlayer(player);
+}
+
 async function renderTab(ctx, tab, playerOverride = null) {
-    const player = playerOverride || await getPlayer(ctx.from.id);
+    const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
     const items = getShopItemsByTab(tab);
 
     const header =
@@ -311,7 +313,7 @@ function buildSellKeyboard(pageData) {
 
 async function renderSellPage(ctx, page = 1, playerOverride = null) {
     try {
-        const player = playerOverride || await getPlayer(ctx.from.id);
+        const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
         const sellable = buildSellInventory(player);
         const pageData = paginate(sellable, page, SELL_PAGE_SIZE);
         const text = renderSellText(player, pageData);
@@ -390,6 +392,7 @@ function getInventoryItemByIndex(player, itemIndex) {
 }
 
 function buildSellPreviewText(player, item, itemIndex) {
+    const wallet = getWallet(player);
     const price = calculateSellPrice(item);
     const categoryLabel = getSellCategoryLabel(item);
 
@@ -399,8 +402,8 @@ function buildSellPreviewText(player, item, itemIndex) {
     text += `${escapeMarkdown(item.rarity || 'Comum')} • ${escapeMarkdown(categoryLabel)} • Lv.${Math.max(1, Number(item.level || 1))}\n\n`;
     text += `*Atributos*\n${escapeMarkdown(getSellLongStats(item))}\n\n`;
     text += `Valor de venda: 💰 ${formatNumber(price)} ouro\n`;
-    text += `Ouro atual: 💰 ${formatNumber(player.gold || 0)}\n`;
-    text += `Após venda: 💰 ${formatNumber((player.gold || 0) + price)}\n\n`;
+    text += `Ouro atual: 💰 ${formatNumber(wallet.gold)}\n`;
+    text += `Após venda: 💰 ${formatNumber(wallet.gold + price)}\n\n`;
     text += `⚠️ Venda permanente. Não dá para desfazer.`;
 
     return text;
@@ -414,7 +417,7 @@ function buildSellPreviewKeyboard(itemIndex) {
 }
 
 async function handleShop(ctx, playerOverride = null) {
-    const player = playerOverride || await getPlayer(ctx.from.id);
+    const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
 
     const msg =
         `🛒 *MERCADO DE NOCTRA*\n` +
@@ -430,7 +433,7 @@ async function handleShop(ctx, playerOverride = null) {
 }
 
 async function handleShopBuyMenu(ctx, playerOverride = null) {
-    const player = playerOverride || await getPlayer(ctx.from.id);
+    const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
 
     const msg =
         `🛍️ *ESCOLHA UMA LOJA*\n` +
@@ -467,7 +470,7 @@ async function handleBuy(ctx) {
             return safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
         }
 
-        const player = await getPlayer(ctx.from.id);
+        const player = await getShopPlayer(ctx.from.id);
         const item = getShopItemById(itemId);
 
         if (!item) {
@@ -501,7 +504,7 @@ async function handleBuyConfirm(ctx) {
         const itemId = ctx.match?.[1];
         const quantity = Math.max(1, Number(ctx.match?.[2] || 1));
 
-        const player = await getPlayer(ctx.from.id);
+        const player = await getShopPlayer(ctx.from.id);
         const item = getShopItemById(itemId);
 
         if (!item) {
@@ -552,7 +555,7 @@ async function handleSellPreview(ctx) {
             return safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
         }
 
-        const player = await getPlayer(ctx.from.id);
+        const player = await getShopPlayer(ctx.from.id);
         const item = getInventoryItemByIndex(player, itemIndex);
 
         if (!item) {
@@ -581,7 +584,7 @@ async function handleSellConfirm(ctx) {
             return safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
         }
 
-        const player = await getPlayer(ctx.from.id);
+        const player = await getShopPlayer(ctx.from.id);
         const result = sellItem(player, itemIndex);
 
         if (!result.success) {
@@ -611,7 +614,7 @@ async function handleSellConfirmByKey(ctx) {
             decodedKey = String(itemKey || '');
         }
 
-        const player = await getPlayer(ctx.from.id);
+        const player = await getShopPlayer(ctx.from.id);
         const result = sellItemByKey(player, decodedKey);
 
         if (!result.success) {
@@ -649,6 +652,9 @@ module.exports = {
         buildSellInventory,
         getPurchaseDeliveryText,
         getWalletInline,
-        getShopItemTypeLabel
+        getWalletText,
+        getShopItemTypeLabel,
+        getPlayerBalance,
+        normalizeShopPlayer
     }
 };
