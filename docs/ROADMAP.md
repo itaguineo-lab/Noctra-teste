@@ -31,7 +31,10 @@ Toda sprint precisa fortalecer pelo menos um desses pontos.
 - drops V2
 - inventário V3
 - equipamentos e mão secundária
-- almas base
+- Almas V2 no inventário
+- detalhe individual de alma
+- seleção de Slot 1 e Slot 2 para almas
+- drop visual especial de alma na vitória
 - loja
 - venda de loot
 - premium QoL
@@ -60,45 +63,24 @@ Toda sprint precisa fortalecer pelo menos um desses pontos.
 
 ---
 
-## Prioridade 1 — Almas V2
+## Sprint concluída — Almas V2
 
-### Por que agora
+### O que foi entregue
 
-Almas são o primeiro sistema com potencial real de build. Elas conectam:
-
-- boss
-- dungeon
-- loot raro
-- progressão
-- combate
-- arena
-- desejo de retorno
-
-Sem uma boa UX de almas, o jogador não entende por que deve continuar caçando bosses.
-
-### Escopo da sprint
-
-1. Criar `src/renderers/soulRenderer.js`.
-2. Melhorar tela de Almas no inventário.
-3. Mostrar slots equipados com clareza.
-4. Mostrar coleção com raridade, nível e efeito resumido.
-5. Criar detalhe individual da alma.
-6. Permitir equipar em slot específico quando necessário.
-7. Melhorar texto de drop de alma no combate.
-8. Adicionar testes para renderização e regras básicas.
-
-### Fora do escopo
-
-- criar dezenas de almas novas
-- mudar dano das almas profundamente
-- monetizar almas com Nox
-- vender alma em loja
-- criar guildas
-- criar world boss
+1. `src/renderers/soulRenderer.js`.
+2. Tela de Almas no inventário usando renderer dedicado.
+3. Slots equipados e slots vazios claros.
+4. Coleção com raridade, tier, nível, XP, fragmentos e efeito resumido.
+5. Detalhe individual da alma.
+6. Escolha explícita de Slot 1 e Slot 2.
+7. Substituição de slot com retorno da alma antiga para coleção.
+8. Drop visual especial de alma na vitória.
+9. Comando `/equipsoul ID [1|2]` alinhado com a lógica de slots.
+10. Testes cobrindo renderer, detalhe, slot selection, comando e drop visual.
 
 ### Resultado esperado
 
-O jogador precisa entender em menos de 5 segundos:
+O jogador agora deve entender em menos de 5 segundos:
 
 ```text
 quais almas possui
@@ -106,24 +88,38 @@ quais estão equipadas
 o que cada uma faz
 qual é rara
 como equipar
+como escolher Slot 1 ou Slot 2
 por que vale buscar bosses
 ```
 
+### Fora do escopo ainda pendente
+
+- balancear chance de drop de alma
+- balancear pity
+- criar novas almas em escala
+- habilitar uso de almas dentro da dungeon
+- criar fusão/upgrade visual avançado
+- monetizar cosméticos ligados a alma, sem vender poder
+
 ---
 
-## Prioridade 2 — Balanceamento inicial
+## Próxima prioridade — Balanceamento inicial
 
-Depois de Almas V2, medir e ajustar:
+Depois de Almas V2, o erro seria criar outro sistema grande sem medir economia.
+
+O próximo bloco deve ajustar e proteger:
 
 - XP por mapa
 - ouro por mapa
+- dificuldade inicial
 - chance de drop de item
 - chance de drop de alma
 - pity de alma
-- chave de dungeon
+- chance de chave de dungeon
 - Glórias por vitória
 - Glórias por baú
 - preço da Loja Arena
+- preço da loja principal
 - valor percebido do VIP
 
 ### Métricas mínimas
@@ -143,7 +139,7 @@ Depois de Almas V2, medir e ajustar:
 
 ---
 
-## Prioridade 3 — Dungeon V2
+## Prioridade 2 — Dungeon V2
 
 Dungeon deve ser pico de sessão, não só outro combate.
 
@@ -153,6 +149,7 @@ Dungeon deve ser pico de sessão, não só outro combate.
 - preview dos 4 bosses
 - recompensa final mais emocionante
 - chance de alma mais clara
+- uso real de almas dentro da dungeon
 - ranking de dungeon
 - histórico de melhores runs
 
@@ -164,7 +161,7 @@ Chave deve continuar rara. Dungeon não deve se autoalimentar com chave garantid
 
 ---
 
-## Prioridade 4 — Métricas de retenção
+## Prioridade 3 — Métricas de retenção
 
 A alpha precisa responder:
 
@@ -181,22 +178,21 @@ Sem isso, balanceamento vira achismo.
 
 ---
 
-## Prioridade 5 — Refactor cirúrgico
+## Prioridade 4 — Refactor cirúrgico
 
 Não refatorar tudo de uma vez.
 
 Ordem recomendada:
 
-1. `src/renderers/soulRenderer.js`
-2. `src/renderers/combatRenderer.js`
-3. `src/renderers/inventoryRenderer.js`
-4. `src/renderers/shopRenderer.js`
-5. quebrar `index.js` em `src/app/`
-6. criar `src/core/loot/`
+1. `src/renderers/combatRenderer.js`
+2. `src/renderers/inventoryRenderer.js`
+3. `src/renderers/shopRenderer.js`
+4. quebrar `index.js` em `src/app/`
+5. criar `src/core/loot/`
 
 ---
 
-## Prioridade 6 — Social endgame
+## Prioridade 5 — Social endgame
 
 Somente depois da base estabilizada:
 
@@ -226,9 +222,9 @@ Somente depois da base estabilizada:
 ## Próxima sprint aprovada
 
 ```text
-Sprint: Almas V2
-Objetivo: transformar Almas em sistema claro, desejável e central para build.
-Primeiro PR técnico: criar soulRenderer e testes.
-Segundo PR: integrar soulRenderer no inventário.
-Terceiro PR: melhorar drop visual de alma no combate.
+Sprint: Balanceamento Inicial
+Objetivo: estabilizar economia, progressão, drops e ritmo antes de Dungeon V2.
+Primeiro PR: criar diagnóstico de balanceamento com testes de configuração.
+Segundo PR: ajustar XP/ouro/drop por mapa.
+Terceiro PR: ajustar Glórias, baús e loja da arena.
 ```
