@@ -1,5 +1,9 @@
 const { randomUUID } = require('crypto');
 const { getAllPlayers } = require('../player/playerService');
+const {
+    getArenaGloriasBalance,
+    addArenaGlorias
+} = require('./arenaCurrency');
 
 const ARENA_BATTLE_TIMEOUT = 10 * 60 * 1000;
 const MAX_ACTIVE_CHESTS = 3;
@@ -19,7 +23,7 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Madeira',
         emoji: '🪵',
         unlockMs: 20 * 60 * 1000,
-        arenaCoins: [14, 24],
+        glorias: [1, 2],
         gold: [20, 45],
         keyChance: 0.03,
         gloriaChance: 0.01,
@@ -30,7 +34,7 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Ferro',
         emoji: '🪙',
         unlockMs: 75 * 60 * 1000,
-        arenaCoins: [26, 40],
+        glorias: [2, 4],
         gold: [35, 75],
         keyChance: 0.05,
         gloriaChance: 0.02,
@@ -41,7 +45,7 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Prata',
         emoji: '🥈',
         unlockMs: 3 * 60 * 60 * 1000,
-        arenaCoins: [50, 78],
+        glorias: [4, 7],
         gold: [65, 130],
         keyChance: 0.08,
         gloriaChance: 0.04,
@@ -52,7 +56,7 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Ouro',
         emoji: '🥇',
         unlockMs: 8 * 60 * 60 * 1000,
-        arenaCoins: [95, 145],
+        glorias: [7, 11],
         gold: [120, 220],
         keyChance: 0.12,
         gloriaChance: 0.08,
@@ -63,7 +67,7 @@ const ARENA_CHEST_CONFIG = {
         name: 'Baú de Diamante',
         emoji: '💎',
         unlockMs: 24 * 60 * 60 * 1000,
-        arenaCoins: [180, 280],
+        glorias: [12, 18],
         gold: [240, 420],
         keyChance: 0.20,
         gloriaChance: 0.15,
@@ -156,6 +160,7 @@ function ensureArenaState(player) {
         player.arena = {};
     }
 
+    player.glorias = Number.isFinite(player.glorias) ? Math.max(0, Math.floor(player.glorias)) : 0;
     player.arena.points = Number.isFinite(player.arena.points) ? Math.max(0, Math.floor(player.arena.points)) : 0;
     player.arena.coins = Number.isFinite(player.arena.coins) ? Math.max(0, Math.floor(player.arena.coins)) : 0;
     player.arena.wins = Number.isFinite(player.arena.wins) ? Math.max(0, Math.floor(player.arena.wins)) : 0;
@@ -254,6 +259,7 @@ function snapshotArenaPlayer(player) {
 
     const league = getArenaLeagueByPoints(player.arena.points);
     const power = calculateArenaPower(player);
+    const arenaGlorias = getArenaGloriasBalance(player);
 
     return {
         id: String(player.id),
@@ -266,7 +272,8 @@ function snapshotArenaPlayer(player) {
         crit: Math.max(0, Number(player.crit) || 0),
         power,
         arenaPoints: player.arena.points,
-        arenaCoins: player.arena.coins,
+        arenaGlorias,
+        arenaCoins: arenaGlorias,
         arenaWins: player.arena.wins,
         arenaLosses: player.arena.losses,
         arenaStreak: player.arena.streak,
@@ -291,6 +298,7 @@ function createFallbackArenaOpponent(playerSnapshot) {
         crit: playerSnapshot.crit,
         power: Math.max(1, Math.floor(playerSnapshot.power * factor)),
         arenaPoints: playerSnapshot.arenaPoints,
+        arenaGlorias: 0,
         arenaCoins: 0,
         arenaWins: 0,
         arenaLosses: 0,
@@ -454,7 +462,7 @@ function buildArenaHubText(player) {
     let text = `🏟️ *ARENA*\n\n`;
     text += `📛 Liga: ${league.emoji} ${league.name}\n`;
     text += `🎯 Pontos: ${formatNumber(player.arena.points)}\n`;
-    text += `🪙 Moedas da Arena: ${formatNumber(player.arena.coins)}\n`;
+    text += `🏅 Glórias: ${formatNumber(getArenaGloriasBalance(player))}\n`;
     text += `🏆 Vitórias: ${formatNumber(player.arena.wins)}\n`;
     text += `💀 Derrotas: ${formatNumber(player.arena.losses)}\n`;
     text += `🔥 Sequência: ${formatNumber(player.arena.streak)}\n`;
@@ -576,14 +584,14 @@ function openArenaChest(player, chestId) {
         };
     }
 
-    const arenaCoins = randomBetween(config.arenaCoins[0], config.arenaCoins[1]);
+    const gloriasBase = randomBetween(config.glorias[0], config.glorias[1]);
     const gold = randomBetween(config.gold[0], config.gold[1]);
 
-    player.arena.coins += arenaCoins;
+    addArenaGlorias(player, gloriasBase);
     player.gold = (player.gold || 0) + gold;
 
     let keys = 0;
-    let glorias = 0;
+    let bonusGlorias = 0;
 
     if (Math.random() < config.keyChance) {
         player.keys = (player.keys || 0) + 1;
@@ -591,8 +599,8 @@ function openArenaChest(player, chestId) {
     }
 
     if (Math.random() < config.gloriaChance) {
-        player.glorias = (player.glorias || 0) + 1;
-        glorias = 1;
+        addArenaGlorias(player, 1);
+        bonusGlorias = 1;
     }
 
     let consumable = null;
@@ -607,10 +615,12 @@ function openArenaChest(player, chestId) {
         success: true,
         chest,
         rewards: {
-            arenaCoins,
+            glorias: gloriasBase + bonusGlorias,
+            baseGlorias: gloriasBase,
+            bonusGlorias,
+            arenaCoins: 0,
             gold,
             keys,
-            glorias,
             consumable
         }
     };
@@ -637,16 +647,16 @@ function resolveArenaVictory(player, battle) {
         streakBonus
     );
 
-    const coinsGained = Math.max(
-        5,
-        10 +
-        (enemyLeagueIndex * 3) +
-        Math.floor(battle.enemy.power / 260) +
-        Math.min(8, player.arena.streak)
+    const gloriasGained = Math.max(
+        1,
+        2 +
+        Math.floor(enemyLeagueIndex / 2) +
+        Math.floor(battle.enemy.power / 900) +
+        Math.floor(Math.min(8, player.arena.streak) / 3)
     );
 
     player.arena.points += pointsGained;
-    player.arena.coins += coinsGained;
+    addArenaGlorias(player, gloriasGained);
     player.arena.wins += 1;
     player.arena.streak += 1;
     player.arena.maxStreak = Math.max(player.arena.maxStreak, player.arena.streak);
@@ -657,7 +667,7 @@ function resolveArenaVictory(player, battle) {
     player.arena.leagueId = newLeague.id;
 
     let chest = null;
-    let overflowCoins = 0;
+    let overflowGlorias = 0;
 
     if (player.arena.chests.length < MAX_ACTIVE_CHESTS) {
         const tier = getChestTierForVictory(playerLeagueId, battle.enemy.leagueId, player.arena.streak);
@@ -670,15 +680,17 @@ function resolveArenaVictory(player, battle) {
 
         player.arena.chests.push(chest);
     } else {
-        overflowCoins = 8 + (enemyLeagueIndex * 3);
-        player.arena.coins += overflowCoins;
+        overflowGlorias = 1 + Math.floor(enemyLeagueIndex / 2);
+        addArenaGlorias(player, overflowGlorias);
     }
 
     return {
         pointsGained,
-        coinsGained,
+        gloriasGained,
+        coinsGained: gloriasGained,
         chest,
-        overflowCoins,
+        overflowGlorias,
+        overflowCoins: overflowGlorias,
         leagueChanged: beforeLeague !== newLeague.id,
         newLeague
     };
