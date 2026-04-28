@@ -22,6 +22,11 @@ function isFightExpired(record) {
     return Date.now() > expiresAt;
 }
 
+function getRefreshedExpiresAt(timeoutMs = DEFAULT_FIGHT_TIMEOUT, now = Date.now()) {
+    const safeTimeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : DEFAULT_FIGHT_TIMEOUT;
+    return Number(now) + safeTimeout;
+}
+
 async function loadFightRecordDoc(userId) {
     const collection = await getPlayerCollection();
     return collection.findOne(
@@ -51,7 +56,7 @@ async function saveActiveFight(userId, fight, metadata = {}) {
     const record = normalizeFightRecord({
         mode: metadata.mode || 'hunt',
         createdAt,
-        expiresAt: createdAt + timeoutMs,
+        expiresAt: getRefreshedExpiresAt(timeoutMs, createdAt),
         battleMessageId: metadata.battleMessageId ?? null,
         isPhoto: metadata.isPhoto ?? false,
         payload: fight
@@ -82,7 +87,7 @@ async function updateActiveFight(userId, fight, metadata = {}) {
     const record = normalizeFightRecord({
         mode: metadata.mode || existing?.mode || 'hunt',
         createdAt,
-        expiresAt: createdAt + timeoutMs,
+        expiresAt: getRefreshedExpiresAt(timeoutMs),
         battleMessageId: metadata.battleMessageId ?? existing?.battleMessageId ?? null,
         isPhoto: metadata.isPhoto ?? existing?.isPhoto ?? false,
         payload: fight
@@ -98,6 +103,7 @@ async function updateFightMessageMetadata(userId, battleMessageId, isPhoto) {
     const record = normalizeFightRecord(doc.activeFight);
     record.battleMessageId = battleMessageId ?? null;
     record.isPhoto = !!isPhoto;
+    record.expiresAt = getRefreshedExpiresAt(DEFAULT_FIGHT_TIMEOUT);
 
     return saveFightRecord(userId, record);
 }
@@ -118,6 +124,7 @@ module.exports = {
     DEFAULT_FIGHT_TIMEOUT,
     normalizeFightRecord,
     isFightExpired,
+    getRefreshedExpiresAt,
     saveActiveFight,
     loadActiveFight,
     updateActiveFight,
