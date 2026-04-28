@@ -24,7 +24,8 @@ const {
     buildEnhancedItemDetailText
 } = require('../core/player/itemLorePresenter');
 const {
-    buildSoulsOverviewText
+    buildSoulsOverviewText,
+    buildSoulDetailText
 } = require('../renderers/soulRenderer');
 
 const PAGE_SIZE = 5;
@@ -249,16 +250,59 @@ function getPageItems(items, page) {
     };
 }
 
+function getSoulKey(soul = {}) {
+    return String(soul.instanceId || soul.id || '').trim();
+}
+
+function encodeSoulKey(soul = {}) {
+    return encodeURIComponent(getSoulKey(soul));
+}
+
+function decodeSoulKey(value = '') {
+    try {
+        return decodeURIComponent(String(value || ''));
+    } catch {
+        return String(value || '');
+    }
+}
+
+function sameSoulKey(soul = {}, key = '') {
+    const safeKey = String(key || '').trim();
+    if (!safeKey) return false;
+    return String(soul.instanceId || '') === safeKey || String(soul.id || '') === safeKey;
+}
+
+function findSoulByKey(player = {}, rawKey = '') {
+    const key = decodeSoulKey(rawKey);
+    const souls = Array.isArray(player.soulsInventory) ? player.soulsInventory : [];
+    const equipped = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [];
+
+    return souls.find(soul => sameSoulKey(soul, key)) || equipped.find(soul => soul && sameSoulKey(soul, key)) || null;
+}
+
+function getEquippedSoulSlot(player = {}, rawKey = '') {
+    const key = decodeSoulKey(rawKey);
+    const equipped = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [];
+    return equipped.findIndex(soul => soul && sameSoulKey(soul, key));
+}
+
 function buildSoulsKeyboard(player) {
     const rows = [...buildInventoryCategoryRows(player, 'souls', false)];
     const souls = Array.isArray(player?.soulsInventory) ? player.soulsInventory : [];
     const equipped = Array.isArray(player?.soulsEquipped) ? player.soulsEquipped : [null, null];
 
     souls.forEach(soul => {
+        const key = getSoulKey(soul);
+        if (!key) return;
+
         rows.push([
             Markup.button.callback(
-                `💀 Equipar ${truncateText(soul.name, 22)}`,
-                `equip_soul_${soul.instanceId || soul.id}`
+                `🔎 Ver ${truncateText(soul.name, 18)}`,
+                `invcat:soul:${encodeSoulKey(soul)}`
+            ),
+            Markup.button.callback(
+                `💀 Equipar`,
+                `equip_soul_${key}`
             )
         ]);
     });
@@ -281,11 +325,57 @@ function buildSoulsKeyboard(player) {
     return Markup.inlineKeyboard(rows);
 }
 
+function buildSoulDetailKeyboard(player = {}, soul = {}) {
+    const key = getSoulKey(soul);
+    const equippedSlot = getEquippedSoulSlot(player, key);
+    const rows = [];
+
+    if (equippedSlot >= 0) {
+        rows.push([
+            Markup.button.callback(
+                `⭐ Desequipar do Slot ${equippedSlot + 1}`,
+                `unequip_soul_${equippedSlot}`
+            )
+        ]);
+    } else if (key) {
+        rows.push([
+            Markup.button.callback(
+                `💀 Equipar Alma`,
+                `equip_soul_${key}`
+            )
+        ]);
+    }
+
+    rows.push([
+        Markup.button.callback('◀️ Almas', 'invcat:souls'),
+        Markup.button.callback('🏠 Menu', 'menu')
+    ]);
+
+    return Markup.inlineKeyboard(rows);
+}
+
 async function renderSoulsOverview(ctx) {
     const player = await loadPlayer(ctx);
     if (!player) return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
 
     return navigateText(ctx, buildSoulsOverviewText(player), buildSoulsKeyboard(player));
+}
+
+async function renderSoulDetail(ctx, rawKey) {
+    const player = await loadPlayer(ctx);
+    if (!player) return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+
+    const soul = findSoulByKey(player, rawKey);
+
+    if (!soul) {
+        await safeAnswer(ctx, '⚠️ Alma não encontrada. A lista foi atualizada.', { show_alert: true });
+        return renderSoulsOverview(ctx);
+    }
+
+    const slot = getEquippedSoulSlot(player, getSoulKey(soul));
+    const text = buildSoulDetailText(soul, { slot: slot >= 0 ? slot : null });
+
+    return navigateText(ctx, text, buildSoulDetailKeyboard(player, soul));
 }
 
 async function renderEnhancedItemDetail(ctx, rawCategory, page, pageIndex) {
@@ -347,6 +437,13 @@ async function renderEnhancedItemDetail(ctx, rawCategory, page, pageIndex) {
 
 async function handleInventoryCategory(ctx) {
     const raw = ctx.match?.[1] || 'equipment';
+
+    const soulDetail = raw.match(/^soul:(.+)$/);
+    if (soulDetail) {
+        await safeAnswer(ctx).catch(() => {});
+        return renderSoulDetail(ctx, soulDetail[1]);
+    }
+
     const category = getCategory(raw);
 
     if (category === 'souls') {
@@ -372,8 +469,16 @@ module.exports = {
     __private: {
         ...(inventoryV2.__private || {}),
         buildSoulsKeyboard,
+        buildSoulDetailKeyboard,
         renderSoulsOverview,
+        renderSoulDetail,
         normalizePlayerState,
-        getCategory
+        getCategory,
+        getSoulKey,
+        encodeSoulKey,
+        decodeSoulKey,
+        sameSoulKey,
+        findSoulByKey,
+        getEquippedSoulSlot
     }
 };
