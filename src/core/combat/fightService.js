@@ -127,9 +127,9 @@ async function runSoul(userId, soulIndex, storedOverride = null) {
     const { fight, meta } = stored;
     const result = useSoul(fight, soulIndex);
 
-    if (!result) {
+    if (!result || result.success === false) {
         await persistFightState(userId, fight, meta);
-        return { fight, meta, result: null };
+        return { fight, meta, result: result || null };
     }
 
     if (fight.status === 'ongoing') {

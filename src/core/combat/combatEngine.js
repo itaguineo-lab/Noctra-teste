@@ -1,5 +1,9 @@
 const { calculateDamage } = require('./damageCalc');
-const { activateSoul } = require('../player/souls');
+const {
+    activateSoul,
+    getSoulCooldownTurns,
+    isPassiveSoul
+} = require('../player/souls');
 const { ENEMY_ABILITIES } = require('../world/enemies');
 
 /*
@@ -10,6 +14,55 @@ HELPERS
 
 function trimLogs(logs, max = 8) {
     return Array.isArray(logs) ? logs.slice(-max) : [];
+}
+
+function ensureSoulCooldowns(fight) {
+    fight.player ??= {};
+
+    if (!Array.isArray(fight.player.soulCooldowns)) {
+        fight.player.soulCooldowns = [0, 0];
+    }
+
+    while (fight.player.soulCooldowns.length < 2) {
+        fight.player.soulCooldowns.push(0);
+    }
+
+    fight.player.soulCooldowns = fight.player.soulCooldowns
+        .slice(0, 2)
+        .map(value => Math.max(0, Number(value) || 0));
+
+    return fight.player.soulCooldowns;
+}
+
+function tickSoulCooldowns(fight) {
+    const cooldowns = ensureSoulCooldowns(fight);
+
+    fight.player.soulCooldowns = cooldowns.map(value => Math.max(0, value - 1));
+    return fight.player.soulCooldowns;
+}
+
+function getSoulCooldownRemaining(fight, soulIndex) {
+    const cooldowns = ensureSoulCooldowns(fight);
+    const index = Number(soulIndex);
+
+    if (!Number.isInteger(index) || index < 0 || index >= cooldowns.length) {
+        return 0;
+    }
+
+    return Math.max(0, Number(cooldowns[index] || 0));
+}
+
+function setSoulCooldown(fight, soulIndex, soul) {
+    const cooldowns = ensureSoulCooldowns(fight);
+    const index = Number(soulIndex);
+
+    if (!Number.isInteger(index) || index < 0 || index >= cooldowns.length) {
+        return cooldowns;
+    }
+
+    cooldowns[index] = getSoulCooldownTurns(soul);
+    fight.player.soulCooldowns = cooldowns;
+    return cooldowns;
 }
 
 function ensureFightShape(fight) {
@@ -31,6 +84,7 @@ function ensureFightShape(fight) {
     fight.player.poisonTurns ??= 0;
     fight.player.bleedTurns ??= 0;
     fight.player.souls ??= [null, null];
+    ensureSoulCooldowns(fight);
 
     fight.enemy.frozen ??= false;
     fight.enemy.poisonTurns ??= 0;
@@ -143,6 +197,7 @@ function createFight(player, enemy) {
             def: player.def,
             crit: player.crit || 5,
             souls: Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [null, null],
+            soulCooldowns: [0, 0],
             shield: 0,
             energy: player.energy,
             maxEnergy: player.maxEnergy,
@@ -268,6 +323,8 @@ function processPlayerTurn(fight) {
 
     if (fight.status !== 'ongoing') return null;
 
+    tickSoulCooldowns(fight);
+
     const playerDiedByStatus = processPlayerStatusEffects(fight);
     if (playerDiedByStatus) {
         fight.logs = trimLogs(fight.logs);
@@ -384,9 +441,45 @@ function useSoul(fight, soulIndex) {
         return null;
     }
 
+    if (isPassiveSoul(soul)) {
+        fight.logs.push(`${soul.emoji || '💀'} ${soul.name} é passiva e já fortalece sua build.`);
+        fight.logs = trimLogs(fight.logs);
+        return {
+            success: false,
+            passive: true,
+            message: 'Alma passiva não é ativável.'
+        };
+    }
+
+    const cooldownRemaining = getSoulCooldownRemaining(fight, index);
+    if (cooldownRemaining > 0) {
+        fight.logs.push(`⏳ ${soul.name} recarrega em ${cooldownRemaining} turno(s).`);
+        fight.logs = trimLogs(fight.logs);
+        return {
+            success: false,
+            cooldown: cooldownRemaining,
+            message: `Alma em recarga por ${cooldownRemaining} turno(s).`
+        };
+    }
+
+    tickSoulCooldowns(fight);
+
     const result = activateSoul(soul, fight);
+    if (!result?.success) {
+        if (result?.message) fight.logs.push(result.message);
+        fight.logs = trimLogs(fight.logs);
+        return result || null;
+    }
+
+    setSoulCooldown(fight, index, soul);
+
     if (result?.message) {
         fight.logs.push(result.message);
+    }
+
+    const cooldown = getSoulCooldownTurns(soul);
+    if (cooldown > 0) {
+        fight.logs.push(`⏳ ${soul.name} entrou em recarga por ${cooldown} turnos.`);
     }
 
     if (fight.enemy.hp <= 0) {
@@ -401,6 +494,7 @@ function applyDefend(fight) {
     ensureFightShape(fight);
 
     if (fight.status !== 'ongoing') return;
+    tickSoulCooldowns(fight);
     fight.player.defending = true;
     fight.logs.push('🛡️ Você assume postura defensiva.');
     fight.logs = trimLogs(fight.logs);
@@ -431,5 +525,9 @@ module.exports = {
     processEnemyTurn,
     attemptFlee,
     useSoul,
-    applyDefend
+    applyDefend,
+    ensureSoulCooldowns,
+    tickSoulCooldowns,
+    getSoulCooldownRemaining,
+    setSoulCooldown
 };

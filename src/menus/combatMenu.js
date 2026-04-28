@@ -7,7 +7,7 @@ function combatMenu() {
             Markup.button.callback('🛡️ Defender', 'combat_defend')
         ],
         [
-            Markup.button.callback('💀 Alma', 'combat_soul_menu'),
+            Markup.button.callback('💀 Almas', 'combat_soul_menu'),
             Markup.button.callback('🧪 Itens', 'combat_consumables')
         ],
         [
@@ -16,11 +16,29 @@ function combatMenu() {
     ]);
 }
 
-function soulChoiceMenu() {
+function getSoulButtonLabel(soul, index, cooldown = 0) {
+    if (!soul) return `⬜ Slot ${index + 1} vazio`;
+
+    const name = soul.name || `Alma ${index + 1}`;
+    const emoji = soul.emoji || '💀';
+    const effectType = soul.effect?.type || 'special';
+
+    if (effectType === 'passive') return `${emoji} Slot ${index + 1} • Passiva`;
+    if (cooldown > 0) return `⏳ Slot ${index + 1} • ${cooldown}t`;
+
+    return `${emoji} Slot ${index + 1} • ${name}`;
+}
+
+function soulChoiceMenu(fight = null) {
+    const souls = Array.isArray(fight?.player?.souls) ? fight.player.souls : [null, null];
+    const cooldowns = Array.isArray(fight?.player?.soulCooldowns) ? fight.player.soulCooldowns : [0, 0];
+
     return Markup.inlineKeyboard([
         [
-            Markup.button.callback('💀 Alma 1', 'combat_soul_0'),
-            Markup.button.callback('💀 Alma 2', 'combat_soul_1')
+            Markup.button.callback(getSoulButtonLabel(souls[0], 0, cooldowns[0]), 'combat_soul_0')
+        ],
+        [
+            Markup.button.callback(getSoulButtonLabel(souls[1], 1, cooldowns[1]), 'combat_soul_1')
         ],
         [
             Markup.button.callback('◀️ Voltar', 'combat_back')
@@ -69,6 +87,7 @@ function postLootItemMenu(itemKey) {
 module.exports = {
     combatMenu,
     soulChoiceMenu,
+    getSoulButtonLabel,
     postCombatMenu,
     postLootItemMenu
 };
