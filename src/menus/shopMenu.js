@@ -1,5 +1,7 @@
 const { Markup } = require('telegraf');
 
+const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━';
+
 function currencySymbol(currency) {
     if (currency === 'gold') return '💰';
     if (currency === 'nox') return '💎';
@@ -35,6 +37,18 @@ function getShopItemTypeLabel(item = {}) {
     return 'Item';
 }
 
+function getItemIcon(item = {}) {
+    if (item.emoji) return item.emoji;
+    if (item.effect === 'potionHp') return '❤️';
+    if (item.effect === 'potionEnergy' || item.effect === 'energyRefill') return '⚡';
+    if (item.effect === 'tonicStrength') return '💪';
+    if (item.effect === 'tonicDefense') return '🛡️';
+    if (item.type === 'vip') return '👑';
+    if (item.type === 'cosmetic') return '✨';
+    if (item.shop === 'arena') return '🏅';
+    return '📦';
+}
+
 function getPlayerBalance(player = {}, currency = 'gold') {
     return Number(player?.[currency] || 0);
 }
@@ -49,34 +63,33 @@ function buildAffordabilityPrefix(player, item) {
 
 function buildItemButtonLabel(item = {}, player = {}) {
     const symbol = currencySymbol(item.currency);
-    const typeLabel = getShopItemTypeLabel(item);
     const prefix = buildAffordabilityPrefix(player, item);
-    return `${prefix} ${item.name} • ${typeLabel} • ${symbol}${formatNumber(item.price)}`;
+    return `${prefix} ${getItemIcon(item)} ${item.name} • ${symbol}${formatNumber(item.price)}`;
 }
 
 function shopMainMenu() {
     return Markup.inlineKeyboard([
-        [Markup.button.callback('🛒 Comprar', 'shop_buy_menu')],
-        [Markup.button.callback('💰 Vender', 'shop_sell')],
-        [Markup.button.callback('◀️ Voltar', 'menu')]
+        [Markup.button.callback('🛍️ Comprar itens', 'shop_buy_menu')],
+        [Markup.button.callback('💰 Vender loot', 'shop_sell')],
+        [Markup.button.callback('🏠 Menu principal', 'menu')]
     ]);
 }
 
 function shopTabsMenu() {
     return Markup.inlineKeyboard([
-        [Markup.button.callback('🏠 Vila', 'shop_village')],
-        [Markup.button.callback('🏰 Castelo', 'shop_castle')],
+        [Markup.button.callback('🧪 Suprimentos', 'shop_village')],
+        [Markup.button.callback('👑 Premium', 'shop_castle')],
         [Markup.button.callback('⚔️ Arena', 'shop_arena')],
         [Markup.button.callback('◀️ Voltar', 'shop')]
     ]);
 }
 
 function renderShop(title, items, player = {}) {
-    let text = `${title}\n\n`;
+    let text = `${title}\n`;
     const keyboard = [];
 
     if (!items.length) {
-        text += `_Nenhum item disponível no momento._`;
+        text += `\n_Nenhum item disponível no momento._`;
     }
 
     items.forEach((item, index) => {
@@ -85,12 +98,15 @@ function renderShop(title, items, player = {}) {
         const affordable = canAfford(player, item);
         const balance = getPlayerBalance(player, item.currency);
         const missing = Math.max(0, Number(item.price || 0) - balance);
+        const status = affordable
+            ? '✅ Disponível para compra'
+            : `🔒 Faltam ${formatNumber(missing)} ${currencyName(item.currency)}`;
 
-        text += `*${index + 1}. ${escapeMarkdown(item.name)}*\n`;
-        text += `Tipo: ${escapeMarkdown(typeLabel)}\n`;
-        text += `Preço: ${symbol} ${formatNumber(item.price)} ${escapeMarkdown(currencyName(item.currency))}\n`;
-        text += `Status: ${affordable ? '✅ Você pode comprar' : `🔒 Faltam ${formatNumber(missing)} ${currencyName(item.currency)}`}\n`;
-        text += `${escapeMarkdown(item.description || 'Sem descrição')}\n\n`;
+        text += `\n${DIVIDER}\n`;
+        text += `${String(index + 1).padStart(2, '0')} • ${getItemIcon(item)} *${escapeMarkdown(item.name)}*\n`;
+        text += `${escapeMarkdown(typeLabel)} • ${symbol} ${formatNumber(item.price)} ${escapeMarkdown(currencyName(item.currency))}\n`;
+        text += `${status}\n`;
+        text += `${escapeMarkdown(item.description || 'Sem descrição')}\n`;
 
         keyboard.push([
             Markup.button.callback(
@@ -101,7 +117,7 @@ function renderShop(title, items, player = {}) {
     });
 
     keyboard.push([
-        Markup.button.callback('◀️ Voltar', 'shop_buy_menu')
+        Markup.button.callback('◀️ Voltar às categorias', 'shop_buy_menu')
     ]);
 
     return {
@@ -117,5 +133,6 @@ module.exports = {
     currencySymbol,
     currencyName,
     getShopItemTypeLabel,
-    buildItemButtonLabel
+    buildItemButtonLabel,
+    getItemIcon
 };
