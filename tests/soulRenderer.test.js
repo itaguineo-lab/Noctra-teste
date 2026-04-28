@@ -10,8 +10,11 @@ const {
     buildSoulsOverviewText,
     buildSoulDetailText,
     buildSoulDropText,
+    buildSoulCommandHelpLine,
     formatSoulLevel,
-    getSoulIdentityLine
+    getSoulIdentityLine,
+    getSoulCommandId,
+    getSoulInstanceId
 } = require('../src/renderers/soulRenderer');
 
 function damageSoul(overrides = {}) {
@@ -76,6 +79,13 @@ test('formatSoulLevel mostra despertar quando existe', () => {
     assert.equal(formatSoulLevel(damageSoul({ level: 3, awakenLevel: 2 })), 'Lv.3 • Despertar +2');
 });
 
+test('getSoulCommandId prioriza id base e getSoulInstanceId mostra instância', () => {
+    const textSoul = damageSoul({ id: 'soul_wolf', instanceId: 'uuid-123' });
+
+    assert.equal(getSoulCommandId(textSoul), 'soul_wolf');
+    assert.equal(getSoulInstanceId(textSoul), 'uuid-123');
+});
+
 test('getSoulIdentityLine inclui raridade, tier e level', () => {
     const text = getSoulIdentityLine(frostSoul({ level: 2 }));
 
@@ -109,6 +119,13 @@ test('buildSoulEffectDetail descreve efeito em linhas', () => {
     assert.match(text, /Tipo: Dano ativo/);
     assert.match(text, /Multiplicador: 150% do ATK/);
     assert.match(text, /Controle: 25% de chance de congelar/);
+});
+
+test('buildSoulCommandHelpLine mostra comando com ID base', () => {
+    const text = buildSoulCommandHelpLine(damageSoul({ instanceId: 'uuid-123' }));
+
+    assert.match(text, /\/equipsoul soul_wolf 1/);
+    assert.match(text, /\/equipsoul soul_wolf 2/);
 });
 
 test('buildSoulCard renderiza card compacto', () => {
@@ -151,14 +168,17 @@ test('buildSoulsOverviewText mostra visão geral completa', () => {
     assert.match(text, /Alma Guardiã/);
 });
 
-test('buildSoulDetailText mostra detalhe individual', () => {
-    const text = buildSoulDetailText(passiveSoul(), { slot: 1 });
+test('buildSoulDetailText mostra detalhe individual e ID para comando', () => {
+    const text = buildSoulDetailText(passiveSoul({ instanceId: 'uuid-guardian' }), { slot: 1 });
 
     assert.match(text, /Alma Guardiã/);
+    assert.match(text, /ID para comando: soul_guardian/);
+    assert.match(text, /Instância: uuid-guardian/);
     assert.match(text, /Status: equipada no Slot 2/);
     assert.match(text, /EFEITO/);
     assert.match(text, /PROGRESSO/);
     assert.match(text, /swamp_guardian/);
+    assert.match(text, /\/equipsoul soul_guardian 1/);
 });
 
 test('buildSoulDropText cria tela especial de drop', () => {

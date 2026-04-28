@@ -31,6 +31,14 @@ function getSoulTierLabel(soul = {}) {
     return `Tier ${tier}`;
 }
 
+function getSoulCommandId(soul = {}) {
+    return String(soul.id || soul.instanceId || '').trim();
+}
+
+function getSoulInstanceId(soul = {}) {
+    return String(soul.instanceId || '').trim();
+}
+
 function getSoulIdentityLine(soul = {}) {
     const rarity = soul.rarity || 'Raro';
     return `${getRarityEmoji(rarity)} ${escapeMarkdown(rarity)} • ${escapeMarkdown(getSoulTierLabel(soul))} • ${escapeMarkdown(formatSoulLevel(soul))}`;
@@ -114,6 +122,12 @@ function getSoulSourceText(soul = {}) {
     return 'Fonte: bosses, dungeons e eventos';
 }
 
+function buildSoulCommandHelpLine(soul = {}) {
+    const commandId = getSoulCommandId(soul);
+    if (!commandId) return 'Comando: use os botões para equipar esta alma.';
+    return `Comando: /equipsoul ${commandId} 1 ou /equipsoul ${commandId} 2`;
+}
+
 function buildEquippedSoulsBlock(equipped = []) {
     const slots = Array.isArray(equipped) ? equipped.slice(0, 2) : [];
     while (slots.length < 2) slots.push(null);
@@ -190,16 +204,21 @@ function buildSoulDetailText(soul = {}, options = {}) {
     const slotLabel = options.slot !== undefined && options.slot !== null
         ? `Slot ${Number(options.slot) + 1}`
         : null;
+    const commandId = getSoulCommandId(soul);
+    const instanceId = getSoulInstanceId(soul);
 
     let text = `${getSoulName(soul)}\n`;
     text += `${DIVIDER}\n`;
     text += `${getSoulIdentityLine(soul)}\n`;
+    if (commandId) text += `ID para comando: ${escapeMarkdown(commandId)}\n`;
+    if (instanceId && instanceId !== commandId) text += `Instância: ${escapeMarkdown(instanceId)}\n`;
     if (slotLabel) text += `Status: equipada no ${slotLabel}\n`;
     text += `\n*EFEITO*\n`;
     text += `${escapeMarkdown(buildSoulEffectDetail(soul))}\n\n`;
     text += `*PROGRESSO*\n`;
     text += `${escapeMarkdown(buildSoulProgressLine(soul))}\n`;
-    text += `${escapeMarkdown(getSoulSourceText(soul))}\n\n`;
+    text += `${escapeMarkdown(getSoulSourceText(soul))}\n`;
+    text += `${escapeMarkdown(buildSoulCommandHelpLine(soul))}\n\n`;
     text += `Use almas para criar sua subclasse real: dano, defesa, cura, crítico ou sustain.`;
 
     return text.trim();
@@ -223,10 +242,13 @@ module.exports = {
     escapeMarkdown,
     formatSoulLevel,
     getSoulTierLabel,
+    getSoulCommandId,
+    getSoulInstanceId,
     getSoulIdentityLine,
     buildSoulEffectSummary,
     buildSoulEffectDetail,
     buildSoulProgressLine,
+    buildSoulCommandHelpLine,
     buildEquippedSoulsBlock,
     buildSoulCard,
     buildSoulCollectionBlock,

@@ -82,10 +82,22 @@ function getSoulKey(soul = {}) {
     return String(soul.instanceId || soul.id || '').trim();
 }
 
+function getSoulCommandId(soul = {}) {
+    return String(soul.id || soul.instanceId || '').trim();
+}
+
+function normalizeSoulLookupKey(value = '') {
+    return String(value || '').trim().toLowerCase();
+}
+
 function sameSoulKey(soul = {}, key = '') {
-    const safeKey = String(key || '').trim();
+    const safeKey = normalizeSoulLookupKey(key);
     if (!safeKey) return false;
-    return String(soul.instanceId || '') === safeKey || String(soul.id || '') === safeKey;
+
+    return [soul.instanceId, soul.id]
+        .map(normalizeSoulLookupKey)
+        .filter(Boolean)
+        .includes(safeKey);
 }
 
 function getEquippedSoulSlot(player, soulId) {
@@ -130,6 +142,90 @@ function parseEquipSoulArgs(text = '') {
     };
 }
 
+function getOwnedSoulEntries(player) {
+    player = normalizePlayer(player);
+
+    const inventory = player.soulsInventory.map((soul, index) => ({
+        soul,
+        location: 'collection',
+        label: `Coleção #${index + 1}`,
+        slot: null
+    }));
+
+    const equipped = player.soulsEquipped
+        .map((soul, slot) => soul ? {
+            soul,
+            location: 'equipped',
+            label: `Slot ${slot + 1}`,
+            slot
+        } : null)
+        .filter(Boolean);
+
+    return [...equipped, ...inventory];
+}
+
+function formatSoulCommandLine(entry) {
+    const soul = entry?.soul || {};
+    const id = getSoulCommandId(soul) || getSoulKey(soul) || 'sem_id';
+    const name = soul.name || 'Alma sem nome';
+    const status = entry?.location === 'equipped'
+        ? `equipada no ${entry.label}`
+        : entry?.label || 'coleção';
+
+    return `• ${name} — ID: ${id} (${status})`;
+}
+
+function buildOwnedSoulHelp(player, max = 8) {
+    const entries = getOwnedSoulEntries(player);
+
+    if (!entries.length) {
+        return (
+            'Você ainda não possui nenhuma alma.\n\n' +
+            'Para testar como admin, use:\n' +
+            '`/give soul Admin soul_wolf`\n\n' +
+            'Depois use:\n' +
+            '`/equipsoul soul_wolf 1`'
+        );
+    }
+
+    const lines = entries.slice(0, max).map(formatSoulCommandLine);
+    const extra = entries.length > max ? `\n• +${entries.length - max} almas ocultas` : '';
+
+    return (
+        'Almas disponíveis:\n' +
+        lines.join('\n') +
+        extra +
+        '\n\nUse, por exemplo:\n' +
+        '`/equipsoul soul_wolf 1`\n' +
+        '`/equipsoul soul_wolf 2`'
+    );
+}
+
+function buildEquipSoulUsage(player = null) {
+    const base = (
+        'Uso correto:\n' +
+        '`/equipsoul ID_DA_ALMA`\n' +
+        '`/equipsoul ID_DA_ALMA 1`\n' +
+        '`/equipsoul ID_DA_ALMA 2`\n\n' +
+        'Exemplo real de ID base:\n' +
+        '`/equipsoul soul_wolf 1`'
+    );
+
+    if (!player) return base;
+
+    return `${base}\n\n${buildOwnedSoulHelp(player)}`;
+}
+
+function buildSoulNotFoundMessage(player, soulId) {
+    const searched = String(soulId || '').trim();
+
+    return (
+        `❌ Alma não encontrada: ${searched || '—'}\n\n` +
+        'O ID `inst_wolf` era só exemplo de teste. Use o ID real da alma que existe na sua coleção.\n\n' +
+        buildOwnedSoulHelp(player)
+    );
+}
+
 function equipSoulToExplicitSlot(player, soulId, slot) {
     player = normalizePlayer(player);
 
@@ -167,7 +263,7 @@ function equipSoulToExplicitSlot(player, soulId, slot) {
     const soulIndex = player.soulsInventory.findIndex(entry => sameSoulKey(entry, key));
 
     if (soulIndex === -1) {
-        return { ok: false, message: '❌ Alma não encontrada.' };
+        return { ok: false, message: buildSoulNotFoundMessage(player, key) };
     }
 
     const [soul] = player.soulsInventory.splice(soulIndex, 1);
@@ -237,6 +333,14 @@ function equipSoulById(player, soulId, slot = null) {
         return equipSoulToExplicitSlot(player, soulId, slot);
     }
 
+    const alreadyEquippedSlot = getEquippedSoulSlot(player, soulId);
+    if (alreadyEquippedSlot >= 0) {
+        return {
+            ok: false,
+            message: `❌ Esta alma já está equipada no Slot ${alreadyEquippedSlot + 1}.`
+        };
+    }
+
     const soul = player.soulsInventory.find(
         entry => entry && sameSoulKey(entry, soulId)
     );
@@ -244,7 +348,7 @@ function equipSoulById(player, soulId, slot = null) {
     if (!soul) {
         return {
             ok: false,
-            message: '❌ Alma não encontrada.'
+            message: buildSoulNotFoundMessage(player, soulId)
         };
     }
 
@@ -301,20 +405,20 @@ async function handleEquip(ctx) {
 async function handleEquipSoulCommand(ctx) {
     try {
         const { soulId, slot } = parseEquipSoulArgs(ctx.message?.text || '');
-
-        if (!soulId) {
-            return ctx.reply('❌ Informe a alma. Uso: /equipsoul ID_DA_ALMA [1|2]');
-        }
-
         const player = await getPlayer(ctx.from.id);
+
         if (!player) {
             return ctx.reply('❌ Jogador não encontrado. Use /start.');
+        }
+
+        if (!soulId) {
+            return ctx.reply(buildEquipSoulUsage(player), { parse_mode: 'Markdown' });
         }
 
         const result = equipSoulById(player, soulId, slot);
 
         if (!result.ok) {
-            return ctx.reply(result.message);
+            return ctx.reply(result.message, { parse_mode: 'Markdown' });
         }
 
         await savePlayer(ctx.from.id, player);
@@ -338,5 +442,10 @@ module.exports = {
     parseSoulSlotToken,
     getEquippedSoulSlot,
     sameSoulKey,
-    getSoulKey
+    getSoulKey,
+    getSoulCommandId,
+    getOwnedSoulEntries,
+    buildOwnedSoulHelp,
+    buildEquipSoulUsage,
+    buildSoulNotFoundMessage
 };

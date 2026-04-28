@@ -6,13 +6,17 @@ const {
     equipSoulToExplicitSlot,
     parseEquipSoulArgs,
     parseSoulSlotToken,
-    getEquippedSoulSlot
+    getEquippedSoulSlot,
+    getSoulCommandId,
+    buildOwnedSoulHelp,
+    buildEquipSoulUsage,
+    buildSoulNotFoundMessage
 } = require('../src/commands/equip');
 
-function soul(id, name = 'Alma Teste') {
+function soul(id, name = 'Alma Teste', overrides = {}) {
     return {
         id,
-        instanceId: id,
+        instanceId: overrides.instanceId || id,
         name,
         rarity: 'Raro',
         tier: 1,
@@ -21,7 +25,8 @@ function soul(id, name = 'Alma Teste') {
         effect: {
             type: 'damage',
             multiplier: 1.2
-        }
+        },
+        ...overrides
     };
 }
 
@@ -71,6 +76,11 @@ test('parseEquipSoulArgs separa id e slot opcional', () => {
     });
 });
 
+test('getSoulCommandId prioriza id base para comando', () => {
+    const s = soul('soul_wolf', 'Alma do Lobo', { instanceId: 'uuid-123' });
+    assert.equal(getSoulCommandId(s), 'soul_wolf');
+});
+
 test('equipSoulById sem slot mantém fluxo automático antigo', () => {
     const p = player();
     const result = equipSoulById(p, 'soul_a');
@@ -79,6 +89,17 @@ test('equipSoulById sem slot mantém fluxo automático antigo', () => {
     assert.equal(result.slot, 0);
     assert.equal(p.soulsEquipped[0].name, 'Alma A');
     assert.equal(p.soulsInventory.some(s => s.instanceId === 'soul_a'), false);
+});
+
+test('equipSoulById aceita id base mesmo com instanceId diferente', () => {
+    const p = player({
+        soulsInventory: [soul('soul_wolf', 'Alma do Lobo', { instanceId: 'uuid-123' })]
+    });
+
+    const result = equipSoulById(p, 'soul_wolf', 0);
+
+    assert.equal(result.ok, true);
+    assert.equal(p.soulsEquipped[0].name, 'Alma do Lobo');
 });
 
 test('equipSoulById com slot equipa no slot explícito', () => {
@@ -117,7 +138,38 @@ test('equipSoulToExplicitSlot bloqueia mover alma já equipada para outro slot',
     assert.equal(getEquippedSoulSlot(p, 'soul_a'), 0);
 });
 
-test('equipSoulToExplicitSlot valida slot e alma inexistente', () => {
+test('equipSoulToExplicitSlot valida slot e alma inexistente com ajuda útil', () => {
     assert.equal(equipSoulToExplicitSlot(player(), 'soul_a', 9).ok, false);
-    assert.equal(equipSoulToExplicitSlot(player(), 'missing', 0).ok, false);
+
+    const missing = equipSoulToExplicitSlot(player(), 'inst_wolf', 0);
+    assert.equal(missing.ok, false);
+    assert.match(missing.message, /inst_wolf/);
+    assert.match(missing.message, /só exemplo de teste/);
+    assert.match(missing.message, /Almas disponíveis/);
+});
+
+test('buildOwnedSoulHelp lista IDs reais disponíveis', () => {
+    const text = buildOwnedSoulHelp(player({
+        soulsInventory: [soul('soul_wolf', 'Alma do Lobo', { instanceId: 'uuid-123' })]
+    }));
+
+    assert.match(text, /Alma do Lobo/);
+    assert.match(text, /ID: soul_wolf/);
+    assert.match(text, /\/equipsoul soul_wolf 1/);
+});
+
+test('buildEquipSoulUsage mostra uso e exemplos', () => {
+    const text = buildEquipSoulUsage(player());
+
+    assert.match(text, /\/equipsoul ID_DA_ALMA/);
+    assert.match(text, /\/equipsoul soul_wolf 1/);
+    assert.match(text, /Almas disponíveis/);
+});
+
+test('buildSoulNotFoundMessage explica inst_wolf e lista almas reais', () => {
+    const text = buildSoulNotFoundMessage(player(), 'inst_wolf');
+
+    assert.match(text, /Alma não encontrada: inst_wolf/);
+    assert.match(text, /inst_wolf.*exemplo de teste/);
+    assert.match(text, /Almas disponíveis/);
 });
