@@ -100,22 +100,25 @@ test('getEquippedSoulSlot retorna slot correto ou -1', () => {
     assert.equal(getEquippedSoulSlot(p, 'inst_wolf'), -1);
 });
 
-test('buildSoulsKeyboard adiciona botão Ver e mantém Equipar', () => {
+test('buildSoulsKeyboard adiciona botão Ver e mantém Auto antigo', () => {
     const keyboard = buildSoulsKeyboard(player());
     const raw = JSON.stringify(keyboard.reply_markup);
 
     assert.match(raw, /🔎 Ver/);
     assert.match(raw, /invcat:soul:inst_wolf/);
+    assert.match(raw, /💀 Auto/);
     assert.match(raw, /equip_soul_inst_wolf/);
 });
 
-test('buildSoulDetailKeyboard de alma não equipada mostra Equipar', () => {
+test('buildSoulDetailKeyboard de alma não equipada mostra seleção de slot', () => {
     const p = player();
     const keyboard = buildSoulDetailKeyboard(p, soul());
     const raw = JSON.stringify(keyboard.reply_markup);
 
-    assert.match(raw, /Equipar Alma/);
-    assert.match(raw, /equip_soul_inst_wolf/);
+    assert.match(raw, /Equipar no Slot 1/);
+    assert.match(raw, /Equipar no Slot 2/);
+    assert.match(raw, /equip_soul_slot:inst_wolf:0/);
+    assert.match(raw, /equip_soul_slot:inst_wolf:1/);
     assert.match(raw, /invcat:souls/);
 });
 
@@ -132,4 +135,5 @@ test('buildSoulDetailKeyboard de alma equipada mostra Desequipar do slot', () =>
     assert.match(raw, /Desequipar do Slot 2/);
     assert.match(raw, /unequip_soul_1/);
     assert.doesNotMatch(raw, /equip_soul_equipped_1/);
+    assert.doesNotMatch(raw, /equip_soul_slot:equipped_1/);
 });

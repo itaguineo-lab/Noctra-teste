@@ -482,6 +482,7 @@ function registerInventoryActions() {
     bindAction(/^eq:(.+):(\d+):(\d+)$/, inventory.handleEquipItem);
     bindAction(/^uneq:(.+):(.+):(\d+)$/, inventory.handleUnequipItem);
 
+    bindAction(/^equip_soul_slot:(.+):(\d+)$/, inventory.handleEquipSoulSlot);
     bindAction(/^equip_soul_(.+)$/, inventory.handleEquipSoul);
     bindAction(/^unequip_soul_(\d+)$/, inventory.handleUnequipSoul);
     bindAction(/^invskin:equip:(.+)$/, inventory.handleEquipSkin);

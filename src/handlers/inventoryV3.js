@@ -1,12 +1,13 @@
 const { Markup } = require('telegraf');
 
 const inventoryV2 = require('./inventoryV2');
-const { getPlayer } = require('../core/player/playerService');
+const { getPlayer, savePlayer } = require('../core/player/playerService');
 const { ensureCosmeticsState } = require('../core/player/cosmetics');
 const {
     normalizeInventoryCollection,
     normalizeInventoryItem,
-    getOffhandTypeLabel
+    getOffhandTypeLabel,
+    normalizePlayerForSave
 } = require('../core/player/playerMutations');
 const {
     sameItem,
@@ -29,6 +30,7 @@ const {
 } = require('../renderers/soulRenderer');
 
 const PAGE_SIZE = 5;
+const SOUL_SLOT_COUNT = 2;
 
 const EQUIPMENT_CATEGORY_CONFIG = {
     weapons: { slots: ['weapon'] },
@@ -172,6 +174,11 @@ function normalizePlayerState(player) {
     if (!Array.isArray(player.soulsEquipped)) player.soulsEquipped = [null, null];
     if (!player.consumables) player.consumables = {};
 
+    while (player.soulsEquipped.length < SOUL_SLOT_COUNT) {
+        player.soulsEquipped.push(null);
+    }
+
+    player.soulsEquipped = player.soulsEquipped.slice(0, SOUL_SLOT_COUNT);
     player.inventory = normalizeInventoryCollection(player.inventory);
 
     for (const slot of ['weapon', 'shield', 'armor', 'necklace', 'ring', 'boots']) {
@@ -258,6 +265,10 @@ function encodeSoulKey(soul = {}) {
     return encodeURIComponent(getSoulKey(soul));
 }
 
+function encodeSoulKeyValue(value = '') {
+    return encodeURIComponent(String(value || '').trim());
+}
+
 function decodeSoulKey(value = '') {
     try {
         return decodeURIComponent(String(value || ''));
@@ -286,6 +297,101 @@ function getEquippedSoulSlot(player = {}, rawKey = '') {
     return equipped.findIndex(soul => soul && sameSoulKey(soul, key));
 }
 
+function ensureSoulArrays(player = {}) {
+    if (!Array.isArray(player.soulsInventory)) player.soulsInventory = [];
+    if (!Array.isArray(player.soulsEquipped)) player.soulsEquipped = [null, null];
+
+    while (player.soulsEquipped.length < SOUL_SLOT_COUNT) {
+        player.soulsEquipped.push(null);
+    }
+
+    player.soulsEquipped = player.soulsEquipped.slice(0, SOUL_SLOT_COUNT);
+    return player;
+}
+
+function applySoulEquipToSlot(player = {}, rawKey = '', targetSlot = 0) {
+    ensureSoulArrays(player);
+
+    const key = decodeSoulKey(rawKey);
+    const slot = Number(targetSlot);
+
+    if (!key) {
+        return { success: false, message: 'Alma inválida.' };
+    }
+
+    if (!Number.isInteger(slot) || slot < 0 || slot >= SOUL_SLOT_COUNT) {
+        return { success: false, message: 'Slot de alma inválido.' };
+    }
+
+    const alreadyEquippedSlot = getEquippedSoulSlot(player, key);
+
+    if (alreadyEquippedSlot === slot) {
+        return {
+            success: true,
+            message: `Esta alma já está equipada no Slot ${slot + 1}.`,
+            slot,
+            soul: player.soulsEquipped[slot],
+            replaced: null,
+            unchanged: true
+        };
+    }
+
+    if (alreadyEquippedSlot >= 0) {
+        return {
+            success: false,
+            message: `Esta alma já está equipada no Slot ${alreadyEquippedSlot + 1}. Desequipe antes de mover.`
+        };
+    }
+
+    const inventoryIndex = player.soulsInventory.findIndex(soul => sameSoulKey(soul, key));
+
+    if (inventoryIndex === -1) {
+        return { success: false, message: 'Alma não encontrada no inventário.' };
+    }
+
+    const [soul] = player.soulsInventory.splice(inventoryIndex, 1);
+    const replaced = player.soulsEquipped[slot] || null;
+
+    if (replaced) {
+        const replacedKey = getSoulKey(replaced);
+        const alreadyStored = player.soulsInventory.some(existing => sameSoulKey(existing, replacedKey));
+        if (!alreadyStored) player.soulsInventory.push(replaced);
+    }
+
+    player.soulsEquipped[slot] = soul;
+    normalizePlayerForSave(player);
+
+    return {
+        success: true,
+        message: replaced
+            ? `${soul.name} equipada no Slot ${slot + 1}. ${replaced.name} voltou para a coleção.`
+            : `${soul.name} equipada no Slot ${slot + 1}.`,
+        slot,
+        soul,
+        replaced
+    };
+}
+
+function getSoulSlotButtonLabel(player = {}, slotIndex = 0) {
+    const equipped = Array.isArray(player.soulsEquipped) ? player.soulsEquipped[slotIndex] : null;
+    if (!equipped) return `💀 Equipar no Slot ${slotIndex + 1}`;
+    return `🔁 Substituir Slot ${slotIndex + 1}: ${truncateText(equipped.name, 16)}`;
+}
+
+function buildSoulSlotRows(player = {}, soul = {}) {
+    const key = getSoulKey(soul);
+    if (!key) return [];
+
+    const encoded = encodeSoulKeyValue(key);
+
+    return [0, 1].map(slot => ([
+        Markup.button.callback(
+            getSoulSlotButtonLabel(player, slot),
+            `equip_soul_slot:${encoded}:${slot}`
+        )
+    ]));
+}
+
 function buildSoulsKeyboard(player) {
     const rows = [...buildInventoryCategoryRows(player, 'souls', false)];
     const souls = Array.isArray(player?.soulsInventory) ? player.soulsInventory : [];
@@ -301,7 +407,7 @@ function buildSoulsKeyboard(player) {
                 `invcat:soul:${encodeSoulKey(soul)}`
             ),
             Markup.button.callback(
-                `💀 Equipar`,
+                `💀 Auto`,
                 `equip_soul_${key}`
             )
         ]);
@@ -338,12 +444,7 @@ function buildSoulDetailKeyboard(player = {}, soul = {}) {
             )
         ]);
     } else if (key) {
-        rows.push([
-            Markup.button.callback(
-                `💀 Equipar Alma`,
-                `equip_soul_${key}`
-            )
-        ]);
+        rows.push(...buildSoulSlotRows(player, soul));
     }
 
     rows.push([
@@ -376,6 +477,26 @@ async function renderSoulDetail(ctx, rawKey) {
     const text = buildSoulDetailText(soul, { slot: slot >= 0 ? slot : null });
 
     return navigateText(ctx, text, buildSoulDetailKeyboard(player, soul));
+}
+
+async function handleEquipSoulSlot(ctx) {
+    const rawKey = ctx.match?.[1];
+    const slot = Number(ctx.match?.[2]);
+
+    const player = await loadPlayer(ctx);
+    if (!player) return safeAnswer(ctx, 'Perfil não encontrado.', { show_alert: true });
+
+    const result = applySoulEquipToSlot(player, rawKey, slot);
+
+    if (!result.success) {
+        return safeAnswer(ctx, result.message || 'Não foi possível equipar a alma.', { show_alert: true });
+    }
+
+    await savePlayer(ctx.from.id, player);
+    await safeAnswer(ctx, `✅ ${result.message}`, { show_alert: true });
+
+    const key = getSoulKey(result.soul);
+    return renderSoulDetail(ctx, encodeSoulKeyValue(key));
 }
 
 async function renderEnhancedItemDetail(ctx, rawCategory, page, pageIndex) {
@@ -466,19 +587,26 @@ async function handleInventoryCategory(ctx) {
 module.exports = {
     ...inventoryV2,
     handleInventoryCategory,
+    handleEquipSoulSlot,
     __private: {
         ...(inventoryV2.__private || {}),
         buildSoulsKeyboard,
         buildSoulDetailKeyboard,
+        buildSoulSlotRows,
+        getSoulSlotButtonLabel,
         renderSoulsOverview,
         renderSoulDetail,
+        handleEquipSoulSlot,
         normalizePlayerState,
         getCategory,
         getSoulKey,
         encodeSoulKey,
+        encodeSoulKeyValue,
         decodeSoulKey,
         sameSoulKey,
         findSoulByKey,
-        getEquippedSoulSlot
+        getEquippedSoulSlot,
+        ensureSoulArrays,
+        applySoulEquipToSlot
     }
 };
