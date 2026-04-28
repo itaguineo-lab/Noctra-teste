@@ -3,7 +3,7 @@ const { BALANCE } = require('./balance');
 const arenaShopItems = [
     /*
     =================================
-    TÁTICOS — USO IMEDIATO
+    TÁTICOS — GLÓRIAS
     =================================
     */
 
@@ -13,8 +13,8 @@ const arenaShopItems = [
         type: 'consumable',
         effect: 'potionHp',
         value: 1,
-        price: 25,
-        description: 'Restaura 100% do HP máximo.'
+        price: 3,
+        description: 'Adiciona 1 Poção de Vida ao inventário. Uso tático para manter ritmo competitivo.'
     },
     {
         id: 'arena_strength_tonic',
@@ -22,8 +22,8 @@ const arenaShopItems = [
         type: 'consumable',
         effect: 'tonicStrength',
         value: 1,
-        price: 40,
-        description: `Bônus tático de ATK inspirado no tuning competitivo.`
+        price: 4,
+        description: 'Adiciona 1 Tônico de Força ao inventário. Bônus tático durante a luta atual.'
     },
     {
         id: 'arena_defense_tonic',
@@ -31,13 +31,13 @@ const arenaShopItems = [
         type: 'consumable',
         effect: 'tonicDefense',
         value: 1,
-        price: 40,
-        description: `Bônus tático de DEF inspirado no tuning competitivo.`
+        price: 4,
+        description: 'Adiciona 1 Tônico de Defesa ao inventário. Bônus tático durante a luta atual.'
     },
 
     /*
     =================================
-    CONVENIÊNCIA — LIMITADA
+    CONVENIÊNCIA — MODERADA
     =================================
     */
 
@@ -46,8 +46,8 @@ const arenaShopItems = [
         name: 'Carga de Energia',
         type: 'energy',
         value: 5,
-        price: 60,
-        description: 'Recupera 5 de energia instantaneamente.'
+        price: 6,
+        description: 'Recupera 5 de energia imediatamente. Conveniência moderada, não poder direto.'
     },
 
     /*
@@ -62,8 +62,8 @@ const arenaShopItems = [
         type: 'cosmetic',
         cosmeticType: 'title',
         value: 'Gladiador',
-        price: 120,
-        description: 'Título exclusivo da arena.'
+        price: 18,
+        description: 'Título exclusivo da arena. Prestígio visual permanente.'
     },
     {
         id: 'arena_badge_bloodmoon',
@@ -71,8 +71,8 @@ const arenaShopItems = [
         type: 'cosmetic',
         cosmeticType: 'badge',
         value: 'Lua de Sangue',
-        price: 150,
-        description: 'Emblema raro de prestígio competitivo.'
+        price: 24,
+        description: 'Emblema raro de prestígio competitivo. Permanente.'
     },
     {
         id: 'arena_aura_champion',
@@ -80,8 +80,8 @@ const arenaShopItems = [
         type: 'cosmetic',
         cosmeticType: 'aura',
         value: 'Aura do Campeão',
-        price: 220,
-        description: 'Cosmético exclusivo para os mais consistentes.'
+        price: 36,
+        description: 'Cosmético exclusivo para jogadores consistentes. Permanente.'
     }
 ];
 
@@ -89,9 +89,11 @@ const arenaShopItems = [
 =================================
 DECISÃO DE PRODUTO
 =================================
-- chave foi removida da loja da arena
-- arena não deve virar atalho lateral para dungeon
-- arena serve prestígio, baús, moeda competitiva e tático moderado
+- Loja da Arena usa Glórias como moeda oficial competitiva.
+- arena.coins antigo é migrado para Glórias no acesso à loja.
+- chave foi removida da loja da arena.
+- arena não deve virar atalho lateral para dungeon.
+- arena serve prestígio, utilidade tática moderada e cosméticos competitivos.
 =================================
 */
 
