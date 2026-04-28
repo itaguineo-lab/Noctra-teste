@@ -1,4 +1,8 @@
 const { Markup } = require('telegraf');
+const {
+    getCurrencyBalance,
+    formatNumber
+} = require('../core/economy/walletPresenter');
 
 const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━';
 
@@ -16,10 +20,6 @@ function currencyName(currency) {
     return currency || 'moeda';
 }
 
-function formatNumber(value) {
-    return Number(value || 0).toLocaleString('pt-BR');
-}
-
 function escapeMarkdown(text = '') {
     return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
@@ -34,6 +34,8 @@ function getShopItemTypeLabel(item = {}) {
     }
     if (item.type === 'vip') return 'VIP';
     if (item.type === 'cosmetic') return 'Cosmético';
+    if (item.type === 'inventoryExpansion') return 'Expansão de Inventário';
+    if (item.type === 'bundle') return 'Pacote';
     return 'Item';
 }
 
@@ -45,12 +47,14 @@ function getItemIcon(item = {}) {
     if (item.effect === 'tonicDefense') return '🛡️';
     if (item.type === 'vip') return '👑';
     if (item.type === 'cosmetic') return '✨';
+    if (item.type === 'inventoryExpansion') return '🎒';
+    if (item.type === 'bundle') return '🎁';
     if (item.shop === 'arena') return '🏅';
     return '📦';
 }
 
 function getPlayerBalance(player = {}, currency = 'gold') {
-    return Number(player?.[currency] || 0);
+    return getCurrencyBalance(player, currency);
 }
 
 function canAfford(player, item) {
@@ -134,5 +138,6 @@ module.exports = {
     currencyName,
     getShopItemTypeLabel,
     buildItemButtonLabel,
-    getItemIcon
+    getItemIcon,
+    getPlayerBalance
 };
