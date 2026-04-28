@@ -180,7 +180,16 @@ function getSellLongStats(item = {}) {
 }
 
 function isValidShopPlayer(player) {
-    return Boolean(player && typeof player === 'object');
+    return Boolean(player && typeof player === 'object' && !Array.isArray(player));
+}
+
+function getUsablePlayerOverride(candidate) {
+    /*
+    Telegraf chama handlers como handler(ctx, next).
+    Portanto, em handlers registrados diretamente, o segundo argumento pode ser
+    a função next, não um player. Nunca use candidato function como player.
+    */
+    return isValidShopPlayer(candidate) ? candidate : null;
 }
 
 function normalizeShopPlayer(player) {
@@ -207,6 +216,12 @@ function normalizeShopPlayer(player) {
     return normalized;
 }
 
+async function resolveShopPlayer(ctx, playerOverride = null) {
+    const usableOverride = getUsablePlayerOverride(playerOverride);
+    const rawPlayer = usableOverride || await getPlayer(ctx.from.id);
+    return normalizeShopPlayer(rawPlayer);
+}
+
 async function getShopPlayer(userId) {
     const player = await getPlayer(userId);
     return normalizeShopPlayer(player);
@@ -226,7 +241,7 @@ async function renderMissingPlayer(ctx) {
 }
 
 async function renderTab(ctx, tab, playerOverride = null) {
-    const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+    const player = await resolveShopPlayer(ctx, playerOverride);
     if (!player) return renderMissingPlayer(ctx);
 
     const items = getShopItemsByTab(tab);
@@ -352,7 +367,7 @@ function buildSellKeyboard(pageData) {
 
 async function renderSellPage(ctx, page = 1, playerOverride = null) {
     try {
-        const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+        const player = await resolveShopPlayer(ctx, playerOverride);
         if (!player) return renderMissingPlayer(ctx);
 
         const sellable = buildSellInventory(player);
@@ -458,7 +473,7 @@ function buildSellPreviewKeyboard(itemIndex) {
 }
 
 async function handleShop(ctx, playerOverride = null) {
-    const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+    const player = await resolveShopPlayer(ctx, playerOverride);
     if (!player) return renderMissingPlayer(ctx);
 
     const msg =
@@ -475,7 +490,7 @@ async function handleShop(ctx, playerOverride = null) {
 }
 
 async function handleShopBuyMenu(ctx, playerOverride = null) {
-    const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+    const player = await resolveShopPlayer(ctx, playerOverride);
     if (!player) return renderMissingPlayer(ctx);
 
     const msg =
@@ -710,6 +725,8 @@ module.exports = {
         getPlayerBalance,
         normalizeShopPlayer,
         isValidShopPlayer,
+        getUsablePlayerOverride,
+        resolveShopPlayer,
         renderMissingPlayer
     }
 };
