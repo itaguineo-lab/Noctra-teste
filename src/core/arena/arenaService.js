@@ -7,6 +7,7 @@ const {
 
 const ARENA_BATTLE_TIMEOUT = 10 * 60 * 1000;
 const MAX_ACTIVE_CHESTS = 3;
+const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━';
 
 const ARENA_LEAGUES = [
     { id: 'bronze', name: 'Bronze', emoji: '🥉', minPoints: 0 },
@@ -136,7 +137,7 @@ function pickWeighted(entries) {
 function renderBar(current, max, width = 10, filledChar = '█', emptyChar = '░') {
     const safeMax = Math.max(1, Number(max) || 1);
     const safeCurrent = clamp(Number(current) || 0, 0, safeMax);
-    const filled = clamp(Math.round((safeCurrent / safeMax) * width), 1, width);
+    const filled = clamp(Math.round((safeCurrent / safeMax) * width), 0, width);
     return filledChar.repeat(filled) + emptyChar.repeat(width - filled);
 }
 
@@ -149,6 +150,18 @@ function formatDuration(ms) {
     if (hours > 0) return `${hours}h ${minutes}m`;
     if (minutes > 0) return `${minutes}m ${seconds}s`;
     return `${seconds}s`;
+}
+
+function formatWinRate(wins = 0, losses = 0) {
+    const total = Number(wins || 0) + Number(losses || 0);
+    if (total <= 0) return '0%';
+    return `${Math.round((Number(wins || 0) / total) * 100)}%`;
+}
+
+function formatChestStatus(chest) {
+    const remaining = chest.readyAt - Date.now();
+    if (remaining <= 0) return '✅ Pronto para abrir';
+    return `⏳ Abre em ${formatChestTime(remaining)}`;
 }
 
 function ensureArenaState(player) {
@@ -451,60 +464,62 @@ function buildArenaHubText(player) {
     const progress = getArenaLeagueProgress(player.arena.points);
     const league = progress.league;
     const nextLeague = progress.nextLeague;
-    const bar = renderBar(
-        player.arena.points - league.minPoints,
-        nextLeague ? (nextLeague.minPoints - league.minPoints) : 1,
-        10,
-        '🟩',
-        '⬜'
-    );
+    const progressMax = nextLeague ? (nextLeague.minPoints - league.minPoints) : 1;
+    const progressCurrent = nextLeague ? (player.arena.points - league.minPoints) : 1;
+    const bar = renderBar(progressCurrent, progressMax, 10, '🟩', '⬛');
+    const winRate = formatWinRate(player.arena.wins, player.arena.losses);
 
-    let text = `🏟️ *ARENA*\n\n`;
-    text += `📛 Liga: ${league.emoji} ${league.name}\n`;
-    text += `🎯 Pontos: ${formatNumber(player.arena.points)}\n`;
-    text += `🏅 Glórias: ${formatNumber(getArenaGloriasBalance(player))}\n`;
-    text += `🏆 Vitórias: ${formatNumber(player.arena.wins)}\n`;
-    text += `💀 Derrotas: ${formatNumber(player.arena.losses)}\n`;
-    text += `🔥 Sequência: ${formatNumber(player.arena.streak)}\n`;
-    text += `👑 Melhor sequência: ${formatNumber(player.arena.maxStreak)}\n`;
-    text += `🎁 Baús ativos: ${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}\n\n`;
+    let text = `🏟️ *ARENA DE NOCTRA*\n`;
+    text += `${DIVIDER}\n`;
+    text += `⚔️ Enfrente jogadores, suba de liga e converta vitórias em Glórias.\n\n`;
+
+    text += `*STATUS COMPETITIVO*\n`;
+    text += `📛 Liga: ${league.emoji} *${league.name}*\n`;
+    text += `🎯 Pontos: *${formatNumber(player.arena.points)}*\n`;
+    text += `🏅 Glórias: *${formatNumber(getArenaGloriasBalance(player))}*\n`;
+    text += `🎁 Baús: *${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}*\n\n`;
+
+    text += `*DESEMPENHO*\n`;
+    text += `🏆 ${formatNumber(player.arena.wins)} vitórias  •  💀 ${formatNumber(player.arena.losses)} derrotas\n`;
+    text += `📊 Aproveitamento: *${winRate}*\n`;
+    text += `🔥 Sequência atual: *${formatNumber(player.arena.streak)}*\n`;
+    text += `👑 Melhor sequência: *${formatNumber(player.arena.maxStreak)}*\n\n`;
 
     if (nextLeague) {
-        text += `⬆️ Próxima liga: ${nextLeague.emoji} ${nextLeague.name}\n`;
-        text += `📈 Progresso: [${bar}] ${progress.progress}%\n`;
-        text += `⏳ Falta: ${formatNumber(progress.remaining)} pontos\n`;
+        text += `*PROGRESSÃO DE LIGA*\n`;
+        text += `⬆️ Próxima: ${nextLeague.emoji} *${nextLeague.name}*\n`;
+        text += `[${bar}] ${progress.progress}%\n`;
+        text += `⏳ Faltam *${formatNumber(progress.remaining)}* pontos\n`;
     } else {
-        text += `👑 Você está na liga máxima.\n`;
+        text += `*PROGRESSÃO DE LIGA*\n`;
+        text += `👑 Você está na liga máxima. Defenda seu prestígio.\n`;
     }
 
-    return text;
+    return text.trim();
 }
 
 function buildArenaBattleText(battle) {
-    const playerBar = renderBar(battle.player.hp, battle.player.maxHp, 10, '🟥', '⬜');
-    const enemyBar = renderBar(battle.enemy.hp, battle.enemy.maxHp, 10, '🟥', '⬜');
+    const playerBar = renderBar(battle.player.hp, battle.player.maxHp, 10, '🟥', '⬛');
+    const enemyBar = renderBar(battle.enemy.hp, battle.enemy.maxHp, 10, '🟥', '⬛');
 
-    let text = `⚔️ *BATALHA DA ARENA*\n\n`;
+    let text = `⚔️ *DUELO DA ARENA*\n`;
+    text += `${DIVIDER}\n\n`;
 
-    text += `👤 *${escapeMarkdown(battle.player.name)}*\n`;
-    text += `📛 ${battle.player.leagueEmoji} ${escapeMarkdown(battle.player.leagueName)}\n`;
-    text += `⚔️ ATK ${formatNumber(battle.player.atk)} | 🛡️ DEF ${formatNumber(battle.player.def)} | 🎯 CRIT ${formatNumber(battle.player.crit)}%\n`;
-    text += `💥 Power ${formatNumber(battle.player.power)}\n`;
-    text += `❤️ ${formatNumber(battle.player.hp)}/${formatNumber(battle.player.maxHp)}\n`;
-    text += `[${playerBar}]\n`;
-    if (battle.player.defending) text += `🛡️ Defendendo\n`;
+    text += `👤 *${escapeMarkdown(battle.player.name)}*  •  ${battle.player.leagueEmoji} ${escapeMarkdown(battle.player.leagueName)}\n`;
+    text += `❤️ ${formatNumber(battle.player.hp)}/${formatNumber(battle.player.maxHp)}  [${playerBar}]\n`;
+    text += `⚔️ ${formatNumber(battle.player.atk)}   🛡️ ${formatNumber(battle.player.def)}   🎯 ${formatNumber(battle.player.crit)}%   💥 ${formatNumber(battle.player.power)}\n`;
+    if (battle.player.defending) text += `🛡️ Estado: defendendo\n`;
 
-    text += `\n🆚 *${escapeMarkdown(battle.enemy.name)}*\n`;
-    text += `📛 ${battle.enemy.leagueEmoji} ${escapeMarkdown(battle.enemy.leagueName)}\n`;
-    text += `⚔️ ATK ${formatNumber(battle.enemy.atk)} | 🛡️ DEF ${formatNumber(battle.enemy.def)} | 🎯 CRIT ${formatNumber(battle.enemy.crit)}%\n`;
-    text += `💥 Power ${formatNumber(battle.enemy.power)}\n`;
-    text += `❤️ ${formatNumber(battle.enemy.hp)}/${formatNumber(battle.enemy.maxHp)}\n`;
-    text += `[${enemyBar}]\n\n`;
+    text += `\n🆚 *${escapeMarkdown(battle.enemy.name)}*  •  ${battle.enemy.leagueEmoji} ${escapeMarkdown(battle.enemy.leagueName)}\n`;
+    text += `❤️ ${formatNumber(battle.enemy.hp)}/${formatNumber(battle.enemy.maxHp)}  [${enemyBar}]\n`;
+    text += `⚔️ ${formatNumber(battle.enemy.atk)}   🛡️ ${formatNumber(battle.enemy.def)}   🎯 ${formatNumber(battle.enemy.crit)}%   💥 ${formatNumber(battle.enemy.power)}\n`;
+    if (battle.enemy.defending) text += `🛡️ Estado: defendendo\n`;
 
-    text += `📜 Últimas ações\n`;
+    text += `\n${DIVIDER}\n`;
+    text += `📜 *Últimas ações*\n`;
     text += battle.logs.slice(-5).join('\n');
 
-    return text;
+    return text.trim();
 }
 
 function buildArenaLeaderboardText(playersMap, top = 10) {
@@ -517,7 +532,8 @@ function buildArenaLeaderboardText(playersMap, top = 10) {
             return b.power - a.power;
         });
 
-    let text = `🏆 *RANKING DA ARENA*\n\n`;
+    let text = `🏆 *RANKING DA ARENA*\n`;
+    text += `${DIVIDER}\n`;
 
     if (!list.length) {
         return text + `Nenhum jogador ainda.\n`;
@@ -525,31 +541,38 @@ function buildArenaLeaderboardText(playersMap, top = 10) {
 
     list.slice(0, top).forEach((player, index) => {
         const badge = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '▫️';
-        text += `${badge} ${index + 1}. ${escapeMarkdown(player.name)}\n`;
-        text += `   ${player.leagueEmoji} ${player.leagueName} | Pts ${formatNumber(player.arenaPoints)} | Power ${formatNumber(player.power)}\n`;
-        text += `   ${formatNumber(player.arenaWins)}V / ${formatNumber(player.arenaLosses)}D\n`;
+        text += `\n${badge} *${index + 1}. ${escapeMarkdown(player.name)}*\n`;
+        text += `${player.leagueEmoji} ${escapeMarkdown(player.leagueName)}  •  🎯 ${formatNumber(player.arenaPoints)} pts  •  💥 ${formatNumber(player.power)}\n`;
+        text += `🏆 ${formatNumber(player.arenaWins)}V  •  💀 ${formatNumber(player.arenaLosses)}D  •  📊 ${formatWinRate(player.arenaWins, player.arenaLosses)}\n`;
     });
 
-    return text;
+    return text.trim();
 }
 
 function buildArenaChestListText(player) {
     ensureArenaState(player);
 
-    let text = `🎁 *BAÚS DA ARENA*\n\n`;
+    let text = `🎁 *BAÚS DA ARENA*\n`;
+    text += `${DIVIDER}\n`;
+    text += `Vitórias geram baús. Baús geram Glórias, ouro e recursos táticos.\n\n`;
 
     if (!player.arena.chests.length) {
-        return text + `Nenhum baú ativo no momento.\n`;
+        return text + `Nenhum baú ativo no momento.\n\n⚔️ Vença uma luta para receber seu próximo baú.`;
     }
 
     player.arena.chests.forEach((chest, index) => {
         const config = getChestConfig(chest.tier);
-        const remaining = getArenaChestRemainingText(chest);
-        text += `${index + 1}. ${config.emoji} ${config.name}\n`;
-        text += `   ⏳ ${remaining}\n`;
+        const status = formatChestStatus(chest);
+        const rewardRange = `🏅 ${config.glorias[0]}-${config.glorias[1]} Glórias  •  💰 ${config.gold[0]}-${config.gold[1]} ouro`;
+
+        text += `${index + 1}. ${config.emoji} *${config.name}*\n`;
+        text += `${status}\n`;
+        text += `${rewardRange}\n`;
+        if (index !== player.arena.chests.length - 1) text += `\n`;
     });
 
-    text += `\nBaús ativos: ${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}`;
+    text += `\n${DIVIDER}\n`;
+    text += `Slots ocupados: *${player.arena.chests.length}/${MAX_ACTIVE_CHESTS}*`;
     return text;
 }
 
