@@ -28,6 +28,10 @@ const {
     isVipActive
 } = require('../core/player/playerService');
 
+const {
+    buildSoulDropText
+} = require('../renderers/soulRenderer');
+
 const { BALANCE } = require('../data/balance');
 
 const MAP_NUMBERS = {
@@ -66,6 +70,19 @@ function getSoulSource(enemy, options = {}) {
     }
 
     return null;
+}
+
+function getSoulSourceLabel(source) {
+    const labels = {
+        field_boss: 'Boss de Campo',
+        field_miniboss_thematic: 'Mini Boss Temático',
+        field_elite_thematic: 'Elite Temático',
+        dungeon_boss: 'Boss de Masmorra',
+        world_boss: 'World Boss',
+        event_boss: 'Boss de Evento'
+    };
+
+    return labels[source] || 'Fonte rara';
 }
 
 function getVictoryTitle(enemy) {
@@ -117,6 +134,26 @@ function formatDroppedItemLoot(item) {
     const traitLabel = item.traitLabel ? ` • ${item.traitLabel}` : '';
 
     return `${icon} ${item.name}${levelLabel} [${item.rarity}] • ${categoryLabel}${traitLabel}${originLabel}`;
+}
+
+function buildCompactSoulLootLine(soul, source, enemy) {
+    if (!soul) return null;
+
+    const sourceLabel = getSoulSourceLabel(source);
+    const enemyName = enemy?.name || 'um boss sombrio';
+    const rarity = soul.rarity || 'Raro';
+    const tier = soul.tier ? ` • Tier ${soul.tier}` : '';
+
+    return `🌑 ALMA ENCONTRADA: ${soul.emoji || '💀'} ${soul.name} [${rarity}${tier}] • ${sourceLabel} • ${enemyName}`;
+}
+
+function buildFullSoulDropText(soul, source, enemy) {
+    if (!soul) return null;
+
+    return buildSoulDropText(soul, {
+        enemyName: enemy?.name || 'um boss sombrio',
+        sourceLabel: getSoulSourceLabel(source)
+    });
 }
 
 function tryDropKey(player, enemy, loot, options = {}) {
@@ -196,7 +233,9 @@ function tryDropSoul(player, enemy, loot, options = {}) {
             droppedSoul: null,
             soulDropped: false,
             soulChance: 0,
-            source: null
+            source: null,
+            soulDropText: null,
+            soulLootLine: null
         };
     }
 
@@ -211,7 +250,9 @@ function tryDropSoul(player, enemy, loot, options = {}) {
             droppedSoul: null,
             soulDropped: false,
             soulChance,
-            source
+            source,
+            soulDropText: null,
+            soulLootLine: null
         };
     }
 
@@ -230,12 +271,20 @@ function tryDropSoul(player, enemy, loot, options = {}) {
             droppedSoul: null,
             soulDropped: false,
             soulChance,
-            source
+            source,
+            soulDropText: null,
+            soulLootLine: null
         };
     }
 
     player.soulsInventory.push(droppedSoul);
-    loot.push(`💀 ${droppedSoul.name} [${droppedSoul.rarity}]`);
+
+    const soulLootLine = buildCompactSoulLootLine(droppedSoul, source, enemy);
+    const soulDropText = buildFullSoulDropText(droppedSoul, source, enemy);
+
+    if (soulLootLine) {
+        loot.push(soulLootLine);
+    }
 
     if (source === 'field_boss') {
         resetSoulPity(player);
@@ -245,7 +294,9 @@ function tryDropSoul(player, enemy, loot, options = {}) {
         droppedSoul,
         soulDropped: true,
         soulChance,
-        source
+        source,
+        soulDropText,
+        soulLootLine
     };
 }
 
@@ -294,12 +345,24 @@ async function processVictory(player, enemy, options = {}) {
         soulDropped: soulResult.soulDropped,
         soulChance: soulResult.soulChance,
         soulSource: soulResult.source,
+        soulSourceLabel: getSoulSourceLabel(soulResult.source),
+        soulDropText: soulResult.soulDropText,
+        soulLootLine: soulResult.soulLootLine,
         keyDropped,
         leveledUp,
-        totalKills: player.totalKills
+        totalKills: player.totalKills,
+        enemyId: enemy?.id || null,
+        enemyName: enemy?.name || null
     };
 }
 
 module.exports = {
-    processVictory
+    processVictory,
+    __private: {
+        getSoulSource,
+        getSoulSourceLabel,
+        buildCompactSoulLootLine,
+        buildFullSoulDropText,
+        tryDropSoul
+    }
 };
