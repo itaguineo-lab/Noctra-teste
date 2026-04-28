@@ -10,6 +10,13 @@ const {
 } = require('../core/arena/arenaService');
 
 const {
+    migrateLegacyArenaCoinsToGlorias,
+    getArenaGloriasBalance,
+    spendArenaGlorias,
+    formatNumber
+} = require('../core/arena/arenaCurrency');
+
+const {
     arenaShopItems
 } = require('../data/arenaShopItems');
 
@@ -71,20 +78,32 @@ function buildArenaSections() {
         .filter(section => section.items.length > 0);
 }
 
-function buildArenaShopText(player) {
+function buildArenaShopText(player, migrated = 0) {
     const sections = buildArenaSections();
+    const balance = getArenaGloriasBalance(player, { includeLegacy: false });
 
-    let text = `🏪 *LOJA DA ARENA*\n\n`;
-    text += `🪙 Moedas da Arena: *${player.arena.coins}*\n\n`;
-    text += `Itens para utilidade competitiva, conveniência moderada e prestígio visual.\n\n`;
+    let text = `⚔️ *LOJA DA ARENA*\n`;
+    text += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `🏅 Glórias: *${formatNumber(balance)}*\n`;
+
+    if (migrated > 0) {
+        text += `\n🔁 ${formatNumber(migrated)} moedas antigas foram convertidas em Glórias.\n`;
+    }
+
+    text += `\nItens táticos, conveniência moderada e prestígio visual.\n`;
+    text += `_Glórias são a moeda competitiva oficial da Arena._\n\n`;
 
     sections.forEach(section => {
         text += `*${section.group}*\n`;
 
         section.items.forEach((item, index) => {
             const icon = getArenaItemIcon(item);
+            const canBuy = balance >= Number(item.price || 0);
+            const status = canBuy ? '✅ Disponível' : `🔒 Faltam ${formatNumber(Number(item.price || 0) - balance)} glórias`;
+
             text += `${icon} *${item.name}*\n`;
-            text += `💰 ${item.price} moedas\n`;
+            text += `🏅 ${formatNumber(item.price)} glórias\n`;
+            text += `${status}\n`;
             text += `📜 ${item.description}\n`;
             if (index !== section.items.length - 1) {
                 text += `\n`;
@@ -97,15 +116,17 @@ function buildArenaShopText(player) {
     return text.trim();
 }
 
-function buildArenaShopKeyboard() {
+function buildArenaShopKeyboard(player) {
     const rows = [];
     const sections = buildArenaSections();
+    const balance = getArenaGloriasBalance(player, { includeLegacy: false });
 
     sections.forEach(section => {
         section.items.forEach(item => {
+            const canBuy = balance >= Number(item.price || 0);
             rows.push([
                 Markup.button.callback(
-                    `${getArenaItemIcon(item)} ${item.name} • ${item.price}🪙`,
+                    `${canBuy ? '✅' : '🔒'} ${getArenaItemIcon(item)} ${item.name} • ${formatNumber(item.price)}🏅`,
                     `arena_shop_buy:${item.id}`
                 )
             ]);
@@ -130,11 +151,17 @@ async function handleArenaShop(ctx) {
     }
 
     ensureArenaState(player);
+    const migration = migrateLegacyArenaCoinsToGlorias(player);
+
+    if (migration.migrated > 0) {
+        normalizePlayerForSave(player);
+        await savePlayer(ctx.from.id, player);
+    }
 
     return safeSend(
         ctx,
-        buildArenaShopText(player),
-        buildArenaShopKeyboard()
+        buildArenaShopText(player, migration.migrated),
+        buildArenaShopKeyboard(player)
     );
 }
 
@@ -149,6 +176,7 @@ async function handleArenaShopBuy(ctx) {
     }
 
     ensureArenaState(player);
+    migrateLegacyArenaCoinsToGlorias(player);
     player.inventory ??= [];
     player.consumables ??= {};
     ensureCosmeticsState(player);
@@ -159,10 +187,6 @@ async function handleArenaShopBuy(ctx) {
         return safeAnswer(ctx, '❌ Item inválido.', { show_alert: true });
     }
 
-    if (player.arena.coins < item.price) {
-        return safeAnswer(ctx, '❌ Moedas insuficientes.', { show_alert: true });
-    }
-
     if (item.type === 'cosmetic') {
         const alreadyOwned = player.cosmetics.some(c => c.id === item.id);
         if (alreadyOwned) {
@@ -170,7 +194,10 @@ async function handleArenaShopBuy(ctx) {
         }
     }
 
-    player.arena.coins -= item.price;
+    const payment = spendArenaGlorias(player, item.price);
+    if (!payment.success) {
+        return safeAnswer(ctx, payment.message || '❌ Glórias insuficientes.', { show_alert: true });
+    }
 
     try {
         switch (item.type) {
@@ -195,14 +222,14 @@ async function handleArenaShopBuy(ctx) {
                 });
 
                 if (!cosmeticResult.success) {
-                    player.arena.coins += item.price;
+                    player.glorias += item.price;
                     return safeAnswer(ctx, cosmeticResult.message, { show_alert: true });
                 }
                 break;
             }
 
             default:
-                player.arena.coins += item.price;
+                player.glorias += item.price;
                 return safeAnswer(ctx, '❌ Tipo de item inválido.', { show_alert: true });
         }
 
@@ -210,7 +237,7 @@ async function handleArenaShopBuy(ctx) {
         await savePlayer(ctx.from.id, player);
 
         await recordPurchaseMetrics({
-            currency: 'arena_coins',
+            currency: 'glorias',
             amount: item.price,
             vip: false
         }).catch(() => {});
@@ -219,12 +246,18 @@ async function handleArenaShopBuy(ctx) {
         return handleArenaShop(ctx);
     } catch (error) {
         console.error('Erro arena shop buy:', error);
-        player.arena.coins += item.price;
+        player.glorias += item.price;
         return safeAnswer(ctx, '❌ Erro ao processar compra.', { show_alert: true });
     }
 }
 
 module.exports = {
     handleArenaShop,
-    handleArenaShopBuy
+    handleArenaShopBuy,
+    __private: {
+        buildArenaShopText,
+        buildArenaShopKeyboard,
+        getArenaItemGroup,
+        getArenaItemIcon
+    }
 };
