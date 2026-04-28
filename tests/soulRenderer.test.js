@@ -11,6 +11,7 @@ const {
     buildSoulDetailText,
     buildSoulDropText,
     buildSoulCommandHelpLine,
+    buildSoulCooldownLine,
     formatSoulLevel,
     getSoulIdentityLine,
     getSoulCommandId,
@@ -30,6 +31,7 @@ function damageSoul(overrides = {}) {
         exp: 0,
         shards: 0,
         awakenLevel: 0,
+        cooldownTurns: 3,
         effect: {
             type: 'damage',
             multiplier: 1.35
@@ -47,6 +49,7 @@ function frostSoul(overrides = {}) {
         rarity: 'Épico',
         tier: 2,
         emoji: '❄️',
+        cooldownTurns: 3,
         effect: {
             type: 'damage',
             multiplier: 1.5,
@@ -65,6 +68,7 @@ function passiveSoul(overrides = {}) {
         rarity: 'Épico',
         tier: 2,
         emoji: '🛡️',
+        cooldownTurns: 0,
         effect: {
             type: 'passive',
             defBonus: 10,
@@ -94,15 +98,20 @@ test('getSoulIdentityLine inclui raridade, tier e level', () => {
     assert.match(text, /Lv\.2/);
 });
 
-test('buildSoulEffectSummary descreve dano ativo', () => {
-    assert.equal(buildSoulEffectSummary(damageSoul()), 'Dano ativo: 135% do ATK');
+test('buildSoulCooldownLine descreve cooldown e passiva', () => {
+    assert.equal(buildSoulCooldownLine(damageSoul()), 'Recarga: 3 turnos');
+    assert.equal(buildSoulCooldownLine(passiveSoul()), 'Tipo: Passiva permanente');
+});
+
+test('buildSoulEffectSummary descreve dano ativo compacto', () => {
+    assert.equal(buildSoulEffectSummary(damageSoul()), 'Dano 135% ATK');
 });
 
 test('buildSoulEffectSummary descreve controle adicional', () => {
     const text = buildSoulEffectSummary(frostSoul());
 
-    assert.match(text, /150% do ATK/);
-    assert.match(text, /25% chance de congelar/);
+    assert.match(text, /150% ATK/);
+    assert.match(text, /25% congelar/);
 });
 
 test('buildSoulEffectSummary descreve passiva', () => {
@@ -116,8 +125,7 @@ test('buildSoulEffectSummary descreve passiva', () => {
 test('buildSoulEffectDetail descreve efeito em linhas', () => {
     const text = buildSoulEffectDetail(frostSoul());
 
-    assert.match(text, /Tipo: Dano ativo/);
-    assert.match(text, /Multiplicador: 150% do ATK/);
+    assert.match(text, /Dano: 150% do ATK/);
     assert.match(text, /Controle: 25% de chance de congelar/);
 });
 
@@ -128,20 +136,21 @@ test('buildSoulCommandHelpLine mostra comando com ID base', () => {
     assert.match(text, /\/equipsoul soul_wolf 2/);
 });
 
-test('buildSoulCard renderiza card compacto', () => {
+test('buildSoulCard renderiza card compacto com recarga', () => {
     const text = buildSoulCard(damageSoul(), 1);
 
     assert.match(text, /1\. 🐺 Alma do Lobo Sombrio/);
     assert.match(text, /Raro/);
-    assert.match(text, /Dano ativo/);
-    assert.match(text, /XP: 0\/3/);
+    assert.match(text, /Dano 135% ATK/);
+    assert.match(text, /Recarga: 3 turnos/);
+    assert.match(text, /XP 0\/3/);
 });
 
 test('buildEquippedSoulsBlock mostra slots vazios e equipados', () => {
     const text = buildEquippedSoulsBlock([damageSoul(), null]);
 
     assert.match(text, /EQUIPADAS/);
-    assert.match(text, /Slot vazio/);
+    assert.match(text, /Vazio/);
     assert.match(text, /Alma do Lobo Sombrio/);
 });
 
@@ -168,12 +177,12 @@ test('buildSoulsOverviewText mostra visão geral completa', () => {
     assert.match(text, /Alma Guardiã/);
 });
 
-test('buildSoulDetailText mostra detalhe individual e ID para comando', () => {
+test('buildSoulDetailText mostra detalhe individual polido e ID', () => {
     const text = buildSoulDetailText(passiveSoul({ instanceId: 'uuid-guardian' }), { slot: 1 });
 
     assert.match(text, /Alma Guardiã/);
-    assert.match(text, /ID para comando: soul_guardian/);
-    assert.match(text, /Instância: uuid-guardian/);
+    assert.match(text, /ID: soul_guardian/);
+    assert.doesNotMatch(text, /Instância:/);
     assert.match(text, /Status: equipada no Slot 2/);
     assert.match(text, /EFEITO/);
     assert.match(text, /PROGRESSO/);
@@ -191,5 +200,5 @@ test('buildSoulDropText cria tela especial de drop', () => {
     assert.match(text, /Boss da Cripta/);
     assert.match(text, /Lorde da Cripta/);
     assert.match(text, /Alma Gélida/);
-    assert.match(text, /coleção/);
+    assert.match(text, /Abra o inventário/);
 });
