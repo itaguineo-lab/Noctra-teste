@@ -29,6 +29,7 @@ const {
 const {
     getStoredFight,
     runConsumableTurn,
+    persistFightState,
     persistFightMessage
 } = require('../core/combat/fightService');
 const {
@@ -332,11 +333,20 @@ function shouldSkipEnemyTurnForConsumable(key) {
     return key === 'potionHp' || key === 'potionEnergy';
 }
 
-async function savePlayerBattleState(userId, player, fight) {
+async function savePlayerBattleState(userId, player, fight, meta = {}) {
     syncPlayerFromFight(player, fight);
     preventStaleActiveFightOverwrite(player);
     normalizePlayerForSave(player);
     await savePlayer(userId, player);
+
+    /*
+    Defesa crítica:
+    savePlayer preserva estados transitórios, mas pode restaurar um activeFight
+    antigo dependendo da ordem de leitura/escrita. Depois de salvar HP/energia e
+    consumível, regravamos explicitamente a luta recém-atualizada. Isso garante
+    que o próximo clique em Atacar carregue o activeFight correto.
+    */
+    await persistFightState(userId, fight, meta);
 }
 
 function getEnemyBadge(enemy) {
@@ -578,13 +588,9 @@ async function handleUseConsumable(ctx) {
         }).catch(() => {});
     }
 
-    await savePlayerBattleState(ctx.from.id, player, updated.fight);
+    await savePlayerBattleState(ctx.from.id, player, updated.fight, updated.meta);
 
     await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
-
-    if (updated.fight.status !== 'ongoing') {
-        return renderCurrentFightDirect(ctx, updated, player.level);
-    }
 
     return renderCurrentFightDirect(ctx, updated, player.level);
 }
