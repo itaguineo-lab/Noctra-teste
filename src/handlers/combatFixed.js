@@ -2,6 +2,7 @@ const baseCombat = require('./combat');
 
 const { Markup } = require('telegraf');
 const { getPlayer, savePlayer } = require('../core/player/playerService');
+const { processVictory } = require('../services/rewardService');
 const {
     normalizeInventoryItem,
     normalizePlayerForSave,
@@ -9,6 +10,10 @@ const {
     consumeConsumable,
     restoreEnergy
 } = require('../core/player/playerMutations');
+const {
+    applyDeathXpPenalty,
+    getXpToNextLevel
+} = require('../core/player/progression');
 const {
     getItemKey,
     findInventoryItemByKey
@@ -28,6 +33,9 @@ const {
 } = require('../utils/formatters');
 const {
     getStoredFight,
+    removeStoredFight,
+    runAttack,
+    runSoul,
     runConsumableTurn,
     persistFightState,
     persistFightMessage
@@ -36,6 +44,7 @@ const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
 const {
+    recordCombatResult,
     recordConsumableUsed
 } = require('../core/metrics/metricsService');
 const { BALANCE } = require('../data/balance');
@@ -449,6 +458,247 @@ async function renderCurrentFightDirect(ctx, stored, playerLevel = null) {
     return true;
 }
 
+async function sendPostCombatMessageSafe(ctx, meta, message, keyboard) {
+    const chatId = ctx.chat.id;
+    const messageId = meta?.battleMessageId || ctx.callbackQuery?.message?.message_id;
+    const isPhoto = Boolean(meta?.isPhoto || ctx.callbackQuery?.message?.photo);
+
+    if (!messageId) {
+        return ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+    }
+
+    try {
+        if (isPhoto) {
+            return await ctx.telegram.editMessageCaption(chatId, messageId, null, message, {
+                parse_mode: 'Markdown',
+                reply_markup: keyboard.reply_markup
+            });
+        }
+
+        return await ctx.telegram.editMessageText(chatId, messageId, null, message, {
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup
+        });
+    } catch {
+        try {
+            await ctx.telegram.deleteMessage(chatId, messageId);
+        } catch {}
+
+        return ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+    }
+}
+
+function buildLootHighlight(rewards) {
+    if (!rewards?.droppedItem) return '';
+
+    const item = rewards.droppedItem;
+    const slot = getRealSlot(item);
+
+    return (
+        `\n🎁 *Item encontrado*\n` +
+        `${item.emoji || getSlotIcon(slot, item)} *${escapeMarkdown(item.name)}*\n` +
+        `${escapeMarkdown(item.rarity || 'Comum')} • ${escapeMarkdown(item.displayCategory || getSlotLabel(slot, item))}` +
+        `${item.traitLabel ? ` • ${escapeMarkdown(item.traitLabel)}` : ''}` +
+        `${item.originMap ? ` • ${escapeMarkdown(item.originMap)}` : ''}\n` +
+        `Poder: ${calcItemPower(item)}${item.powerTier ? ` • ${escapeMarkdown(item.powerTier)}` : ''}\n`
+    );
+}
+
+function getRegularLootLines(rewards) {
+    const loot = Array.isArray(rewards?.loot) ? rewards.loot : [];
+    const droppedItemName = rewards?.droppedItem?.name || null;
+
+    return loot.filter(line => {
+        const value = String(line || '');
+        if (!value) return false;
+        if (value.includes('ALMA ENCONTRADA')) return false;
+        if (droppedItemName && value.includes(droppedItemName)) return false;
+        return true;
+    });
+}
+
+function buildVictoryMessageWithSoulDrop(player, rewards) {
+    const xpNeeded = getXpToNextLevel(player.level);
+    const xpProgress = progressBar(player.xp, xpNeeded, 8, '🟨', '⬛');
+    const hpBar = progressBar(player.hp, player.maxHp, 8, '🟩', '⬛');
+    const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟦', '⬛');
+
+    let msg = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🏆 *VITÓRIA*\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    msg += `🎖️ *${escapeMarkdown(player.name)}* • Nível ${player.level}\n`;
+    msg += `✨ +${rewards.xp} XP  ${xpProgress}\n`;
+    msg += `📈 ${player.xp}/${xpNeeded} para o próximo nível\n`;
+    msg += `💰 +${rewards.gold} Ouro | Total: ${player.gold}\n\n`;
+
+    msg += `❤️ ${player.hp}/${player.maxHp} ${hpBar}\n`;
+    msg += `⚡ ${player.energy}/${player.maxEnergy} ${energyBar}\n`;
+
+    const lootHighlight = buildLootHighlight(rewards);
+    if (lootHighlight) {
+        msg += lootHighlight;
+    }
+
+    if (rewards.soulDropped && rewards.soulDropText) {
+        msg += `\n${rewards.soulDropText}\n`;
+    } else if (rewards.soulDropped) {
+        msg += `\n🌑 *ALMA ENCONTRADA*\n${escapeMarkdown(rewards.soulLootLine || rewards.droppedSoul?.name || 'Alma rara')}\n`;
+    }
+
+    const regularLoot = getRegularLootLines(rewards);
+    if (regularLoot.length) {
+        msg += `\n🎁 *Loot Obtido*\n`;
+        regularLoot.forEach(item => {
+            msg += `${escapeMarkdown(item)}\n`;
+        });
+    }
+
+    if (rewards.inventoryFull) {
+        msg += `\n🎒 *Inventário cheio!* Um item deixou de entrar.\n`;
+    }
+
+    if (rewards.keyDropped) {
+        msg += `\n🗝️ *Chave de Masmorra obtida!*\n`;
+    }
+
+    if (rewards.leveledUp) {
+        msg += `\n🌟 *LEVEL UP!* Agora você é nível ${player.level}!\n`;
+    }
+
+    msg += `\n━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🌑 A escuridão recua... por enquanto.`;
+
+    return msg;
+}
+
+function buildLossMessageSafe(player, penalty) {
+    const ratePercent = Math.round((penalty?.rateApplied || 0) * 100);
+
+    let msg = (
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `💀 *DERROTA*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Você foi derrotado...\n\n` +
+        `📉 XP perdido: ${penalty?.lostXp || 0} (${ratePercent}%)\n` +
+        `✨ XP atual: ${player.xp}\n`
+    );
+
+    if (penalty?.levelReduced) {
+        msg += `⬇️ Nível reduzido: ${penalty.oldLevel} → ${penalty.newLevel}\n`;
+    }
+
+    msg += (
+        `\n❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
+        `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🌑 Reúna forças e tente novamente.`
+    );
+
+    return msg;
+}
+
+async function finishFightWithSoulDropDisplay(ctx, stored) {
+    const { fight, meta } = stored || {};
+    const player = await getPlayer(ctx.from.id);
+
+    if (!player || !fight) {
+        await removeStoredFight(ctx.from.id).catch(() => {});
+        return ctx.reply('❌ Jogador não encontrado.');
+    }
+
+    await removeStoredFight(ctx.from.id);
+
+    if (fight.status === 'win') {
+        const rewards = await processVictory(player, fight.enemy);
+        updateMissionProgress(player, 'kill', 1);
+
+        syncPlayerFromFight(player, fight);
+        normalizePlayerForSave(player);
+
+        await savePlayer(ctx.from.id, player);
+        await recordCombatResult('win');
+
+        const droppedItemKey = rewards.droppedItem ? getItemKey(rewards.droppedItem) : null;
+
+        return sendPostCombatMessageSafe(
+            ctx,
+            meta,
+            buildVictoryMessageWithSoulDrop(player, rewards),
+            postCombatMenu({ droppedItemKey })
+        );
+    }
+
+    if (fight.status === 'loss') {
+        const penalty = applyDeathXpPenalty(player);
+        player.hp = 1;
+
+        normalizePlayerForSave(player);
+        await savePlayer(ctx.from.id, player);
+        await recordCombatResult('loss');
+
+        return sendPostCombatMessageSafe(
+            ctx,
+            meta,
+            buildLossMessageSafe(player, penalty),
+            postCombatMenu()
+        );
+    }
+
+    return baseCombat.handleCombatBack(ctx);
+}
+
+async function handleAttack(ctx) {
+    const stored = await getStoredFight(ctx.from.id);
+
+    if (!stored) {
+        return ctx.answerCbQuery('⚠️ Esta luta expirou. Caçe novamente se quiser.', {
+            show_alert: true
+        }).catch(() => {});
+    }
+
+    if (stored.fight.status !== 'ongoing') {
+        return finishFightWithSoulDropDisplay(ctx, stored);
+    }
+
+    const updated = await runAttack(ctx.from.id, stored);
+
+    if (!updated || updated.fight.status !== 'ongoing') {
+        return finishFightWithSoulDropDisplay(ctx, updated || stored);
+    }
+
+    await ctx.answerCbQuery().catch(() => {});
+    return renderCurrentFightDirect(ctx, updated);
+}
+
+async function handleSoul(ctx) {
+    const stored = await getStoredFight(ctx.from.id);
+
+    if (!stored) {
+        return ctx.answerCbQuery('⚠️ Esta luta expirou. Caçe novamente se quiser.', {
+            show_alert: true
+        }).catch(() => {});
+    }
+
+    if (stored.fight.status !== 'ongoing') {
+        return finishFightWithSoulDropDisplay(ctx, stored);
+    }
+
+    const soulIndex = parseInt(ctx.match?.[1], 10);
+    const updated = await runSoul(ctx.from.id, soulIndex, stored);
+
+    if (!updated || !updated.result) {
+        return ctx.answerCbQuery('❌ Alma inválida ou vazia.', { show_alert: true }).catch(() => {});
+    }
+
+    if (updated.fight.status !== 'ongoing') {
+        return finishFightWithSoulDropDisplay(ctx, updated);
+    }
+
+    await ctx.answerCbQuery().catch(() => {});
+    return renderCurrentFightDirect(ctx, updated);
+}
+
 async function handleViewDroppedLoot(ctx) {
     const itemKey = ctx.match?.[1];
     const player = await getPlayer(ctx.from.id);
@@ -597,6 +847,8 @@ async function handleUseConsumable(ctx) {
 
 module.exports = {
     ...baseCombat,
+    handleAttack,
+    handleSoul,
     handleViewDroppedLoot,
     handleEquipDroppedLoot,
     handleUseConsumable,
@@ -614,6 +866,12 @@ module.exports = {
         shouldSkipEnemyTurnForConsumable,
         savePlayerBattleState,
         renderFightCaptionSafe,
-        renderCurrentFightDirect
+        renderCurrentFightDirect,
+        sendPostCombatMessageSafe,
+        buildLootHighlight,
+        getRegularLootLines,
+        buildVictoryMessageWithSoulDrop,
+        buildLossMessageSafe,
+        finishFightWithSoulDropDisplay
     }
 };
