@@ -17,6 +17,7 @@ const soulsList = [
         emoji: '🐺',
         minLevel: 1,
         shardValue: 5,
+        cooldownTurns: 3,
         effect: {
             type: 'damage',
             multiplier: 1.35
@@ -31,6 +32,7 @@ const soulsList = [
         emoji: '💚',
         minLevel: 5,
         shardValue: 5,
+        cooldownTurns: 4,
         effect: {
             type: 'heal',
             multiplier: 0.35
@@ -45,6 +47,7 @@ const soulsList = [
         emoji: '❄️',
         minLevel: 8,
         shardValue: 10,
+        cooldownTurns: 3,
         effect: {
             type: 'damage',
             multiplier: 1.5,
@@ -60,6 +63,7 @@ const soulsList = [
         emoji: '🛡️',
         minLevel: 12,
         shardValue: 10,
+        cooldownTurns: 0,
         effect: {
             type: 'passive',
             defBonus: 10,
@@ -75,6 +79,7 @@ const soulsList = [
         emoji: '🩸',
         minLevel: 15,
         shardValue: 20,
+        cooldownTurns: 4,
         effect: {
             type: 'lifesteal',
             multiplier: 1.65,
@@ -90,6 +95,7 @@ const soulsList = [
         emoji: '🐉',
         minLevel: 24,
         shardValue: 40,
+        cooldownTurns: 0,
         effect: {
             type: 'passive',
             atkBonus: 18,
@@ -105,6 +111,7 @@ const soulsList = [
         emoji: '🌑',
         minLevel: 35,
         shardValue: 60,
+        cooldownTurns: 4,
         effect: {
             type: 'damage',
             multiplier: 2.1,
@@ -124,6 +131,13 @@ const rarityWeights = {
     Épico: 25,
     Lendário: 15,
     Mítico: 5
+};
+
+const DEFAULT_COOLDOWNS_BY_EFFECT = {
+    damage: 3,
+    heal: 4,
+    lifesteal: 4,
+    passive: 0
 };
 
 /*
@@ -181,6 +195,19 @@ function getRarityEmoji(rarity) {
     };
 
     return map[rarity] || '⚪';
+}
+
+function getSoulCooldownTurns(soul = {}) {
+    const explicit = Number(soul.cooldownTurns);
+    if (Number.isFinite(explicit)) return Math.max(0, explicit);
+
+    const effectType = soul.effect?.type || 'damage';
+    const fallback = DEFAULT_COOLDOWNS_BY_EFFECT[effectType];
+    return Math.max(0, Number.isFinite(Number(fallback)) ? Number(fallback) : 3);
+}
+
+function isPassiveSoul(soul = {}) {
+    return soul.effect?.type === 'passive';
 }
 
 function weightedRandom(list) {
@@ -311,11 +338,20 @@ ACTIVATION
 function activateSoul(soul, state) {
     if (!soul || !state) {
         return {
+            success: false,
             message: '❌ Alma inválida.'
         };
     }
 
     const effect = soul.effect || {};
+
+    if (effect.type === 'passive') {
+        return {
+            success: false,
+            passive: true,
+            message: `${soul.emoji || '💀'} ${soul.name} é uma alma passiva.`
+        };
+    }
 
     switch (effect.type) {
         case 'damage': {
@@ -327,6 +363,7 @@ function activateSoul(soul, state) {
             }
 
             return {
+                success: true,
                 damage,
                 message: `${soul.emoji} ${soul.name} causou ${damage} dano!`
             };
@@ -337,6 +374,7 @@ function activateSoul(soul, state) {
             state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
 
             return {
+                success: true,
                 heal,
                 message: `${soul.emoji} ${soul.name} curou ${heal} HP!`
             };
@@ -350,6 +388,7 @@ function activateSoul(soul, state) {
             state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
 
             return {
+                success: true,
                 damage,
                 heal,
                 message: `${soul.emoji} drenou ${damage} e curou ${heal}!`
@@ -358,6 +397,7 @@ function activateSoul(soul, state) {
 
         default:
             return {
+                success: true,
                 message: `${soul.emoji} ${soul.name} ativada!`
             };
     }
@@ -406,6 +446,7 @@ module.exports = {
     soulsList,
     SOUL_DROP_SOURCES,
     PITY_RULES,
+    DEFAULT_COOLDOWNS_BY_EFFECT,
     getSoulById,
     hasThemedSoul,
     getSoulDropChance,
@@ -416,5 +457,7 @@ module.exports = {
     dismantleSoul,
     activateSoul,
     getRarityEmoji,
+    getSoulCooldownTurns,
+    isPassiveSoul,
     levelUpSoul
 };
