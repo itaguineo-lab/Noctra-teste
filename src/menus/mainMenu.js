@@ -1,6 +1,14 @@
 const { Markup } = require('telegraf');
 
-function mainMenu() {
+function onboardingMenu() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback('🌑 Criar personagem', 'create_character')]
+    ]);
+}
+
+function mainMenu(hasPlayer = true) {
+    if (!hasPlayer) return onboardingMenu();
+
     return Markup.inlineKeyboard([
         [
             Markup.button.callback('⚔️ Caçar', 'hunt'),
@@ -29,4 +37,7 @@ function mainMenu() {
     ]);
 }
 
-module.exports = { mainMenu };
+module.exports = {
+    mainMenu,
+    onboardingMenu
+};
