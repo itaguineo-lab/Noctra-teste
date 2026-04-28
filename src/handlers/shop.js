@@ -13,7 +13,8 @@ const {
     getWalletText,
     getCurrencyBalance,
     formatNumber,
-    syncWalletToPlayer
+    syncWalletToPlayer,
+    hasWalletFields
 } = require('../core/economy/walletPresenter');
 const { shopItems } = require('../data/shopItems');
 const { shopMainMenu, shopTabsMenu, renderShop } = require('../menus/shopMenu');
@@ -178,8 +179,12 @@ function getSellLongStats(item = {}) {
     return parts.length ? parts.join('\n') : 'Sem bônus relevantes.';
 }
 
+function isValidShopPlayer(player) {
+    return Boolean(player && (player.id || player._id));
+}
+
 function normalizeShopPlayer(player) {
-    if (!player) return player;
+    if (!isValidShopPlayer(player)) return null;
     return syncWalletToPlayer(player);
 }
 
@@ -188,8 +193,23 @@ async function getShopPlayer(userId) {
     return normalizeShopPlayer(player);
 }
 
+async function renderMissingPlayer(ctx) {
+    return safeEdit(
+        ctx,
+        '⚠️ *Personagem não encontrado*\n\nUse /start para criar ou carregar seu personagem antes de acessar a loja.',
+        {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback('🏠 Menu principal', 'menu')]
+            ])
+        }
+    );
+}
+
 async function renderTab(ctx, tab, playerOverride = null) {
     const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+    if (!player) return renderMissingPlayer(ctx);
+
     const items = getShopItemsByTab(tab);
 
     const header =
@@ -314,6 +334,8 @@ function buildSellKeyboard(pageData) {
 async function renderSellPage(ctx, page = 1, playerOverride = null) {
     try {
         const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+        if (!player) return renderMissingPlayer(ctx);
+
         const sellable = buildSellInventory(player);
         const pageData = paginate(sellable, page, SELL_PAGE_SIZE);
         const text = renderSellText(player, pageData);
@@ -418,6 +440,7 @@ function buildSellPreviewKeyboard(itemIndex) {
 
 async function handleShop(ctx, playerOverride = null) {
     const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+    if (!player) return renderMissingPlayer(ctx);
 
     const msg =
         `🛒 *MERCADO DE NOCTRA*\n` +
@@ -434,6 +457,7 @@ async function handleShop(ctx, playerOverride = null) {
 
 async function handleShopBuyMenu(ctx, playerOverride = null) {
     const player = normalizeShopPlayer(playerOverride || await getPlayer(ctx.from.id));
+    if (!player) return renderMissingPlayer(ctx);
 
     const msg =
         `🛍️ *ESCOLHA UMA LOJA*\n` +
@@ -471,6 +495,8 @@ async function handleBuy(ctx) {
         }
 
         const player = await getShopPlayer(ctx.from.id);
+        if (!player) return safeAnswer(ctx, '⚠️ Personagem não encontrado. Use /start.', { show_alert: true });
+
         const item = getShopItemById(itemId);
 
         if (!item) {
@@ -505,6 +531,8 @@ async function handleBuyConfirm(ctx) {
         const quantity = Math.max(1, Number(ctx.match?.[2] || 1));
 
         const player = await getShopPlayer(ctx.from.id);
+        if (!player) return safeAnswer(ctx, '⚠️ Personagem não encontrado. Use /start.', { show_alert: true });
+
         const item = getShopItemById(itemId);
 
         if (!item) {
@@ -556,6 +584,8 @@ async function handleSellPreview(ctx) {
         }
 
         const player = await getShopPlayer(ctx.from.id);
+        if (!player) return safeAnswer(ctx, '⚠️ Personagem não encontrado. Use /start.', { show_alert: true });
+
         const item = getInventoryItemByIndex(player, itemIndex);
 
         if (!item) {
@@ -585,6 +615,8 @@ async function handleSellConfirm(ctx) {
         }
 
         const player = await getShopPlayer(ctx.from.id);
+        if (!player) return safeAnswer(ctx, '⚠️ Personagem não encontrado. Use /start.', { show_alert: true });
+
         const result = sellItem(player, itemIndex);
 
         if (!result.success) {
@@ -615,6 +647,8 @@ async function handleSellConfirmByKey(ctx) {
         }
 
         const player = await getShopPlayer(ctx.from.id);
+        if (!player) return safeAnswer(ctx, '⚠️ Personagem não encontrado. Use /start.', { show_alert: true });
+
         const result = sellItemByKey(player, decodedKey);
 
         if (!result.success) {
@@ -655,6 +689,8 @@ module.exports = {
         getWalletText,
         getShopItemTypeLabel,
         getPlayerBalance,
-        normalizeShopPlayer
+        normalizeShopPlayer,
+        isValidShopPlayer,
+        renderMissingPlayer
     }
 };
