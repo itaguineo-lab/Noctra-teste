@@ -1,7 +1,7 @@
 const baseCombat = require('./combat');
 
 const { Markup } = require('telegraf');
-const { getPlayer, savePlayer } = require('../core/player/playerService');
+const { getPlayer, savePlayer, getPlayerCollection } = require('../core/player/playerService');
 const {
     normalizeInventoryItem,
     normalizePlayerForSave,
@@ -322,21 +322,26 @@ function syncPlayerFromFight(player, fight) {
     return player;
 }
 
-function preventStaleActiveFightOverwrite(player) {
-    if (!player || typeof player !== 'object') return player;
-    player.activeFight = null;
-    return player;
-}
-
 function shouldSkipEnemyTurnForConsumable(key) {
     return key === 'potionHp' || key === 'potionEnergy';
 }
 
-async function savePlayerBattleState(userId, player, fight) {
+async function persistConsumablePlayerState(userId, player, fight) {
     syncPlayerFromFight(player, fight);
-    preventStaleActiveFightOverwrite(player);
-    normalizePlayerForSave(player);
-    await savePlayer(userId, player);
+
+    const collection = await getPlayerCollection();
+
+    const update = {
+        $set: {
+            hp: player.hp,
+            energy: player.energy,
+            consumables: player.consumables || {},
+            dailyMissions: player.dailyMissions || null,
+            updatedAt: new Date()
+        }
+    };
+
+    await collection.updateOne({ id: String(userId) }, update);
 }
 
 function getEnemyBadge(enemy) {
@@ -578,13 +583,9 @@ async function handleUseConsumable(ctx) {
         }).catch(() => {});
     }
 
-    await savePlayerBattleState(ctx.from.id, player, updated.fight);
+    await persistConsumablePlayerState(ctx.from.id, player, updated.fight);
 
     await ctx.answerCbQuery('✅ Consumível usado!').catch(() => {});
-
-    if (updated.fight.status !== 'ongoing') {
-        return renderCurrentFightDirect(ctx, updated, player.level);
-    }
 
     return renderCurrentFightDirect(ctx, updated, player.level);
 }
@@ -604,9 +605,8 @@ module.exports = {
         buildShortCallbackToken,
         replyClean,
         syncPlayerFromFight,
-        preventStaleActiveFightOverwrite,
         shouldSkipEnemyTurnForConsumable,
-        savePlayerBattleState,
+        persistConsumablePlayerState,
         renderFightCaptionSafe,
         renderCurrentFightDirect
     }
