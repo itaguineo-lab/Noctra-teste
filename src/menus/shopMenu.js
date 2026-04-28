@@ -14,11 +14,20 @@ function currencyName(currency) {
     return currency || 'moeda';
 }
 
+function formatNumber(value) {
+    return Number(value || 0).toLocaleString('pt-BR');
+}
+
+function escapeMarkdown(text = '') {
+    return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
 function getShopItemTypeLabel(item = {}) {
     if (item.type === 'consumable') return 'Consumível';
     if (item.type === 'equipment') {
         if (item.slot === 'weapon') return 'Arma';
         if (item.slot === 'ring' || item.slot === 'necklace') return 'Joia';
+        if (item.slot === 'shield') return 'Mão Secundária';
         return 'Armadura';
     }
     if (item.type === 'vip') return 'VIP';
@@ -26,10 +35,23 @@ function getShopItemTypeLabel(item = {}) {
     return 'Item';
 }
 
-function buildItemButtonLabel(item = {}) {
+function getPlayerBalance(player = {}, currency = 'gold') {
+    return Number(player?.[currency] || 0);
+}
+
+function canAfford(player, item) {
+    return getPlayerBalance(player, item?.currency) >= Number(item?.price || 0);
+}
+
+function buildAffordabilityPrefix(player, item) {
+    return canAfford(player, item) ? '✅' : '🔒';
+}
+
+function buildItemButtonLabel(item = {}, player = {}) {
     const symbol = currencySymbol(item.currency);
     const typeLabel = getShopItemTypeLabel(item);
-    return `🛒 ${item.name} • ${typeLabel} • ${symbol}${item.price}`;
+    const prefix = buildAffordabilityPrefix(player, item);
+    return `${prefix} ${item.name} • ${typeLabel} • ${symbol}${formatNumber(item.price)}`;
 }
 
 function shopMainMenu() {
@@ -49,12 +71,8 @@ function shopTabsMenu() {
     ]);
 }
 
-function renderShop(title, items, player) {
+function renderShop(title, items, player = {}) {
     let text = `${title}\n\n`;
-    text += `💰 Ouro: ${player.gold || 0}\n`;
-    text += `💎 Nox: ${player.nox || 0}\n`;
-    text += `🏅 Glórias: ${player.glorias || 0}\n\n`;
-
     const keyboard = [];
 
     if (!items.length) {
@@ -64,15 +82,19 @@ function renderShop(title, items, player) {
     items.forEach((item, index) => {
         const symbol = currencySymbol(item.currency);
         const typeLabel = getShopItemTypeLabel(item);
+        const affordable = canAfford(player, item);
+        const balance = getPlayerBalance(player, item.currency);
+        const missing = Math.max(0, Number(item.price || 0) - balance);
 
-        text += `*${index + 1}. ${item.name}*\n`;
-        text += `Tipo: ${typeLabel}\n`;
-        text += `Preço: ${symbol} ${item.price} ${currencyName(item.currency)}\n`;
-        text += `${item.description || 'Sem descrição'}\n\n`;
+        text += `*${index + 1}. ${escapeMarkdown(item.name)}*\n`;
+        text += `Tipo: ${escapeMarkdown(typeLabel)}\n`;
+        text += `Preço: ${symbol} ${formatNumber(item.price)} ${escapeMarkdown(currencyName(item.currency))}\n`;
+        text += `Status: ${affordable ? '✅ Você pode comprar' : `🔒 Faltam ${formatNumber(missing)} ${currencyName(item.currency)}`}\n`;
+        text += `${escapeMarkdown(item.description || 'Sem descrição')}\n\n`;
 
         keyboard.push([
             Markup.button.callback(
-                buildItemButtonLabel(item),
+                buildItemButtonLabel(item, player),
                 `buy_${item.id}`
             )
         ]);
@@ -91,5 +113,9 @@ function renderShop(title, items, player) {
 module.exports = {
     shopMainMenu,
     shopTabsMenu,
-    renderShop
+    renderShop,
+    currencySymbol,
+    currencyName,
+    getShopItemTypeLabel,
+    buildItemButtonLabel
 };
