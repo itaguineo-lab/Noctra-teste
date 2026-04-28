@@ -36,7 +36,7 @@ Toda decisão de sistema, UX, economia e monetização deve responder:
    - mapas
    - loot raro
    - equipamentos
-   - souls
+   - almas
    - builds
 
 3. **Conteúdo social / competitivo**
@@ -77,13 +77,15 @@ Regra de produto: feature que não fortalece esse loop deve ser tratada como dis
 - Nox não deve dropar em combate normal
 - Ouro é recurso base do jogo
 - Glórias são recurso competitivo da arena
+- `arena.coins` é legado interno e não deve aparecer na UX
 - Monetização deve priorizar conveniência, cosmético, prestígio e QoL
+- Nox não deve comprar alma rara, item raro, dano bruto ou chave como atalho competitivo
 
 ---
 
 ## 4. Estado atual do projeto
 
-O NOCTRA está em estágio alpha estruturado.
+O NOCTRA está em estágio **alpha jogável estruturado**.
 
 Já existe:
 
@@ -93,13 +95,18 @@ Já existe:
 - combate PvE
 - sistema de energia
 - mapas e inimigos
-- inventário
-- equipamentos
-- souls
+- drops V2 por mapa, classe, raridade e tipo de encontro
+- inventário V3
+- equipamentos com regras de mão secundária
+- almas
 - consumíveis
 - loja principal
+- venda de loot
+- premium QoL sem pay-to-win
 - arena
 - arena shop
+- Glórias consolidadas como moeda competitiva
+- baús da arena
 - dungeons
 - daily rewards
 - baús temporizados
@@ -107,14 +114,16 @@ Já existe:
 - VIP
 - sistema admin
 - métricas básicas
-- testes iniciais
+- testes automatizados em expansão
 - assets via `file_id` do Telegram
 
 O que ainda não existe de forma validada:
 
 - retenção D1 / D7 / D30 medida com base real
-- economia calibrada por dados
-- balanceamento final
+- economia calibrada por dados reais
+- balanceamento final de XP, ouro, Glórias, drops e baús
+- UX V2 das almas
+- renderer dedicado para telas grandes
 - guildas
 - world boss
 - eventos sazonais maduros
@@ -124,7 +133,7 @@ O que ainda não existe de forma validada:
 
 ## 5. Estrutura real do repositório
 
-Esta é a árvore estrutural real observada no repositório `Noctra-teste`.
+Esta é a árvore funcional atual do repositório `Noctra-teste`. Alguns arquivos antigos ainda podem existir, mas os fluxos principais já usam versões novas como `inventoryV3.js`, `combatFixed.js` e `itemsV2.js`.
 
 ```text
 Noctra-teste/
@@ -137,10 +146,23 @@ Noctra-teste/
 ├── package.json
 ├── README.md
 │
+├── docs/
+│   ├── QA_MANUAL.md
+│   └── ROADMAP.md
+│
 ├── tests/
+│   ├── arenaGloriasPolish.test.js
+│   ├── arenaShopGlorias.test.js
+│   ├── arenaShopQol.test.js
+│   ├── arenaUxPolish.test.js
 │   ├── cosmetics.test.js
 │   ├── energyService.test.js
-│   └── mapsAssets.test.js
+│   ├── mapsAssets.test.js
+│   ├── premiumShopQol.test.js
+│   ├── shopPlayerValidation.test.js
+│   ├── shopTelegrafNextParam.test.js
+│   ├── shopWalletDisplay.test.js
+│   └── shopWalletMongoose.test.js
 │
 └── src/
     ├── commands/
@@ -153,6 +175,7 @@ Noctra-teste/
     ├── core/
     │   ├── arena/
     │   │   ├── arenaBattleService.js
+    │   │   ├── arenaCurrency.js
     │   │   ├── arenaPersistence.js
     │   │   └── arenaService.js
     │   │
@@ -175,7 +198,8 @@ Noctra-teste/
     │   │
     │   ├── economy/
     │   │   ├── nox.js
-    │   │   └── shopLogic.js
+    │   │   ├── shopLogic.js
+    │   │   └── walletPresenter.js
     │   │
     │   ├── metrics/
     │   │   ├── MetricsModel.js
@@ -202,17 +226,20 @@ Noctra-teste/
     │   ├── balance.js
     │   ├── constants.js
     │   ├── items.js
+    │   ├── itemsV2.js
     │   └── shopItems.js
     │
     ├── handlers/
     │   ├── arena.js
     │   ├── arenaShop.js
     │   ├── combat.js
+    │   ├── combatFixed.js
     │   ├── daily.js
     │   ├── dungeon.js
     │   ├── energy.js
     │   ├── inventory.js
     │   ├── inventoryPersistenceAdapter.js
+    │   ├── inventoryV3.js
     │   ├── online.js
     │   ├── profile.js
     │   ├── ranking.js
@@ -227,6 +254,7 @@ Noctra-teste/
     │   └── shopMenu.js
     │
     ├── services/
+    │   ├── banCacheService.js
     │   ├── energyService.js
     │   └── rewardService.js
     │
@@ -238,7 +266,32 @@ Noctra-teste/
 
 ---
 
-## 6. Responsabilidade das pastas
+## 6. Arquivos ativos importantes
+
+### Entrada
+
+- `index.js`: registra bot, comandos, callbacks, middlewares, criação de personagem, servidor HTTP e shutdown.
+
+### Fluxos principais ativos
+
+- Inventário ativo: `src/handlers/inventoryV3.js`
+- Combate ativo: `src/handlers/combatFixed.js`
+- Drops ativos: `src/data/itemsV2.js`
+- Recompensas ativas: `src/services/rewardService.js`
+- Loja ativa: `src/handlers/shop.js`
+- Arena ativa: `src/handlers/arena.js`
+
+### Arquivos legados ainda existentes
+
+- `src/handlers/inventory.js`
+- `src/handlers/combat.js`
+- `src/data/items.js`
+
+Regra: antes de mexer nesses arquivos, confirmar se ainda são usados por `index.js` ou por algum `require` ativo.
+
+---
+
+## 7. Responsabilidade das pastas
 
 ### `index.js`
 
@@ -276,19 +329,18 @@ Exemplos:
 
 Camada de interação com botões, telas e fluxos do Telegram.
 
-Ponto de atenção: handlers não devem virar depósito de regra de negócio. Sempre que uma regra crescer, deve migrar para `core/` ou `services/`.
+Ponto de atenção: handlers não devem virar depósito de regra de negócio. Sempre que uma regra crescer, deve migrar para `core/`, `services/` ou `renderers/`.
 
 ### `src/core/`
 
 Coração do jogo. Contém regra estrutural de arena, combate, dungeon, economia, player, mundo, métricas e baús.
-
-Esta é a camada mais importante para escalar o jogo.
 
 ### `src/data/`
 
 Tabelas e configurações estáticas:
 
 - itens
+- drops V2
 - loja
 - arena shop
 - assets
@@ -309,17 +361,11 @@ Funções utilitárias, formatadores, helpers e navegação de UI.
 
 ### `tests/`
 
-Testes automatizados iniciais.
-
-Atualmente cobre:
-
-- cosméticos
-- energia
-- assets dos mapas
+Testes automatizados com foco em regressões críticas.
 
 ---
 
-## 7. Sistemas implementados
+## 8. Sistemas implementados
 
 ### Personagem
 
@@ -328,7 +374,7 @@ Atualmente cobre:
 - classe
 - progressão
 - equipamentos
-- souls
+- almas
 - cosméticos
 - persistência no MongoDB
 
@@ -338,7 +384,7 @@ Atualmente cobre:
 - Arqueiro
 - Mago
 
-As subclasses não precisam ser fixas no cadastro. A build deve emergir por equipamentos, stats e souls.
+As subclasses não precisam ser fixas no cadastro. A build deve emergir por equipamentos, stats e almas.
 
 ### Combate
 
@@ -347,9 +393,11 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 - defesa
 - fuga
 - uso de consumíveis
-- uso de souls
+- uso de almas
 - persistência de luta
 - cálculo de dano separado
+- visualização de item dropado
+- equipar item dropado
 
 ### Energia
 
@@ -359,6 +407,16 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 - regeneração VIP: 8 minutos
 - caça consome energia
 - dungeon consome chave, não energia
+
+### Drops V2
+
+- drops por mapa
+- drops por tier de encontro
+- raridade progressiva
+- viés por classe
+- armas, armaduras, botas, mão secundária e joias
+- traits de item
+- origem do item por mapa
 
 ### Dungeon
 
@@ -374,7 +432,9 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 - persistência de arena
 - ranking competitivo
 - loja própria
-- glórias
+- Glórias como moeda competitiva oficial
+- baús da arena
+- UX visual polida
 
 ### Daily / Chests
 
@@ -382,6 +442,14 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 - chest service
 - baús temporizados
 - rotina de retorno
+
+### Loja
+
+- loja principal
+- compra por ouro, Nox e Glórias
+- venda de loot
+- premium QoL
+- carteira centralizada via `walletPresenter`
 
 ### Métricas
 
@@ -391,21 +459,22 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 
 ---
 
-## 8. Dívida técnica atual
+## 9. Dívida técnica atual
 
 Principais pontos de risco:
 
 1. `index.js` grande demais.
-2. `src/handlers/inventory.js` tende a ficar pesado.
-3. `src/handlers/shop.js` tende a misturar UI com economia.
+2. `src/handlers/inventoryV3.js` tende a ficar pesado.
+3. `src/handlers/shop.js` ainda mistura UI com economia e fluxo de botões.
 4. `src/handlers/arena.js` precisa continuar delegando para `core/arena`.
 5. `src/commands/admin.js` pode virar arquivo inchado se crescer sem separação.
-6. Falta uma pasta `renderers/` para padronizar textos e telas.
-7. Falta uma pasta `core/loot/` para centralizar drops, raridade, pity e recompensas.
+6. Falta uma pasta `src/renderers/` para padronizar textos e telas.
+7. Falta uma pasta `src/core/loot/` para centralizar drops, raridade, pity e recompensas.
+8. README e docs precisam ser atualizados sempre que arquivo ativo mudar.
 
 ---
 
-## 9. Próxima arquitetura recomendada
+## 10. Próxima arquitetura recomendada
 
 A próxima evolução estrutural deve ser gradual, não uma reescrita total.
 
@@ -419,6 +488,7 @@ src/
 │   └── registerMiddlewares.js
 │
 ├── renderers/
+│   ├── soulRenderer.js
 │   ├── arenaRenderer.js
 │   ├── combatRenderer.js
 │   ├── dungeonRenderer.js
@@ -437,16 +507,16 @@ src/
 
 Ordem correta:
 
-1. Quebrar `index.js`.
-2. Criar `renderers/`.
-3. Criar `core/loot/`.
-4. Reduzir peso de `inventory.js`.
-5. Reduzir peso de `shop.js`.
-6. Só depois abrir guildas, world boss e eventos.
+1. Criar `src/renderers/soulRenderer.js`.
+2. Melhorar UX de Almas no inventário.
+3. Criar detalhe individual de Alma.
+4. Melhorar drop visual de Alma em combate.
+5. Balancear chance/pity com testes.
+6. Só depois começar refactor maior de `index.js`.
 
 ---
 
-## 10. Scripts
+## 11. Scripts
 
 ```bash
 npm start
@@ -460,109 +530,44 @@ npm test
 
 ---
 
-## 11. Checklist de QA manual
+## 12. QA manual
 
-### Home
+O QA manual detalhado está em:
+
+```text
+docs/QA_MANUAL.md
+```
+
+Antes de qualquer merge grande, testar pelo menos:
 
 - `/start`
-- criação de personagem
 - menu principal
-- retorno ao menu
-- navegação entre telas
-
-### Combate
-
-- caçar
-- atacar
-- defender
-- usar consumível
-- usar soul
-- fugir
-- vencer
-- morrer
-- validar XP, ouro, drops e energia
-
-### Dungeon
-
-- iniciar dungeon
-- consumir chave
-- avançar salas
-- vencer boss
-- morrer
-- fugir
-- validar recompensa final
-
-### Inventário
-
-- abrir categorias
-- equipar item
-- desequipar item
-- comparar item
-- usar consumível
-- equipar soul
-- remover soul
-- equipar skin
-
-### Loja
-
-- comprar item
-- comprar quantidade
-- vender item
-- saldo insuficiente
-- retorno para aba correta
-
-### Arena
-
-- iniciar luta
-- atacar
-- defender
-- fugir
-- usar consumível
-- abrir ranking
-- abrir baús
-- usar arena shop
-
-### Admin
-
-- `/adminhelp`
-- `/metrics`
-- `/findplayer`
-- `/playerstate`
-- `/setplayer`
-- `/give`
-- `/ban`
-- `/unban`
-- `/reset`
-- `/resetplayer`
-- `/resetall`
+- combate
+- inventário
+- loja
+- arena
+- dungeon
+- daily
 
 ---
 
-## 12. Prioridades de produto
+## 13. Roadmap
 
-### Agora
+O roadmap operacional está em:
 
-- estabilidade
-- QA manual
-- correção de bugs
-- balanceamento inicial
-- leitura de métricas
-- organização do código existente
+```text
+docs/ROADMAP.md
+```
 
-### Depois
+Prioridade atual:
 
-- loot avançado
-- pity system
-- achievements
-- subclasses emergentes
-- guildas
-- eventos
-- world boss
-- monetização V2
+```text
+Almas V2 → Balanceamento inicial → Dungeon V2 → Métricas de retenção → Guildas/World Boss
+```
 
 ---
 
-## 13. Frase de controle
+## 14. Frase de controle
 
 O NOCTRA não precisa de mais ideias soltas.
 
