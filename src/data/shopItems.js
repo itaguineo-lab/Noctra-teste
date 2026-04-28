@@ -74,6 +74,38 @@ const shopItems = [
         price: 10,
         description: 'Recupera 10 de energia imediatamente no momento da compra.'
     },
+    {
+        id: 'inventory_expansion_5',
+        name: 'Bolsa Sombria +5',
+        shop: 'castle',
+        type: 'inventoryExpansion',
+        value: BALANCE.inventory.premiumExpansionStep,
+        maxBonus: BALANCE.inventory.premiumMaxBonus,
+        currency: 'nox',
+        price: 15,
+        description: `Aumenta permanentemente seu inventário em +${BALANCE.inventory.premiumExpansionStep} slots. Limite premium: +${BALANCE.inventory.premiumMaxBonus} slots.`
+    },
+    {
+        id: 'starter_pack_shadow',
+        name: 'Pacote Iniciante Sombrio',
+        shop: 'castle',
+        type: 'bundle',
+        purchaseLimit: 1,
+        currency: 'nox',
+        price: 19,
+        description: 'Compra única. Inclui 5 Poções de Vida, 3 Poções de Energia e o Emblema Recruta da Noite. Não entrega arma, alma, chave ou poder raro.',
+        rewards: {
+            consumables: {
+                potionHp: 5,
+                potionEnergy: 3
+            },
+            cosmetic: {
+                id: 'cosmetic_badge_night_recruit',
+                name: 'Emblema Recruta da Noite',
+                type: 'badge'
+            }
+        }
+    },
 
     /*
     =================================

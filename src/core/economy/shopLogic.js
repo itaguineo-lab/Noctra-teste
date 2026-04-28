@@ -63,6 +63,7 @@ function ensurePlayerEconomy(player) {
     player.vip ??= false;
     player.vipExpires ??= null;
     player.bonusInventory ??= 0;
+    player.purchasedBundles ??= [];
 
     normalizeVipState(player);
 
@@ -138,17 +139,50 @@ function refund(player, currency, amount) {
     return player;
 }
 
+function hasCosmetic(player, cosmeticId) {
+    ensureCosmeticsState(player);
+    return Array.isArray(player.cosmetics) && player.cosmetics.some(c => c.id === cosmeticId);
+}
+
+function hasPurchasedBundle(player, bundleId) {
+    return Array.isArray(player.purchasedBundles) && player.purchasedBundles.includes(bundleId);
+}
+
+function canBuyInventoryExpansion(player, item) {
+    const step = Number(item.value || BALANCE.inventory.premiumExpansionStep || 5);
+    const maxBonus = Number(item.maxBonus || BALANCE.inventory.premiumMaxBonus || 30);
+    const currentBonus = Number(player.bonusInventory || 0);
+
+    return currentBonus + step <= maxBonus;
+}
+
 function canProcessItem(player, item, quantity = 1) {
     switch (item.type) {
         case 'equipment':
             return player.inventory.length + quantity <= player.maxInventory;
 
         case 'cosmetic':
-            return !player.cosmetics.some(c => c.id === item.id);
+            return !hasCosmetic(player, item.id);
+
+        case 'inventoryExpansion':
+            return canBuyInventoryExpansion(player, item);
+
+        case 'bundle':
+            if (item.purchaseLimit === 1 && hasPurchasedBundle(player, item.id)) return false;
+            if (item.rewards?.cosmetic?.id && hasCosmetic(player, item.rewards.cosmetic.id)) return false;
+            return true;
 
         default:
             return true;
     }
+}
+
+function getCannotProcessMessage(player, item) {
+    if (item.type === 'equipment') return '❌ Inventário cheio.';
+    if (item.type === 'cosmetic') return '❌ Você já possui este cosmético.';
+    if (item.type === 'inventoryExpansion') return '❌ Você já atingiu o limite de expansão de inventário.';
+    if (item.type === 'bundle') return '❌ Este pacote já foi comprado.';
+    return '❌ Não é possível comprar este item.';
 }
 
 function addConsumable(player, item, quantity = 1) {
@@ -270,6 +304,65 @@ function addCosmetic(player, item) {
     };
 }
 
+function addInventoryExpansion(player, item) {
+    const step = Number(item.value || BALANCE.inventory.premiumExpansionStep || 5);
+    const maxBonus = Number(item.maxBonus || BALANCE.inventory.premiumMaxBonus || 30);
+    const currentBonus = Number(player.bonusInventory || 0);
+
+    if (currentBonus + step > maxBonus) {
+        return {
+            success: false,
+            message: '❌ Você já atingiu o limite de expansão de inventário.'
+        };
+    }
+
+    player.bonusInventory = currentBonus + step;
+    player.maxInventory = getExpectedMaxInventory(player);
+
+    normalizePlayerForSave(player);
+
+    return {
+        success: true,
+        message: `🎒 Inventário expandido em +${step} slots!`
+    };
+}
+
+function addBundle(player, item) {
+    player.purchasedBundles ??= [];
+
+    if (item.purchaseLimit === 1 && player.purchasedBundles.includes(item.id)) {
+        return {
+            success: false,
+            message: '❌ Este pacote já foi comprado.'
+        };
+    }
+
+    const rewards = item.rewards || {};
+    const consumables = rewards.consumables || {};
+
+    for (const [key, amount] of Object.entries(consumables)) {
+        player.consumables[key] = (player.consumables[key] || 0) + Number(amount || 0);
+    }
+
+    if (rewards.cosmetic) {
+        const cosmeticResult = addCosmeticToPlayer(player, rewards.cosmetic);
+        if (!cosmeticResult.success) {
+            return cosmeticResult;
+        }
+    }
+
+    if (item.purchaseLimit === 1) {
+        player.purchasedBundles.push(item.id);
+    }
+
+    normalizePlayerForSave(player);
+
+    return {
+        success: true,
+        message: `🎁 ${item.name} comprado!`
+    };
+}
+
 function addEnergyRefill(player, item, quantity = 1) {
     const amount = (item.value || 10) * quantity;
     restoreEnergy(player, amount);
@@ -309,6 +402,12 @@ function executePurchaseEffect(player, item, quantity = 1) {
 
         case 'cosmetic':
             return addCosmetic(player, item);
+
+        case 'inventoryExpansion':
+            return addInventoryExpansion(player, item);
+
+        case 'bundle':
+            return addBundle(player, item);
 
         default:
             return { success: false, message: '❌ Tipo inválido.' };
@@ -352,9 +451,7 @@ async function processPurchase(player, item, quantity = 1) {
     if (!canProcessItem(player, item, safeQuantity)) {
         return {
             success: false,
-            message: item.type === 'equipment'
-                ? '❌ Inventário cheio.'
-                : '❌ Você já possui este item.'
+            message: getCannotProcessMessage(player, item)
         };
     }
 
@@ -463,5 +560,7 @@ module.exports = {
     sellItem,
     sellItemByKey,
     calculateSellPrice,
-    canBuyMultiple
+    canBuyMultiple,
+    getExpectedMaxInventory,
+    canBuyInventoryExpansion
 };

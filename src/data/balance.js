@@ -10,7 +10,9 @@ const BALANCE = {
 
     inventory: {
         baseMax: 20,
-        vipMax: 30
+        vipMax: 30,
+        premiumExpansionStep: 5,
+        premiumMaxBonus: 30
     },
 
     vip: {

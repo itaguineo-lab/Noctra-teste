@@ -102,12 +102,16 @@ function getShopItemTypeLabel(item = {}) {
     }
     if (item.type === 'vip') return 'VIP';
     if (item.type === 'cosmetic') return 'Cosmético';
+    if (item.type === 'inventoryExpansion') return 'Expansão de Inventário';
+    if (item.type === 'bundle') return 'Pacote';
     return 'Item';
 }
 
 function getPurchaseDeliveryText(item = {}) {
     if (item.type === 'vip') return 'Ativa imediatamente.';
     if (item.type === 'cosmetic') return 'Desbloqueio permanente no perfil.';
+    if (item.type === 'inventoryExpansion') return 'Aumenta permanentemente o limite do inventário.';
+    if (item.type === 'bundle') return 'Entrega consumíveis e cosmético de compra única.';
     if (item.type === 'equipment') return 'Vai para o inventário.';
     if (item.effect === 'energyRefill') return 'Aplica imediatamente.';
     if (item.effect === 'keys') return 'Adiciona chave ao personagem.';
@@ -644,6 +648,7 @@ module.exports = {
         buildSellPreviewText,
         buildSellInventory,
         getPurchaseDeliveryText,
-        getWalletInline
+        getWalletInline,
+        getShopItemTypeLabel
     }
 };
