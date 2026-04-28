@@ -1,0 +1,236 @@
+const { getRarityEmoji } = require('../core/player/souls');
+
+const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━';
+const EMPTY_SLOT = '⬜ Slot vazio';
+
+function escapeMarkdown(text = '') {
+    return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
+function safeNumber(value, fallback = 0) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function formatPercent(value, multiplierBase = false) {
+    const n = safeNumber(value, multiplierBase ? 1 : 0);
+    const percent = multiplierBase ? Math.round(n * 100) : Math.round(n * 100);
+    return `${percent}%`;
+}
+
+function formatSoulLevel(soul = {}) {
+    const level = Math.max(1, safeNumber(soul.level, 1));
+    const awaken = Math.max(0, safeNumber(soul.awakenLevel, 0));
+
+    if (awaken > 0) return `Lv.${level} • Despertar +${awaken}`;
+    return `Lv.${level}`;
+}
+
+function getSoulTierLabel(soul = {}) {
+    const tier = Math.max(1, safeNumber(soul.tier, 1));
+    return `Tier ${tier}`;
+}
+
+function getSoulIdentityLine(soul = {}) {
+    const rarity = soul.rarity || 'Raro';
+    return `${getRarityEmoji(rarity)} ${escapeMarkdown(rarity)} • ${escapeMarkdown(getSoulTierLabel(soul))} • ${escapeMarkdown(formatSoulLevel(soul))}`;
+}
+
+function getSoulName(soul = {}) {
+    return `${soul.emoji || '💀'} ${escapeMarkdown(soul.name || 'Alma Desconhecida')}`;
+}
+
+function buildSoulEffectSummary(soul = {}) {
+    const effect = soul.effect || {};
+
+    if (effect.type === 'damage') {
+        const parts = [`Dano ativo: ${formatPercent(effect.multiplier, true)} do ATK`];
+        if (effect.freezeChance) parts.push(`${formatPercent(effect.freezeChance)} chance de congelar`);
+        return parts.join(' • ');
+    }
+
+    if (effect.type === 'heal') {
+        return `Cura ativa: ${formatPercent(effect.multiplier, true)} do HP máximo`;
+    }
+
+    if (effect.type === 'lifesteal') {
+        const parts = [`Dano ativo: ${formatPercent(effect.multiplier, true)} do ATK`];
+        parts.push(`cura ${formatPercent(effect.healPercent)} do dano causado`);
+        return parts.join(' • ');
+    }
+
+    if (effect.type === 'passive') {
+        const parts = [];
+        if (effect.atkBonus) parts.push(`ATK +${effect.atkBonus}`);
+        if (effect.defBonus) parts.push(`DEF +${effect.defBonus}`);
+        if (effect.hpBonus) parts.push(`HP +${effect.hpBonus}`);
+        if (effect.critBonus) parts.push(`CRIT +${effect.critBonus}%`);
+        return parts.length ? `Passiva: ${parts.join(' • ')}` : 'Passiva sem bônus definido';
+    }
+
+    return 'Efeito especial';
+}
+
+function buildSoulEffectDetail(soul = {}) {
+    const effect = soul.effect || {};
+    const lines = [];
+
+    if (effect.type === 'damage') {
+        lines.push('Tipo: Dano ativo');
+        lines.push(`Multiplicador: ${formatPercent(effect.multiplier, true)} do ATK`);
+        if (effect.freezeChance) lines.push(`Controle: ${formatPercent(effect.freezeChance)} de chance de congelar`);
+    } else if (effect.type === 'heal') {
+        lines.push('Tipo: Cura ativa');
+        lines.push(`Cura: ${formatPercent(effect.multiplier, true)} do HP máximo`);
+    } else if (effect.type === 'lifesteal') {
+        lines.push('Tipo: Roubo de vida');
+        lines.push(`Dano: ${formatPercent(effect.multiplier, true)} do ATK`);
+        lines.push(`Cura: ${formatPercent(effect.healPercent)} do dano causado`);
+    } else if (effect.type === 'passive') {
+        lines.push('Tipo: Passiva');
+        if (effect.atkBonus) lines.push(`⚔️ ATK +${effect.atkBonus}`);
+        if (effect.defBonus) lines.push(`🛡️ DEF +${effect.defBonus}`);
+        if (effect.hpBonus) lines.push(`❤️ HP +${effect.hpBonus}`);
+        if (effect.critBonus) lines.push(`💥 CRIT +${effect.critBonus}%`);
+    } else {
+        lines.push('Tipo: Especial');
+        lines.push('Efeito ainda não descrito.');
+    }
+
+    return lines.join('\n');
+}
+
+function buildSoulProgressLine(soul = {}) {
+    const level = Math.max(1, safeNumber(soul.level, 1));
+    const exp = Math.max(0, safeNumber(soul.exp, 0));
+    const needed = Math.max(1, level * 3);
+    const shards = Math.max(0, safeNumber(soul.shards, 0));
+
+    return `XP: ${exp}/${needed} • Fragmentos: ${shards}`;
+}
+
+function getSoulSourceText(soul = {}) {
+    if (soul.bossId) return `Fonte: boss ${escapeMarkdown(soul.bossId)}`;
+    return 'Fonte: bosses, dungeons e eventos';
+}
+
+function buildEquippedSoulsBlock(equipped = []) {
+    const slots = Array.isArray(equipped) ? equipped.slice(0, 2) : [];
+    while (slots.length < 2) slots.push(null);
+
+    let text = `*EQUIPADAS*\n`;
+    slots.forEach((soul, index) => {
+        if (!soul) {
+            text += `${index + 1}. ${EMPTY_SLOT}\n`;
+            return;
+        }
+
+        text += `${index + 1}. ${getSoulName(soul)}\n`;
+        text += `   ${escapeMarkdown(buildSoulEffectSummary(soul))}\n`;
+    });
+
+    return text.trim();
+}
+
+function buildSoulCard(soul = {}, index = 1, options = {}) {
+    const equipped = options.equipped ? ' ⭐ EQUIPADA' : '';
+    const indexLabel = Number.isFinite(Number(index)) ? `${index}. ` : '';
+
+    return [
+        `${indexLabel}${getSoulName(soul)}${equipped}`,
+        getSoulIdentityLine(soul),
+        escapeMarkdown(buildSoulEffectSummary(soul)),
+        escapeMarkdown(buildSoulProgressLine(soul))
+    ].join('\n');
+}
+
+function buildSoulCollectionBlock(souls = [], equipped = []) {
+    const list = Array.isArray(souls) ? souls : [];
+    const equippedKeys = new Set(
+        (Array.isArray(equipped) ? equipped : [])
+            .filter(Boolean)
+            .map(soul => soul.instanceId || soul.id)
+    );
+
+    let text = `*COLEÇÃO* (${list.length})\n`;
+
+    if (!list.length) {
+        text += 'Nenhuma alma encontrada.\n';
+        text += 'Derrote bosses para tentar obter sua primeira alma.';
+        return text;
+    }
+
+    list.forEach((soul, index) => {
+        const key = soul.instanceId || soul.id;
+        text += `\n${buildSoulCard(soul, index + 1, { equipped: equippedKeys.has(key) })}\n`;
+    });
+
+    return text.trim();
+}
+
+function buildSoulsOverviewText(player = {}) {
+    const souls = Array.isArray(player.soulsInventory) ? player.soulsInventory : [];
+    const equipped = Array.isArray(player.soulsEquipped) ? player.soulsEquipped : [null, null];
+    const pity = Math.max(0, safeNumber(player.soulPityCounter, 0));
+
+    let text = `💀 *ALMAS*\n`;
+    text += `${DIVIDER}\n`;
+    text += `Almas funcionam como skills raras. Equipe até 2 para definir sua build.\n\n`;
+    text += `${buildEquippedSoulsBlock(equipped)}\n\n`;
+    text += `${DIVIDER}\n`;
+    text += `${buildSoulCollectionBlock(souls, equipped)}\n\n`;
+    text += `${DIVIDER}\n`;
+    text += `🎯 Pity de boss: ${pity}\n`;
+    text += `Bosses e dungeons são as principais fontes de almas.`;
+
+    return text.trim();
+}
+
+function buildSoulDetailText(soul = {}, options = {}) {
+    const slotLabel = options.slot !== undefined && options.slot !== null
+        ? `Slot ${Number(options.slot) + 1}`
+        : null;
+
+    let text = `${getSoulName(soul)}\n`;
+    text += `${DIVIDER}\n`;
+    text += `${getSoulIdentityLine(soul)}\n`;
+    if (slotLabel) text += `Status: equipada no ${slotLabel}\n`;
+    text += `\n*EFEITO*\n`;
+    text += `${escapeMarkdown(buildSoulEffectDetail(soul))}\n\n`;
+    text += `*PROGRESSO*\n`;
+    text += `${escapeMarkdown(buildSoulProgressLine(soul))}\n`;
+    text += `${escapeMarkdown(getSoulSourceText(soul))}\n\n`;
+    text += `Use almas para criar sua subclasse real: dano, defesa, cura, crítico ou sustain.`;
+
+    return text.trim();
+}
+
+function buildSoulDropText(soul = {}, context = {}) {
+    const enemyName = context.enemyName || context.enemy?.name || 'um boss sombrio';
+    const source = context.sourceLabel || 'Boss';
+
+    let text = `🌑 *ALMA ENCONTRADA*\n`;
+    text += `${DIVIDER}\n`;
+    text += `${source}: ${escapeMarkdown(enemyName)}\n\n`;
+    text += `${buildSoulCard(soul, null)}\n\n`;
+    text += `Essa alma foi enviada para sua coleção. Abra o inventário para equipar.`;
+
+    return text.trim();
+}
+
+module.exports = {
+    DIVIDER,
+    escapeMarkdown,
+    formatSoulLevel,
+    getSoulTierLabel,
+    getSoulIdentityLine,
+    buildSoulEffectSummary,
+    buildSoulEffectDetail,
+    buildSoulProgressLine,
+    buildEquippedSoulsBlock,
+    buildSoulCard,
+    buildSoulCollectionBlock,
+    buildSoulsOverviewText,
+    buildSoulDetailText,
+    buildSoulDropText
+};
