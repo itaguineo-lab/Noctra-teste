@@ -15,6 +15,7 @@ const { navigateText, safeAnswer } = require('../utils/uiNavigator');
 const activePurchases = new Set();
 const SELL_PAGE_SIZE = 8;
 const QUICK_BUY_AMOUNTS = [1, 5, 10];
+const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━';
 
 const SHOP_ITEMS_BY_ID = new Map();
 const SHOP_ITEMS_BY_TAB = new Map();
@@ -49,10 +50,14 @@ function safeItemName(value = '') {
 
 function getWalletText(player) {
     return [
-        `💰 Ouro: ${formatNumber(player.gold || 0)}`,
-        `💎 Nox: ${formatNumber(player.nox || 0)}`,
-        `🏅 Glórias: ${formatNumber(player.glorias || 0)}`
+        `💰 ${formatNumber(player.gold || 0)} ouro`,
+        `💎 ${formatNumber(player.nox || 0)} Nox`,
+        `🏅 ${formatNumber(player.glorias || 0)} glórias`
     ].join('\n');
+}
+
+function getWalletInline(player) {
+    return `💰 ${formatNumber(player.gold || 0)}   💎 ${formatNumber(player.nox || 0)}   🏅 ${formatNumber(player.glorias || 0)}`;
 }
 
 function getCurrencyLabel(currency) {
@@ -112,24 +117,34 @@ function getPurchaseDeliveryText(item = {}) {
 
 function getTabTitle(tab) {
     const titles = {
-        village: '🏘️ *Loja da Vila*',
-        castle: '🏰 *Loja do Castelo*',
-        arena: '⚔️ *Loja da Arena*',
-        premium: '💎 *Loja Premium*'
+        village: '🧪 *SUPRIMENTOS*',
+        castle: '👑 *PREMIUM*',
+        arena: '⚔️ *ARENA*',
+        premium: '💎 *PREMIUM*'
     };
 
-    return titles[tab] || '🛒 *Loja*';
+    return titles[tab] || '🛒 *LOJA*';
 }
 
 function getTabDescription(tab) {
     const descriptions = {
-        village: 'Consumíveis e itens básicos para sustentar o começo da jornada.',
-        castle: 'VIP, cosméticos e conveniência premium sem vender poder direto.',
-        arena: 'Itens ligados à disputa, prestígio e evolução competitiva.',
+        village: 'Poções e tônicos para manter sua caçada viva.',
+        castle: 'VIP, cosméticos e conveniência sem vender poder direto.',
+        arena: 'Recursos competitivos comprados com glórias.',
         premium: 'Conveniência, cosméticos e vantagens de qualidade de vida.'
     };
 
     return descriptions[tab] || 'Escolha um item.';
+}
+
+function getTabTip(tab) {
+    const tips = {
+        village: 'Ideal para sobreviver mais tempo e sustentar sessões longas.',
+        castle: 'Foco em conforto, aparência e progressão sem pay-to-win.',
+        arena: 'Use glórias para preparar disputas e manter ritmo competitivo.'
+    };
+
+    return tips[tab] || 'Toque em um item para analisar antes de comprar.';
 }
 
 function getSellCategoryLabel(item = {}) {
@@ -172,10 +187,11 @@ async function renderTab(ctx, tab, playerOverride = null) {
     const items = getShopItemsByTab(tab);
 
     const header =
-        `${getTabTitle(tab)}\n\n` +
-        `${getWalletText(player)}\n\n` +
-        `${getTabDescription(tab)}\n\n` +
-        `Toque em um item para ver detalhes antes de comprar:`;
+        `${getTabTitle(tab)}\n` +
+        `${DIVIDER}\n` +
+        `${getWalletInline(player)}\n\n` +
+        `${getTabDescription(tab)}\n` +
+        `_${getTabTip(tab)}_\n`;
 
     const { text, keyboard } = renderShop(header, items, player);
     return safeEdit(ctx, text, { parse_mode: 'Markdown', ...keyboard });
@@ -235,27 +251,28 @@ function paginate(items, page, pageSize) {
 }
 
 function renderSellText(player, pageData) {
-    let text = `💰 *VENDER ITENS*\n\n`;
-    text += `${getWalletText(player)}\n\n`;
+    let text = `💰 *VENDER LOOT*\n`;
+    text += `${DIVIDER}\n`;
+    text += `${getWalletInline(player)}\n\n`;
 
     if (!pageData.items.length) {
         text +=
-            `Você não possui itens vendáveis no inventário.\n\n` +
-            `Itens equipados não aparecem aqui. Para vender um equipamento, primeiro desequipe no inventário.`;
+            `Nenhum item vendável no inventário.\n\n` +
+            `Itens equipados ficam protegidos e não aparecem aqui. Para vender um equipamento, primeiro desequipe no inventário.`;
         return text;
     }
 
-    text += `Página ${pageData.page}/${pageData.totalPages}\n\n`;
+    text += `Transforme itens parados em ouro para sustentar sua progressão.\n`;
+    text += `_Página ${pageData.page}/${pageData.totalPages} • toque para revisar antes de vender._\n`;
 
     pageData.items.forEach((entry, index) => {
-        text += `${index + 1}. *${escapeMarkdown(entry.name)}* [Lv${entry.level}]\n`;
-        text += `   Tipo: ${escapeMarkdown(entry.categoryLabel)}\n`;
-        text += `   Raridade: ${escapeMarkdown(entry.rarity)}\n`;
-        text += `   Bônus: ${escapeMarkdown(entry.stats)}\n`;
-        text += `   Valor: ${formatNumber(entry.price)} ouro\n\n`;
+        text += `\n${DIVIDER}\n`;
+        text += `${String(index + 1).padStart(2, '0')} • *${escapeMarkdown(entry.name)}* [Lv${entry.level}]\n`;
+        text += `${escapeMarkdown(entry.rarity)} • ${escapeMarkdown(entry.categoryLabel)}\n`;
+        text += `${escapeMarkdown(entry.stats)}\n`;
+        text += `💰 Venda: ${formatNumber(entry.price)} ouro\n`;
     });
 
-    text += `Toque em um item para revisar antes de vender:`;
     return text;
 }
 
@@ -265,7 +282,7 @@ function buildSellKeyboard(pageData) {
     pageData.items.forEach(entry => {
         keyboard.push([
             Markup.button.callback(
-                `${entry.name} (${entry.categoryLabel}) • ${formatNumber(entry.price)}💰`,
+                `💰 ${entry.name} • ${formatNumber(entry.price)} ouro`,
                 `sell_preview_${entry.sourceIndex}`
             )
         ]);
@@ -274,16 +291,16 @@ function buildSellKeyboard(pageData) {
     const navRow = [];
 
     if (pageData.page > 1) {
-        navRow.push(Markup.button.callback('⬅️', `shop_sell_page_${pageData.page - 1}`));
+        navRow.push(Markup.button.callback('⬅️ Anterior', `shop_sell_page_${pageData.page - 1}`));
     }
 
     if (pageData.page < pageData.totalPages) {
-        navRow.push(Markup.button.callback('➡️', `shop_sell_page_${pageData.page + 1}`));
+        navRow.push(Markup.button.callback('Próxima ➡️', `shop_sell_page_${pageData.page + 1}`));
     }
 
     if (navRow.length) keyboard.push(navRow);
 
-    keyboard.push([Markup.button.callback('◀️ Voltar', 'shop')]);
+    keyboard.push([Markup.button.callback('◀️ Voltar ao mercado', 'shop')]);
 
     return Markup.inlineKeyboard(keyboard);
 }
@@ -318,21 +335,23 @@ function buildBuyDetailText(player, item, quantity = 1) {
     const symbol = getCurrencyIcon(item.currency);
     const currency = getCurrencyLabel(item.currency);
 
-    let text = `🛒 *${escapeMarkdown(item.name)}*\n\n`;
+    let text = `🛒 *CONFIRMAR COMPRA*\n`;
+    text += `${DIVIDER}\n\n`;
+    text += `*${escapeMarkdown(item.name)}*\n`;
     text += `${escapeMarkdown(item.description || 'Sem descrição')}\n\n`;
     text += `Tipo: ${escapeMarkdown(getShopItemTypeLabel(item))}\n`;
-    text += `Entrega: ${escapeMarkdown(getPurchaseDeliveryText(item))}\n`;
+    text += `Entrega: ${escapeMarkdown(getPurchaseDeliveryText(item))}\n\n`;
     text += `Quantidade: ${safeQuantity}\n`;
     text += `Preço unitário: ${symbol} ${formatNumber(unitPrice)} ${escapeMarkdown(currency)}\n`;
     text += `Total: ${symbol} ${formatNumber(totalPrice)} ${escapeMarkdown(currency)}\n\n`;
-    text += `Seu saldo: ${symbol} ${formatNumber(balance)}\n`;
+    text += `Saldo atual: ${symbol} ${formatNumber(balance)}\n`;
 
     if (canPay) {
         text += `Após compra: ${symbol} ${formatNumber(after)}\n\n`;
-        text += `Confirme para concluir a compra.`;
+        text += `✅ Compra segura. Confirme para concluir.`;
     } else {
         text += `Faltam: ${symbol} ${formatNumber(missing)}\n\n`;
-        text += `Saldo insuficiente.`;
+        text += `🔒 Saldo insuficiente.`;
     }
 
     return text;
@@ -352,10 +371,10 @@ function buildBuyDetailKeyboard(item, player, quantity = 1) {
     }
 
     if (canPay) {
-        rows.push([Markup.button.callback(`✅ Confirmar compra x${safeQuantity}`, `shop_buy_confirm:${item.id}:${safeQuantity}`)]);
+        rows.push([Markup.button.callback(`✅ Confirmar x${safeQuantity}`, `shop_buy_confirm:${item.id}:${safeQuantity}`)]);
     }
 
-    rows.push([Markup.button.callback('◀️ Voltar', `shop_backtab:${item.shop}`)]);
+    rows.push([Markup.button.callback('◀️ Voltar à loja', `shop_backtab:${item.shop}`)]);
 
     return Markup.inlineKeyboard(rows);
 }
@@ -370,14 +389,15 @@ function buildSellPreviewText(player, item, itemIndex) {
     const price = calculateSellPrice(item);
     const categoryLabel = getSellCategoryLabel(item);
 
-    let text = `💰 *VENDER ITEM*\n\n`;
+    let text = `💰 *CONFIRMAR VENDA*\n`;
+    text += `${DIVIDER}\n\n`;
     text += `${item.emoji || '📦'} *${escapeMarkdown(safeItemName(item.name))}*\n`;
     text += `${escapeMarkdown(item.rarity || 'Comum')} • ${escapeMarkdown(categoryLabel)} • Lv.${Math.max(1, Number(item.level || 1))}\n\n`;
     text += `*Atributos*\n${escapeMarkdown(getSellLongStats(item))}\n\n`;
     text += `Valor de venda: 💰 ${formatNumber(price)} ouro\n`;
     text += `Ouro atual: 💰 ${formatNumber(player.gold || 0)}\n`;
     text += `Após venda: 💰 ${formatNumber((player.gold || 0) + price)}\n\n`;
-    text += `⚠️ Esta ação não pode ser desfeita. Confirme apenas se tiver certeza.`;
+    text += `⚠️ Venda permanente. Não dá para desfazer.`;
 
     return text;
 }
@@ -385,7 +405,7 @@ function buildSellPreviewText(player, item, itemIndex) {
 function buildSellPreviewKeyboard(itemIndex) {
     return Markup.inlineKeyboard([
         [Markup.button.callback('✅ Confirmar venda', `sell_confirm_${itemIndex}`)],
-        [Markup.button.callback('◀️ Voltar', 'shop_sell')]
+        [Markup.button.callback('◀️ Voltar aos itens', 'shop_sell')]
     ]);
 }
 
@@ -393,12 +413,14 @@ async function handleShop(ctx, playerOverride = null) {
     const player = playerOverride || await getPlayer(ctx.from.id);
 
     const msg =
-        `🛒 *LOJAS DE NOCTRA*\n\n` +
-        `${getWalletText(player)}\n\n` +
-        `Escolha sua ação:\n` +
-        `• Comprar para evoluir\n` +
-        `• Vender para gerar caixa\n` +
-        `• Usar a economia a favor da sua build`;
+        `🛒 *MERCADO DE NOCTRA*\n` +
+        `${DIVIDER}\n` +
+        `${getWalletInline(player)}\n\n` +
+        `Escolha como quer movimentar sua economia.\n\n` +
+        `🛍️ *Comprar itens*\n` +
+        `Poções, VIP, cosméticos e recursos úteis.\n\n` +
+        `💰 *Vender loot*\n` +
+        `Converta itens parados em ouro sem vender por acidente.`;
 
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopMainMenu() });
 }
@@ -407,12 +429,15 @@ async function handleShopBuyMenu(ctx, playerOverride = null) {
     const player = playerOverride || await getPlayer(ctx.from.id);
 
     const msg =
-        `🛍️ *COMPRAR ITENS*\n\n` +
-        `${getWalletText(player)}\n\n` +
-        `Escolha a categoria da loja conforme seu objetivo:\n` +
-        `• Vila = base\n` +
-        `• Castelo = VIP, cosméticos e conveniência\n` +
-        `• Arena = competitivo`;
+        `🛍️ *ESCOLHA UMA LOJA*\n` +
+        `${DIVIDER}\n` +
+        `${getWalletInline(player)}\n\n` +
+        `🧪 *Suprimentos*\n` +
+        `Poções e tônicos para sobreviver mais.\n\n` +
+        `👑 *Premium*\n` +
+        `VIP, cosméticos e conveniência ética.\n\n` +
+        `⚔️ *Arena*\n` +
+        `Recursos competitivos comprados com glórias.`;
 
     return safeEdit(ctx, msg, { parse_mode: 'Markdown', ...shopTabsMenu() });
 }
@@ -618,6 +643,7 @@ module.exports = {
         buildBuyDetailText,
         buildSellPreviewText,
         buildSellInventory,
-        getPurchaseDeliveryText
+        getPurchaseDeliveryText,
+        getWalletInline
     }
 };
