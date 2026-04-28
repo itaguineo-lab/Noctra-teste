@@ -169,14 +169,14 @@ async function finishBattle(ctx, stored, resultType) {
             `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
             `🆚 Adversário: *${battle.enemy.name}*\n` +
             `🎯 Pontos ganhos: +${rewards.pointsGained}\n` +
-            `🪙 Moedas da arena: +${rewards.coinsGained}\n`;
+            `🏅 Glórias: +${rewards.gloriasGained}\n`;
 
         if (rewards.chest) {
             summaryText += `🎁 Baú recebido: ${rewards.chest.name}\n`;
         }
 
-        if (rewards.overflowCoins) {
-            summaryText += `💰 Bônus por slot cheio: +${rewards.overflowCoins}\n`;
+        if (rewards.overflowGlorias) {
+            summaryText += `🏅 Bônus por slot cheio: +${rewards.overflowGlorias} glórias\n`;
         }
 
         if (rewards.leagueChanged) {
@@ -239,7 +239,7 @@ async function handleArena(ctx) {
 
     let hubText = buildArenaHubText(player);
     hubText += `\n\n🎯 *Objetivo*\n`;
-    hubText += `Suba de liga, conquiste baús e acumule moedas da arena sem quebrar sua economia principal.`;
+    hubText += `Suba de liga, conquiste baús e acumule Glórias para usar na loja competitiva.`;
 
     return safeSend(ctx, hubText, ARENA_HUB_KEYBOARD);
 }
@@ -532,11 +532,10 @@ async function handleArenaOpenChest(ctx) {
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `🎁 *BAÚ DA ARENA ABERTO*\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `🪙 Moedas da arena: +${result.rewards.arenaCoins}\n` +
+        `🏅 Glórias: +${result.rewards.glorias}\n` +
         `💰 Ouro: +${result.rewards.gold}\n`;
 
     if (result.rewards.keys) msg += `🗝️ Chaves: +${result.rewards.keys}\n`;
-    if (result.rewards.glorias) msg += `🏅 Glórias: +${result.rewards.glorias}\n`;
     if (result.rewards.consumable) msg += `🧪 Consumível: +1 ${result.rewards.consumable}\n`;
 
     msg += `\nRecompensas coletadas com sucesso.`;
