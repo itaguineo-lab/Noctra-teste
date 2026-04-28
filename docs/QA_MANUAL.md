@@ -76,11 +76,15 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Tônico de força funciona.
 - [ ] Tônico de defesa funciona.
 - [ ] Alma equipada aparece no menu de almas.
+- [ ] Slot 1 de alma aparece corretamente no combate.
+- [ ] Slot 2 de alma aparece corretamente no combate.
 - [ ] Usar alma causa efeito correto.
 - [ ] Vitória dá XP e ouro.
 - [ ] Derrota não corrompe HP.
 - [ ] Item dropado pode ser visualizado.
 - [ ] Item dropado pode ser equipado quando válido.
+- [ ] Quando alma dropa, vitória mostra `ALMA ENCONTRADA`.
+- [ ] Alma dropada entra na coleção.
 - [ ] Inventário cheio bloqueia item sem quebrar a luta.
 - [ ] Nox não dropa em combate comum.
 
@@ -112,6 +116,17 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Categoria Consumíveis abre.
 - [ ] Categoria Skins abre.
 - [ ] Categoria Almas abre.
+- [ ] Tela de Almas mostra equipadas, slots vazios e coleção.
+- [ ] Tela de Almas mostra raridade, tier, level e efeito resumido.
+- [ ] Botão `Ver` abre detalhe individual da alma.
+- [ ] Detalhe individual mostra efeito, progresso e fonte.
+- [ ] Alma não equipada mostra escolha de Slot 1 e Slot 2.
+- [ ] Equipar no Slot 1 funciona.
+- [ ] Equipar no Slot 2 funciona.
+- [ ] Substituir alma em slot ocupado devolve a alma antiga para coleção.
+- [ ] Alma já equipada em outro slot não pode ser movida sem desequipar.
+- [ ] Botão Auto antigo ainda funciona.
+- [ ] Desequipar alma funciona.
 - [ ] Paginação funciona.
 - [ ] Equipar item funciona.
 - [ ] Desequipar item funciona.
@@ -122,7 +137,6 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Item equipado não aparece duplicado como item solto.
 - [ ] Consumível fora de batalha funciona.
 - [ ] Skin equipa e desequipa.
-- [ ] Alma equipa e desequipa.
 
 ---
 
@@ -188,12 +202,12 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Sala 1 inicia.
 - [ ] Atacar funciona.
 - [ ] Consumíveis funcionam.
-- [ ] Alma funciona quando equipada.
 - [ ] Avançar sala funciona.
 - [ ] Boss final concede recompensa.
 - [ ] Fugir encerra corretamente.
 - [ ] Morte encerra corretamente.
 - [ ] Recompensa final não dá Nox.
+- [ ] Botão de alma da dungeon, se aparecer, deve avisar que ainda não está habilitado.
 
 ---
 
@@ -222,6 +236,9 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] `/give keys` funciona.
 - [ ] `/give soul` funciona.
 - [ ] `/give item` funciona.
+- [ ] `/equipsoul ALMA_ID` equipa automaticamente no primeiro slot vazio.
+- [ ] `/equipsoul ALMA_ID 1` equipa no Slot 1.
+- [ ] `/equipsoul ALMA_ID 2` equipa no Slot 2.
 - [ ] `/setplayer` funciona com cuidado.
 - [ ] `/heal` funciona.
 - [ ] `/teleport` funciona.
@@ -241,6 +258,8 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Arena não pode voltar a mostrar Moedas da Arena na UX.
 - [ ] Dungeon não pode consumir energia.
 - [ ] Item equipado não pode duplicar no inventário.
+- [ ] Alma equipada não pode duplicar entre coleção e slot.
+- [ ] Substituição de alma não pode apagar a alma antiga.
 
 ---
 
