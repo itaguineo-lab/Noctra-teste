@@ -54,6 +54,41 @@ const PLAYER_LIST_PROJECTION = {
 
 /*
 =================================
+ID HELPERS
+=================================
+*/
+
+function getPlayerIdVariants(id) {
+    const values = [];
+    const safeString = String(id || '').trim();
+
+    if (safeString) values.push(safeString);
+
+    const numeric = Number(safeString);
+    if (safeString && Number.isSafeInteger(numeric)) {
+        values.push(numeric);
+    }
+
+    return [...new Set(values)];
+}
+
+function buildPlayerIdQuery(id) {
+    const variants = getPlayerIdVariants(id);
+
+    if (variants.length === 1) {
+        return { id: variants[0] };
+    }
+
+    return { id: { $in: variants } };
+}
+
+async function findPlayerByTelegramId(id, projection = null, options = {}) {
+    const query = buildPlayerIdQuery(id);
+    return Player.findOne(query, projection, options);
+}
+
+/*
+=================================
 VIP HELPERS
 =================================
 */
@@ -396,11 +431,13 @@ async function createPlayer(id, name, className) {
         throw new Error('Classe inválida.');
     }
 
-    const existing = await Player.findOne({ id: safeId });
+    const existing = await findPlayerByTelegramId(safeId);
     if (existing) {
+        existing.id = safeId;
         ensurePlayerState(existing);
         updateEnergy(existing);
         recalculateStats(existing);
+        await existing.save();
         return existing;
     }
 
@@ -426,8 +463,13 @@ GET / SAVE
 */
 
 async function getPlayer(id) {
-    const player = await Player.findOne({ id: String(id) });
+    const safeId = String(id);
+    const player = await findPlayerByTelegramId(safeId);
     if (!player) return null;
+
+    if (String(player.id) !== safeId) {
+        player.id = safeId;
+    }
 
     ensurePlayerState(player);
     updateEnergy(player);
@@ -441,10 +483,11 @@ async function savePlayer(id, playerData) {
 
     let current = null;
     if (!playerData?.activeFight || !playerData?.activeArenaBattle) {
-        current = await Player.findOne(
-            { id: safeId },
-            { activeFight: 1, activeArenaBattle: 1 }
-        ).lean();
+        current = await findPlayerByTelegramId(
+            safeId,
+            { activeFight: 1, activeArenaBattle: 1 },
+            { lean: true }
+        );
     }
 
     const transientState = preserveTransientStates(current, playerData);
@@ -462,8 +505,13 @@ async function savePlayer(id, playerData) {
         id: safeId
     });
 
+    const existing = await findPlayerByTelegramId(safeId, { _id: 1 }, { lean: true });
+    const filter = existing?._id
+        ? { _id: existing._id }
+        : { id: safeId };
+
     await Player.findOneAndUpdate(
-        { id: safeId },
+        filter,
         sanitized,
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
@@ -505,5 +553,8 @@ module.exports = {
     updateBuffs,
     applyInventoryCapacity,
     isVipActive,
-    normalizeVipState
+    normalizeVipState,
+    getPlayerIdVariants,
+    buildPlayerIdQuery,
+    findPlayerByTelegramId
 };
