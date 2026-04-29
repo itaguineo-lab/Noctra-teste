@@ -60,11 +60,15 @@ Toda decisão de sistema, UX, economia e monetização deve responder:
 
 ### Sessão curta
 
+```text
 Caçar → Combater → Loot → Upgrade → Repetir
+```
 
 ### Meta loop
 
+```text
 Level → Mapa → Boss → Dungeon → Alma → Build → Ranking → Guilda
+```
 
 Regra de produto: feature que não fortalece esse loop deve ser tratada como distração.
 
@@ -78,6 +82,7 @@ Regra de produto: feature que não fortalece esse loop deve ser tratada como dis
 - Ouro é recurso base do jogo
 - Glórias são recurso competitivo da arena
 - `arena.coins` é legado interno e não deve aparecer na UX
+- Dungeon consome chave, não energia
 - Monetização deve priorizar conveniência, cosmético, prestígio e QoL
 - Nox não deve comprar alma rara, item raro, dano bruto ou chave como atalho competitivo
 
@@ -98,20 +103,27 @@ Já existe:
 - drops V2 por mapa, classe, raridade e tipo de encontro
 - inventário V3
 - equipamentos com regras de mão secundária
-- almas
 - consumíveis
 - loja principal
 - venda de loot
 - premium QoL sem pay-to-win
+- VIP
+- Nox
 - arena
-- arena shop
 - Glórias consolidadas como moeda competitiva
+- loja da arena
 - baús da arena
+- ranking
 - dungeons
 - daily rewards
 - baús temporizados
-- ranking
-- VIP
+- sistema de almas V2
+- detalhe individual de alma
+- escolha de Slot 1 e Slot 2
+- cooldowns de almas no combate
+- almas passivas
+- drop visual especial de alma
+- UX de almas sem IDs técnicos para o jogador
 - sistema admin
 - métricas básicas
 - testes automatizados em expansão
@@ -121,9 +133,12 @@ O que ainda não existe de forma validada:
 
 - retenção D1 / D7 / D30 medida com base real
 - economia calibrada por dados reais
-- balanceamento final de XP, ouro, Glórias, drops e baús
-- UX V2 das almas
-- renderer dedicado para telas grandes
+- balanceamento final de XP, ouro, Glórias, drops, almas, chaves e baús
+- funil de primeira alma validado
+- funil de primeira dungeon concluída validado
+- valor percebido do VIP validado
+- valor percebido da Loja Arena validado
+- progressão de midgame validada
 - guildas
 - world boss
 - eventos sazonais maduros
@@ -151,18 +166,7 @@ Noctra-teste/
 │   └── ROADMAP.md
 │
 ├── tests/
-│   ├── arenaGloriasPolish.test.js
-│   ├── arenaShopGlorias.test.js
-│   ├── arenaShopQol.test.js
-│   ├── arenaUxPolish.test.js
-│   ├── cosmetics.test.js
-│   ├── energyService.test.js
-│   ├── mapsAssets.test.js
-│   ├── premiumShopQol.test.js
-│   ├── shopPlayerValidation.test.js
-│   ├── shopTelegrafNextParam.test.js
-│   ├── shopWalletDisplay.test.js
-│   └── shopWalletMongoose.test.js
+│   └── *.test.js
 │
 └── src/
     ├── commands/
@@ -174,51 +178,14 @@ Noctra-teste/
     │
     ├── core/
     │   ├── arena/
-    │   │   ├── arenaBattleService.js
-    │   │   ├── arenaCurrency.js
-    │   │   ├── arenaPersistence.js
-    │   │   └── arenaService.js
-    │   │
     │   ├── chests/
-    │   │   └── chestService.js
-    │   │
     │   ├── combat/
-    │   │   ├── combatEngine.js
-    │   │   ├── damageCalc.js
-    │   │   ├── fightPersistence.js
-    │   │   └── fightService.js
-    │   │
     │   ├── daily/
-    │   │   └── dailyService.js
-    │   │
     │   ├── dungeon/
-    │   │   ├── dungeonRewards.js
-    │   │   ├── dungeonRooms.js
-    │   │   └── dungeonService.js
-    │   │
     │   ├── economy/
-    │   │   ├── nox.js
-    │   │   ├── shopLogic.js
-    │   │   └── walletPresenter.js
-    │   │
     │   ├── metrics/
-    │   │   ├── MetricsModel.js
-    │   │   └── metricsService.js
-    │   │
     │   ├── player/
-    │   │   ├── PlayerModel.js
-    │   │   ├── README_AUDIT_REFACTOR.md
-    │   │   ├── cosmetics.js
-    │   │   ├── equipmentService.js
-    │   │   ├── playerMutations.js
-    │   │   ├── playerSaveGuard.js
-    │   │   ├── playerService.js
-    │   │   ├── progression.js
-    │   │   └── souls.js
-    │   │
     │   └── world/
-    │       ├── enemies.js
-    │       └── maps.js
     │
     ├── data/
     │   ├── arenaShopItems.js
@@ -253,6 +220,9 @@ Noctra-teste/
     │   ├── mainMenu.js
     │   └── shopMenu.js
     │
+    ├── renderers/
+    │   └── soulRenderer.js
+    │
     ├── services/
     │   ├── banCacheService.js
     │   ├── energyService.js
@@ -280,6 +250,10 @@ Noctra-teste/
 - Recompensas ativas: `src/services/rewardService.js`
 - Loja ativa: `src/handlers/shop.js`
 - Arena ativa: `src/handlers/arena.js`
+- Almas: `src/core/player/souls.js`
+- Renderer de almas: `src/renderers/soulRenderer.js`
+- Balanceamento central: `src/data/balance.js`
+- Métricas: `src/core/metrics/metricsService.js`
 
 ### Arquivos legados ainda existentes
 
@@ -291,81 +265,7 @@ Regra: antes de mexer nesses arquivos, confirmar se ainda são usados por `index
 
 ---
 
-## 7. Responsabilidade das pastas
-
-### `index.js`
-
-Entrada principal do bot. Hoje concentra:
-
-- carregamento de variáveis de ambiente
-- inicialização do Telegraf
-- conexão com MongoDB
-- HTTP server para Render
-- registro de comandos
-- registro de callbacks
-- middlewares
-- fluxo de criação de personagem
-- shutdown seguro
-
-Ponto de atenção: o arquivo funciona, mas já está grande demais. Deve ser quebrado futuramente em camada de bootstrap.
-
-### `src/commands/`
-
-Comandos digitados pelo jogador ou admin.
-
-Exemplos:
-
-- `/rename`
-- `/class`
-- `/equip`
-- `/reset`
-- `/adminhelp`
-- `/metrics`
-- `/give`
-- `/ban`
-- `/unban`
-
-### `src/handlers/`
-
-Camada de interação com botões, telas e fluxos do Telegram.
-
-Ponto de atenção: handlers não devem virar depósito de regra de negócio. Sempre que uma regra crescer, deve migrar para `core/`, `services/` ou `renderers/`.
-
-### `src/core/`
-
-Coração do jogo. Contém regra estrutural de arena, combate, dungeon, economia, player, mundo, métricas e baús.
-
-### `src/data/`
-
-Tabelas e configurações estáticas:
-
-- itens
-- drops V2
-- loja
-- arena shop
-- assets
-- balanceamento
-- constantes
-
-### `src/menus/`
-
-Teclados inline e menus reutilizáveis.
-
-### `src/services/`
-
-Serviços reaproveitáveis que não pertencem diretamente a um handler.
-
-### `src/utils/`
-
-Funções utilitárias, formatadores, helpers e navegação de UI.
-
-### `tests/`
-
-Testes automatizados com foco em regressões críticas.
-
----
-
-## 8. Sistemas implementados
+## 7. Sistemas implementados
 
 ### Personagem
 
@@ -393,7 +293,9 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 - defesa
 - fuga
 - uso de consumíveis
-- uso de almas
+- uso de almas ativas
+- cooldowns de almas
+- almas passivas
 - persistência de luta
 - cálculo de dano separado
 - visualização de item dropado
@@ -418,12 +320,24 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 - traits de item
 - origem do item por mapa
 
+### Almas V2
+
+- coleção de almas
+- slots equipados
+- escolha explícita de Slot 1 e Slot 2
+- detalhe individual sem IDs técnicos para o jogador
+- cooldowns de uso em combate
+- almas passivas permanentes
+- drop visual especial
+- comando `/equipsoul` para admin/teste
+
 ### Dungeon
 
 - serviço próprio
 - salas próprias
 - recompensas próprias
 - conteúdo de maior valor que farm comum
+- consome chave, não energia
 
 ### Arena
 
@@ -459,7 +373,7 @@ As subclasses não precisam ser fixas no cadastro. A build deve emergir por equi
 
 ---
 
-## 9. Dívida técnica atual
+## 8. Dívida técnica atual
 
 Principais pontos de risco:
 
@@ -468,13 +382,13 @@ Principais pontos de risco:
 3. `src/handlers/shop.js` ainda mistura UI com economia e fluxo de botões.
 4. `src/handlers/arena.js` precisa continuar delegando para `core/arena`.
 5. `src/commands/admin.js` pode virar arquivo inchado se crescer sem separação.
-6. Falta uma pasta `src/renderers/` para padronizar textos e telas.
+6. Falta expandir `src/renderers/` para combate, inventário, loja e dungeon.
 7. Falta uma pasta `src/core/loot/` para centralizar drops, raridade, pity e recompensas.
 8. README e docs precisam ser atualizados sempre que arquivo ativo mudar.
 
 ---
 
-## 10. Próxima arquitetura recomendada
+## 9. Próxima arquitetura recomendada
 
 A próxima evolução estrutural deve ser gradual, não uma reescrita total.
 
@@ -497,6 +411,9 @@ src/
 │   └── shopRenderer.js
 │
 └── core/
+    ├── balance/
+    │   └── balanceDiagnostics.js
+    │
     ├── loot/
     │   ├── dropService.js
     │   ├── lootTables.js
@@ -505,14 +422,47 @@ src/
     └── ...demais módulos atuais
 ```
 
-Ordem correta:
+Ordem correta agora:
 
-1. Criar `src/renderers/soulRenderer.js`.
-2. Melhorar UX de Almas no inventário.
-3. Criar detalhe individual de Alma.
-4. Melhorar drop visual de Alma em combate.
-5. Balancear chance/pity com testes.
-6. Só depois começar refactor maior de `index.js`.
+1. Atualizar docs pós Almas V2.
+2. Criar diagnóstico de balanceamento.
+3. Ajustar XP/ouro/drop por mapa.
+4. Ajustar Glórias, baús e loja da arena.
+5. Melhorar `/metrics` para leitura econômica.
+6. Só depois iniciar Dungeon V2.
+
+---
+
+## 10. Sprint ativa
+
+```text
+Sprint: Balanceamento Inicial
+Objetivo: estabilizar economia, progressão, drops e ritmo antes de Dungeon V2.
+```
+
+Escopo da sprint:
+
+- XP por mapa
+- ouro por mapa
+- dificuldade inicial
+- chance de drop de item
+- chance de drop de alma
+- pity de alma
+- chance de chave de dungeon
+- Glórias por vitória
+- Glórias por baú
+- preço da Loja Arena
+- preço da loja principal
+- valor percebido do VIP
+
+Não faz parte da sprint:
+
+- guildas
+- world boss
+- novos mapas
+- novas classes
+- monetização agressiva
+- refactor grande do `index.js`
 
 ---
 
@@ -562,7 +512,7 @@ docs/ROADMAP.md
 Prioridade atual:
 
 ```text
-Almas V2 → Balanceamento inicial → Dungeon V2 → Métricas de retenção → Guildas/World Boss
+Balanceamento inicial → Métricas econômicas → Dungeon V2 → Métricas de retenção → Guildas/World Boss
 ```
 
 ---
