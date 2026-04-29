@@ -16,6 +16,8 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
    - log do Render;
    - último PR mesclado.
 5. Nunca assumir que erro visual é só visual. Pode ser persistência, callback ou normalização.
+6. Antes de alterar balanceamento, rodar `npm test`.
+7. Depois de alterar balanceamento, testar pelo menos 10 caçadas reais em personagem novo e 10 caçadas em personagem avançado.
 
 ---
 
@@ -79,6 +81,10 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Slot 1 de alma aparece corretamente no combate.
 - [ ] Slot 2 de alma aparece corretamente no combate.
 - [ ] Usar alma causa efeito correto.
+- [ ] Alma em cooldown não pode ser usada de novo imediatamente.
+- [ ] Cooldown da alma reduz ao atacar.
+- [ ] Cooldown da alma reduz ao defender.
+- [ ] Alma passiva aparece como passiva e não é ativável como skill.
 - [ ] Vitória dá XP e ouro.
 - [ ] Derrota não corrompe HP.
 - [ ] Item dropado pode ser visualizado.
@@ -90,7 +96,7 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 
 ---
 
-## 5. Drops e progressão
+## 5. Drops, progressão e balanceamento
 
 - [ ] Mapa 1 dropa itens de tier inicial.
 - [ ] Mapa 2 exige level correto.
@@ -102,6 +108,15 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Guerreiro recebe majoritariamente itens compatíveis.
 - [ ] Mago recebe majoritariamente itens compatíveis.
 - [ ] Itens off-class ainda podem aparecer raramente, mas não dominar o drop.
+- [ ] Level 1–4 não recebe elite, miniboss ou boss.
+- [ ] Level 1–4 vence comuns com consistência.
+- [ ] Level 5–7 começa a sentir ameaça sem virar parede.
+- [ ] Level 8 desbloqueia Cripta em Ruínas.
+- [ ] Ouro inicial não sobra a ponto de banalizar loja.
+- [ ] Ouro inicial não falta a ponto de impedir compra básica.
+- [ ] Chave de dungeon é rara, mas não impossível.
+- [ ] Alma é rara, mas não invisível.
+- [ ] Nox continua sem drop comum.
 
 ---
 
@@ -117,9 +132,10 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Categoria Skins abre.
 - [ ] Categoria Almas abre.
 - [ ] Tela de Almas mostra equipadas, slots vazios e coleção.
-- [ ] Tela de Almas mostra raridade, tier, level e efeito resumido.
+- [ ] Tela de Almas mostra raridade, grau, level e efeito resumido.
 - [ ] Botão `Ver` abre detalhe individual da alma.
-- [ ] Detalhe individual mostra efeito, progresso e fonte.
+- [ ] Detalhe individual mostra efeito, evolução e origem amigável.
+- [ ] Detalhe individual não mostra ID técnico, UUID, `soul_*`, `alpha_*` ou `/equipsoul`.
 - [ ] Alma não equipada mostra escolha de Slot 1 e Slot 2.
 - [ ] Equipar no Slot 1 funciona.
 - [ ] Equipar no Slot 2 funciona.
@@ -260,6 +276,8 @@ Use este checklist antes de considerar uma sprint estável. Não pule etapas dep
 - [ ] Item equipado não pode duplicar no inventário.
 - [ ] Alma equipada não pode duplicar entre coleção e slot.
 - [ ] Substituição de alma não pode apagar a alma antiga.
+- [ ] Alma ativa não pode ser usada infinitamente sem cooldown.
+- [ ] Tela de alma não pode voltar a mostrar IDs técnicos para jogador comum.
 
 ---
 
@@ -278,3 +296,23 @@ Daily
 ```
 
 Se um desses falhar, não avance para feature nova.
+
+---
+
+## 14. Checklist específico da Sprint Balanceamento Inicial
+
+Antes de aprovar qualquer alteração de balanceamento:
+
+- [ ] `npm test` passou.
+- [ ] `tests/balanceDiagnostics.test.js` existe.
+- [ ] Energia continua 20 normal / 40 VIP.
+- [ ] Caça continua custando 1 energia.
+- [ ] Dungeon continua custando chave, não energia.
+- [ ] Nox continua sem drop comum.
+- [ ] Chave de dungeon não virou comum demais.
+- [ ] Chance de alma não ficou invisível.
+- [ ] Early game não ficou punitivo.
+- [ ] Loja não virou inútil por excesso de ouro.
+- [ ] Loja não virou obrigatória por falta extrema de ouro.
+- [ ] Arena continua usando Glórias.
+- [ ] VIP continua QoL, não pay-to-win.
