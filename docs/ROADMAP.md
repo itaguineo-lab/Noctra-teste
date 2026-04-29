@@ -1,6 +1,6 @@
 # ROADMAP OPERACIONAL — NOCTRA
 
-Este roadmap serve para impedir dispersão. O NOCTRA já tem sistemas suficientes para uma alpha jogável; a prioridade agora é transformar sistemas existentes em retenção real.
+Este roadmap existe para impedir dispersão. O NOCTRA já tem sistemas suficientes para uma alpha jogável; a prioridade agora é transformar sistemas existentes em retenção real.
 
 ---
 
@@ -34,6 +34,9 @@ Toda sprint precisa fortalecer pelo menos um desses pontos.
 - Almas V2 no inventário
 - detalhe individual de alma
 - seleção de Slot 1 e Slot 2 para almas
+- cooldowns de almas no combate
+- almas passivas permanentes
+- UX de almas sem IDs técnicos para o jogador
 - drop visual especial de alma na vitória
 - loja
 - venda de loot
@@ -70,13 +73,15 @@ Toda sprint precisa fortalecer pelo menos um desses pontos.
 1. `src/renderers/soulRenderer.js`.
 2. Tela de Almas no inventário usando renderer dedicado.
 3. Slots equipados e slots vazios claros.
-4. Coleção com raridade, tier, nível, XP, fragmentos e efeito resumido.
-5. Detalhe individual da alma.
+4. Coleção com raridade, grau, nível, XP, fragmentos e efeito resumido.
+5. Detalhe individual da alma sem IDs técnicos para o jogador.
 6. Escolha explícita de Slot 1 e Slot 2.
 7. Substituição de slot com retorno da alma antiga para coleção.
 8. Drop visual especial de alma na vitória.
-9. Comando `/equipsoul ID [1|2]` alinhado com a lógica de slots.
-10. Testes cobrindo renderer, detalhe, slot selection, comando e drop visual.
+9. Comando `/equipsoul ID [1|2]` para admin/teste.
+10. Cooldowns para almas ativas.
+11. Almas passivas permanentes.
+12. Testes cobrindo renderer, detalhe, slot selection, comando, cooldowns e drop visual.
 
 ### Resultado esperado
 
@@ -89,6 +94,7 @@ o que cada uma faz
 qual é rara
 como equipar
 como escolher Slot 1 ou Slot 2
+quando pode usar novamente
 por que vale buscar bosses
 ```
 
@@ -103,11 +109,17 @@ por que vale buscar bosses
 
 ---
 
-## Próxima prioridade — Balanceamento inicial
+## Sprint ativa — Balanceamento Inicial
 
-Depois de Almas V2, o erro seria criar outro sistema grande sem medir economia.
+### Objetivo
 
-O próximo bloco deve ajustar e proteger:
+Estabilizar economia, progressão, drops e ritmo antes de Dungeon V2.
+
+### Por que agora
+
+Criar Dungeon V2, guildas ou world boss antes de calibrar economia seria empilhar conteúdo em cima de uma base ainda não medida. O jogo precisa provar que o loop principal está saudável antes de receber camada social/endgame.
+
+### Escopo
 
 - XP por mapa
 - ouro por mapa
@@ -121,6 +133,44 @@ O próximo bloco deve ajustar e proteger:
 - preço da Loja Arena
 - preço da loja principal
 - valor percebido do VIP
+
+### Fora do escopo
+
+- novos mapas
+- novas classes
+- guildas
+- world boss
+- eventos sazonais
+- monetização agressiva
+- refactor grande de `index.js`
+
+### PRs planejados
+
+1. **Diagnóstico de balanceamento**
+   - criar `src/core/balance/balanceDiagnostics.js`
+   - criar `tests/balanceDiagnostics.test.js`
+   - validar regras econômicas fixas
+   - detectar números perigosos antes de mexer no jogo
+
+2. **Ajuste de early game**
+   - validar níveis 1–8
+   - revisar inimigos da Clareira e Cripta
+   - revisar XP e ouro inicial
+   - proteger onboarding de dificuldade excessiva
+
+3. **Ajuste de drops, almas e chaves**
+   - validar primeira alma em 3–5 dias de jogo ativo
+   - validar chave rara, mas não impossível
+   - proteger regra: dungeon não se autoalimenta
+
+4. **Ajuste de Arena e Glórias**
+   - validar Glórias por vitória
+   - validar baús da arena
+   - validar preço da Loja Arena
+
+5. **Métricas econômicas melhores**
+   - melhorar leitura do `/metrics`
+   - mostrar win rate, ouro médio, XP médio, drop rate real, taxa de dungeon e gastos
 
 ### Métricas mínimas
 
@@ -215,16 +265,16 @@ Somente depois da base estabilizada:
 - Dungeon consome chave, não energia.
 - Almas são skills/build, não cosmético.
 - Cada jogador equipa até 2 almas.
+- Almas ativas têm cooldown.
+- Almas passivas não são ativáveis em combate.
 - Subclasse emerge de equipamentos + stats + almas.
 
 ---
 
-## Próxima sprint aprovada
+## Próxima ação aprovada
 
 ```text
-Sprint: Balanceamento Inicial
-Objetivo: estabilizar economia, progressão, drops e ritmo antes de Dungeon V2.
-Primeiro PR: criar diagnóstico de balanceamento com testes de configuração.
-Segundo PR: ajustar XP/ouro/drop por mapa.
-Terceiro PR: ajustar Glórias, baús e loja da arena.
+Criar diagnóstico de balanceamento com testes de configuração.
 ```
+
+Esse é o próximo passo técnico depois desta atualização de documentação.
