@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const { __private } = require('../src/services/rewardService');
 
 const {
+    canDropMythic,
+    isDungeonOrExternalDrop,
     isForbiddenFieldRarity,
     downgradeForbiddenFieldDrop
 } = __private;
@@ -32,9 +34,23 @@ test('boss de campo aceita Lendário, mas não Mítico', () => {
     assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss'), true);
 });
 
-test('dungeon, world boss e evento podem usar raridade Mítica', () => {
-    assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { isDungeon: true }), false);
-    assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { isDungeonBoss: true }), false);
+test('dungeon comum não é salvo-conduto para Mítico', () => {
+    assert.equal(canDropMythic({ isDungeon: true }), false);
+    assert.equal(canDropMythic({ isDungeonBoss: true }), false);
+    assert.equal(isDungeonOrExternalDrop({ isDungeon: true }), false);
+    assert.equal(isDungeonOrExternalDrop({ isDungeonBoss: true }), false);
+    assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { isDungeon: true }), true);
+    assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { isDungeonBoss: true }), true);
+});
+
+test('dungeon elite, world boss e evento podem usar raridade Mítica', () => {
+    assert.equal(canDropMythic({ isEliteDungeon: true }), true);
+    assert.equal(canDropMythic({ allowMythicDrop: true }), true);
+    assert.equal(canDropMythic({ isWorldBoss: true }), true);
+    assert.equal(canDropMythic({ isEventBoss: true }), true);
+
+    assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { isEliteDungeon: true }), false);
+    assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { allowMythicDrop: true }), false);
     assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { isWorldBoss: true }), false);
     assert.equal(isForbiddenFieldRarity(makeItem('Mítico'), 'boss', { isEventBoss: true }), false);
 });
