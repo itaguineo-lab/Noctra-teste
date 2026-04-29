@@ -1,14 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { __private } = require('../src/services/rewardService');
-
 const {
     canDropMythic,
     isDungeonOrExternalDrop,
     isForbiddenFieldRarity,
     downgradeForbiddenFieldDrop
-} = __private;
+} = require('../src/core/loot/dropPolicy');
 
 function makeItem(rarity) {
     return {
