@@ -420,6 +420,7 @@ async function processVictory(player, enemy, options = {}) {
 
     recordVictoryMetricsAsync({
         items: itemResult.droppedItem ? 1 : 0,
+        itemRarities: itemResult.droppedItem?.rarity ? [itemResult.droppedItem.rarity] : [],
         souls: soulResult.soulDropped ? 1 : 0,
         keys: keyDropped ? 1 : 0,
         gold: rewardBase.gold,
