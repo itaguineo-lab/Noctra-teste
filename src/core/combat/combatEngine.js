@@ -103,25 +103,25 @@ function setVictory(fight) {
         xp: fight.enemy.xp || 0,
         gold: fight.enemy.gold || 0
     };
-    fight.logs.push(`💀 ${fight.enemy.name} tombou nas sombras.`);
+    fight.logs.push(`💀 ${fight.enemy.name} tombou nas sombras`);
 }
 
 function setLoss(fight) {
     if (fight.status === 'loss') return;
 
     fight.status = 'loss';
-    fight.logs.push('☠️ Você foi derrotado.');
+    fight.logs.push('☠️ Você foi derrotado');
 }
 
 function getPlayerAttackText(enemyName, damage, isCrit) {
-    let text = `⚔️ Você golpeia ${enemyName} e causa ${damage} de dano.`;
-    if (isCrit) text += `\n💥 Crítico.`;
+    let text = `⚔️ Você golpeia ${enemyName} e causa ${damage} de dano`;
+    if (isCrit) text += `\n💥 Crítico`;
     return text;
 }
 
 function getEnemyAttackText(enemyName, damage, isCrit) {
-    let text = `👹 ${enemyName} ataca e causa ${damage} de dano.`;
-    if (isCrit) text += `\n💀 Golpe crítico.`;
+    let text = `👹 ${enemyName} ataca e causa ${damage} de dano`;
+    if (isCrit) text += `\n💀 Golpe crítico`;
     return text;
 }
 
@@ -134,7 +134,7 @@ function applyShieldDamage(target, damage, fight, ownerName = 'Escudo') {
         remainingDamage -= absorbed;
 
         if (absorbed > 0) {
-            fight.logs.push(`🛡️ ${ownerName} absorveu ${absorbed} de dano.`);
+            fight.logs.push(`🛡️ ${ownerName} absorveu ${absorbed} de dano`);
         }
     }
 
@@ -156,7 +156,7 @@ function applyDamageOverTime(target, fight, config) {
     target.hp = Math.max(0, (target.hp || 0) - damage);
     target[turnsKey] -= 1;
 
-    fight.logs.push(`${emoji} ${label} causa ${damage} de dano em ${targetName}.`);
+    fight.logs.push(`${emoji} ${label} causa ${damage} de dano em ${targetName}`);
     return target.hp <= 0;
 }
 
@@ -165,13 +165,13 @@ function applyEnemyStatusToPlayer(fight, type) {
 
     if (type === 'POISON') {
         fight.player.poisonTurns += 2;
-        fight.logs.push(`🧪 ${fight.enemy.name} envenenou você.`);
+        fight.logs.push(`🧪 ${fight.enemy.name} envenenou você`);
         return true;
     }
 
     if (type === 'BLEED') {
         fight.player.bleedTurns += 2;
-        fight.logs.push(`🩸 ${fight.enemy.name} abriu sangramento em você.`);
+        fight.logs.push(`🩸 ${fight.enemy.name} abriu sangramento em você`);
         return true;
     }
 
@@ -232,7 +232,7 @@ function createFight(player, enemy) {
         turn: 1,
         status: 'ongoing',
         rewards: null,
-        logs: [`🌑 Um ${enemy.name} surgiu das sombras.`],
+        logs: [`🌑 Um ${enemy.name} surgiu das sombras`],
         lastDamageDealt: 0,
         lastDamageReceived: 0
     });
@@ -332,7 +332,7 @@ function processPlayerTurn(fight) {
     }
 
     if (fight.player.stunned) {
-        fight.logs.push('💫 Você está atordoado e perdeu o turno.');
+        fight.logs.push('💫 Você está atordoado e perdeu o turno');
         fight.player.stunned = false;
         fight.turn += 1;
         fight.logs = trimLogs(fight.logs);
@@ -373,7 +373,7 @@ function processEnemyTurn(fight) {
     }
 
     if (fight.enemy.frozen) {
-        fight.logs.push(`❄️ ${fight.enemy.name} está congelado e perdeu o turno.`);
+        fight.logs.push(`❄️ ${fight.enemy.name} está congelado e perdeu o turno`);
         fight.enemy.frozen = false;
         fight.turn += 1;
         fight.logs = trimLogs(fight.logs);
@@ -436,29 +436,29 @@ function useSoul(fight, soulIndex) {
     const soul = fight.player.souls[index];
 
     if (!soul) {
-        fight.logs.push('❌ Alma vazia.');
+        fight.logs.push('❌ Alma vazia');
         fight.logs = trimLogs(fight.logs);
         return null;
     }
 
     if (isPassiveSoul(soul)) {
-        fight.logs.push(`${soul.emoji || '💀'} ${soul.name} é passiva e já fortalece sua build.`);
+        fight.logs.push(`${soul.emoji || '💀'} ${soul.name} é passiva e já fortalece sua build`);
         fight.logs = trimLogs(fight.logs);
         return {
             success: false,
             passive: true,
-            message: 'Alma passiva não é ativável.'
+            message: 'Alma passiva não é ativável'
         };
     }
 
     const cooldownRemaining = getSoulCooldownRemaining(fight, index);
     if (cooldownRemaining > 0) {
-        fight.logs.push(`⏳ ${soul.name} recarrega em ${cooldownRemaining} turno(s).`);
+        fight.logs.push(`⏳ ${soul.name} recarrega em ${cooldownRemaining} turnos`);
         fight.logs = trimLogs(fight.logs);
         return {
             success: false,
             cooldown: cooldownRemaining,
-            message: `Alma em recarga por ${cooldownRemaining} turno(s).`
+            message: `Alma em recarga por ${cooldownRemaining} turnos`
         };
     }
 
@@ -479,7 +479,7 @@ function useSoul(fight, soulIndex) {
 
     const cooldown = getSoulCooldownTurns(soul);
     if (cooldown > 0) {
-        fight.logs.push(`⏳ ${soul.name} entrou em recarga por ${cooldown} turnos.`);
+        fight.logs.push(`⏳ ${soul.name} entrou em recarga por ${cooldown} turnos`);
     }
 
     if (fight.enemy.hp <= 0) {
@@ -496,7 +496,7 @@ function applyDefend(fight) {
     if (fight.status !== 'ongoing') return;
     tickSoulCooldowns(fight);
     fight.player.defending = true;
-    fight.logs.push('🛡️ Você assume postura defensiva.');
+    fight.logs.push('🛡️ Você assume postura defensiva');
     fight.logs = trimLogs(fight.logs);
 }
 
@@ -509,9 +509,9 @@ function attemptFlee(fight) {
 
     if (success) {
         fight.status = 'fled';
-        fight.logs.push('🏃 Você fugiu.');
+        fight.logs.push('🏃 Você fugiu');
     } else {
-        fight.logs.push('🚫 Falha na fuga.');
+        fight.logs.push('🚫 Falha na fuga');
         processEnemyTurn(fight);
     }
 
