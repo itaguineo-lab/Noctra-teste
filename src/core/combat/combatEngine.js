@@ -103,25 +103,25 @@ function setVictory(fight) {
         xp: fight.enemy.xp || 0,
         gold: fight.enemy.gold || 0
     };
-    fight.logs.push(`💀 ${fight.enemy.name} tombou nas sombras!`);
+    fight.logs.push(`💀 ${fight.enemy.name} tombou nas sombras.`);
 }
 
 function setLoss(fight) {
     if (fight.status === 'loss') return;
 
     fight.status = 'loss';
-    fight.logs.push('☠️ Você foi derrotado...');
+    fight.logs.push('☠️ Você foi derrotado.');
 }
 
 function getPlayerAttackText(enemyName, damage, isCrit) {
-    let text = `⚔️ Você golpeia ${enemyName} e causa *${damage}* de dano!`;
-    if (isCrit) text += `\n💥 *CRÍTICO!*`;
+    let text = `⚔️ Você golpeia ${enemyName} e causa ${damage} de dano.`;
+    if (isCrit) text += `\n💥 Crítico.`;
     return text;
 }
 
 function getEnemyAttackText(enemyName, damage, isCrit) {
-    let text = `👹 ${enemyName} ataca e causa *${damage}* de dano!`;
-    if (isCrit) text += `\n💀 *Golpe crítico!*`;
+    let text = `👹 ${enemyName} ataca e causa ${damage} de dano.`;
+    if (isCrit) text += `\n💀 Golpe crítico.`;
     return text;
 }
 
@@ -165,13 +165,13 @@ function applyEnemyStatusToPlayer(fight, type) {
 
     if (type === 'POISON') {
         fight.player.poisonTurns += 2;
-        fight.logs.push(`🧪 ${fight.enemy.name} envenenou você!`);
+        fight.logs.push(`🧪 ${fight.enemy.name} envenenou você.`);
         return true;
     }
 
     if (type === 'BLEED') {
         fight.player.bleedTurns += 2;
-        fight.logs.push(`🩸 ${fight.enemy.name} abriu um sangramento em você!`);
+        fight.logs.push(`🩸 ${fight.enemy.name} abriu sangramento em você.`);
         return true;
     }
 
@@ -232,7 +232,7 @@ function createFight(player, enemy) {
         turn: 1,
         status: 'ongoing',
         rewards: null,
-        logs: [`🌑 Um *${enemy.name}* surgiu das sombras!`],
+        logs: [`🌑 Um ${enemy.name} surgiu das sombras.`],
         lastDamageDealt: 0,
         lastDamageReceived: 0
     });
@@ -332,7 +332,7 @@ function processPlayerTurn(fight) {
     }
 
     if (fight.player.stunned) {
-        fight.logs.push('💫 Você está atordoado e perdeu o turno!');
+        fight.logs.push('💫 Você está atordoado e perdeu o turno.');
         fight.player.stunned = false;
         fight.turn += 1;
         fight.logs = trimLogs(fight.logs);
@@ -373,7 +373,7 @@ function processEnemyTurn(fight) {
     }
 
     if (fight.enemy.frozen) {
-        fight.logs.push(`❄️ ${fight.enemy.name} está congelado e perdeu o turno!`);
+        fight.logs.push(`❄️ ${fight.enemy.name} está congelado e perdeu o turno.`);
         fight.enemy.frozen = false;
         fight.turn += 1;
         fight.logs = trimLogs(fight.logs);
@@ -511,7 +511,7 @@ function attemptFlee(fight) {
         fight.status = 'fled';
         fight.logs.push('🏃 Você fugiu.');
     } else {
-        fight.logs.push('🚫 Falha na fuga!');
+        fight.logs.push('🚫 Falha na fuga.');
         processEnemyTurn(fight);
     }
 
