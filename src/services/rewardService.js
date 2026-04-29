@@ -43,6 +43,20 @@ const MAP_NUMBERS = {
     abismo_noctra: 6
 };
 
+const FIELD_FORBIDDEN_RARITIES_BY_TIER = {
+    common: new Set(['Lendário', 'Mítico']),
+    elite: new Set(['Lendário', 'Mítico']),
+    miniboss: new Set(['Lendário', 'Mítico']),
+    boss: new Set(['Mítico'])
+};
+
+const FIELD_DROP_MAX_RARITY_BY_TIER = {
+    common: 'Épico',
+    elite: 'Épico',
+    miniboss: 'Épico',
+    boss: 'Lendário'
+};
+
 function getMapNumber(mapName) {
     return MAP_NUMBERS[mapName] || 1;
 }
@@ -52,6 +66,76 @@ function getEncounterTier(enemy) {
     if (enemy?.isMiniBoss) return 'miniboss';
     if (enemy?.isElite) return 'elite';
     return 'common';
+}
+
+function isDungeonOrExternalDrop(options = {}) {
+    return Boolean(
+        options.isDungeon ||
+        options.isDungeonBoss ||
+        options.isWorldBoss ||
+        options.isEventBoss
+    );
+}
+
+function isForbiddenFieldRarity(item, encounterTier = 'common', options = {}) {
+    if (!item?.rarity) return false;
+    if (isDungeonOrExternalDrop(options)) return false;
+
+    const tier = FIELD_FORBIDDEN_RARITIES_BY_TIER[encounterTier]
+        ? encounterTier
+        : 'common';
+
+    return FIELD_FORBIDDEN_RARITIES_BY_TIER[tier].has(item.rarity);
+}
+
+function replaceRarityText(text, targetRarity) {
+    if (!text) return text;
+
+    return String(text)
+        .replace(/Mítico/gi, targetRarity)
+        .replace(/Lendário/gi, targetRarity);
+}
+
+function downgradeForbiddenFieldDrop(item, encounterTier = 'common', options = {}) {
+    if (!item || !isForbiddenFieldRarity(item, encounterTier, options)) {
+        return item;
+    }
+
+    const tier = FIELD_DROP_MAX_RARITY_BY_TIER[encounterTier]
+        ? encounterTier
+        : 'common';
+    const targetRarity = FIELD_DROP_MAX_RARITY_BY_TIER[tier];
+
+    return {
+        ...item,
+        name: replaceRarityText(item.name, targetRarity),
+        rarity: targetRarity,
+        qualityLabel: targetRarity,
+        powerTier: item.powerTier === 'Mítico' || item.powerTier === 'Lendário'
+            ? targetRarity
+            : item.powerTier,
+        flavor: replaceRarityText(item.flavor, targetRarity),
+        __rarityPolicyAdjusted: true
+    };
+}
+
+function generatePolicyCompliantDrop(mapNumber, dropOptions = {}, policyOptions = {}) {
+    const encounterTier = dropOptions.encounterTier || 'common';
+    let fallback = null;
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        const rolledItem = generateDrop(mapNumber, dropOptions);
+
+        if (!fallback) {
+            fallback = rolledItem;
+        }
+
+        if (!isForbiddenFieldRarity(rolledItem, encounterTier, policyOptions)) {
+            return rolledItem;
+        }
+    }
+
+    return downgradeForbiddenFieldDrop(fallback, encounterTier, policyOptions);
 }
 
 function getSoulSource(enemy, options = {}) {
@@ -185,7 +269,7 @@ function tryDropKey(player, enemy, loot, options = {}) {
     return dropped;
 }
 
-function tryDropItem(player, enemy, loot) {
+function tryDropItem(player, enemy, loot, options = {}) {
     const mapNumber = getMapNumber(player.currentMap);
     const encounterTier = getEncounterTier(enemy);
     const dropProfile = getDropProfileByEnemy(mapNumber, encounterTier);
@@ -197,11 +281,15 @@ function tryDropItem(player, enemy, loot) {
         };
     }
 
-    const rolledItem = generateDrop(mapNumber, {
-        encounterTier,
-        rarityBias: dropProfile.rarityBias,
-        playerClass: player.class
-    });
+    const rolledItem = generatePolicyCompliantDrop(
+        mapNumber,
+        {
+            encounterTier,
+            rarityBias: dropProfile.rarityBias,
+            playerClass: player.class
+        },
+        options
+    );
 
     const addItemResult = addInventoryItem(player, rolledItem);
 
@@ -318,7 +406,7 @@ async function processVictory(player, enemy, options = {}) {
     applyXpReward(player, rewardBase.xp);
     const leveledUp = player.level > previousLevel;
 
-    const itemResult = tryDropItem(player, enemy, loot);
+    const itemResult = tryDropItem(player, enemy, loot, options);
     const soulResult = tryDropSoul(player, enemy, loot, options);
     const keyDropped = tryDropKey(player, enemy, loot, options);
 
@@ -363,6 +451,10 @@ module.exports = {
         getSoulSourceLabel,
         buildCompactSoulLootLine,
         buildFullSoulDropText,
-        tryDropSoul
+        tryDropSoul,
+        isDungeonOrExternalDrop,
+        isForbiddenFieldRarity,
+        downgradeForbiddenFieldDrop,
+        generatePolicyCompliantDrop
     }
 };
