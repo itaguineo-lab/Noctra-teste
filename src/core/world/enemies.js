@@ -1,6 +1,6 @@
 /*
 =================================
-NOCTRA — ENEMY SYSTEM 4.1
+NOCTRA — ENEMY SYSTEM 4.2
 INIMIGOS TEMÁTICOS + HABILIDADES + PROGRESSÃO CONTROLADA
 FOCO EM LONGEVIDADE, IDENTIDADE DE MAPA E PACING
 =================================
@@ -105,32 +105,32 @@ const enemyPools = {
                 id: 'shadow_wolf',
                 name: 'Lobo Sombrio',
                 emoji: '🐺',
-                hp: 50, atk: 9, def: 4, crit: 5,
-                xp: 30, gold: 18,
+                hp: 44, atk: 8, def: 3, crit: 5,
+                xp: 29, gold: 18,
                 ability: null
             },
             {
                 id: 'giant_rat',
                 name: 'Rato Gigante',
                 emoji: '🐀',
-                hp: 40, atk: 7, def: 2, crit: 4,
-                xp: 25, gold: 12,
-                ability: { type: 'POISON', chance: 0.2 }
+                hp: 34, atk: 6, def: 1, crit: 4,
+                xp: 24, gold: 12,
+                ability: { type: 'POISON', chance: 0.16 }
             },
             {
                 id: 'forest_spider',
                 name: 'Aranha da Floresta',
                 emoji: '🕷️',
-                hp: 45, atk: 10, def: 3, crit: 6,
-                xp: 26, gold: 15,
-                ability: { type: 'POISON', chance: 0.25 }
+                hp: 40, atk: 8, def: 2, crit: 6,
+                xp: 25, gold: 15,
+                ability: { type: 'POISON', chance: 0.18 }
             },
             {
                 id: 'dark_bat',
                 name: 'Morcego Sombrio',
                 emoji: '🦇',
-                hp: 35, atk: 11, def: 2, crit: 8,
-                xp: 28, gold: 14,
+                hp: 32, atk: 9, def: 1, crit: 8,
+                xp: 27, gold: 14,
                 ability: null
             }
         ],
@@ -139,19 +139,19 @@ const enemyPools = {
                 id: 'alpha_shadow_wolf',
                 name: 'Lobo Alfa Sombrio',
                 emoji: '🐺',
-                hp: 95, atk: 16, def: 8, crit: 10,
+                hp: 88, atk: 15, def: 7, crit: 10,
                 xp: 65, gold: 40,
                 isElite: true,
-                ability: { type: 'BLEED', chance: 0.4 }
+                ability: { type: 'BLEED', chance: 0.35 }
             },
             {
                 id: 'webspinner',
                 name: 'Tece-Trevas',
                 emoji: '🕸️',
-                hp: 85, atk: 14, def: 10, crit: 8,
+                hp: 80, atk: 13, def: 9, crit: 8,
                 xp: 60, gold: 38,
                 isElite: true,
-                ability: { type: 'STUN', chance: 0.25 }
+                ability: { type: 'STUN', chance: 0.20 }
             }
         ],
         miniboss: [
@@ -159,10 +159,10 @@ const enemyPools = {
                 id: 'dark_stag',
                 name: 'Cervo Sombrio',
                 emoji: '🦌',
-                hp: 140, atk: 20, def: 10, crit: 12,
+                hp: 130, atk: 19, def: 10, crit: 12,
                 xp: 100, gold: 70,
                 isMiniBoss: true,
-                ability: { type: 'SHIELD', chance: 0.5 }
+                ability: { type: 'SHIELD', chance: 0.45 }
             }
         ],
         boss: [
@@ -170,10 +170,10 @@ const enemyPools = {
                 id: 'forest_guardian',
                 name: 'Guardião da Clareira',
                 emoji: '🌳',
-                hp: 200, atk: 24, def: 14, crit: 14,
+                hp: 190, atk: 23, def: 13, crit: 14,
                 xp: 160, gold: 110,
                 isBoss: true,
-                ability: { type: 'HEAL', chance: 0.3 }
+                ability: { type: 'HEAL', chance: 0.25 }
             }
         ]
     },
@@ -184,7 +184,7 @@ const enemyPools = {
                 id: 'skeleton_warrior',
                 name: 'Esqueleto Guerreiro',
                 emoji: '💀',
-                hp: 100, atk: 15, def: 8, crit: 6,
+                hp: 92, atk: 14, def: 7, crit: 6,
                 xp: 45, gold: 30,
                 ability: null
             },
@@ -192,17 +192,17 @@ const enemyPools = {
                 id: 'restless_spirit',
                 name: 'Espírito Inquieto',
                 emoji: '👻',
-                hp: 80, atk: 18, def: 5, crit: 10,
+                hp: 74, atk: 16, def: 4, crit: 10,
                 xp: 50, gold: 28,
-                ability: { type: 'STUN', chance: 0.2 }
+                ability: { type: 'STUN', chance: 0.18 }
             },
             {
                 id: 'crypt_bat',
                 name: 'Morcego da Cripta',
                 emoji: '🦇',
-                hp: 90, atk: 16, def: 6, crit: 8,
+                hp: 84, atk: 15, def: 5, crit: 8,
                 xp: 48, gold: 32,
-                ability: { type: 'BLEED', chance: 0.2 }
+                ability: { type: 'BLEED', chance: 0.18 }
             }
         ],
         elite: [
@@ -210,19 +210,19 @@ const enemyPools = {
                 id: 'bone_knight',
                 name: 'Cavaleiro Ósseo',
                 emoji: '🛡️',
-                hp: 190, atk: 26, def: 16, crit: 12,
+                hp: 180, atk: 25, def: 15, crit: 12,
                 xp: 100, gold: 70,
                 isElite: true,
-                ability: { type: 'SHIELD', chance: 0.4 }
+                ability: { type: 'SHIELD', chance: 0.36 }
             },
             {
                 id: 'wailing_banshee',
                 name: 'Banshee Lamentosa',
                 emoji: '👻',
-                hp: 160, atk: 30, def: 8, crit: 15,
+                hp: 150, atk: 28, def: 8, crit: 15,
                 xp: 110, gold: 65,
                 isElite: true,
-                ability: { type: 'STUN', chance: 0.35 }
+                ability: { type: 'STUN', chance: 0.30 }
             }
         ],
         miniboss: [
@@ -230,10 +230,10 @@ const enemyPools = {
                 id: 'crypt_reaper',
                 name: 'Ceifador da Cripta',
                 emoji: '⚰️',
-                hp: 250, atk: 32, def: 18, crit: 14,
+                hp: 240, atk: 31, def: 18, crit: 14,
                 xp: 140, gold: 100,
                 isMiniBoss: true,
-                ability: { type: 'BLEED', chance: 0.5 }
+                ability: { type: 'BLEED', chance: 0.45 }
             }
         ],
         boss: [
@@ -241,10 +241,10 @@ const enemyPools = {
                 id: 'lord_of_crypt',
                 name: 'Lorde da Cripta',
                 emoji: '👑',
-                hp: 320, atk: 38, def: 24, crit: 16,
+                hp: 305, atk: 36, def: 23, crit: 16,
                 xp: 220, gold: 160,
                 isBoss: true,
-                ability: { type: 'HEAL', chance: 0.25 }
+                ability: { type: 'HEAL', chance: 0.24 }
             }
         ]
     },

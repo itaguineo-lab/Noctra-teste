@@ -5,11 +5,12 @@ const {
 
 /*
 =================================
-XP CURVE 3.0
+XP CURVE 3.1
 OBJETIVO:
-- LV 1–8 bem fácil
-- após LV 8 desacelera forte
-- mid/late começam a exigir compromisso
+- LV 1–4 com progressão rápida para criar tração inicial
+- LV 5–8 ainda acessível, mas já com atrito suficiente
+- LV 8 marca a entrada real na Cripta
+- após LV 8 desacelera forte para proteger longevidade
 =================================
 */
 
@@ -17,7 +18,7 @@ function getXpToNextLevel(level) {
     const lv = Math.max(1, Number(level) || 1);
 
     if (lv <= 4) {
-        return Math.floor(90 + (lv - 1) * 28);
+        return Math.floor(75 + (lv - 1) * 30);
     }
 
     if (lv <= 8) {
@@ -86,8 +87,8 @@ function getLevelUpRewards(player) {
     const level = Math.max(1, Number(player.level || 1));
 
     const rewards = {
-        healPercent: 0.35,
-        energyRestore: level <= 8 ? 5 : 4,
+        healPercent: level <= 8 ? 0.45 : 0.35,
+        energyRestore: level <= 8 ? 6 : 4,
         glorias: 0,
         keys: 0
     };
@@ -228,7 +229,7 @@ function checkLevelUp(player) {
     recalculateStats(player);
 
     const effectiveHealPercent = player.level <= 10
-        ? 0.40
+        ? 0.45
         : player.level <= 24
             ? 0.30
             : 0.24;
