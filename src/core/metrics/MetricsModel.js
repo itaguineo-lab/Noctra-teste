@@ -24,6 +24,14 @@ const countersSchema = new mongoose.Schema(
         dungeonRoomsCleared: { type: Number, default: 0 },
 
         itemsDropped: { type: Number, default: 0 },
+        itemRarityComum: { type: Number, default: 0 },
+        itemRarityIncomum: { type: Number, default: 0 },
+        itemRarityRaro: { type: Number, default: 0 },
+        itemRarityEpico: { type: Number, default: 0 },
+        itemRarityLendario: { type: Number, default: 0 },
+        itemRarityMitico: { type: Number, default: 0 },
+        itemRarityUnknown: { type: Number, default: 0 },
+
         soulsDropped: { type: Number, default: 0 },
         keysDropped: { type: Number, default: 0 },
 
