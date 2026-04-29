@@ -15,7 +15,8 @@ const {
     formatSoulLevel,
     getSoulIdentityLine,
     getSoulCommandId,
-    getSoulInstanceId
+    getSoulInstanceId,
+    getSoulTypeLine
 } = require('../src/renderers/soulRenderer');
 
 function damageSoul(overrides = {}) {
@@ -83,34 +84,39 @@ test('formatSoulLevel mostra despertar quando existe', () => {
     assert.equal(formatSoulLevel(damageSoul({ level: 3, awakenLevel: 2 })), 'Lv.3 • Despertar +2');
 });
 
-test('getSoulCommandId prioriza id base e getSoulInstanceId mostra instância', () => {
+test('getSoulCommandId prioriza id base e getSoulInstanceId mantém dado técnico interno', () => {
     const textSoul = damageSoul({ id: 'soul_wolf', instanceId: 'uuid-123' });
 
     assert.equal(getSoulCommandId(textSoul), 'soul_wolf');
     assert.equal(getSoulInstanceId(textSoul), 'uuid-123');
 });
 
-test('getSoulIdentityLine inclui raridade, tier e level', () => {
+test('getSoulIdentityLine inclui raridade, grau e level', () => {
     const text = getSoulIdentityLine(frostSoul({ level: 2 }));
 
     assert.match(text, /Épico/);
-    assert.match(text, /Tier 2/);
+    assert.match(text, /Grau II/);
     assert.match(text, /Lv\.2/);
 });
 
+test('getSoulTypeLine descreve tipo de uso sem jargão técnico', () => {
+    assert.equal(getSoulTypeLine(damageSoul()), '⚔️ Habilidade ativa');
+    assert.equal(getSoulTypeLine(passiveSoul()), '🌘 Passiva permanente');
+});
+
 test('buildSoulCooldownLine descreve cooldown e passiva', () => {
-    assert.equal(buildSoulCooldownLine(damageSoul()), 'Recarga: 3 turnos');
-    assert.equal(buildSoulCooldownLine(passiveSoul()), 'Tipo: Passiva permanente');
+    assert.equal(buildSoulCooldownLine(damageSoul()), '⏳ Recarga: 3 turnos');
+    assert.equal(buildSoulCooldownLine(passiveSoul()), '🌘 Passiva permanente');
 });
 
 test('buildSoulEffectSummary descreve dano ativo compacto', () => {
-    assert.equal(buildSoulEffectSummary(damageSoul()), 'Dano 135% ATK');
+    assert.equal(buildSoulEffectSummary(damageSoul()), 'Golpe ativo • 135% do ATK');
 });
 
 test('buildSoulEffectSummary descreve controle adicional', () => {
     const text = buildSoulEffectSummary(frostSoul());
 
-    assert.match(text, /150% ATK/);
+    assert.match(text, /150% do ATK/);
     assert.match(text, /25% congelar/);
 });
 
@@ -122,18 +128,18 @@ test('buildSoulEffectSummary descreve passiva', () => {
     assert.match(text, /HP \+30/);
 });
 
-test('buildSoulEffectDetail descreve efeito em linhas', () => {
+test('buildSoulEffectDetail descreve efeito em linguagem de jogador', () => {
     const text = buildSoulEffectDetail(frostSoul());
 
-    assert.match(text, /Dano: 150% do ATK/);
-    assert.match(text, /Controle: 25% de chance de congelar/);
+    assert.match(text, /Causa 150% do seu ATK como dano/);
+    assert.match(text, /Chance de congelar: 25%/);
 });
 
-test('buildSoulCommandHelpLine mostra comando com ID base', () => {
+test('buildSoulCommandHelpLine não mostra comando técnico na tela do jogador', () => {
     const text = buildSoulCommandHelpLine(damageSoul({ instanceId: 'uuid-123' }));
 
-    assert.match(text, /\/equipsoul soul_wolf 1/);
-    assert.match(text, /\/equipsoul soul_wolf 2/);
+    assert.equal(text, 'Escolha abaixo em qual slot deseja equipar.');
+    assert.doesNotMatch(text, /equipsoul/);
 });
 
 test('buildSoulCard renderiza card compacto com recarga', () => {
@@ -141,7 +147,7 @@ test('buildSoulCard renderiza card compacto com recarga', () => {
 
     assert.match(text, /1\. 🐺 Alma do Lobo Sombrio/);
     assert.match(text, /Raro/);
-    assert.match(text, /Dano 135% ATK/);
+    assert.match(text, /Golpe ativo/);
     assert.match(text, /Recarga: 3 turnos/);
     assert.match(text, /XP 0\/3/);
 });
@@ -177,17 +183,19 @@ test('buildSoulsOverviewText mostra visão geral completa', () => {
     assert.match(text, /Alma Guardiã/);
 });
 
-test('buildSoulDetailText mostra detalhe individual polido e ID', () => {
+test('buildSoulDetailText mostra detalhe individual sem ids técnicos ou comandos', () => {
     const text = buildSoulDetailText(passiveSoul({ instanceId: 'uuid-guardian' }), { slot: 1 });
 
     assert.match(text, /Alma Guardiã/);
-    assert.match(text, /ID: soul_guardian/);
+    assert.doesNotMatch(text, /ID:/);
     assert.doesNotMatch(text, /Instância:/);
-    assert.match(text, /Status: equipada no Slot 2/);
+    assert.doesNotMatch(text, /uuid-guardian/);
+    assert.doesNotMatch(text, /soul_guardian/);
+    assert.doesNotMatch(text, /equipsoul/);
+    assert.match(text, /Equipamento: Slot 2/);
     assert.match(text, /EFEITO/);
-    assert.match(text, /PROGRESSO/);
-    assert.match(text, /swamp_guardian/);
-    assert.match(text, /\/equipsoul soul_guardian 1/);
+    assert.match(text, /EVOLUÇÃO/);
+    assert.match(text, /Guardião do Pântano/);
 });
 
 test('buildSoulDropText cria tela especial de drop', () => {
