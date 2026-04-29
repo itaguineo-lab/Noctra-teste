@@ -7,6 +7,24 @@ const {
 const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━';
 const EMPTY_SLOT = '⬜ Vazio';
 
+const ROMAN_TIERS = {
+    1: 'I',
+    2: 'II',
+    3: 'III',
+    4: 'IV',
+    5: 'V'
+};
+
+const SOUL_SOURCE_LABELS = {
+    alpha_shadow_wolf: 'Alfa da Matilha',
+    forest_guardian: 'Guardião da Floresta',
+    lord_of_crypt: 'Lorde da Cripta',
+    swamp_guardian: 'Guardião do Pântano',
+    lord_of_decay: 'Lorde da Putrefação',
+    void_drake: 'Draco do Vazio',
+    noctra_avatar: 'Avatar de Noctra'
+};
+
 function escapeMarkdown(text = '') {
     return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
@@ -32,7 +50,7 @@ function formatSoulLevel(soul = {}) {
 
 function getSoulTierLabel(soul = {}) {
     const tier = Math.max(1, safeNumber(soul.tier, 1));
-    return `Tier ${tier}`;
+    return `Grau ${ROMAN_TIERS[tier] || tier}`;
 }
 
 function getSoulCommandId(soul = {}) {
@@ -52,29 +70,39 @@ function getSoulIdentityLine(soul = {}) {
     return `${getRarityEmoji(rarity)} ${escapeMarkdown(rarity)} • ${escapeMarkdown(getSoulTierLabel(soul))} • ${escapeMarkdown(formatSoulLevel(soul))}`;
 }
 
+function getSoulTypeLine(soul = {}) {
+    const effect = soul.effect || {};
+
+    if (effect.type === 'damage') return '⚔️ Habilidade ativa';
+    if (effect.type === 'heal') return '💚 Cura ativa';
+    if (effect.type === 'lifesteal') return '🩸 Roubo de vida';
+    if (effect.type === 'passive') return '🌘 Passiva permanente';
+    return '✨ Poder especial';
+}
+
 function buildSoulCooldownLine(soul = {}) {
-    if (isPassiveSoul(soul)) return 'Tipo: Passiva permanente';
+    if (isPassiveSoul(soul)) return '🌘 Passiva permanente';
 
     const cooldown = getSoulCooldownTurns(soul);
-    if (cooldown <= 0) return 'Recarga: sem cooldown';
-    return `Recarga: ${cooldown} turnos`;
+    if (cooldown <= 0) return '⏳ Sem recarga';
+    return `⏳ Recarga: ${cooldown} turnos`;
 }
 
 function buildSoulEffectSummary(soul = {}) {
     const effect = soul.effect || {};
 
     if (effect.type === 'damage') {
-        const parts = [`Dano ${formatPercent(effect.multiplier, true)} ATK`];
+        const parts = [`${formatPercent(effect.multiplier, true)} do ATK`];
         if (effect.freezeChance) parts.push(`${formatPercent(effect.freezeChance)} congelar`);
-        return parts.join(' • ');
+        return `Golpe ativo • ${parts.join(' • ')}`;
     }
 
     if (effect.type === 'heal') {
-        return `Cura ${formatPercent(effect.multiplier, true)} HP máx.`;
+        return `Cura ativa • ${formatPercent(effect.multiplier, true)} do HP máximo`;
     }
 
     if (effect.type === 'lifesteal') {
-        return `Dano ${formatPercent(effect.multiplier, true)} ATK • Cura ${formatPercent(effect.healPercent)} dano`;
+        return `Drenagem • ${formatPercent(effect.multiplier, true)} do ATK • cura ${formatPercent(effect.healPercent)}`;
     }
 
     if (effect.type === 'passive') {
@@ -83,7 +111,7 @@ function buildSoulEffectSummary(soul = {}) {
         if (effect.defBonus) parts.push(`DEF +${effect.defBonus}`);
         if (effect.hpBonus) parts.push(`HP +${effect.hpBonus}`);
         if (effect.critBonus) parts.push(`CRIT +${effect.critBonus}%`);
-        return parts.length ? `Passiva • ${parts.join(' • ')}` : 'Passiva';
+        return parts.length ? `Passiva • ${parts.join(' • ')}` : 'Passiva permanente';
     }
 
     return 'Efeito especial';
@@ -94,16 +122,16 @@ function buildSoulEffectDetail(soul = {}) {
     const lines = [];
 
     if (effect.type === 'damage') {
-        lines.push(`⚔️ Dano: ${formatPercent(effect.multiplier, true)} do ATK`);
-        if (effect.freezeChance) lines.push(`❄️ Controle: ${formatPercent(effect.freezeChance)} de chance de congelar`);
+        lines.push(`Causa ${formatPercent(effect.multiplier, true)} do seu ATK como dano.`);
+        if (effect.freezeChance) lines.push(`Chance de congelar: ${formatPercent(effect.freezeChance)}.`);
     } else if (effect.type === 'heal') {
-        lines.push(`💚 Cura: ${formatPercent(effect.multiplier, true)} do HP máximo`);
+        lines.push(`Restaura ${formatPercent(effect.multiplier, true)} do seu HP máximo.`);
     } else if (effect.type === 'lifesteal') {
-        lines.push(`🩸 Dano: ${formatPercent(effect.multiplier, true)} do ATK`);
-        lines.push(`❤️ Cura: ${formatPercent(effect.healPercent)} do dano causado`);
+        lines.push(`Causa ${formatPercent(effect.multiplier, true)} do seu ATK como dano.`);
+        lines.push(`Cura ${formatPercent(effect.healPercent)} do dano causado.`);
     } else if (effect.type === 'passive') {
-        lines.push('🌘 Esta alma não é ativada em combate.');
-        lines.push('Ela fortalece sua build enquanto estiver equipada.');
+        lines.push('Não precisa ser ativada em combate.');
+        lines.push('Enquanto equipada, fortalece sua build.');
         if (effect.atkBonus) lines.push(`⚔️ ATK +${effect.atkBonus}`);
         if (effect.defBonus) lines.push(`🛡️ DEF +${effect.defBonus}`);
         if (effect.hpBonus) lines.push(`❤️ HP +${effect.hpBonus}`);
@@ -125,14 +153,13 @@ function buildSoulProgressLine(soul = {}) {
 }
 
 function getSoulSourceText(soul = {}) {
-    if (soul.bossId) return `Fonte: ${escapeMarkdown(soul.bossId)}`;
-    return 'Fonte: bosses, dungeons e eventos';
+    const label = SOUL_SOURCE_LABELS[soul.bossId];
+    if (label) return `Origem: ${label}`;
+    return 'Origem: bosses, dungeons e eventos';
 }
 
-function buildSoulCommandHelpLine(soul = {}) {
-    const commandId = getSoulCommandId(soul);
-    if (!commandId) return 'Use os botões abaixo para equipar.';
-    return `/equipsoul ${commandId} 1 ou /equipsoul ${commandId} 2`;
+function buildSoulCommandHelpLine() {
+    return 'Escolha abaixo em qual slot deseja equipar.';
 }
 
 function buildEquippedSoulsBlock(equipped = []) {
@@ -197,7 +224,7 @@ function buildSoulsOverviewText(player = {}) {
 
     let text = `💀 *ALMAS*\n`;
     text += `${DIVIDER}\n`;
-    text += `Equipe até 2 almas para moldar sua build.\n\n`;
+    text += `Equipe até 2 almas para definir seu estilo de combate.\n\n`;
     text += `${buildEquippedSoulsBlock(equipped)}\n\n`;
     text += `${DIVIDER}\n`;
     text += `${buildSoulCollectionBlock(souls, equipped)}\n\n`;
@@ -211,21 +238,20 @@ function buildSoulDetailText(soul = {}, options = {}) {
     const slotLabel = options.slot !== undefined && options.slot !== null
         ? `Slot ${Number(options.slot) + 1}`
         : null;
-    const commandId = getSoulCommandId(soul);
 
     let text = `${getSoulName(soul)}\n`;
     text += `${DIVIDER}\n`;
     text += `${getSoulIdentityLine(soul)}\n`;
+    text += `${escapeMarkdown(getSoulTypeLine(soul))}\n`;
     text += `${escapeMarkdown(buildSoulCooldownLine(soul))}\n`;
-    if (slotLabel) text += `Status: equipada no ${slotLabel}\n`;
-    if (commandId) text += `ID: ${escapeMarkdown(commandId)}\n`;
+    if (slotLabel) text += `Equipamento: ${slotLabel}\n`;
 
     text += `\n✨ *EFEITO*\n`;
     text += `${escapeMarkdown(buildSoulEffectDetail(soul))}\n\n`;
-    text += `📈 *PROGRESSO*\n`;
+    text += `📈 *EVOLUÇÃO*\n`;
     text += `${escapeMarkdown(buildSoulProgressLine(soul))}\n`;
     text += `${escapeMarkdown(getSoulSourceText(soul))}\n\n`;
-    text += `⌨️ ${escapeMarkdown(buildSoulCommandHelpLine(soul))}`;
+    text += `🎒 ${escapeMarkdown(buildSoulCommandHelpLine(soul))}`;
 
     return text.trim();
 }
@@ -251,6 +277,7 @@ module.exports = {
     getSoulCommandId,
     getSoulInstanceId,
     getSoulIdentityLine,
+    getSoulTypeLine,
     buildSoulCooldownLine,
     buildSoulEffectSummary,
     buildSoulEffectDetail,
