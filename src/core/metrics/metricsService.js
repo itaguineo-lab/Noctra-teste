@@ -1,5 +1,17 @@
 const MetricsDaily = require('./MetricsModel');
 
+const RARITY_TO_COUNTER = {
+    comum: 'itemRarityComum',
+    incomum: 'itemRarityIncomum',
+    raro: 'itemRarityRaro',
+    epico: 'itemRarityEpico',
+    épico: 'itemRarityEpico',
+    lendario: 'itemRarityLendario',
+    lendário: 'itemRarityLendario',
+    mitico: 'itemRarityMitico',
+    mítico: 'itemRarityMitico'
+};
+
 /*
 =================================
 DATE KEY
@@ -22,6 +34,32 @@ function sanitizeDateKey(dateKey) {
     return getDateKey();
 }
 
+function normalizeRarityName(value = '') {
+    return String(value || '')
+        .trim()
+        .toLowerCase();
+}
+
+function getRarityCounterName(rarity) {
+    const key = normalizeRarityName(rarity);
+    return RARITY_TO_COUNTER[key] || 'itemRarityUnknown';
+}
+
+function buildRarityIncrements(rarities = []) {
+    const increments = {};
+
+    if (!Array.isArray(rarities)) {
+        return increments;
+    }
+
+    for (const rarity of rarities) {
+        const counter = getRarityCounterName(rarity);
+        increments[counter] = (increments[counter] || 0) + 1;
+    }
+
+    return increments;
+}
+
 function buildDefaultCounters() {
     return {
         playersCreated: 0,
@@ -38,6 +76,14 @@ function buildDefaultCounters() {
         dungeonRoomsCleared: 0,
 
         itemsDropped: 0,
+        itemRarityComum: 0,
+        itemRarityIncomum: 0,
+        itemRarityRaro: 0,
+        itemRarityEpico: 0,
+        itemRarityLendario: 0,
+        itemRarityMitico: 0,
+        itemRarityUnknown: 0,
+
         soulsDropped: 0,
         keysDropped: 0,
 
@@ -192,6 +238,7 @@ async function recordDungeonRoomCleared(amount = 1) {
 
 async function recordDropMetrics({
     items = 0,
+    itemRarities = [],
     souls = 0,
     keys = 0,
     gold = 0,
@@ -199,6 +246,7 @@ async function recordDropMetrics({
 } = {}) {
     return addManyMetrics({
         itemsDropped: items,
+        ...buildRarityIncrements(itemRarities),
         soulsDropped: souls,
         keysDropped: keys,
         goldAwarded: gold,
@@ -277,6 +325,14 @@ function normalizeCounters(doc) {
         dungeonRoomsCleared: Number(counters.dungeonRoomsCleared || 0),
 
         itemsDropped: Number(counters.itemsDropped || 0),
+        itemRarityComum: Number(counters.itemRarityComum || 0),
+        itemRarityIncomum: Number(counters.itemRarityIncomum || 0),
+        itemRarityRaro: Number(counters.itemRarityRaro || 0),
+        itemRarityEpico: Number(counters.itemRarityEpico || 0),
+        itemRarityLendario: Number(counters.itemRarityLendario || 0),
+        itemRarityMitico: Number(counters.itemRarityMitico || 0),
+        itemRarityUnknown: Number(counters.itemRarityUnknown || 0),
+
         soulsDropped: Number(counters.soulsDropped || 0),
         keysDropped: Number(counters.keysDropped || 0),
 
@@ -291,6 +347,30 @@ function normalizeCounters(doc) {
         itemsSold: Number(counters.itemsSold || 0),
         goldFromSales: Number(counters.goldFromSales || 0),
         vipPurchases: Number(counters.vipPurchases || 0)
+    };
+}
+
+function buildRaritySummary(counters) {
+    const totalKnown =
+        counters.itemRarityComum +
+        counters.itemRarityIncomum +
+        counters.itemRarityRaro +
+        counters.itemRarityEpico +
+        counters.itemRarityLendario +
+        counters.itemRarityMitico;
+
+    const totalTracked = totalKnown + counters.itemRarityUnknown;
+
+    return {
+        comum: counters.itemRarityComum,
+        incomum: counters.itemRarityIncomum,
+        raro: counters.itemRarityRaro,
+        epico: counters.itemRarityEpico,
+        lendario: counters.itemRarityLendario,
+        mitico: counters.itemRarityMitico,
+        unknown: counters.itemRarityUnknown,
+        totalKnown,
+        totalTracked
     };
 }
 
@@ -319,6 +399,7 @@ function buildMetricsSummary(doc) {
     return {
         dateKey,
         counters: c,
+        rarity: buildRaritySummary(c),
         derived: {
             totalCombatOutcomes,
             winRate,
@@ -331,6 +412,11 @@ function buildMetricsSummary(doc) {
 
 module.exports = {
     getDateKey,
+    sanitizeDateKey,
+    normalizeRarityName,
+    getRarityCounterName,
+    buildRarityIncrements,
+    buildDefaultCounters,
     ensureDailyMetrics,
     incrementMetric,
     addManyMetrics,
@@ -353,5 +439,6 @@ module.exports = {
     getTodayMetrics,
     getMetricsByDate,
     normalizeCounters,
+    buildRaritySummary,
     buildMetricsSummary
 };
