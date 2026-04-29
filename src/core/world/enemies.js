@@ -17,13 +17,13 @@ const ENEMY_ABILITIES = {
         apply: (enemy, fight) => {
             if (!fight.enemy.poisonTurns) fight.enemy.poisonTurns = 0;
             fight.enemy.poisonTurns += 2;
-            fight.logs.push(`🧪 ${enemy.name} foi envenenado.`);
+            fight.logs.push(`🧪 ${enemy.name} foi envenenado`);
         },
         tick: (enemy, fight) => {
             if (enemy.poisonTurns > 0) {
                 const damage = Math.max(1, Math.floor(enemy.maxHp * 0.05));
                 enemy.hp = Math.max(0, enemy.hp - damage);
-                fight.logs.push(`🧪 Veneno causa ${damage} de dano a ${enemy.name}.`);
+                fight.logs.push(`🧪 Veneno causa ${damage} de dano a ${enemy.name}`);
                 enemy.poisonTurns--;
             }
         }
@@ -35,13 +35,13 @@ const ENEMY_ABILITIES = {
         apply: (enemy, fight) => {
             if (!fight.enemy.bleedTurns) fight.enemy.bleedTurns = 0;
             fight.enemy.bleedTurns += 2;
-            fight.logs.push(`🩸 ${enemy.name} está sangrando.`);
+            fight.logs.push(`🩸 ${enemy.name} está sangrando`);
         },
         tick: (enemy, fight) => {
             if (enemy.bleedTurns > 0) {
                 const damage = Math.max(1, Math.floor(enemy.maxHp * 0.04));
                 enemy.hp = Math.max(0, enemy.hp - damage);
-                fight.logs.push(`🩸 Sangramento causa ${damage} de dano a ${enemy.name}.`);
+                fight.logs.push(`🩸 Sangramento causa ${damage} de dano a ${enemy.name}`);
                 enemy.bleedTurns--;
             }
         }
@@ -52,7 +52,7 @@ const ENEMY_ABILITIES = {
         emoji: '💫',
         apply: (target, fight) => {
             fight.player.stunned = true;
-            fight.logs.push(`💫 ${fight.enemy.name} atordoou você.`);
+            fight.logs.push(`💫 ${fight.enemy.name} atordoou você`);
             return true;
         }
     },
@@ -63,7 +63,7 @@ const ENEMY_ABILITIES = {
         apply: (enemy, fight) => {
             if (!enemy.shield) enemy.shield = 0;
             enemy.shield += Math.floor(enemy.maxHp * 0.15);
-            fight.logs.push(`🛡️ ${enemy.name} ergueu um escudo sombrio.`);
+            fight.logs.push(`🛡️ ${enemy.name} ergueu um escudo sombrio`);
         }
     },
 
@@ -73,7 +73,7 @@ const ENEMY_ABILITIES = {
         apply: (enemy, fight) => {
             const heal = Math.floor(enemy.maxHp * 0.2);
             enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
-            fight.logs.push(`💚 ${enemy.name} se regenerou em ${heal} HP.`);
+            fight.logs.push(`💚 ${enemy.name} se regenerou em ${heal} HP`);
         }
     }
 };
