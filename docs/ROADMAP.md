@@ -29,6 +29,7 @@ Toda sprint precisa fortalecer pelo menos um desses pontos.
 - energia
 - consumíveis
 - drops V2
+- política de raridade para loot de campo
 - inventário V3
 - equipamentos e mão secundária
 - Almas V2 no inventário
@@ -51,6 +52,8 @@ Toda sprint precisa fortalecer pelo menos um desses pontos.
 - dungeons
 - daily rewards
 - métricas básicas
+- diagnóstico automatizado de balanceamento
+- testes de early game
 - admin
 
 ### Ainda não validado
@@ -101,7 +104,7 @@ por que vale buscar bosses
 ### Fora do escopo ainda pendente
 
 - balancear chance de drop de alma
-- balancear pity
+- balancear pity com dados reais
 - criar novas almas em escala
 - habilitar uso de almas dentro da dungeon
 - criar fusão/upgrade visual avançado
@@ -125,6 +128,7 @@ Criar Dungeon V2, guildas ou world boss antes de calibrar economia seria empilha
 - ouro por mapa
 - dificuldade inicial
 - chance de drop de item
+- teto de raridade por fonte de drop
 - chance de drop de alma
 - pity de alma
 - chance de chave de dungeon
@@ -144,31 +148,41 @@ Criar Dungeon V2, guildas ou world boss antes de calibrar economia seria empilha
 - monetização agressiva
 - refactor grande de `index.js`
 
-### PRs planejados
+### Entregue na sprint
 
 1. **Diagnóstico de balanceamento**
-   - criar `src/core/balance/balanceDiagnostics.js`
-   - criar `tests/balanceDiagnostics.test.js`
-   - validar regras econômicas fixas
-   - detectar números perigosos antes de mexer no jogo
+   - `src/core/balance/balanceDiagnostics.js`
+   - `tests/balanceDiagnostics.test.js`
+   - valida regras fixas de energia, mapas, Nox, chaves, almas, arena e loja
+   - gera snapshots de early game para evitar ajuste no chute
 
 2. **Ajuste de early game**
-   - validar níveis 1–8
-   - revisar inimigos da Clareira e Cripta
-   - revisar XP e ouro inicial
-   - proteger onboarding de dificuldade excessiva
+   - curva de XP dos níveis 1–8 suavizada
+   - level up inicial com mais sustentação de sessão
+   - Clareira Sombria menos punitiva nos níveis 1–4
+   - Cripta em Ruínas com entrada menos abrupta no nível 8
+   - `tests/earlyGameBalance.test.js`
 
-3. **Ajuste de drops, almas e chaves**
+3. **Política de raridade de loot de campo**
+   - comum, elite e miniboss de campo não dropam Lendário nem Mítico
+   - boss de campo pode dropar até Lendário
+   - Mítico reservado para dungeon elite, world boss, evento ou liberação explícita `allowMythicDrop`
+   - `tests/fieldLootRarityPolicy.test.js`
+
+### Próximos PRs da sprint
+
+1. **Ajuste de drops, almas e chaves**
    - validar primeira alma em 3–5 dias de jogo ativo
    - validar chave rara, mas não impossível
    - proteger regra: dungeon não se autoalimenta
+   - revisar se dungeon comum está recompensadora sem banalizar Mítico
 
-4. **Ajuste de Arena e Glórias**
+2. **Ajuste de Arena e Glórias**
    - validar Glórias por vitória
    - validar baús da arena
    - validar preço da Loja Arena
 
-5. **Métricas econômicas melhores**
+3. **Métricas econômicas melhores**
    - melhorar leitura do `/metrics`
    - mostrar win rate, ouro médio, XP médio, drop rate real, taxa de dungeon e gastos
 
@@ -179,6 +193,7 @@ Criar Dungeon V2, guildas ou world boss antes de calibrar economia seria empilha
 - combates perdidos
 - energia gasta estimada
 - itens dropados
+- itens por raridade
 - almas dropadas
 - chaves dropadas
 - dungeons iniciadas
@@ -196,18 +211,21 @@ Dungeon deve ser pico de sessão, não só outro combate.
 ### Melhorias futuras
 
 - tela de entrada por mapa
-- preview dos 4 bosses
+- preview dos bosses/salas
 - recompensa final mais emocionante
 - chance de alma mais clara
 - uso real de almas dentro da dungeon
 - ranking de dungeon
 - histórico de melhores runs
+- modo Dungeon Elite separado da dungeon comum
 
 ### Regra econômica
 
 Dungeon consome chave, não energia.
 
 Chave deve continuar rara. Dungeon não deve se autoalimentar com chave garantida.
+
+Dungeon comum deve ser melhor que farm comum, mas não deve banalizar Mítico. Mítico deve ficar reservado para Dungeon Elite, evento, world boss ou liberação explícita de LiveOps.
 
 ---
 
@@ -263,6 +281,8 @@ Somente depois da base estabilizada:
 - Glórias são a moeda competitiva da Arena.
 - Ouro é moeda base.
 - Dungeon consome chave, não energia.
+- Dungeon comum não libera Mítico por padrão.
+- Dungeon Elite, world boss e evento podem liberar Mítico.
 - Almas são skills/build, não cosmético.
 - Cada jogador equipa até 2 almas.
 - Almas ativas têm cooldown.
@@ -274,7 +294,7 @@ Somente depois da base estabilizada:
 ## Próxima ação aprovada
 
 ```text
-Criar diagnóstico de balanceamento com testes de configuração.
+Auditar recompensas de dungeon comum vs dungeon elite e melhorar métricas econômicas de drop por raridade.
 ```
 
-Esse é o próximo passo técnico depois desta atualização de documentação.
+Esse é o próximo passo técnico. Não avançar para guildas, world boss ou novos mapas antes disso.
