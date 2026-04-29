@@ -48,11 +48,11 @@ function enemy(overrides = {}) {
 function assertCleanLog(text) {
     assert.doesNotMatch(text, /\*/);
     assert.doesNotMatch(text, /!/);
-    assert.doesNotMatch(text, /\\!/);
-    assert.doesNotMatch(text, /\\\*/);
+    assert.doesNotMatch(text, /\\/);
+    assert.doesNotMatch(text, /\.$/m);
 }
 
-test('logs básicos de combate não usam markdown cru ou exclamação', () => {
+test('logs básicos de combate não usam markdown cru, barra ou pontuação escapável', () => {
     const fight = createFight(player(), enemy());
 
     processPlayerTurn(fight);
@@ -60,7 +60,7 @@ test('logs básicos de combate não usam markdown cru ou exclamação', () => {
 
     const text = fight.logs.join('\n');
 
-    assert.match(text, /surgiu das sombras\./);
+    assert.match(text, /surgiu das sombras/);
     assert.match(text, /Você golpeia/);
     assert.match(text, /ataca e causa/);
     assertCleanLog(text);
@@ -73,11 +73,11 @@ test('crítico aparece como texto limpo', () => {
 
     const text = fight.logs.join('\n');
 
-    assert.match(text, /Crítico\./);
+    assert.match(text, /Crítico/);
     assertCleanLog(text);
 });
 
-test('falha de fuga não usa exclamação', () => {
+test('falha de fuga não usa exclamação nem ponto final escapável', () => {
     const originalRandom = Math.random;
     Math.random = () => 0.99;
 
@@ -86,7 +86,7 @@ test('falha de fuga não usa exclamação', () => {
         attemptFlee(fight);
         const text = fight.logs.join('\n');
 
-        assert.match(text, /Falha na fuga\./);
+        assert.match(text, /Falha na fuga/);
         assertCleanLog(text);
     } finally {
         Math.random = originalRandom;
@@ -103,10 +103,10 @@ test('mensagens de habilidades inimigas são limpas', () => {
 
     const text = fight.logs.join('\n');
 
-    assert.match(text, /foi envenenado\./);
-    assert.match(text, /está sangrando\./);
-    assert.match(text, /atordoou você\./);
-    assert.match(text, /ergueu um escudo sombrio\./);
+    assert.match(text, /foi envenenado/);
+    assert.match(text, /está sangrando/);
+    assert.match(text, /atordoou você/);
+    assert.match(text, /ergueu um escudo sombrio/);
     assertCleanLog(text);
 });
 
@@ -136,8 +136,8 @@ test('mensagens de almas ativas são limpas', () => {
 
     const text = [damage.message, heal.message, vampire.message].join('\n');
 
-    assert.match(text, /causa \d+ de dano\./);
-    assert.match(text, /restaura \d+ HP\./);
-    assert.match(text, /recupera \d+ HP\./);
+    assert.match(text, /causa \d+ de dano/);
+    assert.match(text, /restaura \d+ HP/);
+    assert.match(text, /recupera \d+ HP/);
     assertCleanLog(text);
 });
