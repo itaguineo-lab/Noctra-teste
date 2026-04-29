@@ -17,7 +17,7 @@ const ENEMY_ABILITIES = {
         apply: (enemy, fight) => {
             if (!fight.enemy.poisonTurns) fight.enemy.poisonTurns = 0;
             fight.enemy.poisonTurns += 2;
-            fight.logs.push(`🧪 ${enemy.name} foi envenenado!`);
+            fight.logs.push(`🧪 ${enemy.name} foi envenenado.`);
         },
         tick: (enemy, fight) => {
             if (enemy.poisonTurns > 0) {
@@ -35,7 +35,7 @@ const ENEMY_ABILITIES = {
         apply: (enemy, fight) => {
             if (!fight.enemy.bleedTurns) fight.enemy.bleedTurns = 0;
             fight.enemy.bleedTurns += 2;
-            fight.logs.push(`🩸 ${enemy.name} está sangrando!`);
+            fight.logs.push(`🩸 ${enemy.name} está sangrando.`);
         },
         tick: (enemy, fight) => {
             if (enemy.bleedTurns > 0) {
@@ -50,25 +50,9 @@ const ENEMY_ABILITIES = {
     STUN: {
         name: 'Atordoamento',
         emoji: '💫',
-        /*
-        FIX: o STUN original tinha dupla rolagem de probabilidade.
-
-        Fluxo original (bugado):
-        1. combatEngine.js: if (Math.random() < ability.chance) → rola 1ª vez (ex: 30%)
-        2. STUN.apply: if (Math.random() < 0.3) → rola 2ª vez (30%)
-        Resultado: chance efetiva = 0.30 × 0.30 = 9%, não os 30% configurados.
-
-        Efeito no jogo: o jogador quase nunca ficava stunado, tornando
-        o status effect praticamente inexistente na experiência real de combate.
-        Inimigos com STUN (banshee, areia, lunar) perdiam identidade.
-
-        Fix: removida a rolagem interna de STUN.apply.
-        A gate de probabilidade já foi feita em combatEngine.js antes de chamar apply.
-        A chance configurada em cada inimigo agora é a chance real de stun.
-        */
         apply: (target, fight) => {
             fight.player.stunned = true;
-            fight.logs.push(`💫 ${fight.enemy.name} atordoou você!`);
+            fight.logs.push(`💫 ${fight.enemy.name} atordoou você.`);
             return true;
         }
     },
@@ -79,7 +63,7 @@ const ENEMY_ABILITIES = {
         apply: (enemy, fight) => {
             if (!enemy.shield) enemy.shield = 0;
             enemy.shield += Math.floor(enemy.maxHp * 0.15);
-            fight.logs.push(`🛡️ ${enemy.name} ergueu um escudo sombrio!`);
+            fight.logs.push(`🛡️ ${enemy.name} ergueu um escudo sombrio.`);
         }
     },
 

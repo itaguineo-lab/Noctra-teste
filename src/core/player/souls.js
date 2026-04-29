@@ -365,7 +365,7 @@ function activateSoul(soul, state) {
             return {
                 success: true,
                 damage,
-                message: `${soul.emoji} ${soul.name} causou ${damage} dano!`
+                message: `${soul.emoji} ${soul.name} causa ${damage} de dano.`
             };
         }
 
@@ -376,7 +376,7 @@ function activateSoul(soul, state) {
             return {
                 success: true,
                 heal,
-                message: `${soul.emoji} ${soul.name} curou ${heal} HP!`
+                message: `${soul.emoji} ${soul.name} restaura ${heal} HP.`
             };
         }
 
@@ -391,14 +391,14 @@ function activateSoul(soul, state) {
                 success: true,
                 damage,
                 heal,
-                message: `${soul.emoji} drenou ${damage} e curou ${heal}!`
+                message: `${soul.emoji} drena ${damage} de dano e recupera ${heal} HP.`
             };
         }
 
         default:
             return {
                 success: true,
-                message: `${soul.emoji} ${soul.name} ativada!`
+                message: `${soul.emoji} ${soul.name} foi ativada.`
             };
     }
 }
