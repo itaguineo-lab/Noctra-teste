@@ -33,40 +33,40 @@ module.exports = {
         lord_of_crypt: 'AgACAgEAAxkBAAIFJGnkRHqBa7_q8s2WgEV_mnXKT9Y2AAKpDGsbZ3IhR_JWlKSNBggzAQADAgADeQADOwQ',
 
         // Pântano Corrompido
-        swamp_zombie: '',
-        venomous_frog: '',
-        bog_lurker: '',
-        swamp_abomination: '',
-        bog_witch: '',
-        lord_of_decay: '',
-        swamp_guardian: '',
+        swamp_zombie: 'AgACAgEAAxkBAAII_mnxZwgJfmjQoBDNL5KXOI04FQpzAALKC2sbdE4YRxho1pFfuEu3AQADAgADeQADOwQ',
+        venomous_frog: 'AgACAgEAAxkBAAIJAAFp8Wc5faCdLExxH_HvC7QE_xkLCwACzgtrG3ROGEc0fI8ekvLk9QEAAwIAA3kAAzsE',
+        bog_lurker: 'AgACAgEAAxkBAAIJB2nxZ377UgKNHfex1UaJUW6fs78UAALSC2sbdE4YRwX4WLFf315gAQADAgADeQADOwQ',
+        swamp_abomination: 'AgACAgEAAxkBAAIJC2nxZ6mx7sOSWEVFz8UJznqSI25FAALXC2sbdE4YRwABJuHTAo7HfQEAAwIAA3kAAzsE',
+        bog_witch: 'AgACAgEAAxkBAAIJD2nxaB1LKerkjMU2znuR-33j5wFAAALdC2sbdE4YR2rQYEp449f-AQADAgADeQADOwQ',
+        lord_of_decay: 'AgACAgEAAxkBAAIJE2nxaFmsUe3Wak1NLVMs4wNWhY4bAALiC2sbdE4YR0qQxV-Qi_HQAQADAgADeQADOwQ',
+        swamp_guardian: 'AgACAgEAAxkBAAIJF2nxaHsF0_7za0XaXFnVYXeosU_jAALkC2sbdE4YR0vhWiulpyzDAQADAgADeQADOwQ',
 
         // Deserto Incandescente
-        sand_scorpion: '',
-        dune_raider: '',
-        fire_elemental: '',
-        giant_scorpion: '',
-        sand_wurm: '',
-        pharaoh_guardian: '',
-        pharaoh_of_embers: '',
+        sand_scorpion: 'AgACAgEAAxkBAAIJG2nxaJ4FlgnD-1no3VbpE2X0pznRAAK8C2sbdE4YR6fu7x9xJGDoAQADAgADeQADOwQ',
+        dune_raider: 'AgACAgEAAxkBAAIJH2nxaLfc4XqB_LFewTNBW3Rn2JpcAALBC2sbdE4YR6aYijFNC7b8AQADAgADeQADOwQ',
+        fire_elemental: 'AgACAgEAAxkBAAIJI2nxaM-aUPMp40Cb5TpDFOfa3KygAALGC2sbdE4YR_F1rDlm7tYcAQADAgADeQADOwQ',
+        giant_scorpion: 'AgACAgEAAxkBAAIJJ2nxaOxjRHtR9dLaSZ3YIZ7unpP8AALLC2sbdE4YR9hKruDtqMkVAQADAgADeQADOwQ',
+        sand_wurm: 'AgACAgEAAxkBAAIJK2nxaQsbKYFak0FeOUIiuY6IoL2OAALRC2sbdE4YR_xEPNdmkP_XAQADAgADeQADOwQ',
+        pharaoh_guardian: 'AgACAgEAAxkBAAIJL2nxaSaLRvEeqbkt-bkoIVmewWDBAALWC2sbdE4YR9kkHZY4GA1tAQADAgADeQADOwQ',
+        pharaoh_of_embers: 'AgACAgEAAxkBAAIJM2nxaUAPrqrUdkt_MA_K7p6RrCf5AALZC2sbdE4YRwkeh59rY3IeAQADAgADeQADOwQ',
 
         // Citadela Lunar
-        lunar_sentry: '',
-        void_stalker: '',
-        moon_wisp: '',
-        lunar_knight: '',
-        eclipse_mage: '',
-        void_harbinger: '',
-        lunar_guardian: '',
+        lunar_sentry: 'AgACAgEAAxkBAAIJN2nxaWMriYeMcSNfaCm__Hf_8tFQAALeC2sbdE4YR846KIAndckTAQADAgADeQADOwQ',
+        void_stalker: 'AgACAgEAAxkBAAIJO2nxaYfsjiTUWsiT6EWVyct6KFWOAALjC2sbdE4YR2fiLesNVAv3AQADAgADeQADOwQ',
+        moon_wisp: 'AgACAgEAAxkBAAIJP2nxaaDX8GJsbXRcWkqos7EqpXnIAALlC2sbdE4YR66nol-zbVnQAQADAgADeQADOwQ',
+        lunar_knight: 'AgACAgEAAxkBAAIJQ2nxacEWPP-wORyWgxII13YVw949AAK9C2sbdE4YR26tpeyrW_86AQADAgADeQADOwQ',
+        eclipse_mage: 'AgACAgEAAxkBAAIJR2nxadeztcarhPlQ2IF0zO7eAe81AALDC2sbdE4YR3nuotGjxrfsAQADAgADeQADOwQ',
+        void_harbinger: 'AgACAgEAAxkBAAIJS2nxafXAV0O57yQMoVyeDFJ_zidLAALIC2sbdE4YR_eTND88qwv9AQADAgADeQADOwQ',
+        lunar_guardian: 'AgACAgEAAxkBAAIJT2nxaiHC_-EwL_mIA9j727QKQ26jAALPC2sbdE4YR5BTpA1qXZQmAQADAgADeQADOwQ',
 
         // Abismo de Noctra
-        void_spawn: '',
-        shadow_demon: '',
-        abyss_watcher: '',
-        void_behemoth: '',
-        nightmare_weaver: '',
-        void_drake: '',
-        noctra_avatar: ''
+        void_spawn: 'AgACAgEAAxkBAAIJU2nxaj_5e-30H_1vp1dl97XGQM4HAALUC2sbdE4YR3cEXQg4JUmdAQADAgADeQADOwQ',
+        shadow_demon: 'AgACAgEAAxkBAAIJV2nxalgR3nnvnrw70EvSqOHqBxkaAALaC2sbdE4YR7f0ivVp4Os1AQADAgADeQADOwQ',
+        abyss_watcher: 'AgACAgEAAxkBAAIJW2nxanaWKXs4IWT86xY4iQ8gwc_JAALgC2sbdE4YR3DHioULHYweAQADAgADeQADOwQ',
+        void_behemoth: 'AgACAgEAAxkBAAIJYmnxaxorb-MycQqKMr7wvu4t8GEkAALmC2sbdE4YR8nIW3tn5YHdAQADAgADeQADOwQ',
+        nightmare_weaver: 'AgACAgEAAxkBAAIJZmnxazsbXOmlRIFZvjC5vyfybK0mAALoC2sbdE4YR9DGyRXZ-EK_AQADAgADeQADOwQ',
+        void_drake: 'AgACAgEAAxkBAAIJamnxa1X5xvvMiQAByyuY8L6MqtMzSgAC6gtrG3ROGEeq9ENKkQOekAEAAwIAA3kAAzsE',
+        noctra_avatar: 'AgACAgEAAxkBAAIJbmnxa2uzKxtw43UAASKhkqz9pUmX0gACvwtrG3ROGEefbkjScSxjUQEAAwIAA3kAAzsE'
     },
 
     // ================================================
