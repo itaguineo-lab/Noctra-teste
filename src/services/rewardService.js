@@ -68,18 +68,22 @@ function getEncounterTier(enemy) {
     return 'common';
 }
 
-function isDungeonOrExternalDrop(options = {}) {
+function canDropMythic(options = {}) {
     return Boolean(
-        options.isDungeon ||
-        options.isDungeonBoss ||
+        options.allowMythicDrop ||
+        options.isEliteDungeon ||
         options.isWorldBoss ||
         options.isEventBoss
     );
 }
 
+function isDungeonOrExternalDrop(options = {}) {
+    return canDropMythic(options);
+}
+
 function isForbiddenFieldRarity(item, encounterTier = 'common', options = {}) {
     if (!item?.rarity) return false;
-    if (isDungeonOrExternalDrop(options)) return false;
+    if (canDropMythic(options)) return false;
 
     const tier = FIELD_FORBIDDEN_RARITIES_BY_TIER[encounterTier]
         ? encounterTier
@@ -452,6 +456,7 @@ module.exports = {
         buildCompactSoulLootLine,
         buildFullSoulDropText,
         tryDropSoul,
+        canDropMythic,
         isDungeonOrExternalDrop,
         isForbiddenFieldRarity,
         downgradeForbiddenFieldDrop,
