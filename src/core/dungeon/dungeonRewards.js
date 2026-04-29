@@ -1,6 +1,6 @@
 const { calculateDamage } = require('../combat/damageCalc');
 const { processVictory } = require('../../services/rewardService');
-const { generateDrop } = require('../../data/itemsV2');
+const { generatePolicyCompliantDrop } = require('../loot/dropPolicy');
 const { BALANCE } = require('../../data/balance');
 
 const {
@@ -47,10 +47,37 @@ function getRoomRewardScalar(roomType) {
     return 1.0;
 }
 
+function isEliteDungeonRun(player) {
+    const d = player?.dungeonProgress;
+    return Boolean(
+        d?.isEliteDungeon ||
+        d?.mode === 'elite' ||
+        d?.difficulty === 'elite'
+    );
+}
+
+function buildDungeonDropPolicy(player) {
+    return {
+        isDungeon: true,
+        isEliteDungeon: isEliteDungeonRun(player)
+    };
+}
+
 function formatDungeonItemNote(item, prefix = '✨') {
     const origin = item.originMap ? ` • ${item.originMap}` : '';
     const trait = item.traitLabel ? ` • ${item.traitLabel}` : '';
     return `${prefix} ${item.name} [${item.rarity}]${trait}${origin}`;
+}
+
+function generateDungeonDrop(player, mapNumber, dropOptions = {}) {
+    return generatePolicyCompliantDrop(
+        mapNumber,
+        {
+            playerClass: player.class,
+            ...dropOptions
+        },
+        buildDungeonDropPolicy(player)
+    );
 }
 
 /*
@@ -69,26 +96,16 @@ function resolveTreasureRoom(player, room) {
 
     const notes = [`🎁 +${gold} ouro`];
 
-    /*
-    Chave pode aparecer dentro da dungeon, mas em baixa chance.
-    Dungeon não pode virar gerador líquido de chaves.
-    */
     if (Math.random() < (BALANCE.dungeon.dungeonTreasureKeyDropChance || 0)) {
         applyKeyReward(player, 1);
         d.rewards.keys += 1;
         notes.push('🗝️ +1 chave');
     }
 
-    /*
-    Tesouro pode dar item, mas agora respeita bias por classe.
-    Isso aumenta chance de arqueiro ver aljava, mago ver orbe
-    e guerreiro ver escudo/armadura própria.
-    */
     if (Math.random() < 0.24) {
-        const drop = generateDrop(mapNumber, {
+        const drop = generateDungeonDrop(player, mapNumber, {
             encounterTier: 'miniboss',
-            rarityBias: mapNumber >= 4 ? 'late_elite' : 'mid_elite',
-            playerClass: player.class
+            rarityBias: mapNumber >= 4 ? 'late_elite' : 'mid_elite'
         });
 
         const addResult = addInventoryItem(player, drop);
@@ -255,13 +272,10 @@ async function resolveCombatRoom(player, room) {
 
     if (room.enemy.hp <= 0) {
         const rewards = await processVictory(player, room.enemy, {
-            isDungeonBoss: room.type === 'boss'
+            isDungeonBoss: room.type === 'boss',
+            isEliteDungeon: isEliteDungeonRun(player)
         });
 
-        /*
-        Dungeon precisa ser melhor que hunt:
-        bônus adicional por vitória dentro da run.
-        */
         const dungeonBonusXp = Math.floor(safeNumber(rewards.xp) * (roomScalar - 1));
         const dungeonBonusGold = Math.floor(safeNumber(rewards.gold) * (roomScalar - 1));
 
@@ -351,9 +365,6 @@ function finalizeDungeonRun(player, reason) {
 
     const cleared = d.rooms.filter(r => r.cleared).length;
 
-    /*
-    Conclusão precisa parecer premium.
-    */
     const bonusXp = Math.floor(40 + cleared * 14 + player.level * 3.5);
     const bonusGold = Math.floor(90 + cleared * 24 + player.level * 7);
     const bonusKeys = reason === 'complete'
@@ -376,10 +387,9 @@ function finalizeDungeonRun(player, reason) {
     if (reason === 'complete') {
         const mapNumber = getMapNumber(d.mapId);
 
-        const premiumDrop = generateDrop(mapNumber, {
+        const premiumDrop = generateDungeonDrop(player, mapNumber, {
             encounterTier: 'boss',
-            rarityBias: mapNumber >= 4 ? 'late_boss' : 'mid_boss',
-            playerClass: player.class
+            rarityBias: mapNumber >= 4 ? 'late_boss' : 'mid_boss'
         });
 
         const addResult = addInventoryItem(player, premiumDrop);
@@ -419,6 +429,9 @@ function finalizeDungeonRun(player, reason) {
 module.exports = {
     addDungeonLog,
     addSummaryNote,
+    isEliteDungeonRun,
+    buildDungeonDropPolicy,
+    generateDungeonDrop,
     resolveTreasureRoom,
     resolveHealRoom,
     resolveCurseRoom,
