@@ -67,7 +67,7 @@ function getSoulName(soul = {}) {
 
 function getSoulIdentityLine(soul = {}) {
     const rarity = soul.rarity || 'Raro';
-    return `${getRarityEmoji(rarity)} ${escapeMarkdown(rarity)} • ${escapeMarkdown(getSoulTierLabel(soul))} • ${escapeMarkdown(formatSoulLevel(soul))}`;
+    return `${getRarityEmoji(rarity)} ${escapeMarkdown(rarity)} • ${escapeMarkdown(getSoulTierLabel(soul))} • ${formatSoulLevel(soul)}`;
 }
 
 function getSoulTypeLine(soul = {}) {
