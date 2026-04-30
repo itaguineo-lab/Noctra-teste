@@ -7,8 +7,8 @@ function isEmojiBar(fullChar, emptyChar) {
 function getEffectiveProgressBarSize(size, fullChar, emptyChar) {
     const requestedSize = Math.max(1, Math.floor(Number(size) || 6));
 
-    if (isEmojiBar(fullChar, emptyChar)) {
-        return Math.max(requestedSize, 10);
+    if (isEmojiBar(fullChar, emptyChar) && requestedSize <= 6) {
+        return 10;
     }
 
     return requestedSize;
