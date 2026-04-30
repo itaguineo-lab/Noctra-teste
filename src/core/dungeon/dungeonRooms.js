@@ -84,7 +84,7 @@ function getDungeonRoomLevel(mapId, type, playerLevel, roomIndex) {
     const safeRoomIndex = Math.max(0, safeNumber(roomIndex));
     const safePlayerLevel = Math.max(1, safeNumber(playerLevel) || range.min);
 
-    const typeBonus = type === 'boss' ? 5 : (type === 'elite' ? 3 : 2);
+    const typeBonus = type === 'boss' ? 6 : (type === 'elite' ? 4 : 3);
     const roomProgressBonus = Math.max(0, safeRoomIndex - 1);
 
     /*
@@ -95,7 +95,7 @@ function getDungeonRoomLevel(mapId, type, playerLevel, roomIndex) {
     */
     const overlevelBonus = Math.min(2, Math.floor(Math.max(0, safePlayerLevel - range.max) / 10));
     const rawLevel = range.min + roomProgressBonus + typeBonus + overlevelBonus;
-    const cap = range.max + (type === 'boss' ? 5 : (type === 'elite' ? 3 : 2));
+    const cap = range.max + (type === 'boss' ? 6 : (type === 'elite' ? 4 : 3));
 
     return Math.max(range.min + 2, Math.min(rawLevel, cap));
 }
