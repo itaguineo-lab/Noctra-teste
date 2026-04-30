@@ -52,6 +52,7 @@ const { handleClass } = require('./src/commands/class');
 const { handleEquip, handleEquipSoulCommand } = require('./src/commands/equip');
 const resetCommands = require('./src/commands/reset');
 const adminCommands = require('./src/commands/admin');
+const adminMetrics = require('./src/commands/adminMetrics');
 
 function validateEnv() {
     const hasBotToken = Boolean(process.env.BOT_TOKEN);
@@ -369,7 +370,7 @@ function registerCommands() {
     bindCommand('ban', adminCommands.handleBan);
     bindCommand('unban', adminCommands.handleUnban);
     bindCommand('reload', adminCommands.handleReload);
-    bindCommand('metrics', adminCommands.handleMetrics);
+    bindCommand('metrics', adminMetrics.handleMetrics);
 }
 
 /*
