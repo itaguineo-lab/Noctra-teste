@@ -12,11 +12,11 @@ const RARITY_TO_COUNTER = {
     mítico: 'itemRarityMitico'
 };
 
-/*
-=================================
-DATE KEY
-=================================
-*/
+const SOURCE_PREFIX = {
+    field: 'field',
+    dungeon: 'dungeon',
+    dungeon_elite: 'dungeonElite'
+};
 
 function getDateKey(date = new Date()) {
     const safeDate = date instanceof Date ? date : new Date();
@@ -45,7 +45,70 @@ function getRarityCounterName(rarity) {
     return RARITY_TO_COUNTER[key] || 'itemRarityUnknown';
 }
 
-function buildRarityIncrements(rarities = []) {
+function getSourcePrefix(source = 'field') {
+    return SOURCE_PREFIX[source] || SOURCE_PREFIX.field;
+}
+
+function getSourceItemCounter(source = 'field') {
+    const prefix = getSourcePrefix(source);
+    if (prefix === 'field') return 'fieldItemsDropped';
+    if (prefix === 'dungeon') return 'dungeonItemsDropped';
+    if (prefix === 'dungeonElite') return 'dungeonEliteItemsDropped';
+    return 'fieldItemsDropped';
+}
+
+function getSourceSoulCounter(source = 'field') {
+    const prefix = getSourcePrefix(source);
+    if (prefix === 'field') return 'fieldSoulsDropped';
+    if (prefix === 'dungeon') return 'dungeonSoulsDropped';
+    if (prefix === 'dungeonElite') return 'dungeonEliteSoulsDropped';
+    return 'fieldSoulsDropped';
+}
+
+function getSourceKeyCounter(source = 'field') {
+    const prefix = getSourcePrefix(source);
+    if (prefix === 'field') return 'fieldKeysDropped';
+    if (prefix === 'dungeon') return 'dungeonKeysDropped';
+    if (prefix === 'dungeonElite') return 'dungeonEliteKeysDropped';
+    return 'fieldKeysDropped';
+}
+
+function getSourceGoldCounter(source = 'field') {
+    const prefix = getSourcePrefix(source);
+    if (prefix === 'field') return 'fieldGoldAwarded';
+    if (prefix === 'dungeon') return 'dungeonGoldAwarded';
+    if (prefix === 'dungeonElite') return 'dungeonEliteGoldAwarded';
+    return 'fieldGoldAwarded';
+}
+
+function getSourceXpCounter(source = 'field') {
+    const prefix = getSourcePrefix(source);
+    if (prefix === 'field') return 'fieldXpAwarded';
+    if (prefix === 'dungeon') return 'dungeonXpAwarded';
+    if (prefix === 'dungeonElite') return 'dungeonEliteXpAwarded';
+    return 'fieldXpAwarded';
+}
+
+function getSourceRarityCounterName(rarity, source = 'field') {
+    const base = getRarityCounterName(rarity);
+    const prefix = getSourcePrefix(source);
+
+    if (prefix === 'field') {
+        return `field${base.charAt(0).toUpperCase()}${base.slice(1)}`;
+    }
+
+    if (prefix === 'dungeon') {
+        return `dungeon${base.charAt(0).toUpperCase()}${base.slice(1)}`;
+    }
+
+    if (prefix === 'dungeonElite') {
+        return `dungeonElite${base.charAt(0).toUpperCase()}${base.slice(1)}`;
+    }
+
+    return base;
+}
+
+function buildRarityIncrements(rarities = [], source = null) {
     const increments = {};
 
     if (!Array.isArray(rarities)) {
@@ -55,6 +118,11 @@ function buildRarityIncrements(rarities = []) {
     for (const rarity of rarities) {
         const counter = getRarityCounterName(rarity);
         increments[counter] = (increments[counter] || 0) + 1;
+
+        if (source) {
+            const sourceCounter = getSourceRarityCounterName(rarity, source);
+            increments[sourceCounter] = (increments[sourceCounter] || 0) + 1;
+        }
     }
 
     return increments;
@@ -74,8 +142,16 @@ function buildDefaultCounters() {
         dungeonsCompleted: 0,
         dungeonsAbandoned: 0,
         dungeonRoomsCleared: 0,
+        dungeonEliteStarted: 0,
+        dungeonEliteCompleted: 0,
+        dungeonEliteAbandoned: 0,
 
         itemsDropped: 0,
+        fieldItemsDropped: 0,
+        dungeonItemsDropped: 0,
+        dungeonEliteItemsDropped: 0,
+        dungeonCompletionItems: 0,
+
         itemRarityComum: 0,
         itemRarityIncomum: 0,
         itemRarityRaro: 0,
@@ -84,13 +160,58 @@ function buildDefaultCounters() {
         itemRarityMitico: 0,
         itemRarityUnknown: 0,
 
+        fieldItemRarityComum: 0,
+        fieldItemRarityIncomum: 0,
+        fieldItemRarityRaro: 0,
+        fieldItemRarityEpico: 0,
+        fieldItemRarityLendario: 0,
+        fieldItemRarityMitico: 0,
+        fieldItemRarityUnknown: 0,
+
+        dungeonItemRarityComum: 0,
+        dungeonItemRarityIncomum: 0,
+        dungeonItemRarityRaro: 0,
+        dungeonItemRarityEpico: 0,
+        dungeonItemRarityLendario: 0,
+        dungeonItemRarityMitico: 0,
+        dungeonItemRarityUnknown: 0,
+
+        dungeonEliteItemRarityComum: 0,
+        dungeonEliteItemRarityIncomum: 0,
+        dungeonEliteItemRarityRaro: 0,
+        dungeonEliteItemRarityEpico: 0,
+        dungeonEliteItemRarityLendario: 0,
+        dungeonEliteItemRarityMitico: 0,
+        dungeonEliteItemRarityUnknown: 0,
+
         soulsDropped: 0,
+        fieldSoulsDropped: 0,
+        dungeonSoulsDropped: 0,
+        dungeonEliteSoulsDropped: 0,
+
         keysDropped: 0,
+        fieldKeysDropped: 0,
+        dungeonKeysDropped: 0,
+        dungeonEliteKeysDropped: 0,
+        keysSpent: 0,
+        dungeonKeysSpent: 0,
+        dungeonEliteKeysSpent: 0,
 
         consumablesUsed: 0,
 
         goldAwarded: 0,
+        fieldGoldAwarded: 0,
+        dungeonGoldAwarded: 0,
+        dungeonEliteGoldAwarded: 0,
+
         xpAwarded: 0,
+        fieldXpAwarded: 0,
+        dungeonXpAwarded: 0,
+        dungeonEliteXpAwarded: 0,
+
+        gloriasAwarded: 0,
+        dungeonGloriasAwarded: 0,
+        dungeonEliteGloriasAwarded: 0,
 
         goldSpent: 0,
         noxSpent: 0,
@@ -100,12 +221,6 @@ function buildDefaultCounters() {
         vipPurchases: 0
     };
 }
-
-/*
-=================================
-SAFE CORE OPS
-=================================
-*/
 
 async function ensureDailyMetrics(dateKeyInput) {
     const dateKey = sanitizeDateKey(dateKeyInput);
@@ -195,12 +310,6 @@ async function addManyMetrics(increments = {}, dateKeyInput) {
     }
 }
 
-/*
-=================================
-RECORD HELPERS
-=================================
-*/
-
 async function recordPlayerCreated() {
     return incrementMetric('playersCreated', 1);
 }
@@ -220,16 +329,34 @@ async function recordCombatResult(result) {
     return null;
 }
 
-async function recordDungeonStarted() {
-    return incrementMetric('dungeonsStarted', 1);
+async function recordDungeonStarted(options = {}) {
+    const isElite = Boolean(options.isEliteDungeon || options.mode === 'elite' || options.difficulty === 'elite');
+
+    return addManyMetrics({
+        dungeonsStarted: 1,
+        dungeonEliteStarted: isElite ? 1 : 0,
+        keysSpent: Number(options.keysSpent || 0),
+        dungeonKeysSpent: isElite ? 0 : Number(options.keysSpent || 0),
+        dungeonEliteKeysSpent: isElite ? Number(options.keysSpent || 0) : 0
+    });
 }
 
-async function recordDungeonCompleted() {
-    return incrementMetric('dungeonsCompleted', 1);
+async function recordDungeonCompleted(options = {}) {
+    const isElite = Boolean(options.isEliteDungeon || options.mode === 'elite' || options.difficulty === 'elite');
+
+    return addManyMetrics({
+        dungeonsCompleted: 1,
+        dungeonEliteCompleted: isElite ? 1 : 0
+    });
 }
 
-async function recordDungeonAbandoned() {
-    return incrementMetric('dungeonsAbandoned', 1);
+async function recordDungeonAbandoned(options = {}) {
+    const isElite = Boolean(options.isEliteDungeon || options.mode === 'elite' || options.difficulty === 'elite');
+
+    return addManyMetrics({
+        dungeonsAbandoned: 1,
+        dungeonEliteAbandoned: isElite ? 1 : 0
+    });
 }
 
 async function recordDungeonRoomCleared(amount = 1) {
@@ -242,15 +369,53 @@ async function recordDropMetrics({
     souls = 0,
     keys = 0,
     gold = 0,
-    xp = 0
+    xp = 0,
+    source = 'field'
 } = {}) {
     return addManyMetrics({
         itemsDropped: items,
-        ...buildRarityIncrements(itemRarities),
+        [getSourceItemCounter(source)]: items,
+        ...buildRarityIncrements(itemRarities, source),
         soulsDropped: souls,
+        [getSourceSoulCounter(source)]: souls,
         keysDropped: keys,
+        [getSourceKeyCounter(source)]: keys,
         goldAwarded: gold,
-        xpAwarded: xp
+        [getSourceGoldCounter(source)]: gold,
+        xpAwarded: xp,
+        [getSourceXpCounter(source)]: xp
+    });
+}
+
+async function recordDungeonRewardMetrics({
+    items = 0,
+    itemRarities = [],
+    souls = 0,
+    keys = 0,
+    gold = 0,
+    xp = 0,
+    glorias = 0,
+    completionItems = 0,
+    isEliteDungeon = false
+} = {}) {
+    const source = isEliteDungeon ? 'dungeon_elite' : 'dungeon';
+
+    return addManyMetrics({
+        itemsDropped: items,
+        [getSourceItemCounter(source)]: items,
+        dungeonCompletionItems: completionItems,
+        ...buildRarityIncrements(itemRarities, source),
+        soulsDropped: souls,
+        [getSourceSoulCounter(source)]: souls,
+        keysDropped: keys,
+        [getSourceKeyCounter(source)]: keys,
+        goldAwarded: gold,
+        [getSourceGoldCounter(source)]: gold,
+        xpAwarded: xp,
+        [getSourceXpCounter(source)]: xp,
+        gloriasAwarded: glorias,
+        dungeonGloriasAwarded: isEliteDungeon ? 0 : glorias,
+        dungeonEliteGloriasAwarded: isEliteDungeon ? glorias : 0
     });
 }
 
@@ -283,12 +448,6 @@ async function recordSaleMetrics({
     });
 }
 
-/*
-=================================
-READ HELPERS
-=================================
-*/
-
 async function getTodayMetrics() {
     const result = await ensureDailyMetrics(getDateKey());
     return result || {
@@ -307,71 +466,54 @@ async function getMetricsByDate(dateKeyInput) {
     };
 }
 
-function normalizeCounters(doc) {
-    const counters = doc?.counters || {};
-
-    return {
-        playersCreated: Number(counters.playersCreated || 0),
-        menuLoads: Number(counters.menuLoads || 0),
-
-        combatsStarted: Number(counters.combatsStarted || 0),
-        combatsWon: Number(counters.combatsWon || 0),
-        combatsLost: Number(counters.combatsLost || 0),
-        combatsFled: Number(counters.combatsFled || 0),
-
-        dungeonsStarted: Number(counters.dungeonsStarted || 0),
-        dungeonsCompleted: Number(counters.dungeonsCompleted || 0),
-        dungeonsAbandoned: Number(counters.dungeonsAbandoned || 0),
-        dungeonRoomsCleared: Number(counters.dungeonRoomsCleared || 0),
-
-        itemsDropped: Number(counters.itemsDropped || 0),
-        itemRarityComum: Number(counters.itemRarityComum || 0),
-        itemRarityIncomum: Number(counters.itemRarityIncomum || 0),
-        itemRarityRaro: Number(counters.itemRarityRaro || 0),
-        itemRarityEpico: Number(counters.itemRarityEpico || 0),
-        itemRarityLendario: Number(counters.itemRarityLendario || 0),
-        itemRarityMitico: Number(counters.itemRarityMitico || 0),
-        itemRarityUnknown: Number(counters.itemRarityUnknown || 0),
-
-        soulsDropped: Number(counters.soulsDropped || 0),
-        keysDropped: Number(counters.keysDropped || 0),
-
-        consumablesUsed: Number(counters.consumablesUsed || 0),
-
-        goldAwarded: Number(counters.goldAwarded || 0),
-        xpAwarded: Number(counters.xpAwarded || 0),
-
-        goldSpent: Number(counters.goldSpent || 0),
-        noxSpent: Number(counters.noxSpent || 0),
-        gloriasSpent: Number(counters.gloriasSpent || 0),
-        itemsSold: Number(counters.itemsSold || 0),
-        goldFromSales: Number(counters.goldFromSales || 0),
-        vipPurchases: Number(counters.vipPurchases || 0)
-    };
+function readCounter(counters, name) {
+    return Number(counters?.[name] || 0);
 }
 
-function buildRaritySummary(counters) {
-    const totalKnown =
-        counters.itemRarityComum +
-        counters.itemRarityIncomum +
-        counters.itemRarityRaro +
-        counters.itemRarityEpico +
-        counters.itemRarityLendario +
-        counters.itemRarityMitico;
+function normalizeCounters(doc) {
+    const counters = doc?.counters || {};
+    const defaults = buildDefaultCounters();
 
-    const totalTracked = totalKnown + counters.itemRarityUnknown;
+    return Object.fromEntries(
+        Object.keys(defaults).map(key => [key, readCounter(counters, key)])
+    );
+}
 
-    return {
-        comum: counters.itemRarityComum,
-        incomum: counters.itemRarityIncomum,
-        raro: counters.itemRarityRaro,
-        epico: counters.itemRarityEpico,
-        lendario: counters.itemRarityLendario,
-        mitico: counters.itemRarityMitico,
-        unknown: counters.itemRarityUnknown,
-        totalKnown,
-        totalTracked
+function buildRaritySummary(counters, prefix = '') {
+    const prefixName = prefix ? `${prefix}ItemRarity` : 'itemRarity';
+
+    const summary = {
+        comum: readCounter(counters, `${prefixName}Comum`),
+        incomum: readCounter(counters, `${prefixName}Incomum`),
+        raro: readCounter(counters, `${prefixName}Raro`),
+        epico: readCounter(counters, `${prefixName}Epico`),
+        lendario: readCounter(counters, `${prefixName}Lendario`),
+        mitico: readCounter(counters, `${prefixName}Mitico`),
+        unknown: readCounter(counters, `${prefixName}Unknown`)
     };
+
+    summary.totalKnown = summary.comum + summary.incomum + summary.raro + summary.epico + summary.lendario + summary.mitico;
+    summary.totalTracked = summary.totalKnown + summary.unknown;
+
+    return summary;
+}
+
+function percent(part, total) {
+    const p = Number(part || 0);
+    const t = Number(total || 0);
+
+    if (t <= 0) return '0.0';
+
+    return ((p / t) * 100).toFixed(1);
+}
+
+function averagePer(numerator, denominator) {
+    const n = Number(numerator || 0);
+    const d = Number(denominator || 0);
+
+    if (d <= 0) return 0;
+
+    return Math.round(n / d);
 }
 
 function buildMetricsSummary(doc) {
@@ -380,41 +522,43 @@ function buildMetricsSummary(doc) {
 
     const totalCombatOutcomes = c.combatsWon + c.combatsLost + c.combatsFled;
 
-    const winRate = totalCombatOutcomes > 0
-        ? ((c.combatsWon / totalCombatOutcomes) * 100).toFixed(1)
-        : '0.0';
-
-    const dungeonFinishRate = c.dungeonsStarted > 0
-        ? ((c.dungeonsCompleted / c.dungeonsStarted) * 100).toFixed(1)
-        : '0.0';
-
-    const avgGoldPerCombat = c.combatsWon > 0
-        ? Math.round(c.goldAwarded / c.combatsWon)
-        : 0;
-
-    const avgXpPerCombat = c.combatsWon > 0
-        ? Math.round(c.xpAwarded / c.combatsWon)
-        : 0;
-
     return {
         dateKey,
         counters: c,
         rarity: buildRaritySummary(c),
+        sourceRarity: {
+            field: buildRaritySummary(c, 'field'),
+            dungeon: buildRaritySummary(c, 'dungeon'),
+            dungeonElite: buildRaritySummary(c, 'dungeonElite')
+        },
         derived: {
             totalCombatOutcomes,
-            winRate,
-            dungeonFinishRate,
-            avgGoldPerCombat,
-            avgXpPerCombat
+            winRate: percent(c.combatsWon, totalCombatOutcomes),
+            dungeonFinishRate: percent(c.dungeonsCompleted, c.dungeonsStarted),
+            dungeonAbandonRate: percent(c.dungeonsAbandoned, c.dungeonsStarted),
+            dungeonEliteFinishRate: percent(c.dungeonEliteCompleted, c.dungeonEliteStarted),
+            avgGoldPerCombat: averagePer(c.goldAwarded, c.combatsWon),
+            avgXpPerCombat: averagePer(c.xpAwarded, c.combatsWon),
+            avgFieldGoldPerWin: averagePer(c.fieldGoldAwarded, c.combatsWon),
+            avgFieldXpPerWin: averagePer(c.fieldXpAwarded, c.combatsWon),
+            avgDungeonGoldPerCompletion: averagePer(c.dungeonGoldAwarded + c.dungeonEliteGoldAwarded, c.dungeonsCompleted),
+            avgDungeonXpPerCompletion: averagePer(c.dungeonXpAwarded + c.dungeonEliteXpAwarded, c.dungeonsCompleted),
+            itemDropRatePerWin: percent(c.itemsDropped, c.combatsWon),
+            soulDropRatePerWin: percent(c.soulsDropped, c.combatsWon),
+            keyDropRatePerWin: percent(c.keysDropped, c.combatsWon),
+            keyNet: c.keysDropped - c.keysSpent
         }
     };
 }
 
 module.exports = {
+    SOURCE_PREFIX,
     getDateKey,
     sanitizeDateKey,
     normalizeRarityName,
     getRarityCounterName,
+    getSourcePrefix,
+    getSourceRarityCounterName,
     buildRarityIncrements,
     buildDefaultCounters,
     ensureDailyMetrics,
@@ -432,6 +576,7 @@ module.exports = {
     recordDungeonRoomCleared,
 
     recordDropMetrics,
+    recordDungeonRewardMetrics,
     recordConsumableUsed,
     recordPurchaseMetrics,
     recordSaleMetrics,

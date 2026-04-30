@@ -19,6 +19,10 @@ const {
 } = require('../daily/dailyService');
 
 const {
+    recordDungeonRewardMetrics
+} = require('../metrics/metricsService');
+
+const {
     safeNumber,
     getMapNumber
 } = require('./dungeonRooms');
@@ -38,6 +42,26 @@ function addSummaryNote(player, note) {
     if (!d.summary.notes) d.summary.notes = [];
 
     d.summary.notes.push(note);
+}
+
+function ensureDungeonRewardShape(player) {
+    const d = player.dungeonProgress;
+
+    d.rewards ??= {};
+    d.rewards.xp = safeNumber(d.rewards.xp);
+    d.rewards.gold = safeNumber(d.rewards.gold);
+    d.rewards.keys = safeNumber(d.rewards.keys);
+    d.rewards.glorias = safeNumber(d.rewards.glorias);
+    d.rewards.items = safeNumber(d.rewards.items);
+    d.rewards.souls = safeNumber(d.rewards.souls);
+
+    return d.rewards;
+}
+
+function recordDungeonRewardMetricsAsync(payload = {}) {
+    recordDungeonRewardMetrics(payload).catch(error => {
+        console.error('⚠️ recordDungeonRewardMetrics falhou:', error);
+    });
 }
 
 function getRoomRewardScalar(roomType) {
@@ -88,17 +112,32 @@ TREASURE ROOM
 
 function resolveTreasureRoom(player, room) {
     const d = player.dungeonProgress;
+    ensureDungeonRewardShape(player);
+
     const mapNumber = getMapNumber(d.mapId);
+    const isEliteDungeon = isEliteDungeonRun(player);
 
     const gold = Math.floor(60 + player.level * 14 + room.index * 12);
     applyGoldReward(player, gold);
     d.rewards.gold += gold;
 
     const notes = [`🎁 +${gold} ouro`];
+    const metrics = {
+        gold,
+        xp: 0,
+        keys: 0,
+        items: 0,
+        itemRarities: [],
+        souls: 0,
+        glorias: 0,
+        completionItems: 0,
+        isEliteDungeon
+    };
 
     if (Math.random() < (BALANCE.dungeon.dungeonTreasureKeyDropChance || 0)) {
         applyKeyReward(player, 1);
         d.rewards.keys += 1;
+        metrics.keys += 1;
         notes.push('🗝️ +1 chave');
     }
 
@@ -111,8 +150,11 @@ function resolveTreasureRoom(player, room) {
         const addResult = addInventoryItem(player, drop);
 
         if (addResult.success) {
+            const item = addResult.item || drop;
             d.rewards.items += 1;
-            notes.push(formatDungeonItemNote(drop));
+            metrics.items += 1;
+            if (item?.rarity) metrics.itemRarities.push(item.rarity);
+            notes.push(formatDungeonItemNote(item));
         }
     }
 
@@ -121,6 +163,7 @@ function resolveTreasureRoom(player, room) {
 
     notes.forEach(n => addSummaryNote(player, n));
     addDungeonLog(player, `🎁 Tesouro: +${gold} ouro`);
+    recordDungeonRewardMetricsAsync(metrics);
 
     return {
         success: true,
@@ -136,6 +179,8 @@ HEAL ROOM
 */
 
 function resolveHealRoom(player, room) {
+    ensureDungeonRewardShape(player);
+
     const heal = Math.floor(player.maxHp * 0.45);
     const beforeHp = player.hp;
     const beforeEnergy = player.energy;
@@ -163,6 +208,9 @@ CURSE ROOM
 
 function resolveCurseRoom(player, room) {
     const d = player.dungeonProgress;
+    ensureDungeonRewardShape(player);
+
+    const isEliteDungeon = isEliteDungeonRun(player);
     const damage = Math.floor(player.maxHp * 0.18);
     const hpLoss = Math.min(damage, Math.max(0, player.hp - 1));
     const gold = Math.floor(95 + player.level * 16 + room.index * 12);
@@ -172,10 +220,22 @@ function resolveCurseRoom(player, room) {
     d.rewards.gold += gold;
 
     const notes = [`💀 -${hpLoss} HP`, `💰 +${gold} ouro`];
+    const metrics = {
+        gold,
+        xp: 0,
+        keys: 0,
+        items: 0,
+        itemRarities: [],
+        souls: 0,
+        glorias: 0,
+        completionItems: 0,
+        isEliteDungeon
+    };
 
     if (Math.random() < (BALANCE.dungeon.dungeonCurseKeyDropChance || 0)) {
         applyKeyReward(player, 1);
         d.rewards.keys += 1;
+        metrics.keys += 1;
         notes.push('🗝️ +1 chave');
     }
 
@@ -184,6 +244,7 @@ function resolveCurseRoom(player, room) {
 
     notes.forEach(n => addSummaryNote(player, n));
     addDungeonLog(player, `💀 Maldição: -${hpLoss} HP, +${gold} ouro`);
+    recordDungeonRewardMetricsAsync(metrics);
 
     return {
         success: true,
@@ -200,6 +261,7 @@ SHRINE ROOM
 
 function resolveShrineRoom(player, room) {
     const d = player.dungeonProgress;
+    ensureDungeonRewardShape(player);
 
     const boons = [
         { atk: 4, def: 0, crit: 0, hpPercent: 0.10, note: '⚔️ Bênção de Força (+4 ATK)' },
@@ -245,7 +307,10 @@ COMBAT ROOM
 
 async function resolveCombatRoom(player, room) {
     const d = player.dungeonProgress;
+    ensureDungeonRewardShape(player);
+
     const roomScalar = getRoomRewardScalar(room.type);
+    const isEliteDungeon = isEliteDungeonRun(player);
 
     const effectivePlayer = {
         atk: Math.max(1, (player.atk || 1) + (d.combatBonus.atk || 0)),
@@ -272,8 +337,9 @@ async function resolveCombatRoom(player, room) {
 
     if (room.enemy.hp <= 0) {
         const rewards = await processVictory(player, room.enemy, {
+            isDungeon: true,
             isDungeonBoss: room.type === 'boss',
-            isEliteDungeon: isEliteDungeonRun(player)
+            isEliteDungeon
         });
 
         const dungeonBonusXp = Math.floor(safeNumber(rewards.xp) * (roomScalar - 1));
@@ -291,8 +357,16 @@ async function resolveCombatRoom(player, room) {
         d.rewards.gold += safeNumber(rewards.gold) + dungeonBonusGold;
 
         if (rewards.keyDropped) d.rewards.keys += 1;
-        if (rewards.loot?.length) d.rewards.items += rewards.loot.length;
-        if (rewards.soulDropped) d.rewards.items += 0;
+        if (rewards.droppedItem) d.rewards.items += 1;
+        if (rewards.soulDropped) d.rewards.souls += 1;
+
+        if (dungeonBonusXp > 0 || dungeonBonusGold > 0) {
+            recordDungeonRewardMetricsAsync({
+                gold: dungeonBonusGold,
+                xp: dungeonBonusXp,
+                isEliteDungeon
+            });
+        }
 
         result.defeated = true;
         result.message = `🏆 ${room.enemy.name} derrotado!`;
@@ -301,8 +375,16 @@ async function resolveCombatRoom(player, room) {
             `💰 +${safeNumber(rewards.gold) + dungeonBonusGold} ouro`
         ];
 
-        if (rewards.loot?.length) {
-            result.notes.push(...rewards.loot.map(l => `🎁 ${l}`));
+        if (rewards.droppedItem) {
+            result.notes.push(`🎁 ${rewards.loot.find(line => line.includes(rewards.droppedItem.name)) || rewards.droppedItem.name}`);
+        }
+
+        if (rewards.soulDropped && rewards.soulLootLine) {
+            result.notes.push(`🌑 ${rewards.soulLootLine}`);
+        }
+
+        if (rewards.keyDropped) {
+            result.notes.push('🗝️ Chave de Masmorra');
         }
 
         if (dungeonBonusXp > 0 || dungeonBonusGold > 0) {
@@ -354,6 +436,7 @@ FINALIZE DUNGEON RUN
 
 function finalizeDungeonRun(player, reason) {
     const d = player.dungeonProgress;
+    ensureDungeonRewardShape(player);
 
     if (d.summary && (d.completed || d.aborted) && !d.active) {
         return d;
@@ -363,6 +446,7 @@ function finalizeDungeonRun(player, reason) {
     d.completed = reason === 'complete';
     d.aborted = reason === 'aborted';
 
+    const isEliteDungeon = isEliteDungeonRun(player);
     const cleared = d.rooms.filter(r => r.cleared).length;
 
     const bonusXp = Math.floor(40 + cleared * 14 + player.level * 3.5);
@@ -379,10 +463,22 @@ function finalizeDungeonRun(player, reason) {
         keys: safeNumber(d.rewards.keys) + bonusKeys,
         glorias: safeNumber(d.rewards.glorias) + bonusGlorias,
         items: safeNumber(d.rewards.items),
+        souls: safeNumber(d.rewards.souls),
         notes: d.summary?.notes || []
     };
 
     let completionItem = null;
+    const metrics = {
+        gold: bonusGold,
+        xp: bonusXp,
+        keys: bonusKeys,
+        glorias: bonusGlorias,
+        items: 0,
+        itemRarities: [],
+        souls: 0,
+        completionItems: 0,
+        isEliteDungeon
+    };
 
     if (reason === 'complete') {
         const mapNumber = getMapNumber(d.mapId);
@@ -395,9 +491,12 @@ function finalizeDungeonRun(player, reason) {
         const addResult = addInventoryItem(player, premiumDrop);
 
         if (addResult.success) {
-            completionItem = premiumDrop;
+            completionItem = addResult.item || premiumDrop;
             d.summary.items += 1;
-            d.summary.notes.push(formatDungeonItemNote(premiumDrop, '🎁 Recompensa final:'));
+            metrics.items += 1;
+            metrics.completionItems += 1;
+            if (completionItem?.rarity) metrics.itemRarities.push(completionItem.rarity);
+            d.summary.notes.push(formatDungeonItemNote(completionItem, '🎁 Recompensa final:'));
         }
 
         d.summary.notes.push('🏁 Expedição perfeita!');
@@ -423,12 +522,15 @@ function finalizeDungeonRun(player, reason) {
         }
         : null;
 
+    recordDungeonRewardMetricsAsync(metrics);
+
     return d;
 }
 
 module.exports = {
     addDungeonLog,
     addSummaryNote,
+    ensureDungeonRewardShape,
     isEliteDungeonRun,
     buildDungeonDropPolicy,
     generateDungeonDrop,
