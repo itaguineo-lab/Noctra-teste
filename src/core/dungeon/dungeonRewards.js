@@ -27,6 +27,26 @@ const {
     getMapNumber
 } = require('./dungeonRooms');
 
+const {
+    getCompletionMinRarity,
+    buildCompletionDropOptions,
+    buildCompletionDropPolicy,
+    getCompletionBonus,
+    buildCompletionRewardTag
+} = require('./dungeonRewardPolicy');
+
+const RARITY_RANK = {
+    Comum: 1,
+    Incomum: 2,
+    Raro: 3,
+    Épico: 4,
+    Epico: 4,
+    Lendário: 5,
+    Lendario: 5,
+    Mítico: 6,
+    Mitico: 6
+};
+
 function addDungeonLog(player, message) {
     player.dungeonProgress.logs.push(message);
 
@@ -87,6 +107,14 @@ function buildDungeonDropPolicy(player) {
     };
 }
 
+function getRarityRank(rarity) {
+    return RARITY_RANK[rarity] || 0;
+}
+
+function isRarityAtLeast(rarity, minRarity) {
+    return getRarityRank(rarity) >= getRarityRank(minRarity);
+}
+
 function formatDungeonItemNote(item, prefix = '✨') {
     const origin = item.originMap ? ` • ${item.originMap}` : '';
     const trait = item.traitLabel ? ` • ${item.traitLabel}` : '';
@@ -102,6 +130,27 @@ function generateDungeonDrop(player, mapNumber, dropOptions = {}) {
         },
         buildDungeonDropPolicy(player)
     );
+}
+
+function generateDungeonCompletionDrop(player, mapNumber, isEliteDungeon = false) {
+    const minRarity = getCompletionMinRarity(mapNumber, isEliteDungeon);
+    const dropOptions = buildCompletionDropOptions(player, mapNumber, isEliteDungeon);
+    const policy = buildCompletionDropPolicy(isEliteDungeon);
+    let fallback = null;
+
+    for (let attempt = 0; attempt < 18; attempt += 1) {
+        const rolled = generatePolicyCompliantDrop(mapNumber, dropOptions, policy);
+
+        if (!fallback || getRarityRank(rolled?.rarity) > getRarityRank(fallback?.rarity)) {
+            fallback = rolled;
+        }
+
+        if (isRarityAtLeast(rolled?.rarity, minRarity)) {
+            return rolled;
+        }
+    }
+
+    return fallback;
 }
 
 /*
@@ -448,13 +497,19 @@ function finalizeDungeonRun(player, reason) {
 
     const isEliteDungeon = isEliteDungeonRun(player);
     const cleared = d.rooms.filter(r => r.cleared).length;
+    const mapNumber = getMapNumber(d.mapId);
+    const completionBonus = getCompletionBonus({
+        playerLevel: player.level,
+        clearedRooms: cleared,
+        isEliteDungeon
+    });
 
-    const bonusXp = Math.floor(40 + cleared * 14 + player.level * 3.5);
-    const bonusGold = Math.floor(90 + cleared * 24 + player.level * 7);
+    const bonusXp = completionBonus.xp;
+    const bonusGold = completionBonus.gold;
     const bonusKeys = reason === 'complete'
         ? Math.max(0, Number(BALANCE.dungeon.dungeonCompletionKeyReward || 0))
         : 0;
-    const bonusGlorias = reason === 'complete' ? 2 : 0;
+    const bonusGlorias = reason === 'complete' ? completionBonus.glorias : 0;
 
     d.summary = {
         roomsCleared: cleared,
@@ -481,13 +536,7 @@ function finalizeDungeonRun(player, reason) {
     };
 
     if (reason === 'complete') {
-        const mapNumber = getMapNumber(d.mapId);
-
-        const premiumDrop = generateDungeonDrop(player, mapNumber, {
-            encounterTier: 'boss',
-            rarityBias: mapNumber >= 4 ? 'late_boss' : 'mid_boss'
-        });
-
+        const premiumDrop = generateDungeonCompletionDrop(player, mapNumber, isEliteDungeon);
         const addResult = addInventoryItem(player, premiumDrop);
 
         if (addResult.success) {
@@ -497,6 +546,7 @@ function finalizeDungeonRun(player, reason) {
             metrics.completionItems += 1;
             if (completionItem?.rarity) metrics.itemRarities.push(completionItem.rarity);
             d.summary.notes.push(formatDungeonItemNote(completionItem, '🎁 Recompensa final:'));
+            d.summary.notes.push(`📌 Política de recompensa: ${buildCompletionRewardTag(mapNumber, isEliteDungeon)}`);
         }
 
         d.summary.notes.push('🏁 Expedição perfeita!');
@@ -518,7 +568,9 @@ function finalizeDungeonRun(player, reason) {
             name: completionItem.name,
             rarity: completionItem.rarity,
             originMap: completionItem.originMap,
-            traitLabel: completionItem.traitLabel
+            traitLabel: completionItem.traitLabel,
+            minRarity: getCompletionMinRarity(mapNumber, isEliteDungeon),
+            rewardTag: buildCompletionRewardTag(mapNumber, isEliteDungeon)
         }
         : null;
 
@@ -533,7 +585,10 @@ module.exports = {
     ensureDungeonRewardShape,
     isEliteDungeonRun,
     buildDungeonDropPolicy,
+    getRarityRank,
+    isRarityAtLeast,
     generateDungeonDrop,
+    generateDungeonCompletionDrop,
     resolveTreasureRoom,
     resolveHealRoom,
     resolveCurseRoom,
