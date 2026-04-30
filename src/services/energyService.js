@@ -1,5 +1,9 @@
 const { BALANCE } = require('../data/balance');
 
+function nowDate() {
+    return new Date(Date.now());
+}
+
 function toTimestamp(value, fallback = Date.now()) {
     if (value instanceof Date) return value.getTime();
 
@@ -69,7 +73,7 @@ function ensureEnergyFields(player) {
     }
 
     if (!player.lastEnergyUpdate) {
-        player.lastEnergyUpdate = new Date();
+        player.lastEnergyUpdate = nowDate();
     } else {
         player.lastEnergyUpdate = new Date(toTimestamp(player.lastEnergyUpdate));
     }
@@ -188,7 +192,7 @@ function consumeEnergy(player, amount = 1) {
     player.energy = Math.max(0, player.energy - value);
 
     if (wasFull) {
-        player.lastEnergyUpdate = new Date();
+        player.lastEnergyUpdate = nowDate();
     }
 
     return true;
@@ -211,7 +215,7 @@ function restoreEnergy(player, amount = 1) {
     player.energy = Math.min(player.maxEnergy, player.energy + value);
 
     if (player.energy >= player.maxEnergy) {
-        player.lastEnergyUpdate = new Date();
+        player.lastEnergyUpdate = nowDate();
     }
 
     return player;
@@ -222,7 +226,7 @@ function restoreFullEnergy(player) {
     syncEnergyCapacity(player);
 
     player.energy = player.maxEnergy;
-    player.lastEnergyUpdate = new Date();
+    player.lastEnergyUpdate = nowDate();
 
     return player;
 }
@@ -293,5 +297,6 @@ module.exports = {
     getTimeToNextEnergy,
     getTimeToFullEnergy,
     getRegenInterval,
-    formatEnergyTime
+    formatEnergyTime,
+    nowDate
 };

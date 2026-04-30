@@ -67,7 +67,7 @@ function getSoulName(soul = {}) {
 
 function getSoulIdentityLine(soul = {}) {
     const rarity = soul.rarity || 'Raro';
-    return `${getRarityEmoji(rarity)} ${escapeMarkdown(rarity)} • ${escapeMarkdown(getSoulTierLabel(soul))} • ${escapeMarkdown(formatSoulLevel(soul))}`;
+    return `${getRarityEmoji(rarity)} ${escapeMarkdown(rarity)} • ${escapeMarkdown(getSoulTierLabel(soul))} • ${formatSoulLevel(soul)}`;
 }
 
 function getSoulTypeLine(soul = {}) {
@@ -182,7 +182,8 @@ function buildEquippedSoulsBlock(equipped = []) {
 
 function buildSoulCard(soul = {}, index = 1, options = {}) {
     const equipped = options.equipped ? ' ⭐ EQUIPADA' : '';
-    const indexLabel = Number.isFinite(Number(index)) ? `${index}. ` : '';
+    const numericIndex = Number(index);
+    const indexLabel = Number.isInteger(numericIndex) && numericIndex > 0 ? `${numericIndex}. ` : '';
 
     return [
         `${indexLabel}${getSoulName(soul)}${equipped}`,
@@ -264,7 +265,7 @@ function buildSoulDropText(soul = {}, context = {}) {
     text += `${DIVIDER}\n`;
     text += `${source}: ${escapeMarkdown(enemyName)}\n\n`;
     text += `${buildSoulCard(soul, null)}\n\n`;
-    text += `Abra o inventário para equipar.`;
+    text += `A alma foi adicionada à sua coleção. Abra o inventário para equipar.`;
 
     return text.trim();
 }

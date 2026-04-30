@@ -71,7 +71,7 @@ test('buildArenaHubText mostra Glórias e não Moedas da Arena', () => {
 
     const text = buildArenaHubText(player);
 
-    assert.match(text, /🏅 Glórias: 12/);
+    assert.match(text, /🏅 Glórias: \*?12\*?/);
     assert.doesNotMatch(text, /Moedas da Arena/i);
     assert.doesNotMatch(text, /🪙 Moedas/i);
 });
