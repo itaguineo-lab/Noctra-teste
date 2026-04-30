@@ -102,6 +102,13 @@ function premiumFrame(title, body) {
     ].join('\n');
 }
 
+function buildStatusBlock(icon, label, current, max, bar) {
+    return [
+        `${icon} ${label}: ${formatNumber(current)}/${formatNumber(max)}`,
+        bar
+    ].join('\n');
+}
+
 /*
 =================================
 MENU TEXT
@@ -140,9 +147,9 @@ function buildMainMenuText(player, username) {
         activeTitle ? `🏷️ ${activeTitle.name}` : null,
         classLine,
         '',
-        `❤️ ${formatNumber(player.hp)}/${formatNumber(player.maxHp)} ${hpBar}`,
-        `⚡ ${formatNumber(player.energy)}/${formatNumber(player.maxEnergy)} ${energyBar}`,
-        `✨ ${formatNumber(player.xp)}/${formatNumber(xpNeeded)} ${xpBar}`,
+        buildStatusBlock('❤️', 'HP', player.hp, player.maxHp, hpBar),
+        buildStatusBlock('⚡', 'Energia', player.energy, player.maxEnergy, energyBar),
+        buildStatusBlock('✨', 'XP', player.xp, xpNeeded, xpBar),
         nextEnergyTime > 0 && player.energy < player.maxEnergy
             ? `⏳ Próx. energia: ${formatTime(nextEnergyTime)}`
             : null,
@@ -165,6 +172,7 @@ module.exports = {
     getClassLabel,
     getBuildName,
     premiumFrame,
+    buildStatusBlock,
     buildMainMenuText,
     getMainMenuText
 };
