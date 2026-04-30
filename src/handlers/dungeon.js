@@ -37,6 +37,7 @@ const {
 
 const {
     addDungeonLog,
+    isEliteDungeonRun,
     resolveTreasureRoom,
     resolveHealRoom,
     resolveCurseRoom,
@@ -52,12 +53,6 @@ const {
     recordDungeonRoomCleared,
     recordConsumableUsed
 } = require('../core/metrics/metricsService');
-
-/*
-=================================
-HELPERS
-=================================
-*/
 
 function escapeMarkdown(text = '') {
     return String(text).replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -118,6 +113,7 @@ function buildDungeonSummary(player) {
     text += `🗝️ Chaves: ${sum.keys || 0}\n`;
     text += `🏅 Glórias: ${sum.glorias || 0}\n`;
     text += `🎁 Itens: ${sum.items || 0}\n`;
+    text += `🌑 Almas: ${sum.souls || 0}\n`;
 
     if (sum.completionItem) {
         text += `\n🏁 *Recompensa Final*\n`;
@@ -202,7 +198,7 @@ function renderDungeonText(player) {
     }
 
     text += `📊 *Acumulado da Run*\n`;
-    text += `✨ XP: ${d.rewards.xp}  💰 Ouro: ${d.rewards.gold}  🗝️ Chaves: ${d.rewards.keys}  🎁 Itens: ${d.rewards.items}\n`;
+    text += `✨ XP: ${d.rewards.xp || 0}  💰 Ouro: ${d.rewards.gold || 0}  🗝️ Chaves: ${d.rewards.keys || 0}  🎁 Itens: ${d.rewards.items || 0}  🌑 Almas: ${d.rewards.souls || 0}\n`;
 
     return text;
 }
@@ -255,12 +251,6 @@ function buildDungeonKeyboard(player) {
     ]);
 }
 
-/*
-=================================
-HANDLERS
-=================================
-*/
-
 async function handleDungeon(ctx) {
     await safeAnswer(ctx);
 
@@ -298,7 +288,7 @@ async function handleDungeonStart(ctx) {
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    await recordDungeonStarted();
+    await recordDungeonStarted({ keysSpent: keyCost, isEliteDungeon: isEliteDungeonRun(player) });
 
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
@@ -349,11 +339,12 @@ async function handleDungeonAttack(ctx) {
 
         d.summary = {
             roomsCleared: d.rooms.filter(r => r.cleared).length,
-            xp: d.rewards.xp,
-            gold: d.rewards.gold,
-            keys: d.rewards.keys,
-            glorias: d.rewards.glorias,
-            items: d.rewards.items,
+            xp: d.rewards.xp || 0,
+            gold: d.rewards.gold || 0,
+            keys: d.rewards.keys || 0,
+            glorias: d.rewards.glorias || 0,
+            items: d.rewards.items || 0,
+            souls: d.rewards.souls || 0,
             notes: [
                 '💀 Derrotado na masmorra.',
                 `📉 XP perdido: ${penalty.lostXp} (${ratePercent}%)`,
@@ -368,7 +359,7 @@ async function handleDungeonAttack(ctx) {
 
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonAbandoned();
+        await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) });
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -379,7 +370,7 @@ async function handleDungeonAttack(ctx) {
         finalizeDungeonRun(player, 'complete');
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonCompleted();
+        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) });
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -415,7 +406,7 @@ async function handleDungeonNextRoom(ctx) {
         finalizeDungeonRun(player, 'complete');
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonCompleted();
+        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) });
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -453,11 +444,12 @@ async function handleDungeonFlee(ctx) {
 
     d.summary = {
         roomsCleared: d.rooms.filter(r => r.cleared).length,
-        xp: d.rewards.xp,
-        gold: d.rewards.gold,
-        keys: d.rewards.keys,
-        glorias: d.rewards.glorias,
-        items: d.rewards.items,
+        xp: d.rewards.xp || 0,
+        gold: d.rewards.gold || 0,
+        keys: d.rewards.keys || 0,
+        glorias: d.rewards.glorias || 0,
+        items: d.rewards.items || 0,
+        souls: d.rewards.souls || 0,
         notes: [
             '🚪 Expedição abandonada.',
             '🗝️ A chave já foi consumida na entrada.'
@@ -471,7 +463,7 @@ async function handleDungeonFlee(ctx) {
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    await recordDungeonAbandoned();
+    await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) });
 
     return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
 }
