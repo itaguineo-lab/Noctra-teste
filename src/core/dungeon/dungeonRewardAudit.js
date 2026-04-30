@@ -56,28 +56,21 @@ function buildDungeonRewardAudit(summary = {}) {
     const dungeonCompleted = num(c.dungeonsCompleted);
     const dungeonStarted = num(c.dungeonsStarted);
     const eliteCompleted = num(c.dungeonEliteCompleted);
+    const commonDungeonCompleted = Math.max(0, dungeonCompleted - eliteCompleted);
 
     const fieldGoldPerWin = ratio(c.fieldGoldAwarded, fieldWins);
     const fieldXpPerWin = ratio(c.fieldXpAwarded, fieldWins);
-
-    const commonDungeonGoldPerCompletion = ratio(c.dungeonGoldAwarded, dungeonCompleted);
-    const commonDungeonXpPerCompletion = ratio(c.dungeonXpAwarded, dungeonCompleted);
-
+    const commonDungeonGoldPerCompletion = ratio(c.dungeonGoldAwarded, commonDungeonCompleted);
+    const commonDungeonXpPerCompletion = ratio(c.dungeonXpAwarded, commonDungeonCompleted);
     const eliteDungeonGoldPerCompletion = ratio(c.dungeonEliteGoldAwarded, eliteCompleted);
     const eliteDungeonXpPerCompletion = ratio(c.dungeonEliteXpAwarded, eliteCompleted);
 
-    const commonGoldRatioVsField = fieldGoldPerWin > 0
-        ? commonDungeonGoldPerCompletion / fieldGoldPerWin
-        : 0;
-    const commonXpRatioVsField = fieldXpPerWin > 0
-        ? commonDungeonXpPerCompletion / fieldXpPerWin
-        : 0;
-
-    const commonCompletionItemRate = pct(c.dungeonCompletionItems, dungeonCompleted);
+    const commonGoldRatioVsField = fieldGoldPerWin > 0 ? commonDungeonGoldPerCompletion / fieldGoldPerWin : 0;
+    const commonXpRatioVsField = fieldXpPerWin > 0 ? commonDungeonXpPerCompletion / fieldXpPerWin : 0;
+    const commonCompletionItemRate = pct(c.dungeonCommonCompletionItems, commonDungeonCompleted);
     const dungeonFinishRate = pct(c.dungeonsCompleted, c.dungeonsStarted);
     const dungeonAbandonRate = pct(c.dungeonsAbandoned, c.dungeonsStarted);
     const keyNet = num(c.keysDropped) - num(c.keysSpent);
-
     const commonMythicLeaks = num(dungeonRarity.mitico);
     const eliteMythicDrops = num(eliteRarity.mitico);
 
@@ -87,7 +80,7 @@ function buildDungeonRewardAudit(summary = {}) {
             label: 'Valor ouro da dungeon comum vs campo',
             value: round(commonGoldRatioVsField, 2),
             unit: 'x',
-            status: dungeonCompleted > 0 && fieldGoldPerWin > 0
+            status: commonDungeonCompleted > 0 && fieldGoldPerWin > 0
                 ? scoreStatus(commonGoldRatioVsField, { direction: 'min', danger: 2.0, warning: 3.0 })
                 : 'warning',
             note: 'Dungeon comum precisa pagar mais que farm comum porque consome chave rara.'
@@ -97,20 +90,20 @@ function buildDungeonRewardAudit(summary = {}) {
             label: 'Valor XP da dungeon comum vs campo',
             value: round(commonXpRatioVsField, 2),
             unit: 'x',
-            status: dungeonCompleted > 0 && fieldXpPerWin > 0
+            status: commonDungeonCompleted > 0 && fieldXpPerWin > 0
                 ? scoreStatus(commonXpRatioVsField, { direction: 'min', danger: 2.0, warning: 3.0 })
                 : 'warning',
-            note: 'Se XP da dungeon não parecer pico de sessão, o jogador guarda chave e perde hábito.'
+            note: 'XP da dungeon precisa parecer pico de sessão.'
         },
         {
             id: 'completion_item_rate',
-            label: 'Taxa de item final por dungeon concluída',
+            label: 'Taxa de item final comum por dungeon comum concluída',
             value: round(commonCompletionItemRate, 1),
             unit: '%',
-            status: dungeonCompleted > 0
+            status: commonDungeonCompleted > 0
                 ? scoreStatus(commonCompletionItemRate, { direction: 'min', danger: 80, warning: 95 })
                 : 'warning',
-            note: 'Conclusão de dungeon deve quase sempre gerar um momento de loot claro.'
+            note: 'Conclusão de dungeon comum precisa gerar loot claro.'
         },
         {
             id: 'dungeon_finish_rate',
@@ -120,7 +113,7 @@ function buildDungeonRewardAudit(summary = {}) {
             status: dungeonStarted > 0
                 ? scoreStatus(dungeonFinishRate, { direction: 'min', danger: 35, warning: 55 })
                 : 'warning',
-            note: 'Finish rate baixo indica dificuldade, UX confusa ou custo de chave frustrante.'
+            note: 'Finish rate baixo indica dificuldade, UX confusa ou custo frustrante.'
         },
         {
             id: 'dungeon_abandon_rate',
@@ -138,7 +131,7 @@ function buildDungeonRewardAudit(summary = {}) {
             value: keyNet,
             unit: '',
             status: scoreStatus(keyNet, { direction: 'min', danger: -10, warning: -3 }),
-            note: 'Saldo negativo demais trava dungeon; positivo demais banaliza entrada.'
+            note: 'Saldo negativo trava dungeon; positivo demais banaliza entrada.'
         },
         {
             id: 'common_mythic_leak',
@@ -146,7 +139,7 @@ function buildDungeonRewardAudit(summary = {}) {
             value: commonMythicLeaks,
             unit: '',
             status: commonMythicLeaks > 0 ? 'danger' : 'ok',
-            note: 'Mítico em dungeon comum quebra escassez. Deve ficar para elite, evento ou world boss.'
+            note: 'Mítico em dungeon comum quebra escassez.'
         },
         {
             id: 'elite_mythic_presence',
@@ -154,7 +147,7 @@ function buildDungeonRewardAudit(summary = {}) {
             value: eliteMythicDrops,
             unit: '',
             status: eliteCompleted > 0 && eliteMythicDrops === 0 ? 'warning' : 'ok',
-            note: 'Elite sem chance percebida de Mítico vira dungeon comum com skin diferente.'
+            note: 'Elite sem Mítico percebido vira dungeon comum com skin diferente.'
         }
     ];
 
@@ -164,6 +157,7 @@ function buildDungeonRewardAudit(summary = {}) {
         derived: {
             fieldGoldPerWin: round(fieldGoldPerWin, 1),
             fieldXpPerWin: round(fieldXpPerWin, 1),
+            commonDungeonCompleted,
             commonDungeonGoldPerCompletion: round(commonDungeonGoldPerCompletion, 1),
             commonDungeonXpPerCompletion: round(commonDungeonXpPerCompletion, 1),
             eliteDungeonGoldPerCompletion: round(eliteDungeonGoldPerCompletion, 1),
@@ -185,7 +179,7 @@ function renderDungeonRewardAudit(summary = {}) {
         `🏰 *Auditoria Dungeon* ${getStatusEmoji(audit.status)}`,
         `• Ouro dungeon/campo: ${audit.derived.commonGoldRatioVsField}x`,
         `• XP dungeon/campo: ${audit.derived.commonXpRatioVsField}x`,
-        `• Item final/conclusão: ${audit.derived.commonCompletionItemRate}%`,
+        `• Item final comum/conclusão: ${audit.derived.commonCompletionItemRate}%`,
         `• Conclusão: ${audit.derived.dungeonFinishRate}% | Abandono: ${audit.derived.dungeonAbandonRate}%`,
         `• Saldo líquido de chaves: ${audit.derived.keyNet}`,
         '',
