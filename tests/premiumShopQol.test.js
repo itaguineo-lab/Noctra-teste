@@ -18,17 +18,31 @@ const {
 
 function basePlayer(overrides = {}) {
     return {
+        id: 'test-player',
+        name: 'Admin',
+        class: 'guerreiro',
+        level: 10,
+        hp: 100,
+        maxHp: 120,
+        atk: 20,
+        def: 10,
+        crit: 5,
         gold: 0,
         nox: 100,
         glorias: 0,
         inventory: [],
+        equipment: {},
         consumables: {
             potionHp: 0,
             potionEnergy: 0,
             tonicStrength: 0,
             tonicDefense: 0
         },
+        soulsInventory: [],
+        soulsEquipped: [null, null],
+        buffs: [],
         cosmetics: [],
+        activeCosmetics: {},
         purchasedBundles: [],
         bonusInventory: 0,
         vip: false,
