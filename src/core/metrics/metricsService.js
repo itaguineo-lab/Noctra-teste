@@ -35,6 +35,28 @@ function sanitizeDateKey(dateKey) {
     return getDateKey();
 }
 
+function getMetricsReadyState() {
+    return Number(
+        MetricsDaily?.db?.readyState ??
+        MetricsDaily?.base?.connection?.readyState ??
+        0
+    );
+}
+
+function shouldPersistMetrics() {
+    if (process.env.NOCTRA_DISABLE_METRICS === '1') return false;
+    if (process.env.NODE_ENV === 'test') return false;
+    return getMetricsReadyState() === 1;
+}
+
+function buildFallbackMetrics(dateKeyInput) {
+    return {
+        dateKey: sanitizeDateKey(dateKeyInput),
+        counters: buildDefaultCounters(),
+        persistence: 'skipped'
+    };
+}
+
 function normalizeRarityName(value = '') {
     return String(value || '')
         .trim()
@@ -228,6 +250,10 @@ function buildDefaultCounters() {
 async function ensureDailyMetrics(dateKeyInput) {
     const dateKey = sanitizeDateKey(dateKeyInput);
 
+    if (!shouldPersistMetrics()) {
+        return null;
+    }
+
     try {
         return await MetricsDaily.findOneAndUpdate(
             { dateKey },
@@ -257,6 +283,10 @@ async function incrementMetric(metricName, amount = 1, dateKeyInput) {
     const numericAmount = Number(amount);
 
     if (!Number.isFinite(numericAmount) || numericAmount === 0) {
+        return null;
+    }
+
+    if (!shouldPersistMetrics()) {
         return null;
     }
 
@@ -293,6 +323,10 @@ async function addManyMetrics(increments = {}, dateKeyInput) {
     });
 
     if (Object.keys(validIncrements).length === 0) {
+        return null;
+    }
+
+    if (!shouldPersistMetrics()) {
         return null;
     }
 
@@ -455,21 +489,24 @@ async function recordSaleMetrics({
 }
 
 async function getTodayMetrics() {
+    if (!shouldPersistMetrics()) {
+        return buildFallbackMetrics(getDateKey());
+    }
+
     const result = await ensureDailyMetrics(getDateKey());
-    return result || {
-        dateKey: getDateKey(),
-        counters: buildDefaultCounters()
-    };
+    return result || buildFallbackMetrics(getDateKey());
 }
 
 async function getMetricsByDate(dateKeyInput) {
     const dateKey = sanitizeDateKey(dateKeyInput);
+
+    if (!shouldPersistMetrics()) {
+        return buildFallbackMetrics(dateKey);
+    }
+
     const result = await ensureDailyMetrics(dateKey);
 
-    return result || {
-        dateKey,
-        counters: buildDefaultCounters()
-    };
+    return result || buildFallbackMetrics(dateKey);
 }
 
 function readCounter(counters, name) {
@@ -573,6 +610,9 @@ module.exports = {
     SOURCE_PREFIX,
     getDateKey,
     sanitizeDateKey,
+    getMetricsReadyState,
+    shouldPersistMetrics,
+    buildFallbackMetrics,
     normalizeRarityName,
     getRarityCounterName,
     getSourcePrefix,
