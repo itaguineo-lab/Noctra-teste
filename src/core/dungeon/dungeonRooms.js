@@ -84,28 +84,29 @@ function getDungeonRoomLevel(mapId, type, playerLevel, roomIndex) {
     const safeRoomIndex = Math.max(0, safeNumber(roomIndex));
     const safePlayerLevel = Math.max(1, safeNumber(playerLevel) || range.min);
 
-    const typeBonus = type === 'boss' ? 3 : (type === 'elite' ? 2 : 1);
+    const typeBonus = type === 'boss' ? 5 : (type === 'elite' ? 3 : 2);
     const roomProgressBonus = Math.max(0, safeRoomIndex - 1);
 
     /*
-    Dungeon precisa ser mais forte que o farm do mesmo mapa,
+    Dungeon precisa ser bem mais difícil que o farm do mesmo mapa,
     mas não pode virar "conteúdo do level atual".
-    Se um jogador Lv.32 entra na dungeon da Clareira, a dungeon continua sendo da Clareira.
+    Se um jogador Lv.32 entra na dungeon da Clareira, a dungeon continua sendo da Clareira,
+    porém em versão dungeon: inimigos mais fortes, salas progressivas e boss perigoso.
     */
     const overlevelBonus = Math.min(2, Math.floor(Math.max(0, safePlayerLevel - range.max) / 10));
     const rawLevel = range.min + roomProgressBonus + typeBonus + overlevelBonus;
-    const cap = range.max + (type === 'boss' ? 3 : (type === 'elite' ? 2 : 1));
+    const cap = range.max + (type === 'boss' ? 5 : (type === 'elite' ? 3 : 2));
 
-    return Math.max(range.min + 1, Math.min(rawLevel, cap));
+    return Math.max(range.min + 2, Math.min(rawLevel, cap));
 }
 
 function getDungeonStatScale(type, roomIndex) {
     const safeRoomIndex = Math.max(0, safeNumber(roomIndex));
-    const roomScalar = 1 + Math.max(0, safeRoomIndex - 1) * 0.06;
+    const roomScalar = 1 + Math.max(0, safeRoomIndex - 1) * 0.07;
 
-    if (type === 'boss') return roomScalar * 1.38;
-    if (type === 'elite') return roomScalar * 1.22;
-    return roomScalar * 1.10;
+    if (type === 'boss') return roomScalar * 1.95;
+    if (type === 'elite') return roomScalar * 1.70;
+    return roomScalar * 1.45;
 }
 
 function scaleDungeonEnemyStats(enemyTemplate, mapId, type, playerLevel, roomIndex) {
@@ -122,12 +123,12 @@ function scaleDungeonEnemyStats(enemyTemplate, mapId, type, playerLevel, roomInd
     const baseGold = safeNumber(enemyTemplate.gold) || (type === 'boss' ? 110 : (type === 'elite' ? 60 : 25));
 
     return {
-        hp: Math.max(1, Math.round(baseHp * scalar * (1 + levelDelta * 0.035))),
-        atk: Math.max(1, Math.round(baseAtk * scalar * (1 + levelDelta * 0.025))),
-        def: Math.max(0, Math.round(baseDef * scalar * (1 + levelDelta * 0.020))),
-        crit: Math.min(35, Math.round(baseCrit + (type === 'boss' ? 2 : 0))),
-        xp: Math.max(1, Math.round(baseXp * scalar * (1 + levelDelta * 0.030))),
-        gold: Math.max(1, Math.round(baseGold * scalar * (1 + levelDelta * 0.030))),
+        hp: Math.max(1, Math.round(baseHp * scalar * (1 + levelDelta * 0.045))),
+        atk: Math.max(1, Math.round(baseAtk * scalar * (1 + levelDelta * 0.032))),
+        def: Math.max(0, Math.round(baseDef * scalar * (1 + levelDelta * 0.026))),
+        crit: Math.min(35, Math.round(baseCrit + (type === 'boss' ? 3 : (type === 'elite' ? 2 : 1)))),
+        xp: Math.max(1, Math.round(baseXp * scalar * (1 + levelDelta * 0.040))),
+        gold: Math.max(1, Math.round(baseGold * scalar * (1 + levelDelta * 0.040))),
         level
     };
 }
