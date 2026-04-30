@@ -32,6 +32,7 @@ function soul(id, name = 'Alma Teste', overrides = {}) {
 
 function player(overrides = {}) {
     return {
+        id: 'test-player',
         name: 'Admin',
         class: 'guerreiro',
         level: 10,
