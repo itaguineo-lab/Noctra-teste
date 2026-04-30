@@ -4,11 +4,24 @@ function combatMenu() {
     return Markup.inlineKeyboard([
         [
             Markup.button.callback('🗡️ Atacar', 'combat_attack'),
+            Markup.button.callback('🧪 Consumíveis', 'combat_consumables')
+        ],
+        [
+            Markup.button.callback('💀 Almas', 'combat_soul_menu'),
+            Markup.button.callback('🏃 Fugir', 'combat_flee')
+        ]
+    ]);
+}
+
+function cooperativeCombatMenu() {
+    return Markup.inlineKeyboard([
+        [
+            Markup.button.callback('🗡️ Atacar', 'combat_attack'),
             Markup.button.callback('🛡️ Defender', 'combat_defend')
         ],
         [
             Markup.button.callback('💀 Almas', 'combat_soul_menu'),
-            Markup.button.callback('🧪 Itens', 'combat_consumables')
+            Markup.button.callback('🧪 Consumíveis', 'combat_consumables')
         ],
         [
             Markup.button.callback('🏃 Fugir', 'combat_flee')
@@ -86,6 +99,7 @@ function postLootItemMenu(itemKey) {
 
 module.exports = {
     combatMenu,
+    cooperativeCombatMenu,
     soulChoiceMenu,
     getSoulButtonLabel,
     postCombatMenu,
