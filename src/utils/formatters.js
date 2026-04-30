@@ -1,5 +1,19 @@
 const { getRarityEmoji } = require('../data/balance');
 
+function isEmojiBar(fullChar, emptyChar) {
+    return String(fullChar || '').length > 1 || String(emptyChar || '').length > 1;
+}
+
+function getEffectiveProgressBarSize(size, fullChar, emptyChar) {
+    const requestedSize = Math.max(1, Math.floor(Number(size) || 6));
+
+    if (isEmojiBar(fullChar, emptyChar)) {
+        return Math.max(requestedSize, 10);
+    }
+
+    return requestedSize;
+}
+
 function progressBar(
     current,
     max,
@@ -9,14 +23,15 @@ function progressBar(
 ) {
     const safeCurrent = Number(current) || 0;
     const safeMax = Number(max) > 0 ? Number(max) : 1;
+    const effectiveSize = getEffectiveProgressBarSize(size, fullChar, emptyChar);
 
     const percentage = Math.min(
         Math.max(safeCurrent / safeMax, 0),
         1
     );
 
-    const filledSize = Math.round(size * percentage);
-    const emptySize = Math.max(0, size - filledSize);
+    const filledSize = Math.round(effectiveSize * percentage);
+    const emptySize = Math.max(0, effectiveSize - filledSize);
 
     return (
         fullChar.repeat(filledSize) +
@@ -98,6 +113,8 @@ function formatDelta(value) {
 }
 
 module.exports = {
+    isEmojiBar,
+    getEffectiveProgressBarSize,
     progressBar,
     formatNumber,
     formatItemName,
