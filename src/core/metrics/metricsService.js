@@ -1,4 +1,5 @@
 const MetricsDaily = require('./MetricsModel');
+const { buildDungeonRewardAudit } = require('../dungeon/dungeonRewardAudit');
 
 const RARITY_TO_COUNTER = {
     comum: 'itemRarityComum',
@@ -151,6 +152,8 @@ function buildDefaultCounters() {
         dungeonItemsDropped: 0,
         dungeonEliteItemsDropped: 0,
         dungeonCompletionItems: 0,
+        dungeonCommonCompletionItems: 0,
+        dungeonEliteCompletionItems: 0,
 
         itemRarityComum: 0,
         itemRarityIncomum: 0,
@@ -399,11 +402,14 @@ async function recordDungeonRewardMetrics({
     isEliteDungeon = false
 } = {}) {
     const source = isEliteDungeon ? 'dungeon_elite' : 'dungeon';
+    const completionCount = Number(completionItems || 0);
 
     return addManyMetrics({
         itemsDropped: items,
         [getSourceItemCounter(source)]: items,
-        dungeonCompletionItems: completionItems,
+        dungeonCompletionItems: completionCount,
+        dungeonCommonCompletionItems: isEliteDungeon ? 0 : completionCount,
+        dungeonEliteCompletionItems: isEliteDungeon ? completionCount : 0,
         ...buildRarityIncrements(itemRarities, source),
         soulsDropped: souls,
         [getSourceSoulCounter(source)]: souls,
@@ -521,8 +527,9 @@ function buildMetricsSummary(doc) {
     const c = normalizeCounters(doc);
 
     const totalCombatOutcomes = c.combatsWon + c.combatsLost + c.combatsFled;
+    const commonDungeonCompleted = Math.max(0, c.dungeonsCompleted - c.dungeonEliteCompleted);
 
-    return {
+    const summary = {
         dateKey,
         counters: c,
         rarity: buildRaritySummary(c),
@@ -533,6 +540,7 @@ function buildMetricsSummary(doc) {
         },
         derived: {
             totalCombatOutcomes,
+            commonDungeonCompleted,
             winRate: percent(c.combatsWon, totalCombatOutcomes),
             dungeonFinishRate: percent(c.dungeonsCompleted, c.dungeonsStarted),
             dungeonAbandonRate: percent(c.dungeonsAbandoned, c.dungeonsStarted),
@@ -543,12 +551,22 @@ function buildMetricsSummary(doc) {
             avgFieldXpPerWin: averagePer(c.fieldXpAwarded, c.combatsWon),
             avgDungeonGoldPerCompletion: averagePer(c.dungeonGoldAwarded + c.dungeonEliteGoldAwarded, c.dungeonsCompleted),
             avgDungeonXpPerCompletion: averagePer(c.dungeonXpAwarded + c.dungeonEliteXpAwarded, c.dungeonsCompleted),
+            avgCommonDungeonGoldPerCompletion: averagePer(c.dungeonGoldAwarded, commonDungeonCompleted),
+            avgCommonDungeonXpPerCompletion: averagePer(c.dungeonXpAwarded, commonDungeonCompleted),
+            avgEliteDungeonGoldPerCompletion: averagePer(c.dungeonEliteGoldAwarded, c.dungeonEliteCompleted),
+            avgEliteDungeonXpPerCompletion: averagePer(c.dungeonEliteXpAwarded, c.dungeonEliteCompleted),
             itemDropRatePerWin: percent(c.itemsDropped, c.combatsWon),
             soulDropRatePerWin: percent(c.soulsDropped, c.combatsWon),
             keyDropRatePerWin: percent(c.keysDropped, c.combatsWon),
+            commonCompletionItemRate: percent(c.dungeonCommonCompletionItems, commonDungeonCompleted),
+            eliteCompletionItemRate: percent(c.dungeonEliteCompletionItems, c.dungeonEliteCompleted),
             keyNet: c.keysDropped - c.keysSpent
         }
     };
+
+    summary.dungeonAudit = buildDungeonRewardAudit(summary);
+
+    return summary;
 }
 
 module.exports = {
