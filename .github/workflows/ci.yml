@@ -20,8 +20,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies with lockfile
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      - name: Install dependencies without lockfile
+        if: ${{ hashFiles('package-lock.json') == '' }}
+        run: npm install --no-audit --no-fund
 
       - name: Run test suite
         run: npm test
