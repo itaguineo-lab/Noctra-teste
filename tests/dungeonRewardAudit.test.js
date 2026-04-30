@@ -80,9 +80,10 @@ test('getWorstStatus prioriza danger sobre warning e ok', () => {
 test('buildDungeonRewardAudit marca dungeon saudável como ok', () => {
     const audit = buildDungeonRewardAudit(buildSummary());
 
-    assert.equal(audit.derived.commonGoldRatioVsField, 4);
-    assert.equal(audit.derived.commonXpRatioVsField, 4.38);
-    assert.equal(audit.derived.commonCompletionItemRate, 87.5);
+    assert.equal(audit.derived.commonDungeonCompleted, 7);
+    assert.equal(audit.derived.commonGoldRatioVsField, 4.57);
+    assert.equal(audit.derived.commonXpRatioVsField, 5);
+    assert.equal(audit.derived.commonCompletionItemRate, 100);
     assert.equal(audit.derived.keyNet, 2);
     assert.equal(audit.signals.find(s => s.id === 'common_mythic_leak').status, 'ok');
 });
