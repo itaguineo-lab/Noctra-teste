@@ -67,14 +67,22 @@ test('logs básicos de combate não usam markdown cru, barra ou pontuação esca
 });
 
 test('crítico aparece como texto limpo', () => {
-    const fight = createFight(player({ crit: 100 }), enemy());
+    const originalRandom = Math.random;
+    const rolls = [0.5, 0];
+    Math.random = () => rolls.shift() ?? 0;
 
-    processPlayerTurn(fight);
+    try {
+        const fight = createFight(player({ crit: 100 }), enemy());
 
-    const text = fight.logs.join('\n');
+        processPlayerTurn(fight);
 
-    assert.match(text, /Crítico/);
-    assertCleanLog(text);
+        const text = fight.logs.join('\n');
+
+        assert.match(text, /Crítico/);
+        assertCleanLog(text);
+    } finally {
+        Math.random = originalRandom;
+    }
 });
 
 test('falha de fuga não usa exclamação nem ponto final escapável', () => {
