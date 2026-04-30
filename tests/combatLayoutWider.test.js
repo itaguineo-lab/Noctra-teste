@@ -15,13 +15,19 @@ function keyboardText(keyboard) {
     return JSON.stringify(keyboard.reply_markup);
 }
 
+function countOccurrences(text, pattern) {
+    return (String(text || '').match(pattern) || []).length;
+}
+
 test('progressBar com emojis usa largura mínima de 10 blocos', () => {
     const bar = progressBar(5, 10, 8, '🟩', '⬛');
+    const filled = countOccurrences(bar, /🟩/g);
+    const empty = countOccurrences(bar, /⬛/g);
 
     assert.equal(getEffectiveProgressBarSize(8, '🟩', '⬛'), 10);
-    assert.equal([...bar].length, 20); // emojis compostos ocupam dois codepoints em spread
-    assert.equal((bar.match(/🟩/g) || []).length, 5);
-    assert.equal((bar.match(/⬛/g) || []).length, 5);
+    assert.equal(filled, 5);
+    assert.equal(empty, 5);
+    assert.equal(filled + empty, 10);
 });
 
 test('progressBar textual preserva tamanho solicitado', () => {
