@@ -53,6 +53,7 @@ Toda sprint precisa fortalecer pelo menos um desses pontos.
 - daily rewards
 - métricas básicas
 - diagnóstico automatizado de balanceamento
+- auditoria de recompensa de dungeon comum vs elite no `/metrics`
 - testes de early game
 - admin
 
@@ -169,9 +170,16 @@ Criar Dungeon V2, guildas ou world boss antes de calibrar economia seria empilha
    - Mítico reservado para dungeon elite, world boss, evento ou liberação explícita `allowMythicDrop`
    - `tests/fieldLootRarityPolicy.test.js`
 
+4. **Auditoria de recompensa de dungeon**
+   - `src/core/dungeon/dungeonRewardAudit.js`
+   - `tests/dungeonRewardAudit.test.js`
+   - `/metrics` agora mostra sinais de valor da dungeon comum vs farm de campo
+   - mede item final comum, item final elite, saldo líquido de chaves e vazamento de Mítico
+   - separa counters de recompensa final comum e elite
+
 ### Próximos PRs da sprint
 
-1. **Ajuste de drops, almas e chaves**
+1. **Ajuste fino de drops, almas e chaves**
    - validar primeira alma em 3–5 dias de jogo ativo
    - validar chave rara, mas não impossível
    - proteger regra: dungeon não se autoalimenta
@@ -294,7 +302,7 @@ Somente depois da base estabilizada:
 ## Próxima ação aprovada
 
 ```text
-Auditar recompensas de dungeon comum vs dungeon elite e melhorar métricas econômicas de drop por raridade.
+Usar a auditoria do /metrics para ajustar drops, chaves, recompensas finais e valor percebido da dungeon antes de avançar para Dungeon V2.
 ```
 
 Esse é o próximo passo técnico. Não avançar para guildas, world boss ou novos mapas antes disso.
