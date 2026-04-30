@@ -30,6 +30,7 @@ function soul(id, name = 'Alma Teste') {
 
 function player(overrides = {}) {
     return normalizePlayerState({
+        id: 'test-player',
         name: 'Admin',
         class: 'guerreiro',
         level: 10,
