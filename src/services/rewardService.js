@@ -68,6 +68,12 @@ function getEncounterTier(enemy) {
     return 'common';
 }
 
+function getRewardMetricSource(options = {}) {
+    if (options.isEliteDungeon) return 'dungeon_elite';
+    if (options.isDungeonBoss || options.isDungeon) return 'dungeon';
+    return 'field';
+}
+
 function canDropMythic(options = {}) {
     return Boolean(
         options.allowMythicDrop ||
@@ -413,12 +419,14 @@ async function processVictory(player, enemy, options = {}) {
     const itemResult = tryDropItem(player, enemy, loot, options);
     const soulResult = tryDropSoul(player, enemy, loot, options);
     const keyDropped = tryDropKey(player, enemy, loot, options);
+    const metricSource = getRewardMetricSource(options);
 
     player.totalKills += 1;
 
     normalizePlayerForSave(player);
 
     recordVictoryMetricsAsync({
+        source: metricSource,
         items: itemResult.droppedItem ? 1 : 0,
         itemRarities: itemResult.droppedItem?.rarity ? [itemResult.droppedItem.rarity] : [],
         souls: soulResult.soulDropped ? 1 : 0,
@@ -442,6 +450,7 @@ async function processVictory(player, enemy, options = {}) {
         soulDropText: soulResult.soulDropText,
         soulLootLine: soulResult.soulLootLine,
         keyDropped,
+        metricSource,
         leveledUp,
         totalKills: player.totalKills,
         enemyId: enemy?.id || null,
@@ -452,6 +461,7 @@ async function processVictory(player, enemy, options = {}) {
 module.exports = {
     processVictory,
     __private: {
+        getRewardMetricSource,
         getSoulSource,
         getSoulSourceLabel,
         buildCompactSoulLootLine,
