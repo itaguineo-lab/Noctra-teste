@@ -1,5 +1,5 @@
 const COMMON_DUNGEON_MIN_RARITY_BY_MAP = {
-    1: 'Raro',
+    1: 'Incomum',
     2: 'Raro',
     3: 'Raro',
     4: 'Épico',
@@ -42,7 +42,8 @@ function getCompletionRarityBias(mapNumber = 1, isEliteDungeon = false) {
 
     if (safeMapNumber >= 6) return 'endgame_boss';
     if (safeMapNumber >= 4) return 'late_boss';
-    return 'mid_boss';
+    if (safeMapNumber >= 2) return 'mid_boss';
+    return 'early_boss';
 }
 
 function buildCompletionDropOptions(player = {}, mapNumber = 1, isEliteDungeon = false) {

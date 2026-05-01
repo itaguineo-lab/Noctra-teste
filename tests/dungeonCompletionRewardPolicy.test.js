@@ -63,7 +63,7 @@ function playerFixture(overrides = {}) {
 }
 
 test('política define raridade mínima por mapa para dungeon comum', () => {
-    assert.equal(getCompletionMinRarity(1, false), 'Raro');
+    assert.equal(getCompletionMinRarity(1, false), 'Incomum');
     assert.equal(getCompletionMinRarity(2, false), 'Raro');
     assert.equal(getCompletionMinRarity(3, false), 'Raro');
     assert.equal(getCompletionMinRarity(4, false), 'Épico');
@@ -78,7 +78,8 @@ test('política define raridade mínima superior para dungeon elite', () => {
 });
 
 test('rarity bias da recompensa final escala por mapa e elite', () => {
-    assert.equal(getCompletionRarityBias(1, false), 'mid_boss');
+    assert.equal(getCompletionRarityBias(1, false), 'early_boss');
+    assert.equal(getCompletionRarityBias(2, false), 'mid_boss');
     assert.equal(getCompletionRarityBias(4, false), 'late_boss');
     assert.equal(getCompletionRarityBias(6, false), 'endgame_boss');
     assert.equal(getCompletionRarityBias(1, true), 'mid_boss');
@@ -126,6 +127,21 @@ test('generateDungeonCompletionDrop respeita raridade mínima da dungeon comum',
 
     for (let i = 0; i < 20; i += 1) {
         const drop = generateDungeonCompletionDrop(player, 1, false);
+        assert.equal(isRarityAtLeast(drop.rarity, 'Incomum'), true, `drop ${drop.name} veio ${drop.rarity}`);
+        assert.notEqual(drop.rarity, 'Mítico');
+    }
+});
+
+test('generateDungeonCompletionDrop da Cripta preserva mínimo Raro', () => {
+    const player = playerFixture({
+        level: 12,
+        dungeonProgress: {
+            mapId: 'cripta_em_ruinas'
+        }
+    });
+
+    for (let i = 0; i < 20; i += 1) {
+        const drop = generateDungeonCompletionDrop(player, 2, false);
         assert.equal(isRarityAtLeast(drop.rarity, 'Raro'), true, `drop ${drop.name} veio ${drop.rarity}`);
         assert.notEqual(drop.rarity, 'Mítico');
     }
@@ -144,6 +160,6 @@ test('finalizeDungeonRun adiciona item final com tag de política e minRarity no
 });
 
 test('buildCompletionRewardTag comunica mínimo da recompensa final', () => {
-    assert.equal(buildCompletionRewardTag(1, false), 'Comum • mínimo Raro');
+    assert.equal(buildCompletionRewardTag(1, false), 'Comum • mínimo Incomum');
     assert.equal(buildCompletionRewardTag(4, true), 'Elite • mínimo Lendário');
 });
