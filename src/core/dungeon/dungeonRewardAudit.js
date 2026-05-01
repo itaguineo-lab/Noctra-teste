@@ -43,7 +43,13 @@ function getWorstStatus(statuses = []) {
 function getStatusEmoji(status) {
     if (status === 'danger') return '🔴';
     if (status === 'warning') return '🟡';
+    if (status === 'insufficient') return '⚪';
     return '🟢';
+}
+
+function formatRatioValue(value, hasBaseline) {
+    if (!hasBaseline) return 'sem base';
+    return `${value}x`;
 }
 
 function buildDungeonRewardAudit(summary = {}) {
@@ -65,8 +71,10 @@ function buildDungeonRewardAudit(summary = {}) {
     const eliteDungeonGoldPerCompletion = ratio(c.dungeonEliteGoldAwarded, eliteCompleted);
     const eliteDungeonXpPerCompletion = ratio(c.dungeonEliteXpAwarded, eliteCompleted);
 
-    const commonGoldRatioVsField = fieldGoldPerWin > 0 ? commonDungeonGoldPerCompletion / fieldGoldPerWin : 0;
-    const commonXpRatioVsField = fieldXpPerWin > 0 ? commonDungeonXpPerCompletion / fieldXpPerWin : 0;
+    const hasFieldGoldBaseline = commonDungeonCompleted > 0 && fieldGoldPerWin > 0;
+    const hasFieldXpBaseline = commonDungeonCompleted > 0 && fieldXpPerWin > 0;
+    const commonGoldRatioVsField = hasFieldGoldBaseline ? commonDungeonGoldPerCompletion / fieldGoldPerWin : 0;
+    const commonXpRatioVsField = hasFieldXpBaseline ? commonDungeonXpPerCompletion / fieldXpPerWin : 0;
     const commonCompletionItemRate = pct(c.dungeonCommonCompletionItems, commonDungeonCompleted);
     const dungeonFinishRate = pct(c.dungeonsCompleted, c.dungeonsStarted);
     const dungeonAbandonRate = pct(c.dungeonsAbandoned, c.dungeonsStarted);
@@ -78,21 +86,21 @@ function buildDungeonRewardAudit(summary = {}) {
         {
             id: 'common_dungeon_gold_value',
             label: 'Valor ouro da dungeon comum vs campo',
-            value: round(commonGoldRatioVsField, 2),
-            unit: 'x',
-            status: commonDungeonCompleted > 0 && fieldGoldPerWin > 0
+            value: hasFieldGoldBaseline ? round(commonGoldRatioVsField, 2) : 'sem base',
+            unit: hasFieldGoldBaseline ? 'x' : '',
+            status: hasFieldGoldBaseline
                 ? scoreStatus(commonGoldRatioVsField, { direction: 'min', danger: 2.0, warning: 3.0 })
-                : 'warning',
+                : 'insufficient',
             note: 'Dungeon comum precisa pagar mais que farm comum porque consome chave rara.'
         },
         {
             id: 'common_dungeon_xp_value',
             label: 'Valor XP da dungeon comum vs campo',
-            value: round(commonXpRatioVsField, 2),
-            unit: 'x',
-            status: commonDungeonCompleted > 0 && fieldXpPerWin > 0
+            value: hasFieldXpBaseline ? round(commonXpRatioVsField, 2) : 'sem base',
+            unit: hasFieldXpBaseline ? 'x' : '',
+            status: hasFieldXpBaseline
                 ? scoreStatus(commonXpRatioVsField, { direction: 'min', danger: 2.0, warning: 3.0 })
-                : 'warning',
+                : 'insufficient',
             note: 'XP da dungeon precisa parecer pico de sessão.'
         },
         {
@@ -164,6 +172,8 @@ function buildDungeonRewardAudit(summary = {}) {
             eliteDungeonXpPerCompletion: round(eliteDungeonXpPerCompletion, 1),
             commonGoldRatioVsField: round(commonGoldRatioVsField, 2),
             commonXpRatioVsField: round(commonXpRatioVsField, 2),
+            hasFieldGoldBaseline,
+            hasFieldXpBaseline,
             commonCompletionItemRate: round(commonCompletionItemRate, 1),
             dungeonFinishRate: round(dungeonFinishRate, 1),
             dungeonAbandonRate: round(dungeonAbandonRate, 1),
@@ -177,8 +187,8 @@ function renderDungeonRewardAudit(summary = {}) {
 
     const lines = [
         `🏰 *Auditoria Dungeon* ${getStatusEmoji(audit.status)}`,
-        `• Ouro dungeon/campo: ${audit.derived.commonGoldRatioVsField}x`,
-        `• XP dungeon/campo: ${audit.derived.commonXpRatioVsField}x`,
+        `• Ouro dungeon/campo: ${formatRatioValue(audit.derived.commonGoldRatioVsField, audit.derived.hasFieldGoldBaseline)}`,
+        `• XP dungeon/campo: ${formatRatioValue(audit.derived.commonXpRatioVsField, audit.derived.hasFieldXpBaseline)}`,
         `• Item final comum/conclusão: ${audit.derived.commonCompletionItemRate}%`,
         `• Conclusão: ${audit.derived.dungeonFinishRate}% | Abandono: ${audit.derived.dungeonAbandonRate}%`,
         `• Saldo líquido de chaves: ${audit.derived.keyNet}`,
@@ -201,6 +211,7 @@ module.exports = {
     scoreStatus,
     getWorstStatus,
     getStatusEmoji,
+    formatRatioValue,
     buildDungeonRewardAudit,
     renderDungeonRewardAudit
 };
