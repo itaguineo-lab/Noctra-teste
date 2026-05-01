@@ -72,35 +72,34 @@ const BALANCE = {
         fieldBossKeyDropChance: 0.22,
         dungeonTreasureKeyDropChance: 0.06,
         dungeonCurseKeyDropChance: 0.04,
-        dungeonCompletionKeyReward: 0
+        dungeonCompletionKeyReward: 0,
+
+        /*
+        Drop extra de item em sala de tesouro.
+        Recompensa final da dungeon já é garantida; sala de tesouro não pode
+        transformar cada run em chuva de equipamento. Mantém dopamina sem
+        inflar inventário nem banalizar raridade.
+        */
+        dungeonTreasureItemDropChance: 0.12
     },
 
     souls: {
         /*
-        FIX DE RETENÇÃO D7:
+        Diretriz atual:
+        - Alma precisa ser rara o bastante para gerar coleção, build e status.
+        - Dungeon deve ser melhor que campo, mas não pode entregar alma com
+          frequência visual de item comum.
+        - A primeira alma deve aparecer cedo o suficiente para provar o sistema,
+          porém souls repetidas/lendárias não podem banalizar D7/D30.
 
-        Problema original:
-        - fieldBossDropChance: 0.03 (3%)
-        - Boss spawna com ~2% na Clareira
-        - Resultado: jogador casual precisava de ~1.600 combates para
-          ter probabilidade razoável de ver uma soul.
-          Com 20 energia/dia = 80 dias de jogo. Ninguém chega lá.
-
-        Ajuste:
-        - Boss aumentado para 5% — um jogador que matar 20 bosses
-          tem ~64% de chance de ter ao menos 1 soul (antes: 46%).
-        - Dungeon boss aumentado para 12% — dungeon deve SEMPRE
-          se sentir mais recompensadora que farm comum.
-        - Pity ativado em 8 bosses (antes 10) e multiplicador 2.5x
-          (antes 2x), garantindo que no pior caso o jogador veja
-          uma soul em até ~14 bosses com pity.
-
-        Objetivo: primeira soul dentro de 3-5 dias de jogo ativo.
+        A chance de boss de dungeon volta para 8%, alinhada à regra oficial
+        do produto. O pity continua agressivo no campo para proteger onboarding,
+        mas dungeon não vira fábrica de almas.
         */
         fieldEliteThematicDropChance: 0.01,
         fieldMiniBossThematicDropChance: 0.02,
         fieldBossDropChance: 0.05,
-        dungeonBossDropChance: 0.12,
+        dungeonBossDropChance: 0.08,
         worldBossDropChance: 0.15,
         eventBossDropChance: 0.20,
 
