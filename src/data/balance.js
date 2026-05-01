@@ -72,15 +72,7 @@ const BALANCE = {
         fieldBossKeyDropChance: 0.22,
         dungeonTreasureKeyDropChance: 0.06,
         dungeonCurseKeyDropChance: 0.04,
-        dungeonCompletionKeyReward: 0,
-
-        /*
-        Drop extra de item em sala de tesouro.
-        Recompensa final da dungeon já é garantida; sala de tesouro não pode
-        transformar cada run em chuva de equipamento. Mantém dopamina sem
-        inflar inventário nem banalizar raridade.
-        */
-        dungeonTreasureItemDropChance: 0.12
+        dungeonCompletionKeyReward: 0
     },
 
     souls: {
