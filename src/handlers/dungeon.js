@@ -15,6 +15,11 @@ const {
 } = require('../core/player/progression');
 
 const {
+    getSoulCooldownTurns,
+    isPassiveSoul
+} = require('../core/player/souls');
+
+const {
     updateMissionProgress
 } = require('../core/daily/dailyService');
 
@@ -37,12 +42,16 @@ const {
 
 const {
     addDungeonLog,
+    ensureDungeonCombatState,
+    getDungeonSoulSlots,
+    getDungeonSoulCooldownRemaining,
     isEliteDungeonRun,
     resolveTreasureRoom,
     resolveHealRoom,
     resolveCurseRoom,
     resolveShrineRoom,
     resolveCombatRoom,
+    resolveDungeonSoul,
     finalizeDungeonRun
 } = require('../core/dungeon/dungeonRewards');
 
@@ -145,6 +154,8 @@ function renderDungeonText(player) {
         return buildDungeonSummary(player);
     }
 
+    ensureDungeonCombatState(player, room);
+
     const map = getDungeonMap(player);
     const hpBar = progressBar(player.hp, player.maxHp, 8, '🟩', '⬛');
     const energyBar = progressBar(player.energy, player.maxEnergy, 8, '🟦', '⬛');
@@ -159,7 +170,17 @@ function renderDungeonText(player) {
     text += `📖 ${room.description}\n\n`;
     text += `👤 ${escapeMarkdown(player.name)} Lv.${player.level}\n`;
     text += `❤️ ${player.hp}/${player.maxHp} ${hpBar}\n`;
-    text += `⚡ ${player.energy}/${player.maxEnergy} ${energyBar}\n\n`;
+    text += `⚡ ${player.energy}/${player.maxEnergy} ${energyBar}\n`;
+
+    if (d.playerStatus?.poisonTurns || d.playerStatus?.bleedTurns || d.playerStatus?.stunned) {
+        const effects = [];
+        if (d.playerStatus.poisonTurns) effects.push(`🧪 Veneno ${d.playerStatus.poisonTurns}t`);
+        if (d.playerStatus.bleedTurns) effects.push(`🩸 Sangramento ${d.playerStatus.bleedTurns}t`);
+        if (d.playerStatus.stunned) effects.push('💫 Atordoado');
+        text += `☠️ ${effects.join(' • ')}\n`;
+    }
+
+    text += `\n`;
 
     if (d.combatBonus.atk || d.combatBonus.def || d.combatBonus.crit) {
         text += `✨ *Bônus da Expedição*: ⚔️ +${d.combatBonus.atk}  🛡️ +${d.combatBonus.def}  💥 +${d.combatBonus.crit}%\n\n`;
@@ -178,6 +199,15 @@ function renderDungeonText(player) {
         text += `${badge}: ${e.emoji || '👹'} *${escapeMarkdown(e.name)}* Lv.${e.level}\n`;
         text += `❤️ ${e.hp}/${e.maxHp} ${enemyBar}\n`;
         text += `⚔️ ${e.atk} 🛡️ ${e.def} 💥 ${e.crit}%\n`;
+
+        if (e.shield || e.frozen || e.poisonTurns || e.bleedTurns) {
+            const enemyEffects = [];
+            if (e.shield) enemyEffects.push(`🛡️ Escudo ${e.shield}`);
+            if (e.frozen) enemyEffects.push('❄️ Congelado');
+            if (e.poisonTurns) enemyEffects.push(`🧪 Veneno ${e.poisonTurns}t`);
+            if (e.bleedTurns) enemyEffects.push(`🩸 Sangramento ${e.bleedTurns}t`);
+            text += `☠️ ${enemyEffects.join(' • ')}\n`;
+        }
 
         if (d.logs?.length) {
             text += `\n📜 *Últimas ações*\n`;
@@ -201,6 +231,66 @@ function renderDungeonText(player) {
     text += `✨ XP: ${d.rewards.xp || 0}  💰 Ouro: ${d.rewards.gold || 0}  🗝️ Chaves: ${d.rewards.keys || 0}  🎁 Itens: ${d.rewards.items || 0}  🌑 Almas: ${d.rewards.souls || 0}\n`;
 
     return text;
+}
+
+function getDungeonSoulButtonLabel(player, index) {
+    const souls = getDungeonSoulSlots(player);
+    const soul = souls[index];
+
+    if (!soul) return `⬜ Slot ${index + 1} vazio`;
+
+    if (isPassiveSoul(soul)) {
+        return `${soul.emoji || '💀'} Slot ${index + 1} • Passiva`;
+    }
+
+    const cooldown = getDungeonSoulCooldownRemaining(player, index);
+    if (cooldown > 0) return `⏳ Slot ${index + 1} • ${cooldown}t`;
+
+    return `${soul.emoji || '💀'} Slot ${index + 1} • ${soul.name}`;
+}
+
+function buildDungeonSoulKeyboard(player) {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback(getDungeonSoulButtonLabel(player, 0), 'dungeon_soul_0')],
+        [Markup.button.callback(getDungeonSoulButtonLabel(player, 1), 'dungeon_soul_1')],
+        [Markup.button.callback('◀️ Voltar', 'dungeon')]
+    ]);
+}
+
+function buildDungeonSoulText(player) {
+    const d = normalizeDungeonState(player);
+    const room = getCurrentRoom(player);
+    ensureDungeonCombatState(player, room);
+
+    const souls = getDungeonSoulSlots(player);
+    const lines = [
+        '━━━━━━━━━━━━━━━━━━━━━━',
+        '💀 *ALMAS DA MASMORRA*',
+        '━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        'Escolha uma alma ativa para usar nesta sala.',
+        'Almas passivas já fortalecem sua build quando equipadas.',
+        ''
+    ];
+
+    souls.forEach((soul, index) => {
+        if (!soul) {
+            lines.push(`${index + 1}. ⬜ Slot vazio`);
+            return;
+        }
+
+        const cooldown = getDungeonSoulCooldownRemaining(player, index);
+        const cooldownText = isPassiveSoul(soul)
+            ? 'Passiva'
+            : cooldown > 0
+                ? `Recarga ${cooldown}t`
+                : `Pronta • recarga ${getSoulCooldownTurns(soul)}t`;
+
+        lines.push(`${index + 1}. ${soul.emoji || '💀'} *${escapeMarkdown(soul.name)}*`);
+        lines.push(`   ${cooldownText}`);
+    });
+
+    return lines.join('\n');
 }
 
 function buildDungeonKeyboard(player) {
@@ -231,7 +321,7 @@ function buildDungeonKeyboard(player) {
     if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
         return Markup.inlineKeyboard([
             [Markup.button.callback('⚔️ Atacar', 'dungeon_attack')],
-            [Markup.button.callback('🧪 Itens', 'dungeon_consumables')],
+            [Markup.button.callback('💀 Almas', 'dungeon_soul_menu'), Markup.button.callback('🧪 Itens', 'dungeon_consumables')],
             [Markup.button.callback('🏃 Fugir', 'dungeon_flee'), Markup.button.callback('🏠 Menu', 'menu')]
         ]);
     }
@@ -384,6 +474,100 @@ async function handleDungeonAttack(ctx) {
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
+async function handleDungeonSoulMenu(ctx) {
+    const player = await getPlayer(ctx.from.id);
+    if (!player) {
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
+    }
+
+    await safeAnswer(ctx);
+
+    const d = normalizeDungeonState(player);
+    const room = getCurrentRoom(player);
+
+    if (!d.active || !room || room.cleared || !(room.type === 'combat' || room.type === 'elite' || room.type === 'boss')) {
+        return safeAnswer(ctx, '❌ Não há combate ativo para usar almas.', { show_alert: true });
+    }
+
+    ensureDungeonCombatState(player, room);
+    return safeSend(ctx, buildDungeonSoulText(player), buildDungeonSoulKeyboard(player));
+}
+
+async function handleDungeonSoul(ctx) {
+    const soulIndex = Number(ctx.match?.[1]);
+    const player = await getPlayer(ctx.from.id);
+
+    if (!player) {
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
+    }
+
+    await safeAnswer(ctx);
+
+    const d = normalizeDungeonState(player);
+    const room = getCurrentRoom(player);
+
+    if (!d.active || !room || room.cleared || !(room.type === 'combat' || room.type === 'elite' || room.type === 'boss')) {
+        return safeAnswer(ctx, '❌ Não há combate ativo para usar almas.', { show_alert: true });
+    }
+
+    const result = await resolveDungeonSoul(player, room, soulIndex);
+    normalizePlayerForSave(player);
+
+    if (room.cleared) {
+        await recordDungeonRoomCleared(1);
+    }
+
+    if (result.playerDefeated) {
+        const penalty = applyDeathXpPenalty(player);
+        const ratePercent = Math.round((penalty.rateApplied || 0) * 100);
+        player.hp = 1;
+
+        d.summary = {
+            roomsCleared: d.rooms.filter(r => r.cleared).length,
+            xp: d.rewards.xp || 0,
+            gold: d.rewards.gold || 0,
+            keys: d.rewards.keys || 0,
+            glorias: d.rewards.glorias || 0,
+            items: d.rewards.items || 0,
+            souls: d.rewards.souls || 0,
+            notes: [
+                '💀 Derrotado na masmorra.',
+                `📉 XP perdido: ${penalty.lostXp} (${ratePercent}%)`,
+                ...(penalty.levelReduced ? [`⬇️ Nível reduzido: ${penalty.oldLevel} → ${penalty.newLevel}`] : []),
+                '❤️ Você retornou com 1 de vida.'
+            ]
+        };
+
+        d.active = false;
+        d.completed = false;
+        d.aborted = true;
+
+        normalizePlayerForSave(player);
+        await savePlayer(ctx.from.id, player);
+        await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) });
+
+        return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
+    }
+
+    await savePlayer(ctx.from.id, player);
+
+    if (room.type === 'boss' && room.cleared) {
+        finalizeDungeonRun(player, 'complete');
+        normalizePlayerForSave(player);
+        await savePlayer(ctx.from.id, player);
+        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) });
+
+        return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
+    }
+
+    await safeAnswer(ctx, result.message || 'Alma usada.', { show_alert: true }).catch(() => {});
+    return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
+}
+
 async function handleDungeonNextRoom(ctx) {
     const player = await getPlayer(ctx.from.id);
     if (!player) {
@@ -466,14 +650,6 @@ async function handleDungeonFlee(ctx) {
     await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) });
 
     return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
-}
-
-async function handleDungeonSoulMenu(ctx) {
-    return safeAnswer(
-        ctx,
-        '❌ Alma ainda não está habilitada na dungeon. Removido até implementação real.',
-        { show_alert: true }
-    );
 }
 
 async function handleDungeonConsumables(ctx) {
@@ -582,12 +758,21 @@ async function handleDungeonUseConsumable(ctx) {
 }
 
 module.exports = {
+    escapeMarkdown,
+    buildDungeonIntroText,
+    buildDungeonSummary,
+    renderDungeonText,
+    getDungeonSoulButtonLabel,
+    buildDungeonSoulKeyboard,
+    buildDungeonSoulText,
+    buildDungeonKeyboard,
     handleDungeon,
     handleDungeonStart,
     handleDungeonAttack,
     handleDungeonNextRoom,
     handleDungeonFlee,
     handleDungeonSoulMenu,
+    handleDungeonSoul,
     handleDungeonConsumables,
     handleDungeonUseConsumable
 };

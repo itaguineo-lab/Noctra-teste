@@ -534,6 +534,7 @@ function registerTravelAndDungeonActions() {
     bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
     bindAction('dungeon_flee', dungeon.handleDungeonFlee);
     bindAction('dungeon_soul_menu', dungeon.handleDungeonSoulMenu);
+    bindAction(/^dungeon_soul_([01])$/, dungeon.handleDungeonSoul);
     bindAction('dungeon_consumables', dungeon.handleDungeonConsumables);
     bindAction(/^dungeon_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, dungeon.handleDungeonUseConsumable);
 
