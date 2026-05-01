@@ -371,6 +371,7 @@ function registerCommands() {
     bindCommand('unban', adminCommands.handleUnban);
     bindCommand('reload', adminCommands.handleReload);
     bindCommand('metrics', adminMetrics.handleMetrics);
+    bindCommand('metricsreset', adminMetrics.handleMetricsReset);
 }
 
 /*
