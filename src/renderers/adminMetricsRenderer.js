@@ -8,8 +8,25 @@ function pct(part, total) {
     return ((numericPart / numericTotal) * 100).toFixed(1);
 }
 
+function avg(part, total, decimals = 1) {
+    const numericPart = Number(part || 0);
+    const numericTotal = Number(total || 0);
+
+    if (numericTotal <= 0) return Number(0).toFixed(decimals);
+    return (numericPart / numericTotal).toFixed(decimals);
+}
+
 function formatNumber(value) {
     return Number(value || 0).toLocaleString('pt-BR');
+}
+
+function formatDecimal(value, decimals = 1) {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n)) return Number(0).toFixed(decimals);
+    return n.toLocaleString('pt-BR', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
 }
 
 function formatPercent(value) {
@@ -52,11 +69,24 @@ function renderMetricsMessage(summary) {
     const d = summary.derived;
     const sr = summary.sourceRarity || {};
 
+    const commonDungeonCompleted = Number(d.commonDungeonCompleted || 0);
     const dungeonGold = Number(c.dungeonGoldAwarded || 0) + Number(c.dungeonEliteGoldAwarded || 0);
     const dungeonXp = Number(c.dungeonXpAwarded || 0) + Number(c.dungeonEliteXpAwarded || 0);
     const dungeonItems = Number(c.dungeonItemsDropped || 0) + Number(c.dungeonEliteItemsDropped || 0);
     const dungeonSouls = Number(c.dungeonSoulsDropped || 0) + Number(c.dungeonEliteSoulsDropped || 0);
     const dungeonKeys = Number(c.dungeonKeysDropped || 0) + Number(c.dungeonEliteKeysDropped || 0);
+
+    const fieldItemDropRate = pct(c.fieldItemsDropped, c.combatsWon);
+    const fieldSoulDropRate = pct(c.fieldSoulsDropped, c.combatsWon);
+    const fieldKeyDropRate = pct(c.fieldKeysDropped, c.combatsWon);
+
+    const commonDungeonItemsPerCompletion = avg(c.dungeonItemsDropped, commonDungeonCompleted);
+    const commonDungeonSoulRate = pct(c.dungeonSoulsDropped, commonDungeonCompleted);
+    const commonDungeonKeyRate = pct(c.dungeonKeysDropped, commonDungeonCompleted);
+
+    const eliteDungeonItemsPerCompletion = avg(c.dungeonEliteItemsDropped, c.dungeonEliteCompleted);
+    const eliteDungeonSoulRate = pct(c.dungeonEliteSoulsDropped, c.dungeonEliteCompleted);
+    const eliteDungeonKeyRate = pct(c.dungeonEliteKeysDropped, c.dungeonEliteCompleted);
 
     return `📊 *NOCTRA METRICS — ${summary.dateKey}*
 
@@ -65,7 +95,7 @@ function renderMetricsMessage(summary) {
 • Players criados: ${formatNumber(c.playersCreated)}
 • Menu loads: ${formatNumber(c.menuLoads)}
 
-⚔️ *Combate*
+⚔️ *Combate de Campo*
 • Iniciados: ${formatNumber(c.combatsStarted)}
 • Vitórias: ${formatNumber(c.combatsWon)}
 • Derrotas: ${formatNumber(c.combatsLost)}
@@ -75,7 +105,7 @@ function renderMetricsMessage(summary) {
 🏰 *Dungeon*
 • Iniciadas: ${formatNumber(c.dungeonsStarted)}
 • Concluídas: ${formatNumber(c.dungeonsCompleted)}
-• Comuns concluídas: ${formatNumber(d.commonDungeonCompleted)}
+• Comuns concluídas: ${formatNumber(commonDungeonCompleted)}
 • Elite concluídas: ${formatNumber(c.dungeonEliteCompleted)}
 • Abandonadas: ${formatNumber(c.dungeonsAbandoned)}
 • Salas limpas: ${formatNumber(c.dungeonRoomsCleared)}
@@ -109,17 +139,27 @@ function renderMetricsMessage(summary) {
 • XP dungeon: ${formatNumber(dungeonXp)}
 • Glórias entregues: ${formatNumber(c.gloriasAwarded)}
 
-📈 *Médias e taxas*
-• Ouro/vitória: ${formatNumber(d.avgGoldPerCombat)}
-• XP/vitória: ${formatNumber(d.avgXpPerCombat)}
+📈 *Médias — Campo*
+• Ouro/vitória campo: ${formatNumber(d.avgFieldGoldPerWin)}
+• XP/vitória campo: ${formatNumber(d.avgFieldXpPerWin)}
+• Itens/vitória campo: ${fieldItemDropRate}%
+• Souls/vitória campo: ${fieldSoulDropRate}%
+• Chaves/vitória campo: ${fieldKeyDropRate}%
+
+🏰 *Médias — Dungeon Comum*
 • Ouro/dungeon comum: ${formatNumber(d.avgCommonDungeonGoldPerCompletion)}
 • XP/dungeon comum: ${formatNumber(d.avgCommonDungeonXpPerCompletion)}
+• Itens/dungeon comum: ${commonDungeonItemsPerCompletion}
+• Souls/dungeon comum: ${commonDungeonSoulRate}%
+• Chaves/dungeon comum: ${commonDungeonKeyRate}%
+• Item final dungeon comum: ${formatPercent(d.commonCompletionItemRate)}
+
+🔥 *Médias — Dungeon Elite*
 • Ouro/dungeon elite: ${formatNumber(d.avgEliteDungeonGoldPerCompletion)}
 • XP/dungeon elite: ${formatNumber(d.avgEliteDungeonXpPerCompletion)}
-• Item drop rate por vitória: ${formatPercent(d.itemDropRatePerWin)}
-• Soul drop rate por vitória: ${formatPercent(d.soulDropRatePerWin)}
-• Key drop rate por vitória: ${formatPercent(d.keyDropRatePerWin)}
-• Item final dungeon comum: ${formatPercent(d.commonCompletionItemRate)}
+• Itens/dungeon elite: ${eliteDungeonItemsPerCompletion}
+• Souls/dungeon elite: ${eliteDungeonSoulRate}%
+• Chaves/dungeon elite: ${eliteDungeonKeyRate}%
 • Item final dungeon elite: ${formatPercent(d.eliteCompletionItemRate)}
 
 ${renderRarityBlock(summary)}
@@ -143,7 +183,9 @@ ${renderDungeonRewardAudit(summary)}
 
 module.exports = {
     pct,
+    avg,
     formatNumber,
+    formatDecimal,
     formatPercent,
     formatSignedNumber,
     formatRarityLine,
