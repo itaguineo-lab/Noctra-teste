@@ -1,8 +1,14 @@
 const {
     getTodayMetrics,
     getMetricsByDate,
-    buildMetricsSummary
+    buildMetricsSummary,
+    getDateKey,
+    sanitizeDateKey
 } = require('../core/metrics/metricsService');
+
+const {
+    resetMetricsForDate
+} = require('../core/metrics/metricsAdminService');
 
 const {
     renderMetricsMessage,
@@ -50,8 +56,39 @@ async function handleMetrics(ctx) {
     });
 }
 
+async function handleMetricsReset(ctx) {
+    if (!(await requireAdmin(ctx))) return;
+
+    const parts = splitText(ctx.message?.text || '');
+    const rawDateKey = parts[1] || getDateKey();
+    const dateKey = sanitizeDateKey(rawDateKey);
+
+    const result = await resetMetricsForDate(dateKey);
+
+    if (!result.reset) {
+        return ctx.reply(
+            `⚠️ *RESET DE MÉTRICAS NÃO PERSISTIDO*\n\n` +
+            `📅 Data: \`${result.dateKey}\`\n` +
+            `📦 Estado: ${result.persistence}\n` +
+            `${result.error ? `\nErro: ${result.error}` : ''}\n\n` +
+            `Se estiver em ambiente de teste ou sem MongoDB conectado, isso é esperado.`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+
+    return ctx.reply(
+        `🧹 *MÉTRICAS RESETADAS*\n\n` +
+        `📅 Data: \`${result.dateKey}\`\n` +
+        `✅ Contadores zerados para teste limpo.\n\n` +
+        `Agora rode o protocolo de teste e depois use:\n` +
+        `\`/metrics ${result.dateKey}\``,
+        { parse_mode: 'Markdown' }
+    );
+}
+
 module.exports = {
     handleMetrics,
+    handleMetricsReset,
     buildMetricsMessage: renderMetricsMessage,
     formatRarityLine
 };
