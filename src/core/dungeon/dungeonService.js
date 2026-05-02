@@ -5,6 +5,10 @@ const {
     createDungeonRoom
 } = require('./dungeonRooms');
 
+const {
+    normalizeDungeonRoom
+} = require('./dungeonBalanceGuards');
+
 function normalizeDungeonState(player) {
     if (!player.dungeonProgress || typeof player.dungeonProgress !== 'object') {
         player.dungeonProgress = {};
@@ -25,6 +29,10 @@ function normalizeDungeonState(player) {
     d.logs ??= [];
     d.combatBonus ??= { atk: 0, def: 0, crit: 0 };
     d.roomsVisited ??= 0;
+
+    if (Array.isArray(d.rooms)) {
+        d.rooms = d.rooms.map(normalizeDungeonRoom);
+    }
 
     return d;
 }
@@ -62,7 +70,7 @@ function startDungeonRun(player) {
     d.mapId = mapId;
     d.maxRooms = roomTypes.length;
     d.currentRoomIndex = 0;
-    d.rooms = roomTypes.map((type, i) => createDungeonRoom(player, i + 1, type));
+    d.rooms = roomTypes.map((type, i) => normalizeDungeonRoom(createDungeonRoom(player, i + 1, type)));
     d.rewards = { xp: 0, gold: 0, keys: 0, glorias: 0, items: 0, souls: 0 };
     d.summary = null;
     d.combatBonus = { atk: 0, def: 0, crit: 0 };
