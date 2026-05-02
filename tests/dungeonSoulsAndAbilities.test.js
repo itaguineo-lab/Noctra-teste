@@ -225,7 +225,7 @@ test('resolveCombatRoom processa habilidade de stun do inimigo', async () => {
     }
 });
 
-test('renderDungeonText mostra status de jogador e inimigo', () => {
+test('renderDungeonText mostra status de jogador e inimigo com escudo capado', () => {
     const player = playerFixture();
     const room = player.dungeonProgress.rooms[0];
     ensureDungeonCombatState(player, room);
@@ -237,6 +237,6 @@ test('renderDungeonText mostra status de jogador e inimigo', () => {
     const text = renderDungeonText(player);
 
     assert.match(text, /Veneno 2t/);
-    assert.match(text, /Escudo 30/);
+    assert.match(text, /Escudo 14/);
     assert.match(text, /Congelado/);
 });
