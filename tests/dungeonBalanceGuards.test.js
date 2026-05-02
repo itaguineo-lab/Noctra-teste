@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 
 const {
     getShieldChanceCap,
+    getShieldValueCap,
+    normalizeDungeonEnemyShield,
     normalizeDungeonEnemyAbility,
     normalizeDungeonRoom
 } = require('../src/core/dungeon/dungeonBalanceGuards');
@@ -41,6 +43,26 @@ test('getShieldChanceCap limita escudo por tipo de sala', () => {
     assert.equal(getShieldChanceCap('combat'), 0.16);
 });
 
+test('getShieldValueCap limita valor do escudo por tipo de sala', () => {
+    assert.equal(getShieldValueCap('boss', 1000), 80);
+    assert.equal(getShieldValueCap('elite', 1000), 100);
+    assert.equal(getShieldValueCap('combat', 1000), 120);
+});
+
+test('normalizeDungeonEnemyShield corta escudo acumulado abusivo', () => {
+    const enemy = {
+        name: 'Guardião do Pântano',
+        hp: 1000,
+        maxHp: 1000,
+        shield: 1338
+    };
+
+    normalizeDungeonEnemyShield(enemy, 'boss');
+
+    assert.equal(enemy.shieldCap, 80);
+    assert.equal(enemy.shield, 80);
+});
+
 test('normalizeDungeonEnemyAbility reduz chance de escudo abusiva em boss', () => {
     const enemy = {
         name: 'Guardião do Pântano',
@@ -76,7 +98,7 @@ test('normalizeDungeonRoom aplica guarda de escudo em sala de boss', () => {
             name: 'Boss com escudo',
             hp: 500,
             maxHp: 500,
-            shield: 0,
+            shield: 300,
             ability: { type: 'SHIELD', chance: 0.9 }
         }
     };
@@ -84,6 +106,7 @@ test('normalizeDungeonRoom aplica guarda de escudo em sala de boss', () => {
     normalizeDungeonRoom(room);
 
     assert.equal(room.enemy.ability.chance, 0.10);
+    assert.equal(room.enemy.shield, 40);
 });
 
 test('startDungeonRun mantém maxRooms igual ao total real de salas', () => {
@@ -103,4 +126,5 @@ test('startDungeonRun normaliza boss com escudo no Pântano', () => {
     assert.equal(bossRoom.enemy.name, 'Guardião do Pântano');
     assert.equal(bossRoom.enemy.ability.type, 'SHIELD');
     assert.equal(bossRoom.enemy.ability.chance, 0.10);
+    assert.ok(bossRoom.enemy.shieldCap > 0);
 });
