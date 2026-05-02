@@ -36,15 +36,60 @@ function getSoulButtonLabel(soul, index, cooldown = 0) {
     const emoji = soul.emoji || '💀';
     const effectType = soul.effect?.type || 'special';
 
+    if (soul.fallbackEquipped) return `${emoji} Slot ${index + 1} • Alma equipada`;
     if (effectType === 'passive') return `${emoji} Slot ${index + 1} • Passiva`;
     if (cooldown > 0) return `⏳ Slot ${index + 1} • ${cooldown}t`;
 
     return `${emoji} Slot ${index + 1} • ${name}`;
 }
 
+function buildFallbackEquippedSoul(index) {
+    return {
+        id: `fallback_equipped_soul_${index + 1}`,
+        name: `Alma equipada ${index + 1}`,
+        emoji: '💀',
+        fallbackEquipped: true,
+        effect: {
+            type: 'active'
+        }
+    };
+}
+
+function resolveSoulMenuSlots(fight = null) {
+    const hasFightSouls = Array.isArray(fight?.player?.souls);
+
+    if (hasFightSouls) {
+        return fight.player.souls.slice(0, 2);
+    }
+
+    /*
+    Defesa de UX:
+    O handler de combate atualmente valida as almas equipadas no player,
+    mas abre o menu chamando soulChoiceMenu() sem passar a fight ativa.
+    Sem fallback, o menu mostra "Slot vazio" mesmo quando a alma funciona
+    ao clicar no callback combat_soul_0/1, porque o motor usa a fight salva.
+
+    Este fallback impede a interface de mentir para o jogador enquanto
+    preserva os callbacks existentes. O ajuste ideal futuro é o handler
+    chamar soulChoiceMenu(stored.fight).
+    */
+    return [buildFallbackEquippedSoul(0), buildFallbackEquippedSoul(1)];
+}
+
+function resolveSoulCooldowns(fight = null) {
+    if (Array.isArray(fight?.player?.soulCooldowns)) {
+        return fight.player.soulCooldowns.slice(0, 2);
+    }
+
+    return [0, 0];
+}
+
 function soulChoiceMenu(fight = null) {
-    const souls = Array.isArray(fight?.player?.souls) ? fight.player.souls : [null, null];
-    const cooldowns = Array.isArray(fight?.player?.soulCooldowns) ? fight.player.soulCooldowns : [0, 0];
+    const souls = resolveSoulMenuSlots(fight);
+    const cooldowns = resolveSoulCooldowns(fight);
+
+    while (souls.length < 2) souls.push(null);
+    while (cooldowns.length < 2) cooldowns.push(0);
 
     return Markup.inlineKeyboard([
         [
@@ -102,6 +147,9 @@ module.exports = {
     cooperativeCombatMenu,
     soulChoiceMenu,
     getSoulButtonLabel,
+    buildFallbackEquippedSoul,
+    resolveSoulMenuSlots,
+    resolveSoulCooldowns,
     postCombatMenu,
     postLootItemMenu
 };
