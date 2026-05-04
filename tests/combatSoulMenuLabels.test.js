@@ -33,21 +33,28 @@ function passiveSoul() {
     };
 }
 
-test('getSoulButtonLabel mostra nome da alma ativa', () => {
+test('getSoulButtonLabel mostra somente emoji e nome da alma ativa', () => {
     assert.equal(
         getSoulButtonLabel(activeSoul(), 0, 0),
-        '🐺 Slot 1 • Alma do Lobo Sombrio'
+        '🐺 Alma do Lobo Sombrio'
     );
 });
 
-test('getSoulButtonLabel mostra passiva corretamente', () => {
+test('getSoulButtonLabel mostra somente emoji e nome da alma passiva', () => {
     assert.equal(
         getSoulButtonLabel(passiveSoul(), 1, 0),
-        '🛡️ Slot 2 • Passiva'
+        '🛡️ Alma Guardiã'
     );
 });
 
-test('soulChoiceMenu com fight usa almas reais em vez de slot vazio', () => {
+test('getSoulButtonLabel mostra cooldown sem linguagem de slot', () => {
+    assert.equal(
+        getSoulButtonLabel(activeSoul(), 0, 2),
+        '⏳ Alma do Lobo Sombrio • 2t'
+    );
+});
+
+test('soulChoiceMenu com fight usa nomes reais em vez de slot vazio ou rótulo genérico', () => {
     const menu = soulChoiceMenu({
         player: {
             souls: [activeSoul(), passiveSoul()],
@@ -57,13 +64,17 @@ test('soulChoiceMenu com fight usa almas reais em vez de slot vazio', () => {
 
     const raw = keyboardText(menu);
 
-    assert.match(raw, /Alma do Lobo Sombrio/);
-    assert.match(raw, /Passiva/);
+    assert.match(raw, /🐺 Alma do Lobo Sombrio/);
+    assert.match(raw, /🛡️ Alma Guardiã/);
     assert.doesNotMatch(raw, /Slot 1 vazio/);
     assert.doesNotMatch(raw, /Slot 2 vazio/);
+    assert.doesNotMatch(raw, /Slot 1/);
+    assert.doesNotMatch(raw, /Slot 2/);
+    assert.doesNotMatch(raw, /Alma equipada/);
+    assert.doesNotMatch(raw, /Passiva/);
 });
 
-test('soulChoiceMenu sem fight não mente com slot vazio quando handler já validou almas equipadas', () => {
+test('soulChoiceMenu sem fight mantém fallback, mas não mostra slot vazio', () => {
     const menu = soulChoiceMenu();
     const raw = keyboardText(menu);
 
@@ -72,7 +83,7 @@ test('soulChoiceMenu sem fight não mente com slot vazio quando handler já vali
     assert.doesNotMatch(raw, /Slot 2 vazio/);
 });
 
-test('resolveSoulMenuSlots sem fight retorna fallback equipável', () => {
+test('resolveSoulMenuSlots sem fight retorna fallback defensivo', () => {
     const slots = resolveSoulMenuSlots();
 
     assert.equal(slots.length, 2);

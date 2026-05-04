@@ -34,13 +34,11 @@ function getSoulButtonLabel(soul, index, cooldown = 0) {
 
     const name = soul.name || `Alma ${index + 1}`;
     const emoji = soul.emoji || '💀';
-    const effectType = soul.effect?.type || 'special';
 
-    if (soul.fallbackEquipped) return `${emoji} Slot ${index + 1} • Alma equipada`;
-    if (effectType === 'passive') return `${emoji} Slot ${index + 1} • Passiva`;
-    if (cooldown > 0) return `⏳ Slot ${index + 1} • ${cooldown}t`;
+    if (soul.fallbackEquipped) return `${emoji} Alma equipada`;
+    if (cooldown > 0) return `⏳ ${name} • ${cooldown}t`;
 
-    return `${emoji} Slot ${index + 1} • ${name}`;
+    return `${emoji} ${name}`;
 }
 
 function buildFallbackEquippedSoul(index) {
@@ -62,17 +60,6 @@ function resolveSoulMenuSlots(fight = null) {
         return fight.player.souls.slice(0, 2);
     }
 
-    /*
-    Defesa de UX:
-    O handler de combate atualmente valida as almas equipadas no player,
-    mas abre o menu chamando soulChoiceMenu() sem passar a fight ativa.
-    Sem fallback, o menu mostra "Slot vazio" mesmo quando a alma funciona
-    ao clicar no callback combat_soul_0/1, porque o motor usa a fight salva.
-
-    Este fallback impede a interface de mentir para o jogador enquanto
-    preserva os callbacks existentes. O ajuste ideal futuro é o handler
-    chamar soulChoiceMenu(stored.fight).
-    */
     return [buildFallbackEquippedSoul(0), buildFallbackEquippedSoul(1)];
 }
 
