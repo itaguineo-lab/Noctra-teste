@@ -6,7 +6,7 @@ const {
     buildMetricsSummary
 } = require('../src/core/metrics/metricsService');
 
-test('dungeon concluída deve refletir item final garantido na métrica derivada', () => {
+test('dungeon concluída mede conclusão; item final vem do reward pipeline', () => {
     const counters = buildDefaultCounters();
 
     counters.dungeonsStarted = 4;
@@ -44,6 +44,30 @@ test('dungeon concluída sem item final continua acusando métrica crítica', ()
     assert.equal(summary.dungeonAudit.status, 'danger');
     assert.equal(completionSignal.status, 'danger');
     assert.equal(completionSignal.value, 0);
+});
+
+test('taxa de item final acima de 100% é bug de métrica e deve ser perigo', () => {
+    const counters = buildDefaultCounters();
+
+    counters.dungeonsStarted = 1;
+    counters.dungeonsCompleted = 1;
+    counters.dungeonCommonCompletionItems = 2;
+    counters.dungeonCompletionItems = 2;
+
+    const summary = buildMetricsSummary({
+        dateKey: '2026-05-04',
+        counters
+    });
+
+    const completionSignal = summary.dungeonAudit.signals.find(
+        signal => signal.id === 'completion_item_rate'
+    );
+
+    assert.equal(summary.derived.commonDungeonCompleted, 1);
+    assert.equal(summary.derived.commonCompletionItemRate, '200.0');
+    assert.equal(summary.dungeonAudit.status, 'danger');
+    assert.equal(completionSignal.status, 'danger');
+    assert.match(completionSignal.note, /dupla contagem/);
 });
 
 test('dungeon elite concluída contabiliza item final elite separado de comum', () => {
