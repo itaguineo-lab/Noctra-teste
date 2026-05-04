@@ -9,6 +9,45 @@ const {
     normalizeDungeonRoom
 } = require('./dungeonBalanceGuards');
 
+const COMBAT_ROOM_TYPES = ['combat', 'elite', 'boss'];
+
+function isCombatRoomType(type) {
+    return COMBAT_ROOM_TYPES.includes(type);
+}
+
+function countCombatRoomTypes(roomTypes = []) {
+    return roomTypes.filter(isCombatRoomType).length;
+}
+
+function tuneDungeonRoomTypesForCombatPacing(roomTypes = []) {
+    const types = Array.isArray(roomTypes) ? [...roomTypes] : [];
+
+    if (types.length < 5) {
+        return types;
+    }
+
+    const minimumCombatRooms = 3;
+
+    if (countCombatRoomTypes(types) >= minimumCombatRooms) {
+        return types;
+    }
+
+    const preferredIndexes = [2, 1, types.length - 2];
+
+    for (const index of preferredIndexes) {
+        if (index <= 0 || index >= types.length - 1) continue;
+        if (isCombatRoomType(types[index])) continue;
+
+        types[index] = 'combat';
+
+        if (countCombatRoomTypes(types) >= minimumCombatRooms) {
+            break;
+        }
+    }
+
+    return types;
+}
+
 function normalizeDungeonState(player) {
     if (!player.dungeonProgress || typeof player.dungeonProgress !== 'object') {
         player.dungeonProgress = {};
@@ -61,7 +100,7 @@ function startDungeonRun(player) {
     const d = normalizeDungeonState(player);
     const mapId = player.currentMap || 'clareira_sombria';
     const maxRooms = getDungeonRoomCountForMap(mapId);
-    const roomTypes = buildDungeonRoomTypes(maxRooms);
+    const roomTypes = tuneDungeonRoomTypesForCombatPacing(buildDungeonRoomTypes(maxRooms));
 
     d.active = true;
     d.completed = false;
@@ -81,6 +120,10 @@ function startDungeonRun(player) {
 }
 
 module.exports = {
+    COMBAT_ROOM_TYPES,
+    isCombatRoomType,
+    countCombatRoomTypes,
+    tuneDungeonRoomTypesForCombatPacing,
     normalizeDungeonState,
     getCurrentRoom,
     getDungeonRoomCountForMap,
