@@ -380,10 +380,23 @@ async function recordDungeonStarted(options = {}) {
 
 async function recordDungeonCompleted(options = {}) {
     const isElite = Boolean(options.isEliteDungeon || options.mode === 'elite' || options.difficulty === 'elite');
+    const completionItems = Math.max(0, Number(options.completionItems ?? 1));
 
+    /*
+    finalizeDungeonRun() garante um completionItem quando reason === 'complete'.
+    O bug observado no /metrics era conclusão de dungeon com item final 0%,
+    porque a métrica de conclusão não contabilizava essa recompensa garantida.
+
+    A raridade do item final continua sendo responsabilidade de
+    recordDungeonRewardMetrics(), quando o reward pipeline passar a informação.
+    Aqui contabilizamos apenas a existência da recompensa final garantida.
+    */
     return addManyMetrics({
         dungeonsCompleted: 1,
-        dungeonEliteCompleted: isElite ? 1 : 0
+        dungeonEliteCompleted: isElite ? 1 : 0,
+        dungeonCompletionItems: completionItems,
+        dungeonCommonCompletionItems: isElite ? 0 : completionItems,
+        dungeonEliteCompletionItems: isElite ? completionItems : 0
     });
 }
 
