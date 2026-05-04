@@ -34,6 +34,15 @@ function scoreStatus(value, rules) {
     return 'ok';
 }
 
+function scoreCompletionItemRate(value, completedCount) {
+    const n = num(value);
+    const completed = num(completedCount);
+
+    if (completed <= 0) return 'warning';
+    if (n > 100) return 'danger';
+    return scoreStatus(n, { direction: 'min', danger: 80, warning: 95 });
+}
+
 function getWorstStatus(statuses = []) {
     if (statuses.includes('danger')) return 'danger';
     if (statuses.includes('warning')) return 'warning';
@@ -108,10 +117,10 @@ function buildDungeonRewardAudit(summary = {}) {
             label: 'Taxa de item final comum por dungeon comum concluída',
             value: round(commonCompletionItemRate, 1),
             unit: '%',
-            status: commonDungeonCompleted > 0
-                ? scoreStatus(commonCompletionItemRate, { direction: 'min', danger: 80, warning: 95 })
-                : 'warning',
-            note: 'Conclusão de dungeon comum precisa gerar loot claro.'
+            status: scoreCompletionItemRate(commonCompletionItemRate, commonDungeonCompleted),
+            note: commonCompletionItemRate > 100
+                ? 'Taxa acima de 100% indica dupla contagem de métrica, não recompensa boa.'
+                : 'Conclusão de dungeon comum precisa gerar loot claro.'
         },
         {
             id: 'dungeon_finish_rate',
@@ -209,6 +218,7 @@ module.exports = {
     ratio,
     round,
     scoreStatus,
+    scoreCompletionItemRate,
     getWorstStatus,
     getStatusEmoji,
     formatRatioValue,
