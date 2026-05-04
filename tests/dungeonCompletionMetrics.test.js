@@ -35,9 +35,15 @@ test('dungeon concluída sem item final continua acusando métrica crítica', ()
         counters
     });
 
+    const completionSignal = summary.dungeonAudit.signals.find(
+        signal => signal.id === 'completion_item_rate'
+    );
+
     assert.equal(summary.derived.commonDungeonCompleted, 4);
     assert.equal(summary.derived.commonCompletionItemRate, '0.0');
-    assert.equal(summary.dungeonAudit.severity, 'red');
+    assert.equal(summary.dungeonAudit.status, 'danger');
+    assert.equal(completionSignal.status, 'danger');
+    assert.equal(completionSignal.value, 0);
 });
 
 test('dungeon elite concluída contabiliza item final elite separado de comum', () => {
