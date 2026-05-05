@@ -98,43 +98,108 @@ function buildDungeonIntroText(player) {
     ].join('\n');
 }
 
+function normalizeSummaryNote(note = '') {
+    return String(note || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isSummaryNoiseNote(note = '') {
+    const clean = normalizeSummaryNote(note).toLowerCase();
+
+    if (!clean) return true;
+
+    return [
+        /^✨\s*\+\d+\s*xp/i,
+        /^💰\s*\+\d+\s*ouro/i,
+        /^❤️\s*\+\d+\s*hp/i,
+        /^⚡\s*\+\d+\s*energia/i,
+        /bônus da masmorra aplicado/i,
+        /recompensa final:/i,
+        /política de recompensa/i,
+        /mínimo/i
+    ].some(pattern => pattern.test(clean));
+}
+
+function getCleanSummaryNotes(notes = []) {
+    const seen = new Set();
+    const result = [];
+
+    for (const note of Array.isArray(notes) ? notes : []) {
+        const clean = normalizeSummaryNote(note);
+        const key = clean.toLowerCase();
+
+        if (isSummaryNoiseNote(clean) || seen.has(key)) continue;
+
+        seen.add(key);
+        result.push(clean);
+    }
+
+    return result.slice(0, 4);
+}
+
+function formatDungeonItemLine(item) {
+    if (!item) return null;
+
+    const name = item.name || 'Item desconhecido';
+    const rarity = item.rarity || item.rarityName || 'Sem raridade';
+    const slot = item.slot || item.type || null;
+
+    return slot
+        ? `${name} • ${rarity} • ${slot}`
+        : `${name} • ${rarity}`;
+}
+
 function buildDungeonSummary(player) {
     const d = normalizeDungeonState(player);
     const sum = d.summary || {};
     const map = getDungeonMap(player);
+    const cleanNotes = getCleanSummaryNotes(sum.notes);
+    const completionItemLine = formatDungeonItemLine(sum.completionItem);
 
-    let text = `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    const title = d.completed
+        ? '🏆 *MASMORRA CONCLUÍDA* 🏆'
+        : d.aborted
+            ? '🚪 *EXPEDIÇÃO ENCERRADA* 🚪'
+            : '🏰 *MASMORRA*';
 
-    if (d.completed) {
-        text += `🏆 *MASMORRA CONCLUÍDA* 🏆\n`;
-    } else if (d.aborted) {
-        text += `🚪 *EXPEDIÇÃO ENCERRADA* 🚪\n`;
-    } else {
-        text += `🏰 *MASMORRA*\n`;
+    const lines = [
+        '━━━━━━━━━━━━━━━━━━━━━━',
+        title,
+        '━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        `🗺️ ${map.emoji} ${map.name}`,
+        '',
+        '📊 *Resultado*',
+        `• Salas vencidas: ${sum.roomsCleared || 0}/${d.maxRooms}`,
+        `• Salas visitadas: ${d.roomsVisited || 0}`,
+        '',
+        '💰 *Ganhos*',
+        `• ✨ ${formatNumber(sum.xp || 0)} XP`,
+        `• 💰 ${formatNumber(sum.gold || 0)} ouro`,
+        `• 🏅 ${sum.glorias || 0} glórias`,
+        `• 🗝️ ${sum.keys || 0} chaves`,
+        `• 🌑 ${sum.souls || 0} almas`
+    ];
+
+    if (completionItemLine) {
+        lines.push('', '🏁 *Recompensa Final*', `• 🎁 ${completionItemLine}`);
     }
 
-    text += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    text += `🗺️ ${map.emoji} ${map.name}\n\n`;
-    text += `📊 Salas vencidas: ${sum.roomsCleared || 0}/${d.maxRooms}\n`;
-    text += `🚪 Salas visitadas: ${d.roomsVisited || 0}\n`;
-    text += `✨ XP: ${formatNumber(sum.xp || 0)}\n`;
-    text += `💰 Ouro: ${formatNumber(sum.gold || 0)}\n`;
-    text += `🗝️ Chaves: ${sum.keys || 0}\n`;
-    text += `🏅 Glórias: ${sum.glorias || 0}\n`;
-    text += `🎁 Itens: ${sum.items || 0}\n`;
-    text += `🌑 Almas: ${sum.souls || 0}\n`;
-
-    if (sum.completionItem) {
-        text += `\n🏁 *Recompensa Final*\n`;
-        text += `• ${sum.completionItem.name} [${sum.completionItem.rarity}]\n`;
+    if ((sum.items || 0) > 0) {
+        lines.push('', '🎒 *Itens obtidos*', `• ${sum.items} item(ns) no total`);
     }
 
-    if (sum.notes?.length) {
-        text += `\n📜 *Destaques*\n`;
-        text += sum.notes.map(note => `• ${note}`).join('\n');
+    if (cleanNotes.length) {
+        lines.push('', '📜 *Destaques*');
+        cleanNotes.forEach(note => lines.push(`• ${note}`));
     }
 
-    return text;
+    if (d.completed && (sum.roomsCleared || 0) >= d.maxRooms) {
+        lines.push('', '🏁 *Expedição perfeita!*');
+    }
+
+    return lines.join('\n');
 }
 
 function renderDungeonText(player) {
@@ -760,6 +825,10 @@ async function handleDungeonUseConsumable(ctx) {
 module.exports = {
     escapeMarkdown,
     buildDungeonIntroText,
+    normalizeSummaryNote,
+    isSummaryNoiseNote,
+    getCleanSummaryNotes,
+    formatDungeonItemLine,
     buildDungeonSummary,
     renderDungeonText,
     getDungeonSoulButtonLabel,
@@ -769,10 +838,10 @@ module.exports = {
     handleDungeon,
     handleDungeonStart,
     handleDungeonAttack,
-    handleDungeonNextRoom,
-    handleDungeonFlee,
     handleDungeonSoulMenu,
     handleDungeonSoul,
+    handleDungeonNextRoom,
+    handleDungeonFlee,
     handleDungeonConsumables,
     handleDungeonUseConsumable
 };
