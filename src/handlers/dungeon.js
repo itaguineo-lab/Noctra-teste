@@ -117,7 +117,8 @@ function isSummaryNoiseNote(note = '') {
         /bônus da masmorra aplicado/i,
         /recompensa final:/i,
         /política de recompensa/i,
-        /mínimo/i
+        /mínimo/i,
+        /expedição perfeita/i
     ].some(pattern => pattern.test(clean));
 }
 
