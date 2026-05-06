@@ -115,6 +115,8 @@ function renderMetricsMessage(summary) {
 🧩 *Composição das Salas*
 • Ameaça real: ${formatNumber(d.dungeonCombatLikeRoomsCleared)} (${d.dungeonCombatRoomRate}%)
 • Eventos: ${formatNumber(d.dungeonEventRoomsCleared)} (${d.dungeonEventRoomRate}%)
+• Classificadas: ${formatNumber(d.dungeonClassifiedRoomsCleared)} (${d.dungeonClassifiedRoomRate}%)
+• Sem tipo: ${formatNumber(d.dungeonUnclassifiedRoomsCleared)} (${d.dungeonUnclassifiedRoomRate}%)
 • Combate: ${formatNumber(c.dungeonCombatRoomsCleared)}
 • Elite: ${formatNumber(c.dungeonEliteRoomsCleared)}
 • Boss: ${formatNumber(c.dungeonBossRoomsCleared)}
