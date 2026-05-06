@@ -538,7 +538,10 @@ async function handleDungeonAttack(ctx) {
     normalizePlayerForSave(player);
 
     if (room.cleared) {
-        await recordDungeonRoomCleared(1);
+        await recordDungeonRoomCleared({
+            amount: 1,
+            roomType: room.type
+        });
     }
 
     if (result.playerDefeated) {
@@ -637,7 +640,10 @@ async function handleDungeonSoul(ctx) {
     normalizePlayerForSave(player);
 
     if (room.cleared) {
-        await recordDungeonRoomCleared(1);
+        await recordDungeonRoomCleared({
+            amount: 1,
+            roomType: room.type
+        });
     }
 
     if (result.playerDefeated) {
