@@ -19,6 +19,16 @@ const SOURCE_PREFIX = {
     dungeon_elite: 'dungeonElite'
 };
 
+const DUNGEON_ROOM_TYPE_COUNTERS = {
+    combat: 'dungeonCombatRoomsCleared',
+    elite: 'dungeonEliteRoomsCleared',
+    boss: 'dungeonBossRoomsCleared',
+    treasure: 'dungeonTreasureRoomsCleared',
+    heal: 'dungeonHealRoomsCleared',
+    curse: 'dungeonCurseRoomsCleared',
+    shrine: 'dungeonShrineRoomsCleared'
+};
+
 function getDateKey(date = new Date()) {
     const safeDate = date instanceof Date ? date : new Date();
     const year = safeDate.getUTCFullYear();
@@ -131,6 +141,11 @@ function getSourceRarityCounterName(rarity, source = 'field') {
     return base;
 }
 
+function getDungeonRoomTypeCounter(roomType) {
+    const key = String(roomType || '').trim().toLowerCase();
+    return DUNGEON_ROOM_TYPE_COUNTERS[key] || 'dungeonOtherRoomsCleared';
+}
+
 function buildRarityIncrements(rarities = [], source = null) {
     const increments = {};
 
@@ -165,6 +180,14 @@ function buildDefaultCounters() {
         dungeonsCompleted: 0,
         dungeonsAbandoned: 0,
         dungeonRoomsCleared: 0,
+        dungeonCombatRoomsCleared: 0,
+        dungeonEliteRoomsCleared: 0,
+        dungeonBossRoomsCleared: 0,
+        dungeonTreasureRoomsCleared: 0,
+        dungeonHealRoomsCleared: 0,
+        dungeonCurseRoomsCleared: 0,
+        dungeonShrineRoomsCleared: 0,
+        dungeonOtherRoomsCleared: 0,
         dungeonEliteStarted: 0,
         dungeonEliteCompleted: 0,
         dungeonEliteAbandoned: 0,
@@ -382,14 +405,6 @@ async function recordDungeonCompleted(options = {}) {
     const isElite = Boolean(options.isEliteDungeon || options.mode === 'elite' || options.difficulty === 'elite');
     const completionItems = Math.max(0, Number(options.completionItems ?? 0));
 
-    /*
-    Esta função mede apenas conclusão da dungeon.
-    O item final pertence ao reward pipeline e deve ser contabilizado por
-    recordDungeonRewardMetrics({ completionItems: 1 }).
-
-    O padrão anterior completionItems = 1 causava dupla contagem:
-    1 dungeon concluída + 1 reward final real = 200% no /metrics.
-    */
     return addManyMetrics({
         dungeonsCompleted: 1,
         dungeonEliteCompleted: isElite ? 1 : 0,
@@ -408,8 +423,22 @@ async function recordDungeonAbandoned(options = {}) {
     });
 }
 
-async function recordDungeonRoomCleared(amount = 1) {
-    return incrementMetric('dungeonRoomsCleared', amount);
+async function recordDungeonRoomCleared(amountOrOptions = 1, maybeOptions = {}) {
+    const amount = typeof amountOrOptions === 'object'
+        ? Number(amountOrOptions.amount || 1)
+        : Number(amountOrOptions || 1);
+
+    const options = typeof amountOrOptions === 'object'
+        ? amountOrOptions
+        : maybeOptions;
+
+    const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 1;
+    const roomCounter = getDungeonRoomTypeCounter(options.roomType || options.type);
+
+    return addManyMetrics({
+        dungeonRoomsCleared: safeAmount,
+        [roomCounter]: safeAmount
+    });
 }
 
 async function recordDropMetrics({
@@ -578,6 +607,9 @@ function buildMetricsSummary(doc) {
     const totalCombatOutcomes = c.combatsWon + c.combatsLost + c.combatsFled;
     const commonDungeonCompleted = Math.max(0, c.dungeonsCompleted - c.dungeonEliteCompleted);
 
+    const dungeonCombatLikeRoomsCleared = c.dungeonCombatRoomsCleared + c.dungeonEliteRoomsCleared + c.dungeonBossRoomsCleared;
+    const dungeonEventRoomsCleared = c.dungeonTreasureRoomsCleared + c.dungeonHealRoomsCleared + c.dungeonCurseRoomsCleared + c.dungeonShrineRoomsCleared + c.dungeonOtherRoomsCleared;
+
     const summary = {
         dateKey,
         counters: c,
@@ -590,6 +622,10 @@ function buildMetricsSummary(doc) {
         derived: {
             totalCombatOutcomes,
             commonDungeonCompleted,
+            dungeonCombatLikeRoomsCleared,
+            dungeonEventRoomsCleared,
+            dungeonCombatRoomRate: percent(dungeonCombatLikeRoomsCleared, c.dungeonRoomsCleared),
+            dungeonEventRoomRate: percent(dungeonEventRoomsCleared, c.dungeonRoomsCleared),
             winRate: percent(c.combatsWon, totalCombatOutcomes),
             dungeonFinishRate: percent(c.dungeonsCompleted, c.dungeonsStarted),
             dungeonAbandonRate: percent(c.dungeonsAbandoned, c.dungeonsStarted),
@@ -620,6 +656,7 @@ function buildMetricsSummary(doc) {
 
 module.exports = {
     SOURCE_PREFIX,
+    DUNGEON_ROOM_TYPE_COUNTERS,
     getDateKey,
     sanitizeDateKey,
     getMetricsReadyState,
@@ -629,6 +666,7 @@ module.exports = {
     getRarityCounterName,
     getSourcePrefix,
     getSourceRarityCounterName,
+    getDungeonRoomTypeCounter,
     buildRarityIncrements,
     buildDefaultCounters,
     ensureDailyMetrics,
