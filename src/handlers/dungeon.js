@@ -104,16 +104,68 @@ function normalizeSummaryNote(note = '') {
         .trim();
 }
 
+function getPremiumSummaryHighlight(note = '') {
+    const clean = normalizeSummaryNote(note);
+    const lower = clean.toLowerCase();
+
+    if (!clean) return null;
+
+    if (lower.includes('alma') || clean.includes('🌑')) {
+        return clean;
+    }
+
+    if (lower.includes('chave') || clean.includes('🗝️')) {
+        return clean;
+    }
+
+    if (
+        lower.includes('derrotado') ||
+        lower.includes('abandonada') ||
+        lower.includes('abandonado') ||
+        lower.includes('xp perdido') ||
+        lower.includes('retornou com 1 de vida')
+    ) {
+        return clean;
+    }
+
+    if (/m[ií]tico/i.test(clean)) {
+        return '🔴 Item mítico extra obtido';
+    }
+
+    if (/lend[aá]rio/i.test(clean)) {
+        return '🟡 Item lendário extra obtido';
+    }
+
+    if (/[ée]pico/i.test(clean)) {
+        return '🟣 Item épico extra obtido';
+    }
+
+    if (/b[eê]n[cç][aã]o|santu[aá]rio/i.test(clean)) {
+        return clean;
+    }
+
+    return null;
+}
+
 function isSummaryNoiseNote(note = '') {
-    const clean = normalizeSummaryNote(note).toLowerCase();
+    const clean = normalizeSummaryNote(note);
 
     if (!clean) return true;
+
+    if (getPremiumSummaryHighlight(clean)) return false;
 
     return [
         /^✨\s*\+\d+\s*xp/i,
         /^💰\s*\+\d+\s*ouro/i,
         /^❤️\s*\+\d+\s*hp/i,
         /^⚡\s*\+\d+\s*energia/i,
+        /^🎁/i,
+        /\+\s*[\d.]+\s*ouro/i,
+        /\+\s*[\d.]+\s*xp/i,
+        /\+\s*[\d.]+\s*hp/i,
+        /\+\s*[\d.]+\s*energia/i,
+        /(comum|incomum|raro)\s*•/i,
+        /lv\d+\s+(comum|incomum|raro)/i,
         /bônus da masmorra aplicado/i,
         /recompensa final:/i,
         /política de recompensa/i,
@@ -127,16 +179,17 @@ function getCleanSummaryNotes(notes = []) {
     const result = [];
 
     for (const note of Array.isArray(notes) ? notes : []) {
-        const clean = normalizeSummaryNote(note);
-        const key = clean.toLowerCase();
+        const highlight = getPremiumSummaryHighlight(note);
+        if (!highlight) continue;
 
-        if (isSummaryNoiseNote(clean) || seen.has(key)) continue;
+        const key = highlight.toLowerCase();
+        if (seen.has(key)) continue;
 
         seen.add(key);
-        result.push(clean);
+        result.push(highlight);
     }
 
-    return result.slice(0, 4);
+    return result.slice(0, 2);
 }
 
 function formatDungeonItemLine(item) {
@@ -827,6 +880,7 @@ module.exports = {
     escapeMarkdown,
     buildDungeonIntroText,
     normalizeSummaryNote,
+    getPremiumSummaryHighlight,
     isSummaryNoiseNote,
     getCleanSummaryNotes,
     formatDungeonItemLine,
