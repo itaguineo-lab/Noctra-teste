@@ -112,6 +112,18 @@ function renderMetricsMessage(summary) {
 • Finish rate: ${formatPercent(d.dungeonFinishRate)}
 • Abandon rate: ${formatPercent(d.dungeonAbandonRate)}
 
+🧩 *Composição das Salas*
+• Ameaça real: ${formatNumber(d.dungeonCombatLikeRoomsCleared)} (${d.dungeonCombatRoomRate}%)
+• Eventos: ${formatNumber(d.dungeonEventRoomsCleared)} (${d.dungeonEventRoomRate}%)
+• Combate: ${formatNumber(c.dungeonCombatRoomsCleared)}
+• Elite: ${formatNumber(c.dungeonEliteRoomsCleared)}
+• Boss: ${formatNumber(c.dungeonBossRoomsCleared)}
+• Tesouro: ${formatNumber(c.dungeonTreasureRoomsCleared)}
+• Cura: ${formatNumber(c.dungeonHealRoomsCleared)}
+• Maldição: ${formatNumber(c.dungeonCurseRoomsCleared)}
+• Santuário: ${formatNumber(c.dungeonShrineRoomsCleared)}
+• Outros: ${formatNumber(c.dungeonOtherRoomsCleared)}
+
 🗝️ *Chaves*
 • Dropadas total: ${formatNumber(c.keysDropped)}
 • Dropadas campo: ${formatNumber(c.fieldKeysDropped)}
