@@ -141,8 +141,16 @@ function getSourceRarityCounterName(rarity, source = 'field') {
     return base;
 }
 
+function normalizeDungeonRoomType(roomType) {
+    return String(roomType || '').trim().toLowerCase();
+}
+
+function hasKnownDungeonRoomType(roomType) {
+    return Boolean(DUNGEON_ROOM_TYPE_COUNTERS[normalizeDungeonRoomType(roomType)]);
+}
+
 function getDungeonRoomTypeCounter(roomType) {
-    const key = String(roomType || '').trim().toLowerCase();
+    const key = normalizeDungeonRoomType(roomType);
     return DUNGEON_ROOM_TYPE_COUNTERS[key] || 'dungeonOtherRoomsCleared';
 }
 
@@ -433,12 +441,18 @@ async function recordDungeonRoomCleared(amountOrOptions = 1, maybeOptions = {}) 
         : maybeOptions;
 
     const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 1;
-    const roomCounter = getDungeonRoomTypeCounter(options.roomType || options.type);
+    const rawRoomType = options.roomType || options.type;
+    const increments = {
+        dungeonRoomsCleared: safeAmount
+    };
 
-    return addManyMetrics({
-        dungeonRoomsCleared: safeAmount,
-        [roomCounter]: safeAmount
-    });
+    if (hasKnownDungeonRoomType(rawRoomType)) {
+        increments[getDungeonRoomTypeCounter(rawRoomType)] = safeAmount;
+    } else if (rawRoomType) {
+        increments.dungeonOtherRoomsCleared = safeAmount;
+    }
+
+    return addManyMetrics(increments);
 }
 
 async function recordDropMetrics({
@@ -608,7 +622,9 @@ function buildMetricsSummary(doc) {
     const commonDungeonCompleted = Math.max(0, c.dungeonsCompleted - c.dungeonEliteCompleted);
 
     const dungeonCombatLikeRoomsCleared = c.dungeonCombatRoomsCleared + c.dungeonEliteRoomsCleared + c.dungeonBossRoomsCleared;
-    const dungeonEventRoomsCleared = c.dungeonTreasureRoomsCleared + c.dungeonHealRoomsCleared + c.dungeonCurseRoomsCleared + c.dungeonShrineRoomsCleared + c.dungeonOtherRoomsCleared;
+    const dungeonEventRoomsCleared = c.dungeonTreasureRoomsCleared + c.dungeonHealRoomsCleared + c.dungeonCurseRoomsCleared + c.dungeonShrineRoomsCleared;
+    const dungeonClassifiedRoomsCleared = dungeonCombatLikeRoomsCleared + dungeonEventRoomsCleared + c.dungeonOtherRoomsCleared;
+    const dungeonUnclassifiedRoomsCleared = Math.max(0, c.dungeonRoomsCleared - dungeonClassifiedRoomsCleared);
 
     const summary = {
         dateKey,
@@ -624,8 +640,12 @@ function buildMetricsSummary(doc) {
             commonDungeonCompleted,
             dungeonCombatLikeRoomsCleared,
             dungeonEventRoomsCleared,
+            dungeonClassifiedRoomsCleared,
+            dungeonUnclassifiedRoomsCleared,
             dungeonCombatRoomRate: percent(dungeonCombatLikeRoomsCleared, c.dungeonRoomsCleared),
             dungeonEventRoomRate: percent(dungeonEventRoomsCleared, c.dungeonRoomsCleared),
+            dungeonClassifiedRoomRate: percent(dungeonClassifiedRoomsCleared, c.dungeonRoomsCleared),
+            dungeonUnclassifiedRoomRate: percent(dungeonUnclassifiedRoomsCleared, c.dungeonRoomsCleared),
             winRate: percent(c.combatsWon, totalCombatOutcomes),
             dungeonFinishRate: percent(c.dungeonsCompleted, c.dungeonsStarted),
             dungeonAbandonRate: percent(c.dungeonsAbandoned, c.dungeonsStarted),
@@ -666,6 +686,8 @@ module.exports = {
     getRarityCounterName,
     getSourcePrefix,
     getSourceRarityCounterName,
+    normalizeDungeonRoomType,
+    hasKnownDungeonRoomType,
     getDungeonRoomTypeCounter,
     buildRarityIncrements,
     buildDefaultCounters,
