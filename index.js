@@ -29,7 +29,7 @@ IMPORTS HANDLERS
 
 const profile = require('./src/handlers/profile');
 const inventory = require('./src/handlers/inventoryV3');
-const combat = require('./src/handlers/combatSoulFixed');
+const combat = require('./src/handlers/combatActive');
 const travel = require('./src/handlers/travel');
 const energy = require('./src/handlers/energy');
 const vip = require('./src/handlers/vip');
