@@ -20,15 +20,45 @@ function getNoxShopItems() {
     return shopItems.filter(item => item.currency === 'nox');
 }
 
-function stringifyItemForPolicy(item) {
+function getStructuredPolicyText(item) {
     return normalizeText([
         item.id,
         item.name,
         item.type,
         item.effect,
-        item.description,
+        item.cosmeticType,
         JSON.stringify(item.rewards || {})
     ].join(' '));
+}
+
+function getForbiddenPremiumRewardReasons(item) {
+    const reasons = [];
+    const structuredText = getStructuredPolicyText(item);
+    const rewards = item.rewards || {};
+
+    if (item.type === 'equipment') reasons.push('type=equipment');
+    if (item.type === 'soul') reasons.push('type=soul');
+    if (item.type === 'key') reasons.push('type=key');
+    if (item.effect === 'key') reasons.push('effect=key');
+    if (item.effect === 'soul') reasons.push('effect=soul');
+
+    if (rewards.equipment || rewards.item || rewards.items || rewards.weapon || rewards.armor) {
+        reasons.push('rewards.equipment');
+    }
+
+    if (rewards.soul || rewards.souls) {
+        reasons.push('rewards.soul');
+    }
+
+    if (rewards.key || rewards.keys || rewards.dungeonKey || rewards.dungeonKeys) {
+        reasons.push('rewards.key');
+    }
+
+    if (structuredText.includes('arma lendária') || structuredText.includes('arma mitica') || structuredText.includes('arma mítica')) {
+        reasons.push('structured legendary weapon text');
+    }
+
+    return reasons;
 }
 
 test('documento canônico existe e fixa as regras centrais de produto', () => {
@@ -58,31 +88,26 @@ test('balance preserva regras oficiais de energia e dungeon', () => {
 });
 
 test('loja NOX não vende alma, chave ou equipamento diretamente', () => {
-    const forbidden = getNoxShopItems().filter(item => {
-        const text = stringifyItemForPolicy(item);
-
-        return (
-            item.type === 'equipment' ||
-            item.type === 'soul' ||
-            item.type === 'key' ||
-            item.effect === 'key' ||
-            item.effect === 'soul' ||
-            text.includes('alma') ||
-            text.includes('soul') ||
-            text.includes('chave') ||
-            text.includes('key') ||
-            text.includes('equipamento') ||
-            text.includes('arma lendária') ||
-            text.includes('arma mitica') ||
-            text.includes('arma mítica')
-        );
-    });
+    const offenders = getNoxShopItems()
+        .map(item => ({
+            id: item.id,
+            reasons: getForbiddenPremiumRewardReasons(item)
+        }))
+        .filter(entry => entry.reasons.length > 0);
 
     assert.deepEqual(
-        forbidden.map(item => item.id),
+        offenders,
         [],
-        `Itens premium proibidos encontrados: ${forbidden.map(item => item.id).join(', ')}`
+        `Itens premium proibidos encontrados: ${offenders.map(entry => `${entry.id} (${entry.reasons.join(', ')})`).join(', ')}`
     );
+});
+
+test('descrição pode negar alma, chave ou equipamento sem virar recompensa proibida', () => {
+    const starterPack = shopItems.find(item => item.id === 'starter_pack_shadow');
+
+    assert.ok(starterPack, 'starter_pack_shadow deve existir para proteger a política do pacote inicial.');
+    assert.match(starterPack.description, /não entrega arma, alma, chave/i);
+    assert.deepEqual(getForbiddenPremiumRewardReasons(starterPack), []);
 });
 
 test('loja NOX fica restrita a cosmético, VIP, inventário, bundle leve e conveniência limitada', () => {
