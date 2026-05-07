@@ -7,13 +7,19 @@ function readRepoFile(relativePath) {
     return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 }
 
-test('index.js usa combatSoulFixed como handler oficial de combate', () => {
+test('index.js usa combatActive como handler oficial de combate', () => {
     const indexSource = readRepoFile('index.js');
 
     assert.match(
         indexSource,
+        /const\s+combat\s*=\s*require\(['"]\.\/src\/handlers\/combatActive['"]\)/,
+        'index.js deve importar ./src/handlers/combatActive como handler oficial de combate'
+    );
+
+    assert.doesNotMatch(
+        indexSource,
         /const\s+combat\s*=\s*require\(['"]\.\/src\/handlers\/combatSoulFixed['"]\)/,
-        'index.js deve importar ./src/handlers/combatSoulFixed como handler oficial de combate'
+        'index.js não deve depender diretamente de combatSoulFixed'
     );
 
     assert.doesNotMatch(
@@ -29,6 +35,13 @@ test('index.js usa combatSoulFixed como handler oficial de combate', () => {
     );
 });
 
+test('combatActive preserva o handler ativo atual sem alterar contrato público', () => {
+    const source = readRepoFile('src/handlers/combatActive.js');
+
+    assert.match(source, /HANDLER OFICIAL DE COMBATE/);
+    assert.match(source, /module\.exports\s*=\s*require\(['"]\.\/combatSoulFixed['"]\)/);
+});
+
 test('combatSoulFixed preserva combatFixed e sobrescreve handleSoulMenu', () => {
     const source = readRepoFile('src/handlers/combatSoulFixed.js');
 
@@ -40,8 +53,9 @@ test('combatSoulFixed preserva combatFixed e sobrescreve handleSoulMenu', () => 
 
 test('política de handler de combate está documentada', () => {
     const doc = readRepoFile('docs/COMBAT_HANDLER_POLICY.md');
+    const activeDoc = readRepoFile('docs/COMBAT_ACTIVE_ENTRYPOINT.md');
 
-    assert.match(doc, /combatSoulFixed/);
-    assert.match(doc, /Não trocar o import do `index\.js`/);
     assert.match(doc, /Consolidação futura correta/);
+    assert.match(activeDoc, /combatActive/);
+    assert.match(activeDoc, /não trocar handler ativo sem teste/i);
 });
