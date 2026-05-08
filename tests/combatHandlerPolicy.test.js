@@ -35,14 +35,17 @@ test('index.js usa combatActive como handler oficial de combate', () => {
     );
 });
 
-test('combatActive preserva o handler ativo atual sem alterar contrato público', () => {
+test('combatActive usa combatFixed como base e não depende de combatSoulFixed', () => {
     const source = readRepoFile('src/handlers/combatActive.js');
 
     assert.match(source, /HANDLER OFICIAL DE COMBATE/);
-    assert.match(source, /module\.exports\s*=\s*require\(['"]\.\/combatSoulFixed['"]\)/);
+    assert.match(source, /const\s+combatFixed\s*=\s*require\(['"]\.\/combatFixed['"]\)/);
+    assert.doesNotMatch(source, /require\(['"]\.\/combatSoulFixed['"]\)/);
+    assert.match(source, /handleSoulMenu/);
+    assert.match(source, /hydrateFightSoulsFromPlayer/);
 });
 
-test('combatSoulFixed preserva combatFixed e sobrescreve handleSoulMenu', () => {
+test('combatSoulFixed permanece como legado temporário sobre combatFixed', () => {
     const source = readRepoFile('src/handlers/combatSoulFixed.js');
 
     assert.match(source, /const\s+combatFixed\s*=\s*require\(['"]\.\/combatFixed['"]\)/);
@@ -57,5 +60,7 @@ test('política de handler de combate está documentada', () => {
 
     assert.match(doc, /Consolidação futura correta/);
     assert.match(activeDoc, /combatActive/);
+    assert.match(activeDoc, /combatActive -> combatFixed -> combat/);
+    assert.match(activeDoc, /combatSoulFixed\.js.*legado temporário/i);
     assert.match(activeDoc, /não trocar handler ativo sem teste/i);
 });
