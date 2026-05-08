@@ -65,7 +65,7 @@ test('index.js importa somente o entrypoint canônico combatActive', () => {
 
 test('imports diretos dos handlers legados de combate ficam restritos à cadeia permitida', () => {
     const allowedImports = new Map([
-        ['src/handlers/combatActive.js', new Set(['./combatSoulFixed'])],
+        ['src/handlers/combatActive.js', new Set(['./combatFixed'])],
         ['src/handlers/combatSoulFixed.js', new Set(['./combatFixed'])],
         ['src/handlers/combatFixed.js', new Set(['./combat'])]
     ]);
@@ -107,7 +107,9 @@ test('combatActive continua sendo o único ponto estável para o runtime do comb
     const activeSource = readFile('src/handlers/combatActive.js');
     const policySource = readFile('docs/COMBAT_ACTIVE_ENTRYPOINT.md');
 
-    assert.match(activeSource, /module\.exports\s*=\s*require\(['"]\.\/combatSoulFixed['"]\)/);
-    assert.match(policySource, /combatActive -> combatSoulFixed -> combatFixed -> combat/);
+    assert.match(activeSource, /const\s+combatFixed\s*=\s*require\(['"]\.\/combatFixed['"]\)/);
+    assert.doesNotMatch(activeSource, /require\(['"]\.\/combatSoulFixed['"]\)/);
+    assert.match(policySource, /combatActive -> combatFixed -> combat/);
+    assert.match(policySource, /combatSoulFixed\.js.*legado temporário/i);
     assert.match(policySource, /não trocar handler ativo sem teste/i);
 });
