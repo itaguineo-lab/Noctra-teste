@@ -74,6 +74,15 @@ async function safeSend(ctx, text, options = {}) {
     });
 }
 
+function isCombatRoom(room) {
+    return Boolean(room && ['combat', 'elite', 'boss'].includes(room.type));
+}
+
+function isDungeonRunActive(player) {
+    const d = normalizeDungeonState(player);
+    return Boolean(d.active && !d.completed && !d.aborted);
+}
+
 function buildDungeonIntroText(player) {
     const map = getDungeonMap(player);
 
@@ -305,7 +314,7 @@ function renderDungeonText(player) {
         text += `✨ *Bônus da Expedição*: ⚔️ +${d.combatBonus.atk}  🛡️ +${d.combatBonus.def}  💥 +${d.combatBonus.crit}%\n\n`;
     }
 
-    if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
+    if (isCombatRoom(room)) {
         const e = room.enemy;
         const enemyBar = progressBar(e.hp, e.maxHp, 8, '🟥', '⬛');
         const badge =
@@ -377,7 +386,6 @@ function buildDungeonSoulKeyboard(player) {
 }
 
 function buildDungeonSoulText(player) {
-    const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
     ensureDungeonCombatState(player, room);
 
@@ -415,8 +423,9 @@ function buildDungeonSoulText(player) {
 function buildDungeonKeyboard(player) {
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
+    const activeRun = Boolean(d.active && !d.completed && !d.aborted);
 
-    if (!d.active || d.completed || d.aborted) {
+    if (!activeRun) {
         return Markup.inlineKeyboard([
             [Markup.button.callback(`⚔️ Nova expedição (${BALANCE.energy.dungeonEntryKeyCost}🗝️)`, 'dungeon_start')],
             [Markup.button.callback('🏠 Menu', 'menu')]
@@ -426,60 +435,74 @@ function buildDungeonKeyboard(player) {
     if (!room) {
         return Markup.inlineKeyboard([
             [Markup.button.callback('⚔️ Continuar', 'dungeon_attack')],
-            [Markup.button.callback('🏠 Menu', 'menu')]
+            [Markup.button.callback('🏃 Fugir', 'dungeon_flee')]
         ]);
     }
 
     if (room.cleared) {
         return Markup.inlineKeyboard([
             [Markup.button.callback('➡️ Próxima sala', 'dungeon_next_room')],
-            [Markup.button.callback('🏃 Sair', 'dungeon_flee'), Markup.button.callback('🏠 Menu', 'menu')]
+            [Markup.button.callback('🏃 Fugir', 'dungeon_flee')]
         ]);
     }
 
-    if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
+    if (isCombatRoom(room)) {
         return Markup.inlineKeyboard([
             [Markup.button.callback('⚔️ Atacar', 'dungeon_attack')],
-            [Markup.button.callback('💀 Almas', 'dungeon_soul_menu'), Markup.button.callback('🧪 Itens', 'dungeon_consumables')],
-            [Markup.button.callback('🏃 Fugir', 'dungeon_flee'), Markup.button.callback('🏠 Menu', 'menu')]
+            [
+                Markup.button.callback('💀 Almas', 'dungeon_soul_menu'),
+                Markup.button.callback('🧪 Itens', 'dungeon_consumables')
+            ],
+            [Markup.button.callback('🏃 Fugir', 'dungeon_flee')]
         ]);
     }
 
     return Markup.inlineKeyboard([
-        [Markup.button.callback(
-            room.type === 'treasure'
-                ? '🎁 Abrir Tesouro'
-                : room.type === 'heal'
-                    ? '❤️ Canalizar'
-                    : room.type === 'shrine'
-                        ? '✨ Receber Bênção'
-                        : '💀 Aceitar Maldição',
-            'dungeon_attack'
-        )],
-        [Markup.button.callback('🏃 Sair', 'dungeon_flee'), Markup.button.callback('🏠 Menu', 'menu')]
+        [
+            Markup.button.callback(
+                room.type === 'treasure'
+                    ? '🎁 Abrir Tesouro'
+                    : room.type === 'heal'
+                        ? '❤️ Canalizar'
+                        : room.type === 'shrine'
+                            ? '✨ Receber Bênção'
+                            : '💀 Aceitar Maldição',
+                'dungeon_attack'
+            )
+        ],
+        [Markup.button.callback('🏃 Fugir', 'dungeon_flee')]
     ]);
 }
 
 async function handleDungeon(ctx) {
-    await safeAnswer(ctx);
-
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
             show_alert: true
         });
     }
 
+    await safeAnswer(ctx).catch(() => {});
     normalizeDungeonState(player);
+
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonStart(ctx) {
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
             show_alert: true
         });
+    }
+
+    const d = normalizeDungeonState(player);
+
+    if (d.active && !d.completed && !d.aborted) {
+        await safeAnswer(ctx, '🏰 Você já está em uma masmorra ativa.', { show_alert: true }).catch(() => {});
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
     const keyCost = BALANCE.energy.dungeonEntryKeyCost;
@@ -487,41 +510,50 @@ async function handleDungeonStart(ctx) {
     if (!player.keys || player.keys < keyCost) {
         await safeAnswer(ctx, `❌ Você precisa de ${keyCost} Chave de Masmorra para entrar.`, {
             show_alert: true
-        });
+        }).catch(() => {});
+
         return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
-    await safeAnswer(ctx);
     player.keys -= keyCost;
     startDungeonRun(player);
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    await recordDungeonStarted({ keysSpent: keyCost, isEliteDungeon: isEliteDungeonRun(player) });
+    await recordDungeonStarted({ keysSpent: keyCost, isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+    await safeAnswer(ctx, '🏰 Expedição iniciada. A chave foi consumida.', {
+        show_alert: true
+    }).catch(() => {});
 
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonAttack(ctx) {
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
             show_alert: true
         });
     }
 
-    await safeAnswer(ctx);
-
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
+    if (!d.active || d.completed || d.aborted) {
+        await safeAnswer(ctx, '❌ Não há expedição ativa.', { show_alert: true }).catch(() => {});
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
+    }
+
     if (!room || room.cleared) {
+        await safeAnswer(ctx).catch(() => {});
         return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
     let result;
 
-    if (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') {
+    if (isCombatRoom(room)) {
         result = await resolveCombatRoom(player, room);
     } else if (room.type === 'treasure') {
         result = resolveTreasureRoom(player, room);
@@ -541,7 +573,7 @@ async function handleDungeonAttack(ctx) {
         await recordDungeonRoomCleared({
             amount: 1,
             roomType: room.type
-        });
+        }).catch(() => {});
     }
 
     if (result.playerDefeated) {
@@ -571,7 +603,11 @@ async function handleDungeonAttack(ctx) {
 
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) });
+        await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+        await safeAnswer(ctx, '💀 Você foi derrotado na masmorra.', {
+            show_alert: true
+        }).catch(() => {});
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -580,9 +616,14 @@ async function handleDungeonAttack(ctx) {
 
     if (room.type === 'boss' && room.cleared) {
         finalizeDungeonRun(player, 'complete');
+
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) });
+        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+        await safeAnswer(ctx, '🏆 Masmorra concluída!', {
+            show_alert: true
+        }).catch(() => {});
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -592,28 +633,29 @@ async function handleDungeonAttack(ctx) {
         msg += '\n' + result.notes.join('\n');
     }
 
-    await safeAnswer(ctx, msg, { show_alert: true });
+    await safeAnswer(ctx, msg, { show_alert: true }).catch(() => {});
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonSoulMenu(ctx) {
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
             show_alert: true
         });
     }
 
-    await safeAnswer(ctx);
-
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
-    if (!d.active || !room || room.cleared || !(room.type === 'combat' || room.type === 'elite' || room.type === 'boss')) {
+    if (!d.active || d.completed || d.aborted || !room || room.cleared || !isCombatRoom(room)) {
         return safeAnswer(ctx, '❌ Não há combate ativo para usar almas.', { show_alert: true });
     }
 
+    await safeAnswer(ctx).catch(() => {});
     ensureDungeonCombatState(player, room);
+
     return safeSend(ctx, buildDungeonSoulText(player), buildDungeonSoulKeyboard(player));
 }
 
@@ -627,12 +669,10 @@ async function handleDungeonSoul(ctx) {
         });
     }
 
-    await safeAnswer(ctx);
-
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
-    if (!d.active || !room || room.cleared || !(room.type === 'combat' || room.type === 'elite' || room.type === 'boss')) {
+    if (!d.active || d.completed || d.aborted || !room || room.cleared || !isCombatRoom(room)) {
         return safeAnswer(ctx, '❌ Não há combate ativo para usar almas.', { show_alert: true });
     }
 
@@ -643,7 +683,7 @@ async function handleDungeonSoul(ctx) {
         await recordDungeonRoomCleared({
             amount: 1,
             roomType: room.type
-        });
+        }).catch(() => {});
     }
 
     if (result.playerDefeated) {
@@ -673,7 +713,11 @@ async function handleDungeonSoul(ctx) {
 
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) });
+        await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+        await safeAnswer(ctx, '💀 Você foi derrotado na masmorra.', {
+            show_alert: true
+        }).catch(() => {});
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -682,9 +726,14 @@ async function handleDungeonSoul(ctx) {
 
     if (room.type === 'boss' && room.cleared) {
         finalizeDungeonRun(player, 'complete');
+
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) });
+        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+        await safeAnswer(ctx, '🏆 Masmorra concluída!', {
+            show_alert: true
+        }).catch(() => {});
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -695,27 +744,36 @@ async function handleDungeonSoul(ctx) {
 
 async function handleDungeonNextRoom(ctx) {
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
             show_alert: true
         });
     }
 
-    await safeAnswer(ctx);
-
     const d = normalizeDungeonState(player);
     const room = getCurrentRoom(player);
 
+    if (!d.active || d.completed || d.aborted) {
+        await safeAnswer(ctx, '❌ Não há expedição ativa.', { show_alert: true }).catch(() => {});
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
+    }
+
     if (!room || !room.cleared) {
-        await safeAnswer(ctx, '⚠️ Resolva a sala atual primeiro.', { show_alert: true });
-        return;
+        await safeAnswer(ctx, '⚠️ Resolva a sala atual primeiro.', { show_alert: true }).catch(() => {});
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
     if (d.currentRoomIndex >= d.maxRooms - 1) {
         finalizeDungeonRun(player, 'complete');
+
         normalizePlayerForSave(player);
         await savePlayer(ctx.from.id, player);
-        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) });
+        await recordDungeonCompleted({ isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+        await safeAnswer(ctx, '🏆 Masmorra concluída!', {
+            show_alert: true
+        }).catch(() => {});
 
         return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
     }
@@ -727,24 +785,24 @@ async function handleDungeonNextRoom(ctx) {
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
+    await safeAnswer(ctx).catch(() => {});
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonFlee(ctx) {
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
             show_alert: true
         });
     }
 
-    await safeAnswer(ctx);
-
     const d = normalizeDungeonState(player);
 
-    if (!d.active) {
-        await safeAnswer(ctx, 'Nenhuma expedição ativa.', { show_alert: true });
-        return;
+    if (!d.active || d.completed || d.aborted) {
+        await safeAnswer(ctx, 'Nenhuma expedição ativa.', { show_alert: true }).catch(() => {});
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
     }
 
     d.aborted = true;
@@ -765,27 +823,32 @@ async function handleDungeonFlee(ctx) {
         ]
     };
 
-    if (BALANCE.dungeon.fleeConsumesEnergy) {
-        // hoje a regra oficial é false
-        // mantido apenas para permitir mudança central futura
-    }
-
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
-    await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) });
+    await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+    await safeAnswer(ctx, '🚪 Expedição abandonada. A chave não será devolvida.', {
+        show_alert: true
+    }).catch(() => {});
 
     return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
 }
 
 async function handleDungeonConsumables(ctx) {
     const player = await getPlayer(ctx.from.id);
+
     if (!player) {
         return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
             show_alert: true
         });
     }
 
-    await safeAnswer(ctx);
+    const d = normalizeDungeonState(player);
+    const room = getCurrentRoom(player);
+
+    if (!d.active || d.completed || d.aborted || !room || room.cleared) {
+        return safeAnswer(ctx, '❌ Não há sala ativa para usar itens.', { show_alert: true });
+    }
 
     const c = player.consumables || {};
     const rows = [];
@@ -793,23 +856,40 @@ async function handleDungeonConsumables(ctx) {
     if ((c.potionHp || 0) > 0) {
         rows.push([Markup.button.callback(`❤️ Poção HP (${c.potionHp})`, 'dungeon_use:potionHp')]);
     }
+
     if ((c.potionEnergy || 0) > 0) {
         rows.push([Markup.button.callback(`⚡ Poção Energia (${c.potionEnergy})`, 'dungeon_use:potionEnergy')]);
     }
+
     if ((c.tonicStrength || 0) > 0) {
         rows.push([Markup.button.callback(`💪 Tônico Força (${c.tonicStrength})`, 'dungeon_use:tonicStrength')]);
     }
+
     if ((c.tonicDefense || 0) > 0) {
         rows.push([Markup.button.callback(`🛡️ Tônico Defesa (${c.tonicDefense})`, 'dungeon_use:tonicDefense')]);
     }
 
-    rows.push([Markup.button.callback('◀️ Voltar', 'dungeon')]);
-
-    if (rows.length === 1) {
+    if (!rows.length) {
         return safeAnswer(ctx, '❌ Você não possui consumíveis.', { show_alert: true });
     }
 
-    return safeSend(ctx, '🧪 *Consumíveis da Masmorra*\nEscolha um item:', Markup.inlineKeyboard(rows));
+    rows.push([Markup.button.callback('◀️ Voltar', 'dungeon')]);
+
+    await safeAnswer(ctx).catch(() => {});
+
+    return safeSend(
+        ctx,
+        [
+            '━━━━━━━━━━━━━━━━━━━━━━',
+            '🧪 *CONSUMÍVEIS DA MASMORRA*',
+            '━━━━━━━━━━━━━━━━━━━━━━',
+            '',
+            'Escolha um item para usar dentro da expedição.',
+            '',
+            '*Importante:* você não pode sair para comprar poções durante uma masmorra ativa.'
+        ].join('\n'),
+        Markup.inlineKeyboard(rows)
+    );
 }
 
 async function handleDungeonUseConsumable(ctx) {
@@ -823,9 +903,21 @@ async function handleDungeonUseConsumable(ctx) {
     }
 
     const d = normalizeDungeonState(player);
-    if (!d.active) {
-        await safeAnswer(ctx, '❌ Não há expedição ativa.', { show_alert: true });
+    const room = getCurrentRoom(player);
+
+    if (!d.active || d.completed || d.aborted) {
+        await safeAnswer(ctx, '❌ Não há expedição ativa.', { show_alert: true }).catch(() => {});
         return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
+    }
+
+    if (!room || room.cleared) {
+        await safeAnswer(ctx, '❌ Não há sala ativa para usar itens.', { show_alert: true }).catch(() => {});
+        return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
+    }
+
+    const allowed = ['potionHp', 'potionEnergy', 'tonicStrength', 'tonicDefense'];
+    if (!allowed.includes(key)) {
+        return safeAnswer(ctx, '❌ Consumível inválido.', { show_alert: true });
     }
 
     const consumeResult = consumeConsumable(player, key, 1);
@@ -833,36 +925,31 @@ async function handleDungeonUseConsumable(ctx) {
         return safeAnswer(ctx, '❌ Item indisponível.', { show_alert: true });
     }
 
-    await safeAnswer(ctx);
     updateMissionProgress(player, 'use_consumable', 1);
-    await recordConsumableUsed();
+    await recordConsumableUsed({ type: key, source: 'dungeon' }).catch(() => {});
 
-    const room = getCurrentRoom(player);
     let log = '';
 
     if (key === 'potionHp') {
         const before = player.hp;
         player.hp = player.maxHp;
-        log = `❤️ Poção de Vida restaurou ${player.hp - before} HP e encheu sua vida.`;
+        log = `❤️ Poção de Vida restaurou ${Math.max(0, player.hp - before)} HP e encheu sua vida.`;
     } else if (key === 'potionEnergy') {
         const before = player.energy;
         restoreEnergy(player, BALANCE.consumables.potionEnergy.restoreAmount);
-        log = `⚡ Energia +${player.energy - before}.`;
+        log = `⚡ Energia +${Math.max(0, player.energy - before)}.`;
     } else if (key === 'tonicStrength') {
         d.combatBonus.atk += BALANCE.consumables.tonicStrength.dungeonAtkBonus;
         log = `💪 Bônus de expedição: ATK +${BALANCE.consumables.tonicStrength.dungeonAtkBonus}.`;
     } else if (key === 'tonicDefense') {
         d.combatBonus.def += BALANCE.consumables.tonicDefense.dungeonDefBonus;
         log = `🛡️ Bônus de expedição: DEF +${BALANCE.consumables.tonicDefense.dungeonDefBonus}.`;
-    } else {
-        return safeAnswer(ctx, '❌ Consumível inválido.', { show_alert: true });
     }
 
     addDungeonLog(player, log);
 
     if (
-        room &&
-        (room.type === 'combat' || room.type === 'elite' || room.type === 'boss') &&
+        isCombatRoom(room) &&
         !room.cleared &&
         room.enemy?.hp > 0
     ) {
@@ -873,17 +960,79 @@ async function handleDungeonUseConsumable(ctx) {
 
         applyDamage(player, enemyHit.damage);
         addDungeonLog(player, `👹 ${room.enemy.name} aproveitou e causou ${enemyHit.damage} de dano.`);
+
+        if (player.hp <= 0) {
+            const penalty = applyDeathXpPenalty(player);
+            const ratePercent = Math.round((penalty.rateApplied || 0) * 100);
+            player.hp = 1;
+
+            d.summary = {
+                roomsCleared: d.rooms.filter(r => r.cleared).length,
+                xp: d.rewards.xp || 0,
+                gold: d.rewards.gold || 0,
+                keys: d.rewards.keys || 0,
+                glorias: d.rewards.glorias || 0,
+                items: d.rewards.items || 0,
+                souls: d.rewards.souls || 0,
+                notes: [
+                    '💀 Derrotado ao usar consumível na masmorra.',
+                    `📉 XP perdido: ${penalty.lostXp} (${ratePercent}%)`,
+                    ...(penalty.levelReduced ? [`⬇️ Nível reduzido: ${penalty.oldLevel} → ${penalty.newLevel}`] : []),
+                    '❤️ Você retornou com 1 de vida.'
+                ]
+            };
+
+            d.active = false;
+            d.completed = false;
+            d.aborted = true;
+
+            normalizePlayerForSave(player);
+            await savePlayer(ctx.from.id, player);
+            await recordDungeonAbandoned({ isEliteDungeon: isEliteDungeonRun(player) }).catch(() => {});
+
+            await safeAnswer(ctx, '💀 Você foi derrotado na masmorra.', {
+                show_alert: true
+            }).catch(() => {});
+
+            return safeSend(ctx, buildDungeonSummary(player), buildDungeonKeyboard(player));
+        }
     }
 
     normalizePlayerForSave(player);
     await savePlayer(ctx.from.id, player);
 
-    await safeAnswer(ctx, '✅ Consumível usado!').catch(() => {});
+    await safeAnswer(ctx, '✅ Consumível usado!', { show_alert: true }).catch(() => {});
     return safeSend(ctx, renderDungeonText(player), buildDungeonKeyboard(player));
+}
+
+async function redirectToActiveDungeon(ctx, player = null) {
+    const currentPlayer = player || await getPlayer(ctx.from.id);
+
+    if (!currentPlayer) {
+        return safeAnswer(ctx, '🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        });
+    }
+
+    normalizeDungeonState(currentPlayer);
+
+    if (ctx.callbackQuery) {
+        await safeAnswer(ctx, '🏰 Você está em uma masmorra. Conclua, avance ou fuja antes de sair.', {
+            show_alert: true
+        }).catch(() => {});
+    } else if (ctx.reply) {
+        await ctx.reply('🏰 Você está em uma masmorra ativa. Conclua a expedição ou use *Fugir* para abandonar.', {
+            parse_mode: 'Markdown'
+        }).catch(() => {});
+    }
+
+    return safeSend(ctx, renderDungeonText(currentPlayer), buildDungeonKeyboard(currentPlayer));
 }
 
 module.exports = {
     escapeMarkdown,
+    isCombatRoom,
+    isDungeonRunActive,
     buildDungeonIntroText,
     normalizeSummaryNote,
     getPremiumSummaryHighlight,
@@ -896,6 +1045,7 @@ module.exports = {
     buildDungeonSoulKeyboard,
     buildDungeonSoulText,
     buildDungeonKeyboard,
+    redirectToActiveDungeon,
     handleDungeon,
     handleDungeonStart,
     handleDungeonAttack,
