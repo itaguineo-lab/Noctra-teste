@@ -14,11 +14,6 @@ const { mainMenu } = require('./src/menus/mainMenu');
 const { navigateScreen, tryDeleteCurrentMessage } = require('./src/utils/uiNavigator');
 const assets = require('./src/data/assets');
 
-/*
-FIX: banCacheService substitui getPlayer() completo no middleware anti-ban.
-Agora cada interação faz uma busca leve (só o campo `banned`) com cache
-de 5 minutos, reduzindo drasticamente as queries ao MongoDB.
-*/
 const { isBanned, purgeBanCache } = require('./src/services/banCacheService');
 
 /*
@@ -79,6 +74,27 @@ const creationSessions = new Map();
 
 /*
 =================================
+DUNGEON LOCK CONFIG
+=================================
+*/
+
+const DUNGEON_ALLOWED_CALLBACKS = new Set([
+    'dungeon',
+    'dungeon_start',
+    'dungeon_attack',
+    'dungeon_next_room',
+    'dungeon_flee',
+    'dungeon_soul_menu',
+    'dungeon_consumables'
+]);
+
+const DUNGEON_ALLOWED_CALLBACK_PATTERNS = [
+    /^dungeon_soul_([01])$/,
+    /^dungeon_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/
+];
+
+/*
+=================================
 HELPERS
 =================================
 */
@@ -86,6 +102,62 @@ HELPERS
 function isValidName(name) {
     const trimmed = String(name || '').trim();
     return trimmed.length >= 3 && trimmed.length <= 20;
+}
+
+function getCallbackData(ctx) {
+    return ctx.callbackQuery?.data || null;
+}
+
+function getCommandName(ctx) {
+    const text = ctx.message?.text || '';
+
+    if (!text.startsWith('/')) return null;
+
+    return text
+        .slice(1)
+        .split(/\s+/)[0]
+        .split('@')[0]
+        .toLowerCase();
+}
+
+function isDungeonAllowedCallback(data) {
+    if (!data) return false;
+    if (DUNGEON_ALLOWED_CALLBACKS.has(data)) return true;
+
+    return DUNGEON_ALLOWED_CALLBACK_PATTERNS.some(pattern => pattern.test(data));
+}
+
+function hasActiveDungeon(player) {
+    if (!player) return false;
+
+    if (typeof dungeon.isDungeonRunActive === 'function') {
+        return dungeon.isDungeonRunActive(player);
+    }
+
+    const d = player.dungeonProgress || player.dungeon || {};
+    return Boolean(d.active && !d.completed && !d.aborted);
+}
+
+async function redirectDungeonLockedPlayer(ctx, player) {
+    if (typeof dungeon.redirectToActiveDungeon === 'function') {
+        return dungeon.redirectToActiveDungeon(ctx, player);
+    }
+
+    if (ctx.callbackQuery) {
+        await ctx.answerCbQuery('🏰 Você está em uma masmorra. Conclua, avance ou fuja antes de sair.', {
+            show_alert: true
+        }).catch(() => {});
+    } else if (ctx.reply) {
+        await ctx.reply('🏰 Você está em uma masmorra ativa. Conclua a expedição ou use *Fugir* para abandonar.', {
+            parse_mode: 'Markdown'
+        }).catch(() => {});
+    }
+
+    if (typeof dungeon.handleDungeon === 'function') {
+        return dungeon.handleDungeon(ctx);
+    }
+
+    return null;
 }
 
 function bindCommand(name, handler) {
@@ -251,6 +323,44 @@ function registerAntiBanMiddleware() {
     });
 }
 
+function registerDungeonLockMiddleware() {
+    bot.use(async (ctx, next) => {
+        if (!ctx.from) return next();
+
+        const userId = String(ctx.from.id);
+
+        let player = null;
+
+        try {
+            player = await getPlayer(userId);
+        } catch {
+            player = null;
+        }
+
+        if (!hasActiveDungeon(player)) {
+            return next();
+        }
+
+        const callbackData = getCallbackData(ctx);
+
+        if (callbackData) {
+            if (isDungeonAllowedCallback(callbackData)) {
+                return next();
+            }
+
+            return redirectDungeonLockedPlayer(ctx, player);
+        }
+
+        const commandName = getCommandName(ctx);
+
+        if (commandName) {
+            return redirectDungeonLockedPlayer(ctx, player);
+        }
+
+        return next();
+    });
+}
+
 function registerGlobalErrorHandler() {
     bot.catch((err, ctx) => {
         console.error('❌ ERRO GLOBAL:', err);
@@ -280,6 +390,10 @@ function registerStartFlow() {
         }
 
         if (player) {
+            if (hasActiveDungeon(player)) {
+                return redirectDungeonLockedPlayer(ctx, player);
+            }
+
             return sendMainMenu(ctx, userId, firstName, false);
         }
 
@@ -390,6 +504,12 @@ function registerStaticActions() {
     });
 
     bindAction('menu', async (ctx) => {
+        const player = await getPlayer(ctx.from.id).catch(() => null);
+
+        if (hasActiveDungeon(player)) {
+            return redirectDungeonLockedPlayer(ctx, player);
+        }
+
         await ctx.answerCbQuery();
         return sendMainMenu(ctx, ctx.from.id, ctx.from.first_name, true);
     });
@@ -571,6 +691,7 @@ function registerBot() {
 
     registerCreationMiddleware();
     registerAntiBanMiddleware();
+    registerDungeonLockMiddleware();
     registerGlobalErrorHandler();
 
     registerStartFlow();
@@ -641,7 +762,6 @@ function startHttpServer() {
 /*
 =================================
 LIMPEZA PERIÓDICA DO BAN CACHE
-Executa a cada 30 minutos para remover entradas expiradas.
 =================================
 */
 
