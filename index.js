@@ -54,6 +54,8 @@ const resetCommands = require('./src/commands/reset');
 const adminCommands = require('./src/commands/admin');
 const adminMetrics = require('./src/commands/adminMetrics');
 
+const DUNGEON_LOCK_MESSAGE = '🏰 Você está em uma masmorra. Conclua, avance ou fuja da expedição antes de sair.';
+
 function validateEnv() {
     const hasBotToken = Boolean(process.env.BOT_TOKEN);
     const hasMongo = Boolean(process.env.MONGODB_URI || process.env.MONGO_URI);
@@ -104,6 +106,74 @@ function bindAction(pattern, handler) {
     }
 
     bot.action(pattern, handler);
+}
+
+function getCallbackData(ctx) {
+    return typeof ctx.callbackQuery?.data === 'string'
+        ? ctx.callbackQuery.data
+        : null;
+}
+
+function getCommandName(ctx) {
+    const text = ctx.message?.text;
+    if (typeof text !== 'string' || !text.startsWith('/')) return null;
+
+    return text
+        .slice(1)
+        .trim()
+        .split(/\s+/)[0]
+        .split('@')[0]
+        .toLowerCase();
+}
+
+function isDungeonProgressActive(player) {
+    const d = player?.dungeonProgress;
+
+    return Boolean(
+        d &&
+        d.active === true &&
+        d.completed !== true &&
+        d.aborted !== true
+    );
+}
+
+function isAllowedDungeonCallbackDuringActive(data) {
+    if (typeof data !== 'string') return false;
+
+    return (
+        data === 'dungeon' ||
+        data === 'dungeon_attack' ||
+        data === 'dungeon_next_room' ||
+        data === 'dungeon_flee' ||
+        data === 'dungeon_soul_menu' ||
+        data === 'dungeon_consumables' ||
+        /^dungeon_soul_[01]$/.test(data) ||
+        /^dungeon_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/.test(data)
+    );
+}
+
+function isAllowedDungeonCommandDuringActive(commandName) {
+    return commandName === 'dungeon';
+}
+
+async function redirectToActiveDungeon(ctx) {
+    if (ctx.callbackQuery) {
+        try {
+            await ctx.answerCbQuery(DUNGEON_LOCK_MESSAGE, { show_alert: true });
+        } catch {
+            // ignora callback expirado
+        }
+
+        return dungeon.handleDungeon(ctx);
+    }
+
+    try {
+        await ctx.reply(DUNGEON_LOCK_MESSAGE);
+    } catch {
+        // ignora falha de reply
+    }
+
+    return dungeon.handleDungeon(ctx);
 }
 
 async function sendMainMenu(ctx, userId, username, editMode = false) {
@@ -251,6 +321,40 @@ function registerAntiBanMiddleware() {
     });
 }
 
+function registerDungeonLockMiddleware() {
+    bot.use(async (ctx, next) => {
+        if (!ctx.from) return next();
+
+        const callbackData = getCallbackData(ctx);
+        const commandName = getCommandName(ctx);
+
+        if (!callbackData && !commandName) {
+            return next();
+        }
+
+        let player = null;
+        try {
+            player = await getPlayer(ctx.from.id);
+        } catch {
+            return next();
+        }
+
+        if (!isDungeonProgressActive(player)) {
+            return next();
+        }
+
+        if (callbackData && isAllowedDungeonCallbackDuringActive(callbackData)) {
+            return next();
+        }
+
+        if (commandName && isAllowedDungeonCommandDuringActive(commandName)) {
+            return next();
+        }
+
+        return redirectToActiveDungeon(ctx);
+    });
+}
+
 function registerGlobalErrorHandler() {
     bot.catch((err, ctx) => {
         console.error('❌ ERRO GLOBAL:', err);
@@ -330,6 +434,7 @@ function registerCommands() {
     bindCommand('online', online.handleOnline);
     bindCommand('ranking', ranking.handleRanking);
     bindCommand('arena', arena.handleArena);
+    bindCommand('dungeon', dungeon.handleDungeon);
 
     bindCommand('rename', handleRename);
     bindCommand('class', handleClass);
@@ -571,6 +676,7 @@ function registerBot() {
 
     registerCreationMiddleware();
     registerAntiBanMiddleware();
+    registerDungeonLockMiddleware();
     registerGlobalErrorHandler();
 
     registerStartFlow();
