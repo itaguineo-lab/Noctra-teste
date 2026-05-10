@@ -13,6 +13,19 @@ const countersSchema = new mongoose.Schema(
         playersCreated: { type: Number, default: 0 },
         menuLoads: { type: Number, default: 0 },
 
+        firstHuntsStarted: { type: Number, default: 0 },
+        firstCombatWins: { type: Number, default: 0 },
+        firstCombatLosses: { type: Number, default: 0 },
+        firstItemsDropped: { type: Number, default: 0 },
+        firstItemsEquipped: { type: Number, default: 0 },
+        firstLevelUps: { type: Number, default: 0 },
+        firstKeysObtained: { type: Number, default: 0 },
+        firstSoulsObtained: { type: Number, default: 0 },
+        firstDungeonsStarted: { type: Number, default: 0 },
+        firstDungeonsCompleted: { type: Number, default: 0 },
+        dailyReturns: { type: Number, default: 0 },
+        sessionActions: { type: Number, default: 0 },
+
         combatsStarted: { type: Number, default: 0 },
         combatsWon: { type: Number, default: 0 },
         combatsLost: { type: Number, default: 0 },
@@ -22,6 +35,14 @@ const countersSchema = new mongoose.Schema(
         dungeonsCompleted: { type: Number, default: 0 },
         dungeonsAbandoned: { type: Number, default: 0 },
         dungeonRoomsCleared: { type: Number, default: 0 },
+        dungeonCombatRoomsCleared: { type: Number, default: 0 },
+        dungeonEliteRoomsCleared: { type: Number, default: 0 },
+        dungeonBossRoomsCleared: { type: Number, default: 0 },
+        dungeonTreasureRoomsCleared: { type: Number, default: 0 },
+        dungeonHealRoomsCleared: { type: Number, default: 0 },
+        dungeonCurseRoomsCleared: { type: Number, default: 0 },
+        dungeonShrineRoomsCleared: { type: Number, default: 0 },
+        dungeonOtherRoomsCleared: { type: Number, default: 0 },
         dungeonEliteStarted: { type: Number, default: 0 },
         dungeonEliteCompleted: { type: Number, default: 0 },
         dungeonEliteAbandoned: { type: Number, default: 0 },
@@ -102,7 +123,10 @@ const countersSchema = new mongoose.Schema(
         goldFromSales: { type: Number, default: 0 },
         vipPurchases: { type: Number, default: 0 }
     },
-    { _id: false }
+    {
+        _id: false,
+        strict: false
+    }
 );
 
 const MetricsSchema = new mongoose.Schema(
