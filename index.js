@@ -12,6 +12,8 @@ const {
 const { getMainMenuText, buildMainMenuText, getPlayerSafe } = require('./src/utils/helpers');
 const { mainMenu } = require('./src/menus/mainMenu');
 const { navigateScreen, tryDeleteCurrentMessage } = require('./src/utils/uiNavigator');
+const { getDungeonMap } = require('./src/core/dungeon/dungeonService');
+const { BALANCE } = require('./src/data/balance');
 const assets = require('./src/data/assets');
 
 const { isBanned, purgeBanCache } = require('./src/services/banCacheService');
@@ -81,6 +83,7 @@ DUNGEON LOCK CONFIG
 const DUNGEON_ALLOWED_CALLBACKS = new Set([
     'dungeon',
     'dungeon_start',
+    'dungeon_confirm_start',
     'dungeon_attack',
     'dungeon_next_room',
     'dungeon_flee',
@@ -208,6 +211,88 @@ async function sendMainMenu(ctx, userId, username, editMode = false) {
             options: keyboard
         });
     }
+}
+
+/*
+=================================
+DUNGEON PREPARATION
+=================================
+*/
+
+function buildDungeonPreparationText(player) {
+    const map = getDungeonMap(player);
+    const keyCost = BALANCE.energy.dungeonEntryKeyCost;
+    const consumables = player.consumables || {};
+    const hp = Math.max(0, Number(player.hp || 0));
+    const maxHp = Math.max(1, Number(player.maxHp || 1));
+    const hpPercent = Math.floor((hp / maxHp) * 100);
+    const hpWarning = hpPercent < 35
+        ? '⚠️ *HP baixo:* entrar assim é pedir para perder a chave.'
+        : '✅ HP em condição aceitável para iniciar.';
+
+    return [
+        '━━━━━━━━━━━━━━━━━━━━━━',
+        '🏰 *PREPARAR EXPEDIÇÃO*',
+        '━━━━━━━━━━━━━━━━━━━━━━',
+        '',
+        `🗺️ Mapa: ${map.emoji} ${map.name}`,
+        `❤️ HP: ${hp}/${maxHp} (${hpPercent}%)`,
+        `🗝️ Custo de entrada: ${keyCost} chave`,
+        `🗝️ Chaves disponíveis: ${player.keys || 0}`,
+        '',
+        '🧪 *Consumíveis disponíveis*',
+        `• ❤️ Poção HP: ${consumables.potionHp || 0}`,
+        `• ⚡ Poção Energia: ${consumables.potionEnergy || 0}`,
+        `• 💪 Tônico Força: ${consumables.tonicStrength || 0}`,
+        `• 🛡️ Tônico Defesa: ${consumables.tonicDefense || 0}`,
+        '',
+        hpWarning,
+        '',
+        '⚠️ *Regra da masmorra*',
+        'Ao entrar, você não poderá sair para comprar itens.',
+        'A chave será consumida ao confirmar a entrada.',
+        '',
+        'Entre preparado. A masmorra não é loja com monstros.'
+    ].join('\n');
+}
+
+function buildDungeonPreparationKeyboard() {
+    return Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Entrar na Masmorra', 'dungeon_confirm_start')],
+        [Markup.button.callback('◀️ Voltar', 'dungeon')]
+    ]);
+}
+
+async function handleDungeonPreparation(ctx) {
+    const player = await getPlayer(ctx.from.id).catch(() => null);
+
+    if (!player) {
+        return ctx.answerCbQuery('🧭 Você ainda não criou um personagem. Use /start para começar.', {
+            show_alert: true
+        }).catch(() => {});
+    }
+
+    if (hasActiveDungeon(player)) {
+        return redirectDungeonLockedPlayer(ctx, player);
+    }
+
+    const keyCost = BALANCE.energy.dungeonEntryKeyCost;
+
+    if (!player.keys || player.keys < keyCost) {
+        await ctx.answerCbQuery(`❌ Você precisa de ${keyCost} Chave de Masmorra para entrar.`, {
+            show_alert: true
+        }).catch(() => {});
+
+        return dungeon.handleDungeon(ctx);
+    }
+
+    await ctx.answerCbQuery().catch(() => {});
+
+    return navigateScreen(ctx, {
+        text: buildDungeonPreparationText(player),
+        media: null,
+        options: buildDungeonPreparationKeyboard()
+    });
 }
 
 /*
@@ -650,7 +735,8 @@ function registerTravelAndDungeonActions() {
     bindAction(/travel_to_(.+)/, travel.handleTravelTo);
     bindAction('travel_locked', travel.handleTravelLocked);
 
-    bindAction('dungeon_start', dungeon.handleDungeonStart);
+    bindAction('dungeon_start', handleDungeonPreparation);
+    bindAction('dungeon_confirm_start', dungeon.handleDungeonStart);
     bindAction('dungeon_attack', dungeon.handleDungeonAttack);
     bindAction('dungeon_next_room', dungeon.handleDungeonNextRoom);
     bindAction('dungeon_flee', dungeon.handleDungeonFlee);
