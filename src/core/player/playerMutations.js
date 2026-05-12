@@ -615,7 +615,7 @@ function consumeEnergy(player, amount = 1) {
 
 function restoreEnergy(player, amount = 1) {
     ensurePlayer(player);
-    return restoreEnergyState(player);
+    return restoreEnergyState(player, amount);
 }
 
 function restoreFullEnergy(player) {
