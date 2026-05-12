@@ -22,11 +22,11 @@ const VALID_EQUIPMENT_SLOTS = ['weapon', 'shield', 'armor', 'necklace', 'ring', 
 
 const SLOT_TO_UI_CATEGORY = {
     weapon: 'weapons',
-    shield: 'armors',
+    shield: 'offhands',
     armor: 'armors',
-    boots: 'armors',
-    ring: 'jewels',
-    necklace: 'jewels'
+    boots: 'boots',
+    ring: 'rings',
+    necklace: 'necklaces'
 };
 
 const OFFHAND_TYPE_LABELS = {
@@ -333,7 +333,11 @@ function getCanonicalSlot(item = {}, forcedSlot = null) {
     if (rawCategory === 'armor') return inferSlotFromName(rawName) || 'armor';
 
     if (rawUiCategory === 'weapons') return 'weapon';
+    if (rawUiCategory === 'offhands') return 'shield';
     if (rawUiCategory === 'armors') return inferSlotFromName(rawName) || 'armor';
+    if (rawUiCategory === 'boots') return 'boots';
+    if (rawUiCategory === 'rings') return 'ring';
+    if (rawUiCategory === 'necklaces') return 'necklace';
     if (rawUiCategory === 'jewels') return inferSlotFromName(rawName) || 'ring';
 
     if (rawDisplayCategory === 'arma') return 'weapon';
@@ -342,6 +346,9 @@ function getCanonicalSlot(item = {}, forcedSlot = null) {
     if (rawDisplayCategory === 'mão secundária') return 'shield';
     if (rawDisplayCategory === 'mao secundaria') return 'shield';
     if (rawDisplayCategory === 'botas') return 'boots';
+    if (rawDisplayCategory === 'anel') return 'ring';
+    if (rawDisplayCategory === 'colar') return 'necklace';
+    if (rawDisplayCategory === 'amuleto') return 'necklace';
 
     return inferSlotFromName(rawName) || null;
 }
@@ -353,7 +360,8 @@ function getUiCategoryFromSlot(slot) {
 function getDisplayCategoryFromSlot(slot) {
     if (slot === 'weapon') return 'Arma';
     if (slot === 'shield') return 'Mão Secundária';
-    if (slot === 'ring' || slot === 'necklace') return 'Joia';
+    if (slot === 'ring') return 'Anel';
+    if (slot === 'necklace') return 'Colar';
     if (slot === 'boots') return 'Botas';
 
     return 'Armadura';
@@ -438,8 +446,8 @@ function normalizeInventoryItem(item, forcedSlot = null) {
             (slot === 'ring' || slot === 'necklace') ? 'jewelry' :
             'armor'
         ),
-        uiCategory: normalizeText(item.uiCategory) || getUiCategoryFromSlot(slot),
-        displayCategory: normalizeText(item.displayCategory) || getDisplayCategoryFromSlot(slot),
+        uiCategory: getUiCategoryFromSlot(slot),
+        displayCategory: getDisplayCategoryFromSlot(slot),
         emoji: normalizeText(item.emoji || item.icon) || getDefaultEmojiForSlot(slot, finalName),
         rarity: normalizeText(item.rarity) || 'Comum',
         level: Math.max(1, toSafeNumber(item.level, 1)),
@@ -607,7 +615,7 @@ function consumeEnergy(player, amount = 1) {
 
 function restoreEnergy(player, amount = 1) {
     ensurePlayer(player);
-    return restoreEnergyState(player, amount);
+    return restoreEnergyState(player);
 }
 
 function restoreFullEnergy(player) {
