@@ -16,6 +16,70 @@ const {
     clearActiveFight
 } = require('./fightPersistence');
 
+/*
+=================================
+LOCK DE COMBATE POR USUÁRIO
+=================================
+
+Motivo:
+Callbacks do Telegram podem chegar quase ao mesmo tempo.
+Sem lock, dois cliques rápidos em "Atacar" podem carregar a mesma luta
+e aplicar dois turnos em paralelo.
+
+Este lock é em memória e resolve o problema no cenário atual do Render
+com uma instância Node.js. Se no futuro o NOCTRA escalar para múltiplas
+instâncias, isso deve virar lock distribuído no MongoDB/Redis.
+*/
+
+const fightLocks = new Map();
+
+function normalizeUserId(userId) {
+    return String(userId || '').trim();
+}
+
+async function withFightLock(userId, operation) {
+    const key = normalizeUserId(userId);
+
+    if (!key) {
+        return operation();
+    }
+
+    const previousLock = fightLocks.get(key) || Promise.resolve();
+
+    let releaseCurrentLock;
+    const currentLock = new Promise(resolve => {
+        releaseCurrentLock = resolve;
+    });
+
+    const queuedLock = previousLock.then(
+        () => currentLock,
+        () => currentLock
+    );
+
+    fightLocks.set(key, queuedLock);
+
+    try {
+        await previousLock.catch(() => {});
+        return await operation();
+    } finally {
+        releaseCurrentLock();
+
+        if (fightLocks.get(key) === queuedLock) {
+            fightLocks.delete(key);
+        }
+    }
+}
+
+function getActiveFightLockCount() {
+    return fightLocks.size;
+}
+
+/*
+=================================
+META
+=================================
+*/
+
 function buildFightMeta(record) {
     return {
         mode: record?.mode || 'hunt',
@@ -41,18 +105,20 @@ async function resolveStoredFight(userId, storedOverride = null) {
 }
 
 async function createAndStoreFight(userId, player, enemy) {
-    const fight = createFight(player, enemy);
-    const createdAt = Date.now();
+    return withFightLock(userId, async () => {
+        const fight = createFight(player, enemy);
+        const createdAt = Date.now();
 
-    await saveActiveFight(userId, fight, {
-        mode: 'hunt',
-        createdAt,
-        timeoutMs: DEFAULT_FIGHT_TIMEOUT,
-        battleMessageId: null,
-        isPhoto: false
+        await saveActiveFight(userId, fight, {
+            mode: 'hunt',
+            createdAt,
+            timeoutMs: DEFAULT_FIGHT_TIMEOUT,
+            battleMessageId: null,
+            isPhoto: false
+        });
+
+        return fight;
     });
-
-    return fight;
 }
 
 async function getStoredFight(userId) {
@@ -74,105 +140,160 @@ async function persistFightMessage(userId, battleMessageId, isPhoto) {
 }
 
 async function removeStoredFight(userId) {
-    await clearActiveFight(userId);
+    return withFightLock(userId, async () => {
+        await clearActiveFight(userId);
+    });
 }
 
+/*
+=================================
+AÇÕES DE COMBATE
+=================================
+*/
+
 async function runAttack(userId, storedOverride = null) {
-    const stored = await resolveStoredFight(userId, storedOverride);
-    if (!stored) return null;
+    return withFightLock(userId, async () => {
+        const stored = await resolveStoredFight(userId, storedOverride);
+        if (!stored) return null;
 
-    const { fight, meta } = stored;
+        const { fight, meta } = stored;
 
-    processPlayerTurn(fight);
+        if (fight.status !== 'ongoing') {
+            await persistFightState(userId, fight, meta);
+            return { fight, meta };
+        }
 
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-    }
+        processPlayerTurn(fight);
 
-    await persistFightState(userId, fight, meta);
-    return { fight, meta };
+        if (fight.status === 'ongoing') {
+            processEnemyTurn(fight);
+        }
+
+        await persistFightState(userId, fight, meta);
+        return { fight, meta };
+    });
 }
 
 async function runDefend(userId, storedOverride = null) {
-    const stored = await resolveStoredFight(userId, storedOverride);
-    if (!stored) return null;
+    return withFightLock(userId, async () => {
+        const stored = await resolveStoredFight(userId, storedOverride);
+        if (!stored) return null;
 
-    const { fight, meta } = stored;
+        const { fight, meta } = stored;
 
-    applyDefend(fight);
+        if (fight.status !== 'ongoing') {
+            await persistFightState(userId, fight, meta);
+            return { fight, meta };
+        }
 
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-    }
+        applyDefend(fight);
 
-    await persistFightState(userId, fight, meta);
-    return { fight, meta };
+        if (fight.status === 'ongoing') {
+            processEnemyTurn(fight);
+        }
+
+        await persistFightState(userId, fight, meta);
+        return { fight, meta };
+    });
 }
 
 async function runFlee(userId, storedOverride = null) {
-    const stored = await resolveStoredFight(userId, storedOverride);
-    if (!stored) return null;
+    return withFightLock(userId, async () => {
+        const stored = await resolveStoredFight(userId, storedOverride);
+        if (!stored) return null;
 
-    const { fight, meta } = stored;
-    const success = attemptFlee(fight);
+        const { fight, meta } = stored;
 
-    await persistFightState(userId, fight, meta);
-    return { fight, meta, success };
+        if (fight.status !== 'ongoing') {
+            await persistFightState(userId, fight, meta);
+            return { fight, meta, success: false };
+        }
+
+        const success = attemptFlee(fight);
+
+        await persistFightState(userId, fight, meta);
+        return { fight, meta, success };
+    });
 }
 
 async function runSoul(userId, soulIndex, storedOverride = null) {
-    const stored = await resolveStoredFight(userId, storedOverride);
-    if (!stored) return null;
+    return withFightLock(userId, async () => {
+        const stored = await resolveStoredFight(userId, storedOverride);
+        if (!stored) return null;
 
-    const { fight, meta } = stored;
-    const result = useSoul(fight, soulIndex);
+        const { fight, meta } = stored;
 
-    if (!result || result.success === false) {
+        if (fight.status !== 'ongoing') {
+            await persistFightState(userId, fight, meta);
+            return { fight, meta, result: null };
+        }
+
+        const result = useSoul(fight, soulIndex);
+
+        if (!result || result.success === false) {
+            await persistFightState(userId, fight, meta);
+            return { fight, meta, result: result || null };
+        }
+
+        if (fight.status === 'ongoing') {
+            processEnemyTurn(fight);
+        }
+
         await persistFightState(userId, fight, meta);
-        return { fight, meta, result: result || null };
-    }
-
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-    }
-
-    await persistFightState(userId, fight, meta);
-    return { fight, meta, result };
+        return { fight, meta, result };
+    });
 }
 
 async function runEnemyOnlyTurn(userId, storedOverride = null) {
-    const stored = await resolveStoredFight(userId, storedOverride);
-    if (!stored) return null;
+    return withFightLock(userId, async () => {
+        const stored = await resolveStoredFight(userId, storedOverride);
+        if (!stored) return null;
 
-    const { fight, meta } = stored;
+        const { fight, meta } = stored;
 
-    if (fight.status === 'ongoing') {
-        processEnemyTurn(fight);
-    }
+        if (fight.status === 'ongoing') {
+            processEnemyTurn(fight);
+        }
 
-    await persistFightState(userId, fight, meta);
-    return { fight, meta };
+        await persistFightState(userId, fight, meta);
+        return { fight, meta };
+    });
 }
 
 async function runConsumableTurn(userId, applyConsumableEffect, storedOverride = null, options = {}) {
-    const stored = await resolveStoredFight(userId, storedOverride);
-    if (!stored) return null;
+    return withFightLock(userId, async () => {
+        const stored = await resolveStoredFight(userId, storedOverride);
+        if (!stored) return null;
 
-    const { fight, meta } = stored;
-    const skipEnemyTurn = Boolean(options.skipEnemyTurn || options.skipCounterattack);
+        const { fight, meta } = stored;
+        const skipEnemyTurn = Boolean(options.skipEnemyTurn || options.skipCounterattack);
 
-    const effectResult = applyConsumableEffect(fight);
-    if (effectResult?.success === false) {
+        if (fight.status !== 'ongoing') {
+            await persistFightState(userId, fight, meta);
+            return {
+                fight,
+                meta,
+                effectResult: {
+                    success: false,
+                    reason: 'fight_not_ongoing'
+                }
+            };
+        }
+
+        const effectResult = applyConsumableEffect(fight);
+
+        if (effectResult?.success === false) {
+            await persistFightState(userId, fight, meta);
+            return { fight, meta, effectResult };
+        }
+
+        if (fight.status === 'ongoing' && !skipEnemyTurn) {
+            processEnemyTurn(fight);
+        }
+
         await persistFightState(userId, fight, meta);
         return { fight, meta, effectResult };
-    }
-
-    if (fight.status === 'ongoing' && !skipEnemyTurn) {
-        processEnemyTurn(fight);
-    }
-
-    await persistFightState(userId, fight, meta);
-    return { fight, meta, effectResult };
+    });
 }
 
 module.exports = {
@@ -186,5 +307,13 @@ module.exports = {
     runFlee,
     runSoul,
     runEnemyOnlyTurn,
-    runConsumableTurn
+    runConsumableTurn,
+
+    _internals: {
+        withFightLock,
+        getActiveFightLockCount,
+        normalizeUserId,
+        buildFightMeta,
+        resolveStoredFight
+    }
 };
