@@ -37,6 +37,7 @@ const dungeon = require('./src/handlers/dungeon');
 const shop = require('./src/handlers/shop');
 const arena = require('./src/handlers/arena');
 const arenaShop = require('./src/handlers/arenaShop');
+const expedition = require('./src/handlers/expedition');
 
 /*
 =================================
@@ -619,6 +620,11 @@ function registerMainMenuActions() {
     bindAction('hunt', combat.handleHunt);
     bindAction('dungeon', dungeon.handleDungeon);
     bindAction('arena', arena.handleArena);
+
+    // EXPEDITION ACTIONS
+    bindAction('expedition', expedition.handleExpeditionMenu);
+    bindAction(/^exp_start:(.+)$/, expedition.handleStartExpedition);
+    bindAction('exp_claim', expedition.handleClaimExpedition);
 }
 
 /*

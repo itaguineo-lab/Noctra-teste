@@ -18,8 +18,11 @@ function mainMenu() {
             Markup.button.callback('🏆 Ranking', 'ranking')
         ],
         [
+            Markup.button.callback('🏹 Expedição', 'expedition'),
             Markup.button.callback('⚡ Energia', 'energy'),
-            Markup.button.callback('💎 VIP', 'vip'),
+            Markup.button.callback('💎 VIP', 'vip')
+        ],
+        [
             Markup.button.callback('👥 Online', 'online')
         ]
     ]);

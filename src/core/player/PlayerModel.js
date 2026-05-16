@@ -211,6 +211,16 @@ const playerSchema = new mongoose.Schema(
         dungeonProgress: { type: mongoose.Schema.Types.Mixed, default: null },
         lastDungeonRun: { type: Number, default: 0 },
         soulPityCounter: { type: Number, default: 0 },
+        itemPityCounter: { type: Number, default: 0 },
+
+        expedition: {
+            active: { type: Boolean, default: false },
+            mapId: { type: String, default: null },
+            soulId: { type: String, default: null },
+            startTime: { type: Number, default: 0 },
+            duration: { type: Number, default: 0 },
+            claimed: { type: Boolean, default: false }
+        },
 
         arena: { type: mongoose.Schema.Types.Mixed, default: null },
 

@@ -285,11 +285,16 @@ function tryDropItem(player, enemy, loot, options = {}) {
     const dropProfile = getDropProfileByEnemy(mapNumber, encounterTier);
 
     if (Math.random() > dropProfile.chance) {
+        // Incrementa pity de item se não dropou nada
+        player.itemPityCounter = (player.itemPityCounter || 0) + 1;
         return {
             droppedItem: null,
             inventoryFull: false
         };
     }
+
+    // Reset do pity ao dropar item
+    player.itemPityCounter = 0;
 
     const rolledItem = generatePolicyCompliantDrop(
         mapNumber,

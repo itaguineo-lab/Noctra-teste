@@ -94,6 +94,11 @@ function soulChoiceMenu(fight = null) {
 function postCombatMenu(options = {}) {
     const rows = [];
 
+    // Otimização "Modo Rápido": Botão de caçar novamente em destaque no topo
+    rows.push([
+        Markup.button.callback('⚔️ Caçar Novamente', 'hunt')
+    ]);
+
     if (options.droppedItemKey) {
         rows.push([
             Markup.button.callback('🎁 Ver item dropado', `combat_loot:${options.droppedItemKey}`)
@@ -101,12 +106,12 @@ function postCombatMenu(options = {}) {
     }
 
     rows.push([
-        Markup.button.callback('⚔️ Caçar novamente', 'hunt'),
-        Markup.button.callback('🏰 Masmorra', 'dungeon')
+        Markup.button.callback('🏰 Masmorra', 'dungeon'),
+        Markup.button.callback('🏟️ Arena', 'arena')
     ]);
 
     rows.push([
-        Markup.button.callback('🎒 Inventário', 'inventory'),
+        Markup.button.callback('🎒 Mochila', 'inventory'),
         Markup.button.callback('🏠 Menu', 'menu')
     ]);
 

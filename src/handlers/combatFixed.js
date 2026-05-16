@@ -569,6 +569,7 @@ function buildVictoryMessageWithSoulDrop(player, rewards) {
         msg += `\n🌟 *LEVEL UP!* Agora você é nível ${player.level}!\n`;
     }
 
+    msg += `\n🍀 Sorte: ${Math.min(100, Math.floor((player.itemPityCounter || 0) * 2.5))}%`;
     msg += `\n━━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `🌑 A escuridão recua... por enquanto.`;
 

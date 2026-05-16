@@ -155,7 +155,9 @@ function buildMainMenuText(player, username) {
             : null,
         '',
         `💰 ${formatNumber(player.gold)}   💎 ${formatNumber(player.nox)}   🗝️ ${formatNumber(player.keys || 0)}`,
-        `🗺️ ${location.emoji} ${location.name}`
+        `🗺️ ${location.emoji} ${location.name}`,
+        '',
+        `🍀 Sorte: ${Math.min(100, Math.floor((player.itemPityCounter || 0) * 2.5))}%`
     ].filter(Boolean);
 
     return premiumFrame('🌑 NOCTRA RPG', lines.join('\n'));
