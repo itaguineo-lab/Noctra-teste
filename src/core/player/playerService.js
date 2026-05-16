@@ -17,6 +17,10 @@ const { BALANCE } = require('../../data/balance');
 
 let isConnected = false;
 
+// Cache simples em memória para reduzir leituras no MongoDB
+const playerCache = new Map();
+const CACHE_TTL = 5 * 1000; // 5 segundos de cache
+
 const PLAYER_LIST_PROJECTION = {
     id: 1,
     name: 1,
@@ -464,6 +468,13 @@ GET / SAVE
 
 async function getPlayer(id) {
     const safeId = String(id);
+    
+    // Tenta pegar do cache
+    const cached = playerCache.get(safeId);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        return cached.data;
+    }
+
     const player = await findPlayerByTelegramId(safeId);
     if (!player) return null;
 
@@ -474,6 +485,12 @@ async function getPlayer(id) {
     ensurePlayerState(player);
     updateEnergy(player);
     recalculateStats(player);
+
+    // Salva no cache
+    playerCache.set(safeId, {
+        data: player,
+        timestamp: Date.now()
+    });
 
     return player;
 }
@@ -510,11 +527,19 @@ async function savePlayer(id, playerData) {
         ? { _id: existing._id }
         : { id: safeId };
 
-    await Player.findOneAndUpdate(
+    const updated = await Player.findOneAndUpdate(
         filter,
         sanitized,
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    // Invalida/Atualiza cache após salvar
+    if (updated) {
+        playerCache.set(safeId, {
+            data: updated,
+            timestamp: Date.now()
+        });
+    }
 }
 
 /*

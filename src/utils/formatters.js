@@ -17,7 +17,7 @@ function getEffectiveProgressBarSize(size, fullChar, emptyChar) {
 function progressBar(
     current,
     max,
-    size = 6,
+    size = 8, // Aumentado o padrão para melhor visibilidade
     fullChar = '🟩',
     emptyChar = '⬛'
 ) {
