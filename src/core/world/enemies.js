@@ -14,10 +14,13 @@ const ENEMY_ABILITIES = {
     POISON: {
         name: 'Veneno',
         emoji: '🧪',
-        apply: (enemy, fight) => {
-            if (!fight.enemy.poisonTurns) fight.enemy.poisonTurns = 0;
-            fight.enemy.poisonTurns += 2;
-            fight.logs.push(`🧪 ${enemy.name} foi envenenado`);
+        apply: (target, fight) => {
+            // Se o alvo for o inimigo (ex: player usou algo), target é fight.enemy
+            // Se o alvo for o player (ex: inimigo usou), target é fight.player
+            if (!target.poisonTurns) target.poisonTurns = 0;
+            target.poisonTurns += 2;
+            const targetName = target.id === fight.player.id ? 'Você' : target.name;
+            fight.logs.push(`🧪 ${targetName} foi envenenado`);
         },
         tick: (enemy, fight) => {
             if (enemy.poisonTurns > 0) {
@@ -32,10 +35,11 @@ const ENEMY_ABILITIES = {
     BLEED: {
         name: 'Sangramento',
         emoji: '🩸',
-        apply: (enemy, fight) => {
-            if (!fight.enemy.bleedTurns) fight.enemy.bleedTurns = 0;
-            fight.enemy.bleedTurns += 2;
-            fight.logs.push(`🩸 ${enemy.name} está sangrando`);
+        apply: (target, fight) => {
+            if (!target.bleedTurns) target.bleedTurns = 0;
+            target.bleedTurns += 2;
+            const targetName = target.id === fight.player.id ? 'Você' : target.name;
+            fight.logs.push(`🩸 ${targetName} está sangrando`);
         },
         tick: (enemy, fight) => {
             if (enemy.bleedTurns > 0) {
@@ -168,7 +172,7 @@ const enemyPools = {
                 id: 'skeleton_warrior',
                 name: 'Esqueleto Guerreiro',
                 emoji: '💀',
-                hp: 92, atk: 14, def: 7, crit: 6,
+                hp: 82, atk: 13, def: 7, crit: 6, // HP 92->82, ATK 14->13
                 xp: 45, gold: 30,
                 ability: null
             },
@@ -176,7 +180,7 @@ const enemyPools = {
                 id: 'restless_spirit',
                 name: 'Espírito Inquieto',
                 emoji: '👻',
-                hp: 74, atk: 16, def: 4, crit: 10,
+                hp: 68, atk: 15, def: 4, crit: 10, // HP 74->68, ATK 16->15
                 xp: 50, gold: 28,
                 ability: { type: 'STUN', chance: 0.18 }
             },
@@ -184,7 +188,7 @@ const enemyPools = {
                 id: 'crypt_bat',
                 name: 'Morcego da Cripta',
                 emoji: '🦇',
-                hp: 84, atk: 15, def: 5, crit: 8,
+                hp: 76, atk: 14, def: 5, crit: 8, // HP 84->76, ATK 15->14
                 xp: 48, gold: 32,
                 ability: { type: 'BLEED', chance: 0.18 }
             }

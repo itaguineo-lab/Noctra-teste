@@ -118,7 +118,23 @@ function buildSoulsText(player) {
 
     return souls.map((soul, index) => {
         if (!soul) return `⬜ Slot ${index + 1} vazio`;
-        return `${getRarityEmoji(soul.rarity)} ${soul.name} • ${soul.rarity}`;
+        
+        const bonuses = [];
+        if (soul.effect?.type === 'passive') {
+            if (soul.effect.atkBonus) bonuses.push(`⚔️+${soul.effect.atkBonus}`);
+            if (soul.effect.defBonus) bonuses.push(`🛡️+${soul.effect.defBonus}`);
+            if (soul.effect.hpBonus) bonuses.push(`❤️+${soul.effect.hpBonus}`);
+            if (soul.effect.critBonus) bonuses.push(`💥+${soul.effect.critBonus}%`);
+        } else if (soul.effect?.type === 'damage') {
+            bonuses.push(`💥 Ativa (Dano)`);
+        } else if (soul.effect?.type === 'heal') {
+            bonuses.push(`💚 Ativa (Cura)`);
+        } else if (soul.effect?.type === 'lifesteal') {
+            bonuses.push(`🧛 Ativa (Lifesteal)`);
+        }
+
+        const bonusText = bonuses.length > 0 ? `\n   Bônus: ${bonuses.join(' • ')}` : '';
+        return `${getRarityEmoji(soul.rarity)} ${soul.name} • ${soul.rarity}${bonusText}`;
     }).join('\n');
 }
 

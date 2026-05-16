@@ -162,19 +162,11 @@ function applyDamageOverTime(target, fight, config) {
 
 function applyEnemyStatusToPlayer(fight, type) {
     ensureFightShape(fight);
-
-    if (type === 'POISON') {
-        fight.player.poisonTurns += 2;
-        fight.logs.push(`🧪 ${fight.enemy.name} envenenou você`);
+    const abilityDef = ENEMY_ABILITIES[type];
+    if (abilityDef) {
+        abilityDef.apply(fight.player, fight);
         return true;
     }
-
-    if (type === 'BLEED') {
-        fight.player.bleedTurns += 2;
-        fight.logs.push(`🩸 ${fight.enemy.name} abriu sangramento em você`);
-        return true;
-    }
-
     return false;
 }
 

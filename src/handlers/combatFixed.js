@@ -344,18 +344,21 @@ function shouldSkipEnemyTurnForConsumable(key) {
 
 async function savePlayerBattleState(userId, player, fight, meta = {}) {
     syncPlayerFromFight(player, fight);
-    preventStaleActiveFightOverwrite(player);
+    
+    // Otimização: Em vez de anular o activeFight no player para depois salvar a luta separadamente,
+    // vamos garantir que o player.activeFight contenha o estado atualizado da luta ANTES do savePlayer.
+    // Isso reduz de 2 para 1 o número de escritas no MongoDB por turno de consumível/finalização.
+    player.activeFight = {
+        mode: meta.mode || 'hunt',
+        createdAt: meta.createdAt || Date.now(),
+        expiresAt: Date.now() + (10 * 60 * 1000), // Timeout padrão
+        battleMessageId: meta.battleMessageId ?? null,
+        isPhoto: meta.isPhoto ?? false,
+        payload: fight
+    };
+
     normalizePlayerForSave(player);
     await savePlayer(userId, player);
-
-    /*
-    Defesa crítica:
-    savePlayer preserva estados transitórios, mas pode restaurar um activeFight
-    antigo dependendo da ordem de leitura/escrita. Depois de salvar HP/energia e
-    consumível, regravamos explicitamente a luta recém-atualizada. Isso garante
-    que o próximo clique em Atacar carregue o activeFight correto.
-    */
-    await persistFightState(userId, fight, meta);
 }
 
 function getEnemyBadge(enemy) {

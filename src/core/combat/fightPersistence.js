@@ -37,6 +37,10 @@ async function loadFightRecordDoc(userId) {
 
 async function saveFightRecord(userId, record) {
     const collection = await getPlayerCollection();
+    
+    // Otimização Crítica: Usamos dot notation para atualizar apenas o campo activeFight.
+    // Isso evita que o MongoDB tenha que lidar com o documento inteiro do player (inventário, etc)
+    // se estivéssemos fazendo um save() do Mongoose. Como usamos updateOne direto, já é atômico.
     await collection.updateOne(
         { id: String(userId) },
         {

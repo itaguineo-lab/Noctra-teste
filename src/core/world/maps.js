@@ -35,7 +35,7 @@ const maps = [
         description: 'Os mortos caminham novamente entre pedras antigas.',
         emoji: '⚰️',
         dungeonName: 'Catacumbas Perdidas',
-        recommendedPower: 42,
+        recommendedPower: 32, // Reduzido de 42 para 32 para suavizar a transição do Mapa 1
         theme: 'morte e ecos',
         lootTier: 2
     },
