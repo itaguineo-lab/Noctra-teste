@@ -687,6 +687,29 @@ function scaleEnemyForPlayer(baseEnemy, playerLevel = 1, mapId = 'clareira_sombr
     return enemy;
 }
 
+function applyOnboardingScaling(enemy, playerLevel = 1, mapId = 'clareira_sombria') {
+    const level = Number(playerLevel) || 1;
+
+    if (mapId !== 'clareira_sombria') return enemy;
+    if (level < 1 || level > 3) return enemy;
+    if (enemy.isElite || enemy.isMiniBoss || enemy.isBoss) return enemy;
+
+    const factorsByLevel = {
+        1: { hp: 0.72, atk: 0.75, def: 0.80 },
+        2: { hp: 0.82, atk: 0.85, def: 0.90 },
+        3: { hp: 0.92, atk: 0.92, def: 0.95 }
+    };
+
+    const factors = factorsByLevel[level];
+    if (!factors) return enemy;
+
+    enemy.hp = Math.max(1, Math.round(enemy.hp * factors.hp));
+    enemy.atk = Math.max(1, Math.round(enemy.atk * factors.atk));
+    enemy.def = Math.max(0, Math.round(enemy.def * factors.def));
+
+    return enemy;
+}
+
 // ================================================
 // SPAWN INTELIGENTE
 // ================================================
@@ -712,6 +735,8 @@ function getRandomEnemy(mapId, playerLevel = 1, dangerLevel = 0) {
     if (tier === 'miniboss') cloned.isMiniBoss = true;
     if (tier === 'boss') cloned.isBoss = true;
 
+    applyOnboardingScaling(cloned, playerLevel, mapId);
+
     return cloned;
 }
 
@@ -729,5 +754,9 @@ module.exports = {
     enemyPools,
     getRandomEnemy,
     getEnemyById,
-    ENEMY_ABILITIES
+    ENEMY_ABILITIES,
+    _internals: {
+        scaleEnemyForPlayer,
+        applyOnboardingScaling
+    }
 };
