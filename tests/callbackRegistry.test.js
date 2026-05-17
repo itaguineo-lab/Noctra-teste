@@ -14,7 +14,7 @@ test('callbacks críticos de combate permanecem registrados', () => {
     expectContains("bindAction('combat_attack'", 'combat_attack');
     expectContains("bindAction('combat_defend'", 'combat_defend');
     expectContains("bindAction('combat_soul_menu'", 'combat_soul_menu');
-    expectContains('bindAction(/combat_soul_([01])/', 'combat_soul_[01]');
+    expectContains('bindAction(/^combat_soul_([01])$/', 'combat_soul_[01]');
     expectContains("bindAction('combat_consumables'", 'combat_consumables');
     expectContains('bindAction(/^combat_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/', 'combat_use:*');
     expectContains('bindAction(/^combat_loot:(.+)$/', 'combat_loot:*');
