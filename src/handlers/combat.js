@@ -628,18 +628,17 @@ async function handleHunt(ctx) {
         return;
     }
 
-    if (!consumeEnergy(player, BALANCE.energy.huntCost)) {
-        await ctx.answerCbQuery('⚡ Sem energia.', {
-            show_alert: false
+    const enemy = getRandomEnemy(player.currentMap, player.level);
+    if (!enemy) {
+        await ctx.answerCbQuery('❌ Nenhum inimigo disponível neste mapa.', {
+            show_alert: true
         }).catch(() => {});
         return;
     }
 
-    const enemy = getRandomEnemy(player.currentMap, player.level);
-    if (!enemy) {
-        player.energy = Math.min(player.maxEnergy, player.energy + BALANCE.energy.huntCost);
-        await ctx.answerCbQuery('❌ Nenhum inimigo disponível neste mapa.', {
-            show_alert: true
+    if (!consumeEnergy(player, BALANCE.energy.huntCost)) {
+        await ctx.answerCbQuery('⚡ Sem energia.', {
+            show_alert: false
         }).catch(() => {});
         return;
     }
