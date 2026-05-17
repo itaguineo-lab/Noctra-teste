@@ -75,13 +75,16 @@ function sanitizeSingleItem(item, slotHint = null) {
 }
 
 function preserveTransientStates(existing, incoming) {
-    const result = deepClone(incoming) || {};
+    const source = (incoming && typeof incoming === 'object') ? incoming : {};
+    const result = deepClone(source) || {};
 
-    if (existing?.activeFight && !result.activeFight) {
+    const hasActiveFight = Object.prototype.hasOwnProperty.call(source, 'activeFight');
+    if (existing?.activeFight && !hasActiveFight) {
         result.activeFight = deepClone(existing.activeFight);
     }
 
-    if (existing?.activeArenaBattle && !result.activeArenaBattle) {
+    const hasActiveArenaBattle = Object.prototype.hasOwnProperty.call(source, 'activeArenaBattle');
+    if (existing?.activeArenaBattle && !hasActiveArenaBattle) {
         result.activeArenaBattle = deepClone(existing.activeArenaBattle);
     }
 
