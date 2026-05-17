@@ -25,6 +25,10 @@ function shouldFallbackToReply(error) {
     );
 }
 
+function isValidMedia(media) {
+    return typeof media === 'string' && media.trim().length > 0;
+}
+
 async function tryDeleteCurrentMessage(ctx) {
     try {
         if (ctx.callbackQuery?.message?.message_id) {
@@ -128,9 +132,10 @@ async function navigatePhoto(ctx, media, caption, options = {}) {
 }
 
 async function navigateScreen(ctx, { text = '', media = null, options = {} }) {
-    if (media) {
+    if (isValidMedia(media)) {
         return navigatePhoto(ctx, media, text, options);
     }
+
     return navigateText(ctx, text, options);
 }
 
@@ -139,5 +144,8 @@ module.exports = {
     navigateText,
     navigatePhoto,
     navigateScreen,
-    tryDeleteCurrentMessage
+    tryDeleteCurrentMessage,
+    _internals: {
+        isValidMedia
+    }
 };
