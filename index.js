@@ -670,7 +670,7 @@ COMBAT ACTIONS
 function registerCombatActions() {
     bindAction('combat_attack', combat.handleAttack);
     bindAction('combat_defend', combat.handleDefend);
-    bindAction(/combat_soul_([01])/, combat.handleSoul);
+    bindAction(/^combat_soul_([01])$/, combat.handleSoul);
     bindAction('combat_soul_menu', combat.handleSoulMenu);
     bindAction('combat_consumables', combat.handleConsumables);
     bindAction(/^combat_use:(potionHp|potionEnergy|tonicStrength|tonicDefense)$/, combat.handleUseConsumable);
