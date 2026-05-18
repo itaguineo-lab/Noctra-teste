@@ -5,6 +5,7 @@ const combatFixed = require('../src/handlers/combatFixed');
 
 const {
     resolveDroppedLootItem,
+    resolveDroppedLootAction,
     getLatestInventoryItem,
     findItemByRawIdentity
 } = combatFixed.__private;
@@ -48,7 +49,7 @@ test('getLatestInventoryItem retorna o último item válido do inventário', () 
     assert.equal(getLatestInventoryItem(player).name, 'Arco Novo');
 });
 
-test('resolveDroppedLootItem usa fallback para último item quando a chave do botão não bate', () => {
+test('resolveDroppedLootItem retorna null quando a chave do botão não bate', () => {
     const player = {
         inventory: [
             item('Espada Antiga', 'drop_111'),
@@ -65,6 +66,47 @@ test('resolveDroppedLootItem usa fallback para último item quando a chave do bo
     };
 
     const resolved = resolveDroppedLootItem(player, 'drop_999_inexistente');
+
+    assert.equal(resolved, null);
+});
+
+test('resolveDroppedLootAction bloqueia latest para visualização sem cair no último item', () => {
+    const player = {
+        inventory: [
+            item('Espada Antiga', 'drop_111'),
+            item('Arco Novo', 'drop_222')
+        ]
+    };
+
+    const resolved = resolveDroppedLootAction(player, 'latest', 'view');
+
+    assert.equal(resolved.item, null);
+    assert.equal(resolved.error, 'Esse item não pôde ser identificado. Abra o inventário.');
+});
+
+test('resolveDroppedLootAction bloqueia latest para equipar sem cair no último item', () => {
+    const player = {
+        inventory: [
+            item('Espada Antiga', 'drop_111'),
+            item('Arco Novo', 'drop_222')
+        ]
+    };
+
+    const resolved = resolveDroppedLootAction(player, 'latest', 'equip');
+
+    assert.equal(resolved.item, null);
+    assert.equal(resolved.error, 'Esse item não pôde ser identificado. Abra o inventário para equipar.');
+});
+
+test('resolveDroppedLootItem mantém lookup por token válido', () => {
+    const player = {
+        inventory: [
+            item('Espada Antiga', 'drop_111'),
+            item('Arco Novo', 'drop_222')
+        ]
+    };
+
+    const resolved = resolveDroppedLootItem(player, 'drop_222');
 
     assert.equal(resolved.name, 'Arco Novo');
 });
