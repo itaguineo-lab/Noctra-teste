@@ -224,7 +224,23 @@ function resolveDroppedLootItem(player, itemKey) {
     const rawMatch = findItemByRawIdentity(player, itemKey);
     if (rawMatch) return rawMatch;
 
-    return getLatestInventoryItem(player);
+    return null;
+}
+
+function resolveDroppedLootAction(player, itemKey, action = 'view') {
+    if (itemKey === 'latest') {
+        return {
+            item: null,
+            error: action === 'equip'
+                ? 'Esse item não pôde ser identificado. Abra o inventário para equipar.'
+                : 'Esse item não pôde ser identificado. Abra o inventário.'
+        };
+    }
+
+    return {
+        item: resolveDroppedLootItem(player, itemKey),
+        error: null
+    };
 }
 
 function buildStatsText(item = {}) {
@@ -711,9 +727,12 @@ async function handleViewDroppedLoot(ctx) {
         return ctx.answerCbQuery('Item não encontrado.', { show_alert: true }).catch(() => {});
     }
 
-    const item = itemKey === 'latest'
-        ? getLatestInventoryItem(player)
-        : resolveDroppedLootItem(player, itemKey);
+    const resolved = resolveDroppedLootAction(player, itemKey, 'view');
+    if (resolved.error) {
+        return ctx.answerCbQuery(resolved.error, { show_alert: true }).catch(() => {});
+    }
+
+    const item = resolved.item;
     const normalizedItem = normalizeInventoryItem(item);
 
     if (!normalizedItem) {
@@ -739,9 +758,12 @@ async function handleEquipDroppedLoot(ctx) {
         return ctx.answerCbQuery('Item não encontrado.', { show_alert: true }).catch(() => {});
     }
 
-    const item = itemKey === 'latest'
-        ? getLatestInventoryItem(player)
-        : resolveDroppedLootItem(player, itemKey);
+    const resolved = resolveDroppedLootAction(player, itemKey, 'equip');
+    if (resolved.error) {
+        return ctx.answerCbQuery(resolved.error, { show_alert: true }).catch(() => {});
+    }
+
+    const item = resolved.item;
     const normalizedItem = normalizeInventoryItem(item);
 
     if (!normalizedItem) {
@@ -859,6 +881,7 @@ module.exports = {
 
     __private: {
         resolveDroppedLootItem,
+        resolveDroppedLootAction,
         getLatestInventoryItem,
         findItemByRawIdentity,
         buildSafeLootDetail,
