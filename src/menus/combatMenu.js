@@ -93,6 +93,20 @@ function soulChoiceMenu(fight = null) {
 
 function postCombatMenu(options = {}) {
     const rows = [];
+    const isLoss = Boolean(options.isLoss);
+
+    if (isLoss) {
+        rows.push([
+            Markup.button.callback('⚡ Recuperar', 'energy'),
+            Markup.button.callback('🎒 Inventário', 'inventory')
+        ]);
+
+        rows.push([
+            Markup.button.callback('🏠 Menu', 'menu')
+        ]);
+
+        return Markup.inlineKeyboard(rows);
+    }
 
     // Otimização "Modo Rápido": Botão de caçar novamente em destaque no topo
     rows.push([

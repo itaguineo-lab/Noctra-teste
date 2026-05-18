@@ -609,8 +609,10 @@ function buildLossMessageSafe(player, penalty) {
     }
 
     msg += (
-        `\n❤️ HP restaurado para ${player.hp}/${player.maxHp}\n` +
+        `\n❤️ Você sobreviveu com 1 HP (${player.hp}/${player.maxHp})\n` +
         `⚡ Energia: ${player.energy}/${player.maxEnergy}\n\n` +
+        `💡 Próximo passo: recupere HP, use consumível no inventário ou volte ao menu.\n` +
+        `⚔️ Caçe novamente quando estiver pronto.\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
         `🌑 Reúna forças e tente novamente.`
     );
@@ -661,7 +663,7 @@ async function finishFightWithSoulDropDisplay(ctx, stored) {
             ctx,
             meta,
             buildLossMessageSafe(player, penalty),
-            postCombatMenu()
+            postCombatMenu({ isLoss: true })
         );
     }
 
