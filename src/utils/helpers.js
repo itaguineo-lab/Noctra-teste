@@ -157,6 +157,9 @@ function buildMainMenuText(player, username) {
         `💰 ${formatNumber(player.gold)}   💎 ${formatNumber(player.nox)}   🗝️ ${formatNumber(player.keys || 0)}`,
         `🗺️ ${location.emoji} ${location.name}`,
         '',
+        '🎯 Próximo passo',
+        'Caçar para ganhar XP, ouro e possíveis equipamentos.',
+        '',
         `🍀 Sorte: ${Math.min(100, Math.floor((player.itemPityCounter || 0) * 2.5))}%`
     ].filter(Boolean);
 
