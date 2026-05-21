@@ -212,11 +212,31 @@ function getSlotMeta(slot) {
         return { category: 'weapon', uiCategory: 'weapons', displayCategory: 'Arma' };
     }
 
-    if (slot === 'ring' || slot === 'necklace') {
-        return { category: 'jewelry', uiCategory: 'jewels', displayCategory: 'Joia' };
+    if (slot === 'shield') {
+        return { category: 'armor', uiCategory: 'offhands', displayCategory: 'Mão Secundária' };
     }
 
-    return { category: 'armor', uiCategory: 'armors', displayCategory: 'Armadura' };
+    if (slot === 'armor') {
+        return { category: 'armor', uiCategory: 'armors', displayCategory: 'Armadura' };
+    }
+
+    if (slot === 'boots') {
+        return { category: 'armor', uiCategory: 'boots', displayCategory: 'Botas' };
+    }
+
+    if (slot === 'ring') {
+        return { category: 'jewelry', uiCategory: 'rings', displayCategory: 'Anel' };
+    }
+
+    if (slot === 'necklace') {
+        return { category: 'jewelry', uiCategory: 'necklaces', displayCategory: 'Colar' };
+    }
+
+    return {
+        category: 'armor',
+        uiCategory: String(slot || '').startsWith('shield') ? 'offhands' : 'armors',
+        displayCategory: String(slot || '').startsWith('shield') ? 'Mão Secundária' : 'Armadura'
+    };
 }
 
 function getFallbackNameForSlot(slot) {
