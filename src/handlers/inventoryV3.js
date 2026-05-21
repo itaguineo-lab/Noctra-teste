@@ -516,6 +516,7 @@ async function renderEnhancedItemDetail(ctx, rawCategory, page, pageIndex) {
     }
 
     const slot = getRealSlot(item);
+    const equippedItem = player?.equipment?.[slot] || null;
     const comparison = getComparisonData(item, player, slot);
 
     const rows = [];
@@ -550,6 +551,7 @@ async function renderEnhancedItemDetail(ctx, rawCategory, page, pageIndex) {
         buildRuleText: getBuildRuleText(item),
         comparisonStatus: comparison.status,
         comparisonDetail: comparison.detail,
+        equippedItem,
         isEquipped: Boolean(item.__equipped)
     });
 

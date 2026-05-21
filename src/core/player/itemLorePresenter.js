@@ -82,6 +82,35 @@ function buildLoreBlock(item = {}) {
     return lines.length ? lines.join('\n') : null;
 }
 
+function formatDelta(value, { isPercent = false } = {}) {
+    const n = safeNumber(value);
+    if (n > 0) return `+${n}${isPercent ? '%' : ''}`;
+    if (n < 0) return `${n}${isPercent ? '%' : ''}`;
+    return isPercent ? '0%' : '0';
+}
+
+function buildAttributeComparisonBlock(item = {}, equippedItem = null, { isEquipped = false } = {}) {
+    if (isEquipped) return 'Este item já está equipado.';
+    if (!equippedItem) return 'Slot vazio. Este item será equipado direto.';
+
+    const currentAtk = safeNumber(equippedItem.atk);
+    const currentDef = safeNumber(equippedItem.def);
+    const currentHp = safeNumber(equippedItem.hp);
+    const currentCrit = safeNumber(equippedItem.crit);
+
+    const nextAtk = safeNumber(item.atk);
+    const nextDef = safeNumber(item.def);
+    const nextHp = safeNumber(item.hp);
+    const nextCrit = safeNumber(item.crit);
+
+    return [
+        `⚔️ ATK: ${currentAtk} → ${nextAtk} (${formatDelta(nextAtk - currentAtk)})`,
+        `🛡️ DEF: ${currentDef} → ${nextDef} (${formatDelta(nextDef - currentDef)})`,
+        `❤️ HP: ${currentHp} → ${nextHp} (${formatDelta(nextHp - currentHp)})`,
+        `💥 CRIT: ${currentCrit}% → ${nextCrit}% (${formatDelta(nextCrit - currentCrit, { isPercent: true })})`
+    ].join('\n');
+}
+
 function buildEnhancedItemDetailText({
     item,
     slotLabel,
@@ -89,6 +118,7 @@ function buildEnhancedItemDetailText({
     buildRuleText,
     comparisonStatus,
     comparisonDetail,
+    equippedItem = null,
     isEquipped = false
 }) {
     const rarityEmoji = getRarityEmoji(item.rarity);
@@ -106,6 +136,7 @@ function buildEnhancedItemDetailText({
     }
 
     text += `*Atributos*\n${escapeMarkdown(buildVerticalStats(item))}\n\n`;
+    text += `*Comparação por atributo*\n${escapeMarkdown(buildAttributeComparisonBlock(item, equippedItem, { isEquipped }))}\n\n`;
     text += `*Poder:* ${calcItemPower(item)}${item.powerTier ? ` • ${escapeMarkdown(item.powerTier)}` : ''}\n`;
     text += `*Comparação:* ${escapeMarkdown(comparisonStatus || 'Sem comparação')}\n`;
     text += `${escapeMarkdown(comparisonDetail || 'Nenhum item equipado neste slot.')}\n\n`;
@@ -118,5 +149,6 @@ module.exports = {
     escapeMarkdown,
     calcItemPower,
     buildLoreBlock,
+    buildAttributeComparisonBlock,
     buildEnhancedItemDetailText
 };
